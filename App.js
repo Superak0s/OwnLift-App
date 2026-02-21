@@ -453,7 +453,7 @@ export default function App() {
     async function checkForUpdate() {
       try {
         const response = await fetch(
-          "https://api.github.com/repos/Superak0s/SuperGym/releases/latest",
+          "https://api.github.com/repos/Superak0s/SuperGym-App/releases/latest",
         )
         const release = await response.json()
 
