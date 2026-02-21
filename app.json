@@ -1,0 +1,90 @@
+{
+  "expo": {
+    "name": "SuperGym",
+    "slug": "supergym",
+    "version": "1.0.3",
+    "orientation": "portrait",
+    "icon": "./assets/adaptive-icon.png",
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location for creatine reminders.",
+          "locationAlwaysPermission": "Allow $(PRODUCT_NAME) to use your location in the background for location-based reminders.",
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location for setting reminder locations.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#667eea",
+          "androidMode": "default",
+          "androidCollapsedTitle": "Creatine Reminder"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos for progress tracking",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for progress photos"
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/adaptive-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#667eea"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.supergym.app"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
+    "android": {
+      "cmakeVersion": "3.31.6",
+      "cmake": {
+        "arguments": [
+          "-DCMAKE_OBJECT_PATH_MAX=1024"
+        ]
+      },
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#667eea"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "WAKE_LOCK",
+        "INTERNET"
+      ],
+      "package": "com.supergym.app"
+    },
+    "web": {
+      "favicon": "./assets/adaptive-icon.png"
+    },
+    "owner": "superak0s",
+    "extra": {
+      "eas": {
+        "projectId": "f5f558e0-191a-4125-964c-8dd1681007cc"
+      }
+    }
+  }
+}
