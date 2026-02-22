@@ -36,20 +36,6 @@ export const BATTERY_PRESETS = {
   },
 }
 
-try {
-  if (Notifications && Notifications.setNotificationHandler) {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
-    })
-  }
-} catch (error) {
-  console.log("Notifications not available in Expo Go:", error.message)
-}
-
 // Helper to write debug logs to AsyncStorage for viewing
 const writeDebugLog = async (message) => {
   try {

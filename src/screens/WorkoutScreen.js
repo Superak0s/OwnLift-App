@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   TextInput,
 } from "react-native"
 import { useWorkout } from "../context/WorkoutContext"
@@ -18,6 +17,7 @@ import {
   getCanonicalName,
 } from "../utils/exerciseMatching"
 import ModalSheet from "../components/ModalSheet"
+import { useAlert } from "../components/CustomAlert"
 
 export default function WorkoutScreen() {
   const {
@@ -45,6 +45,8 @@ export default function WorkoutScreen() {
     getCurrentRestTime,
     getSessionStats,
   } = useWorkout()
+
+  const { alert, AlertComponent } = useAlert()
 
   const [showSetModal, setShowSetModal] = useState(false)
   const [selectedSet, setSelectedSet] = useState(null)
@@ -194,10 +196,11 @@ export default function WorkoutScreen() {
         const INACTIVITY_TIMEOUT = 30 * 60 * 1000
 
         if (timeSinceLastActivity >= INACTIVITY_TIMEOUT) {
-          Alert.alert(
+          alert(
             "Session Auto-Completed",
             "Your workout session was automatically completed due to 30 minutes of inactivity. The day has been locked.",
             [{ text: "OK" }],
+            "info",
           )
         }
       }
@@ -292,16 +295,16 @@ export default function WorkoutScreen() {
 
   const handleSetPress = (exerciseIndex, setIndex) => {
     if (isCurrentDayLocked) {
-      Alert.alert(
+      alert(
         "Day Locked",
         "This day has been completed and is now locked. You can view the details but cannot make changes. Please select a different day to continue your workout.",
         [{ text: "OK" }],
+        "lock",
       )
       return
     }
 
     const existingDetails = getSetDetails(currentDay, exerciseIndex, setIndex)
-    const exercise = dayWorkout.exercises[exerciseIndex]
 
     if (existingDetails) {
       let detailsMessage = `Weight: ${existingDetails.weight || 0} kg\nReps: ${existingDetails.reps || 0}`
@@ -314,26 +317,32 @@ export default function WorkoutScreen() {
         detailsMessage += `\n\nNote: ${existingDetails.note}`
       }
 
-      Alert.alert("Set Completed", detailsMessage, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Edit",
-          onPress: () => {
-            setSelectedSet({ exerciseIndex, setIndex })
-            setWeight(existingDetails.weight?.toString() || "")
-            setReps(existingDetails.reps?.toString() || "")
-            setSetNote(existingDetails.note || "")
-            setIsWarmupSet(existingDetails.isWarmup || false)
-            setAssistedWeight("")
-            setShowSetModal(true)
+      alert(
+        "Set Completed",
+        detailsMessage,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Edit",
+            onPress: () => {
+              setSelectedSet({ exerciseIndex, setIndex })
+              setWeight(existingDetails.weight?.toString() || "")
+              setReps(existingDetails.reps?.toString() || "")
+              setSetNote(existingDetails.note || "")
+              setIsWarmupSet(existingDetails.isWarmup || false)
+              setAssistedWeight("")
+              setShowSetModal(true)
+            },
           },
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteSetDetails(currentDay, exerciseIndex, setIndex),
-        },
-      ])
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () =>
+              deleteSetDetails(currentDay, exerciseIndex, setIndex),
+          },
+        ],
+        "info",
+      )
     } else {
       setSelectedSet({ exerciseIndex, setIndex })
       setWeight("")
@@ -351,10 +360,11 @@ export default function WorkoutScreen() {
     const repsValue = parseInt(reps) || 0
 
     if (weightValue === 0 || repsValue === 0) {
-      Alert.alert(
+      alert(
         "Invalid Set",
         "Please enter a weight and reps greater than 0 before saving.",
         [{ text: "OK" }],
+        "error",
       )
       return
     }
@@ -380,7 +390,12 @@ export default function WorkoutScreen() {
 
   const handleEditExerciseName = (exerciseIndex) => {
     if (isCurrentDayLocked) {
-      Alert.alert("Day Locked", "Cannot edit exercises on a locked day.")
+      alert(
+        "Day Locked",
+        "Cannot edit exercises on a locked day.",
+        [{ text: "OK" }],
+        "lock",
+      )
       return
     }
 
@@ -402,7 +417,7 @@ export default function WorkoutScreen() {
 
   const handleSaveExerciseName = () => {
     if (!editingExercise || !newExerciseName.trim()) {
-      Alert.alert("Error", "Exercise name cannot be empty")
+      alert("Error", "Exercise name cannot be empty", [{ text: "OK" }], "error")
       return
     }
 
@@ -418,20 +433,22 @@ export default function WorkoutScreen() {
         typoCheck.exactMatch,
         trimmedMuscleGroup,
       )
-      Alert.alert(
+      alert(
         "Exercise Matched! 🎯",
         `This exercise matches "${typoCheck.exactMatch}". Historical data will be loaded automatically.`,
         [{ text: "Great!" }],
+        "success",
       )
       closeEditModal()
     } else if (typoCheck.isLikelyTypo && typoCheck.suggestions.length > 0) {
       const topSuggestion = typoCheck.suggestions[0]
-      Alert.alert(
+      alert(
         "Did you mean?",
         `The exercise name "${trimmedName}" is similar to "${topSuggestion.name}". Would you like to use that instead? This will load historical data for that exercise.`,
         [
           {
             text: "Use Original",
+            style: "cancel",
             onPress: () => {
               updateExerciseName(
                 currentDay,
@@ -455,9 +472,9 @@ export default function WorkoutScreen() {
               )
               closeEditModal()
             },
-            style: "default",
           },
         ],
+        "warning",
       )
       return
     } else {
@@ -474,7 +491,12 @@ export default function WorkoutScreen() {
 
   const handleQuickAddSet = (exerciseIndex) => {
     if (isCurrentDayLocked) {
-      Alert.alert("Day Locked", "Cannot add sets to a locked day.")
+      alert(
+        "Day Locked",
+        "Cannot add sets to a locked day.",
+        [{ text: "OK" }],
+        "lock",
+      )
       return
     }
 
@@ -483,7 +505,12 @@ export default function WorkoutScreen() {
 
   const handleAddMultipleSets = (exerciseIndex) => {
     if (isCurrentDayLocked) {
-      Alert.alert("Day Locked", "Cannot add sets to a locked day.")
+      alert(
+        "Day Locked",
+        "Cannot add sets to a locked day.",
+        [{ text: "OK" }],
+        "lock",
+      )
       return
     }
 
@@ -498,7 +525,12 @@ export default function WorkoutScreen() {
 
     const sets = parseInt(additionalSets)
     if (isNaN(sets) || sets < 1) {
-      Alert.alert("Error", "Please enter a valid number of sets (minimum 1)")
+      alert(
+        "Error",
+        "Please enter a valid number of sets (minimum 1)",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
@@ -516,7 +548,12 @@ export default function WorkoutScreen() {
 
   const handleAddNewExercise = () => {
     if (isCurrentDayLocked) {
-      Alert.alert("Day Locked", "Cannot add exercises to a locked day.")
+      alert(
+        "Day Locked",
+        "Cannot add exercises to a locked day.",
+        [{ text: "OK" }],
+        "lock",
+      )
       return
     }
 
@@ -535,13 +572,18 @@ export default function WorkoutScreen() {
     const { name, muscleGroup, sets } = newExercise
 
     if (!name.trim()) {
-      Alert.alert("Error", "Exercise name is required")
+      alert("Error", "Exercise name is required", [{ text: "OK" }], "error")
       return
     }
 
     const setsNum = parseInt(sets)
     if (isNaN(setsNum) || setsNum < 1) {
-      Alert.alert("Error", "Please enter a valid number of sets (minimum 1)")
+      alert(
+        "Error",
+        "Please enter a valid number of sets (minimum 1)",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
@@ -555,10 +597,11 @@ export default function WorkoutScreen() {
         muscleGroup: trimmedMuscleGroup,
         sets: setsNum,
       })
-      Alert.alert(
+      alert(
         "Exercise Matched! 🎯",
         `This exercise matches "${typoCheck.exactMatch}". Historical data will be loaded automatically.`,
         [{ text: "Great!" }],
+        "success",
       )
       closeAddExerciseModal()
       return
@@ -566,12 +609,13 @@ export default function WorkoutScreen() {
 
     if (typoCheck.isLikelyTypo && typoCheck.suggestions.length > 0) {
       const topSuggestion = typoCheck.suggestions[0]
-      Alert.alert(
+      alert(
         "Did you mean?",
         `The exercise name "${trimmedName}" is similar to "${topSuggestion.name}". Would you like to use that instead? This will load historical data for that exercise.`,
         [
           {
             text: "Use Original",
+            style: "cancel",
             onPress: () => {
               addNewExercise(currentDay, selectedPerson, {
                 name: trimmedName,
@@ -591,9 +635,9 @@ export default function WorkoutScreen() {
               })
               closeAddExerciseModal()
             },
-            style: "default",
           },
         ],
+        "warning",
       )
       return
     }
@@ -628,10 +672,11 @@ export default function WorkoutScreen() {
 
   const handleCompleteWorkout = () => {
     if (isCurrentDayLocked) {
-      Alert.alert(
+      alert(
         "Day Already Locked",
         "This day has already been completed and locked.",
         [{ text: "OK" }],
+        "lock",
       )
       return
     }
@@ -644,22 +689,28 @@ export default function WorkoutScreen() {
       ? "Are you sure you want to finish this workout session? You've completed all sets!"
       : `You've completed ${completedSetsCount} out of ${totalSetsCount} sets. Are you sure you want to end this workout session? This day will be locked and you won't be able to add more sets.`
 
-    Alert.alert("Complete Workout?", message, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Complete & Lock",
-        onPress: async () => {
-          const wasAutoCompleted = await endWorkout()
-          if (!wasAutoCompleted) {
-            Alert.alert(
-              "Workout Completed! 💪",
-              `Day ${currentDay} is now locked. You can view it anytime, but you won't be able to make changes until the Monday reset.`,
-              [{ text: "OK" }],
-            )
-          }
+    alert(
+      "Complete Workout?",
+      message,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Complete & Lock",
+          onPress: async () => {
+            const wasAutoCompleted = await endWorkout()
+            if (!wasAutoCompleted) {
+              alert(
+                "Workout Completed! 💪",
+                `Day ${currentDay} is now locked. You can view it anytime, but you won't be able to make changes until the Monday reset.`,
+                [{ text: "OK" }],
+                "success",
+              )
+            }
+          },
         },
-      },
-    ])
+      ],
+      "session",
+    )
   }
 
   const getCompletedSetsCount = () => {
@@ -1464,6 +1515,9 @@ export default function WorkoutScreen() {
             <Text style={styles.saveButtonText}>Add Exercise</Text>
           </TouchableOpacity>
         </ModalSheet>
+
+        {/* Custom Alert */}
+        {AlertComponent}
       </View>
     </SafeAreaView>
   )
@@ -1739,7 +1793,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  // Modal content styles (used inside ModalSheet children)
   warmupToggle: {
     backgroundColor: "#f3f4f6",
     padding: 12,

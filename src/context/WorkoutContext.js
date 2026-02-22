@@ -395,33 +395,13 @@ export const WorkoutProvider = ({ children }) => {
   }
 
   const checkAndEndStaleSession = async () => {
-    if (!workoutStartTime || !lastActivityTime || !currentSessionId)
-      return false
+    if (!workoutStartTime || !currentSessionId) return false
+    if (!lastSetEndTime) return false
 
-    if (isSessionInactive(lastActivityTime)) {
-      console.log("🔍 Detected stale session from previous app session")
-
-      const dayAlreadyLocked = lockedDays[currentDay]
-
-      if (!dayAlreadyLocked) {
-        console.log("   → Locking day", currentDay)
-        await sessionOps.lockDay(currentDay)
-      }
-
-      if (currentSessionId && !currentSessionId.startsWith("local_")) {
-        console.log("   → Ending session on server")
-        try {
-          const { endSession } = require("../services/api")
-          await endSession(currentSessionId, getLocalISOString())
-          console.log("   ✅ Stale session ended successfully")
-        } catch (error) {
-          console.error("   ⚠️ Failed to end stale session:", error.message)
-        }
-      }
-
-      await sessionOps.clearActiveWorkout()
-      console.log("   ✅ Stale session cleaned up")
-
+    if (isSessionInactive(lastSetEndTime)) {
+      console.log("🔍 Detected stale session, auto-ending...")
+      await sessionOps.endWorkout(true) // true = autoCompleted
+      console.log("✅ Stale session ended")
       return true
     }
 
@@ -521,6 +501,7 @@ export const WorkoutProvider = ({ children }) => {
   // ========================================
   // EFFECTS
   // ========================================
+
   useEffect(() => {
     if (userId) {
       loadSavedData()
@@ -582,13 +563,12 @@ export const WorkoutProvider = ({ children }) => {
 
   useEffect(() => {
     if (!workoutStartTime || !currentSessionId) return
-
     const interval = setInterval(async () => {
       await checkAndEndStaleSession()
     }, 60 * 1000) // check every minute
 
     return () => clearInterval(interval)
-  }, [workoutStartTime, currentSessionId])
+  }, [workoutStartTime, currentSessionId, lastSetEndTime, lockedDays])
   // ========================================
   // CONTEXT VALUE
   // ========================================

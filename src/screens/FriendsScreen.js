@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   RefreshControl,
   Modal,
@@ -18,10 +17,12 @@ import { useWorkout } from "../context/WorkoutContext"
 import ModalSheet from "../components/ModalSheet"
 import UniversalCalendar from "../components/UniversalCalendar"
 import ExerciseAnalytics from "../components/ExerciseAnalytics"
+import { useAlert } from "../components/CustomAlert"
 
 export default function FriendsScreen() {
   const { user } = useAuth()
   const { workoutData } = useWorkout()
+  const { alert, AlertComponent } = useAlert()
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -54,14 +55,12 @@ export default function FriendsScreen() {
   const [selectedSession, setSelectedSession] = useState(null)
   const [showSessionDetails, setShowSessionDetails] = useState(false)
 
-  // Full session details with set_timings — used by the Analytics tab
   const [friendSessionsWithTimings, setFriendSessionsWithTimings] = useState([])
   const [loadingAnalytics, setLoadingAnalytics] = useState(false)
 
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedProgram, setSelectedProgram] = useState(null)
 
-  // Actions tab sharing state
   const [sharingAnalytics, setSharingAnalytics] = useState(false)
   const [sharingProgram, setSharingProgram] = useState(false)
 
@@ -82,7 +81,7 @@ export default function FriendsScreen() {
       await Promise.all([loadFriends(), loadSharing()])
     } catch (error) {
       console.error("Error loading friends data:", error)
-      Alert.alert("Error", "Failed to load friends data")
+      alert("Error", "Failed to load friends data", [{ text: "OK" }], "error")
     } finally {
       setLoading(false)
     }
@@ -147,7 +146,7 @@ export default function FriendsScreen() {
       setSearchResults(results || [])
     } catch (error) {
       console.error("Error searching users:", error)
-      Alert.alert("Error", "Failed to search users")
+      alert("Error", "Failed to search users", [{ text: "OK" }], "error")
     } finally {
       setSearching(false)
     }
@@ -172,7 +171,12 @@ export default function FriendsScreen() {
       setSearchResults([])
     } catch (error) {
       console.error("Error sending friend request:", error)
-      Alert.alert("Error", error.message || "Failed to send friend request")
+      alert(
+        "Error",
+        error.message || "Failed to send friend request",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -182,52 +186,88 @@ export default function FriendsScreen() {
       await loadFriends()
     } catch (error) {
       console.error("Error accepting friend request:", error)
-      Alert.alert("Error", error.message || "Failed to accept friend request")
+      alert(
+        "Error",
+        error.message || "Failed to accept friend request",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
   const rejectFriendRequest = async (friendshipId, username) => {
-    Alert.alert("Reject Request", `Reject friend request from ${username}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reject",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await friendsApi.rejectFriendRequest(friendshipId)
-            Alert.alert("Request Rejected", `Rejected request from ${username}`)
-            await loadFriends()
-          } catch (error) {
-            console.error("Error rejecting friend request:", error)
-            Alert.alert("Error", error.message || "Failed to reject request")
-          }
+    alert(
+      "Reject Request",
+      `Reject friend request from ${username}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await friendsApi.rejectFriendRequest(friendshipId)
+              alert(
+                "Request Rejected",
+                `Rejected request from ${username}`,
+                [{ text: "OK" }],
+                "info",
+              )
+              await loadFriends()
+            } catch (error) {
+              console.error("Error rejecting friend request:", error)
+              alert(
+                "Error",
+                error.message || "Failed to reject request",
+                [{ text: "OK" }],
+                "error",
+              )
+            }
+          },
         },
-      },
-    ])
+      ],
+      "warning",
+    )
   }
 
   const removeFriend = async (friendId, username) => {
-    Alert.alert("Remove Friend", `Remove ${username} from your friends list?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await friendsApi.removeFriend(friendId)
-            Alert.alert("Friend Removed", `${username} has been removed`)
-            await loadFriends()
-          } catch (error) {
-            console.error("Error removing friend:", error)
-            Alert.alert("Error", error.message || "Failed to remove friend")
-          }
+    alert(
+      "Remove Friend",
+      `Remove ${username} from your friends list?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await friendsApi.removeFriend(friendId)
+              alert(
+                "Friend Removed",
+                `${username} has been removed`,
+                [{ text: "OK" }],
+                "info",
+              )
+              await loadFriends()
+            } catch (error) {
+              console.error("Error removing friend:", error)
+              alert(
+                "Error",
+                error.message || "Failed to remove friend",
+                [{ text: "OK" }],
+                "error",
+              )
+            }
+          },
         },
-      },
-    ])
+      ],
+      "warning",
+    )
   }
 
   const shareAnalytics = async () => {
-    if (!selectedFriend) return Alert.alert("Error", "Please select a friend")
+    if (!selectedFriend)
+      return alert("Error", "Please select a friend", [{ text: "OK" }], "error")
     try {
       await sharingApi.shareAnalytics(
         selectedFriend.id,
@@ -235,9 +275,11 @@ export default function FriendsScreen() {
         null,
         shareMessage.trim() || null,
       )
-      Alert.alert(
-        "✅ Analytics Shared",
+      alert(
+        "Analytics Shared",
         `Your analytics have been shared with ${selectedFriend.username}`,
+        [{ text: "OK" }],
+        "success",
       )
       setShowShareAnalyticsModal(false)
       setShareMessage("")
@@ -245,7 +287,12 @@ export default function FriendsScreen() {
       await loadSharing()
     } catch (error) {
       console.error("Error sharing analytics:", error)
-      Alert.alert("Error", error.message || "Failed to share analytics")
+      alert(
+        "Error",
+        error.message || "Failed to share analytics",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -269,7 +316,12 @@ export default function FriendsScreen() {
       setFriendSessionHistory(sessions || [])
     } catch (error) {
       console.error("Error loading friend sessions:", error)
-      Alert.alert("Error", "Failed to load friend's workout history")
+      alert(
+        "Error",
+        "Failed to load friend's workout history",
+        [{ text: "OK" }],
+        "error",
+      )
       setFriendSessionHistory([])
     } finally {
       setLoadingFriendSessions(false)
@@ -303,8 +355,6 @@ export default function FriendsScreen() {
     }
   }
 
-  // ── Actions tab helpers ───────────────────────────────────────────────────
-
   const hasAlreadySharedAnalyticsWith = (friendId) => {
     if (!friendId) return false
     return sentAnalytics.some((s) => s.receiverId === friendId)
@@ -320,14 +370,21 @@ export default function FriendsScreen() {
     setSharingAnalytics(true)
     try {
       await sharingApi.shareAnalytics(friend.id, true, null, null)
-      Alert.alert(
-        "✅ Analytics Shared",
+      alert(
+        "Analytics Shared",
         `Your analytics have been shared with ${friend.username}`,
+        [{ text: "OK" }],
+        "success",
       )
       await loadSharing()
     } catch (error) {
       console.error("Error sharing analytics:", error)
-      Alert.alert("Error", error.message || "Failed to share analytics")
+      alert(
+        "Error",
+        error.message || "Failed to share analytics",
+        [{ text: "OK" }],
+        "error",
+      )
     } finally {
       setSharingAnalytics(false)
     }
@@ -335,7 +392,13 @@ export default function FriendsScreen() {
 
   const shareProgramToFriend = async (friend) => {
     if (!friend) return
-    if (!workoutData) return Alert.alert("Error", "No program loaded to share")
+    if (!workoutData)
+      return alert(
+        "Error",
+        "No program loaded to share",
+        [{ text: "OK" }],
+        "error",
+      )
     setSharingProgram(true)
     try {
       const programData = {
@@ -345,17 +408,25 @@ export default function FriendsScreen() {
         days: workoutData.days,
       }
       await sharingApi.shareProgram(friend.id, programData, null)
-      Alert.alert("✅ Program Shared", `Program shared with ${friend.username}`)
+      alert(
+        "Program Shared",
+        `Program shared with ${friend.username}`,
+        [{ text: "OK" }],
+        "success",
+      )
       await loadSharing()
     } catch (error) {
       console.error("Error sharing program:", error)
-      Alert.alert("Error", error.message || "Failed to share program")
+      alert(
+        "Error",
+        error.message || "Failed to share program",
+        [{ text: "OK" }],
+        "error",
+      )
     } finally {
       setSharingProgram(false)
     }
   }
-
-  // ── Timezone-safe helpers ──────────────────────────────────────────────────
 
   const toLocalDateStr = (date) => {
     const y = date.getFullYear()
@@ -387,7 +458,12 @@ export default function FriendsScreen() {
 
   const handleSessionPress = async (session, friend = selectedFriend) => {
     if (!friend) {
-      Alert.alert("Error", "Friend context lost. Please try again.")
+      alert(
+        "Error",
+        "Friend context lost. Please try again.",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
     try {
@@ -419,7 +495,12 @@ export default function FriendsScreen() {
       setShowSessionDetails(true)
     } catch (error) {
       console.error("Error loading session details:", error)
-      Alert.alert("Error", "Failed to load session details")
+      alert(
+        "Error",
+        "Failed to load session details",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -429,8 +510,15 @@ export default function FriendsScreen() {
   }
 
   const shareProgram = async () => {
-    if (!selectedFriend) return Alert.alert("Error", "Please select a friend")
-    if (!workoutData) return Alert.alert("Error", "No program loaded to share")
+    if (!selectedFriend)
+      return alert("Error", "Please select a friend", [{ text: "OK" }], "error")
+    if (!workoutData)
+      return alert(
+        "Error",
+        "No program loaded to share",
+        [{ text: "OK" }],
+        "error",
+      )
 
     try {
       const programData = {
@@ -444,9 +532,11 @@ export default function FriendsScreen() {
         programData,
         shareMessage.trim() || null,
       )
-      Alert.alert(
-        "✅ Program Shared",
+      alert(
+        "Program Shared",
         `Program shared with ${selectedFriend.username}`,
+        [{ text: "OK" }],
+        "success",
       )
       setShowShareProgramModal(false)
       setSelectedFriend(null)
@@ -454,53 +544,83 @@ export default function FriendsScreen() {
       await loadSharing()
     } catch (error) {
       console.error("Error sharing program:", error)
-      Alert.alert("Error", error.message || "Failed to share program")
+      alert(
+        "Error",
+        error.message || "Failed to share program",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
   const acceptProgram = async (shareId, programName) => {
-    Alert.alert("Accept Program", `Add "${programName}" to your programs?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Accept",
-        onPress: async () => {
-          try {
-            await sharingApi.acceptProgram(shareId)
-            Alert.alert(
-              "✅ Success",
-              `Program "${programName}" added to your library`,
-            )
-            await loadSharing()
-          } catch (error) {
-            console.error("Error accepting program:", error)
-            Alert.alert("Error", error.message || "Failed to accept program")
-          }
+    alert(
+      "Accept Program",
+      `Add "${programName}" to your programs?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Accept",
+          onPress: async () => {
+            try {
+              await sharingApi.acceptProgram(shareId)
+              alert(
+                "Success",
+                `Program "${programName}" added to your library`,
+                [{ text: "OK" }],
+                "success",
+              )
+              await loadSharing()
+            } catch (error) {
+              console.error("Error accepting program:", error)
+              alert(
+                "Error",
+                error.message || "Failed to accept program",
+                [{ text: "OK" }],
+                "error",
+              )
+            }
+          },
         },
-      },
-    ])
+      ],
+      "info",
+    )
   }
 
   const deleteShare = async (shareType, shareId, description) => {
-    Alert.alert("Delete Share", `Delete this ${shareType} share?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await sharingApi.deleteShare(shareType, shareId)
-            Alert.alert("Share Deleted", `${description} has been deleted`)
-            await loadSharing()
-          } catch (error) {
-            console.error("Error deleting share:", error)
-            Alert.alert("Error", error.message || "Failed to delete share")
-          }
+    alert(
+      "Delete Share",
+      `Delete this ${shareType} share?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await sharingApi.deleteShare(shareType, shareId)
+              alert(
+                "Share Deleted",
+                `${description} has been deleted`,
+                [{ text: "OK" }],
+                "info",
+              )
+              await loadSharing()
+            } catch (error) {
+              console.error("Error deleting share:", error)
+              alert(
+                "Error",
+                error.message || "Failed to delete share",
+                [{ text: "OK" }],
+                "error",
+              )
+            }
+          },
         },
-      },
-    ])
+      ],
+      "warning",
+    )
   }
-
-  // ── Formatters ────────────────────────────────────────────────────────────
 
   const formatDate = (dateString) =>
     new Date(dateString).toLocaleDateString("en-US", {
@@ -1025,11 +1145,13 @@ export default function FriendsScreen() {
                   ]}
                   onPress={() => {
                     if (tab.locked) {
-                      Alert.alert(
+                      alert(
                         "Not Available",
                         tab.key === "program"
                           ? `${selectedFriend?.username} hasn't shared a program with you yet.`
                           : `${selectedFriend?.username} hasn't shared their workout data with you yet.`,
+                        [{ text: "OK" }],
+                        "lock",
                       )
                       return
                     }
@@ -1152,7 +1274,6 @@ export default function FriendsScreen() {
 
               return (
                 <View style={{ flex: 1 }}>
-                  {/* People selector */}
                   <View style={styles.peopleSelectorContainer}>
                     <ScrollView
                       horizontal
@@ -1206,7 +1327,6 @@ export default function FriendsScreen() {
 
                     {Array.isArray(pd?.days) &&
                       pd.days.map((day, dayIdx) => {
-                        // filter out exercises with 0 sets for selected person
                         const exercises = Array.isArray(day.exercises)
                           ? day.exercises.filter((ex) => {
                               if (!selectedProgram) return true
@@ -1299,7 +1419,6 @@ export default function FriendsScreen() {
                   Share With {selectedFriend?.username}
                 </Text>
 
-                {/* Share Analytics */}
                 {hasAlreadySharedAnalyticsWith(selectedFriend?.id) ? (
                   <View style={styles.actionRow}>
                     <Text style={styles.actionRowIcon}>📊</Text>
@@ -1352,7 +1471,6 @@ export default function FriendsScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* Share Program */}
                 {hasAlreadySharedProgramWith(selectedFriend?.id) ? (
                   <View style={styles.actionRow}>
                     <Text style={styles.actionRowIcon}>📋</Text>
@@ -1413,7 +1531,6 @@ export default function FriendsScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* Danger Zone */}
                 <Text
                   style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}
                 >
@@ -1642,9 +1759,12 @@ export default function FriendsScreen() {
           </ScrollView>
         </SafeAreaView>
       </ModalSheet>
+
+      {AlertComponent}
     </SafeAreaView>
   )
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
   content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
@@ -2114,10 +2234,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 4,
   },
-  programViewShared: {
-    fontSize: 13,
-    color: "#999",
-  },
+  programViewShared: { fontSize: 13, color: "#999" },
   programDayCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -2142,12 +2259,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  programDayTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#333",
-    flex: 1,
-  },
+  programDayTitle: { fontSize: 15, fontWeight: "600", color: "#333", flex: 1 },
   programExerciseRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -2156,20 +2268,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f5f5f5",
   },
-  programExerciseLeft: {
-    flex: 1,
-    marginRight: 12,
-  },
+  programExerciseLeft: { flex: 1, marginRight: 12 },
   programExerciseName: {
     fontSize: 15,
     fontWeight: "500",
     color: "#222",
     marginBottom: 2,
   },
-  programExerciseSets: {
-    fontSize: 13,
-    color: "#888",
-  },
+  programExerciseSets: { fontSize: 13, color: "#888" },
   programSetsBadge: {
     alignItems: "center",
     justifyContent: "center",
@@ -2198,20 +2304,14 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     paddingVertical: 8,
   },
-  programSetsRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
+  programSetsRow: { flexDirection: "row", gap: 6 },
   peopleSelectorContainer: {
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e0e0e0",
     paddingVertical: 10,
   },
-  peopleSelectorScroll: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
+  peopleSelectorScroll: { paddingHorizontal: 16, gap: 8 },
   peoplePill: {
     paddingHorizontal: 18,
     paddingVertical: 7,
@@ -2220,20 +2320,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  peoplePillActive: {
-    backgroundColor: "#e0e7ff",
-    borderColor: "#667eea",
-  },
-  peoplePillText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#888",
-  },
-  peoplePillTextActive: {
-    color: "#667eea",
-  },
-  programSetsRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
+  peoplePillActive: { backgroundColor: "#e0e7ff", borderColor: "#667eea" },
+  peoplePillText: { fontSize: 14, fontWeight: "600", color: "#888" },
+  peoplePillTextActive: { color: "#667eea" },
 })

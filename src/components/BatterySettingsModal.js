@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Alert,
 } from "react-native"
 import {
   getBatterySettings,
@@ -15,6 +14,7 @@ import {
   registerLocationTask,
 } from "../../tasks/creatineLocationTask"
 import ModalSheet from "../components/ModalSheet"
+import { useAlert } from "../components/CustomAlert"
 
 export default function BatterySettingsModal({ visible, onClose, onSave }) {
   const [selectedPreset, setSelectedPreset] = useState("MEDIUM")
@@ -22,6 +22,7 @@ export default function BatterySettingsModal({ visible, onClose, onSave }) {
   const [customTimeInterval, setCustomTimeInterval] = useState("10")
   const [customDistanceInterval, setCustomDistanceInterval] = useState("250")
   const [loading, setLoading] = useState(true)
+  const { alert, AlertComponent } = useAlert()
 
   useEffect(() => {
     if (visible) {
@@ -56,9 +57,11 @@ export default function BatterySettingsModal({ visible, onClose, onSave }) {
         const distanceMeters = parseInt(customDistanceInterval)
 
         if (isNaN(timeMinutes) || timeMinutes < 1 || timeMinutes > 60) {
-          Alert.alert(
+          alert(
             "Invalid Input",
             "Time interval must be between 1 and 60 minutes",
+            [{ text: "OK" }],
+            "error",
           )
           return
         }
@@ -68,9 +71,11 @@ export default function BatterySettingsModal({ visible, onClose, onSave }) {
           distanceMeters < 50 ||
           distanceMeters > 1000
         ) {
-          Alert.alert(
+          alert(
             "Invalid Input",
             "Distance interval must be between 50 and 1000 meters",
+            [{ text: "OK" }],
+            "error",
           )
           return
         }
@@ -86,9 +91,11 @@ export default function BatterySettingsModal({ visible, onClose, onSave }) {
 
       await registerLocationTask()
 
-      Alert.alert(
+      alert(
         "Settings Saved",
         "Battery impact settings updated. Location task has been restarted with new configuration.",
+        [{ text: "OK" }],
+        "success",
       )
 
       if (onSave) {
@@ -98,7 +105,12 @@ export default function BatterySettingsModal({ visible, onClose, onSave }) {
       onClose()
     } catch (error) {
       console.error("Error saving battery settings:", error)
-      Alert.alert("Error", "Failed to save battery settings")
+      alert(
+        "Error",
+        "Failed to save battery settings",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -249,6 +261,8 @@ export default function BatterySettingsModal({ visible, onClose, onSave }) {
           </Text>
         </View>
       </ScrollView>
+
+      {AlertComponent}
     </ModalSheet>
   )
 }

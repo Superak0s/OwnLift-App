@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   TextInput,
   Switch,
   ActivityIndicator,
@@ -42,9 +41,11 @@ import {
 import CreatineLocationPicker from "../components/CreatineLocationPicker"
 import BatterySettingsModal from "../components/BatterySettingsModal"
 import ModalSheet from "../components/ModalSheet"
+import { useAlert } from "../components/CustomAlert"
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth()
+  const { alert, AlertComponent } = useAlert()
 
   const {
     workoutData,
@@ -161,7 +162,6 @@ export default function SettingsScreen() {
         if (session.end_time) {
           lockedDaysSeen.add(session.day_number)
         }
-        // set_count is returned in the session list summary
         totalSets += session.set_count || 0
       }
 
@@ -316,32 +316,43 @@ export default function SettingsScreen() {
   const handleSaveCreatineSettings = async () => {
     try {
       if (!creatineTimeBasedEnabled && !creatineLocationBasedEnabled) {
-        Alert.alert(
+        alert(
           "Enable a Condition",
           "Please enable at least one reminder condition (time or location).",
+          [{ text: "OK" }],
+          "warning",
         )
         return
       }
 
       if (creatineLocationBasedEnabled && !reminderLocation) {
-        Alert.alert(
+        alert(
           "Set Location",
           "Please set a reminder location before enabling location-based reminders.",
+          [{ text: "OK" }],
+          "warning",
         )
         return
       }
 
       const grams = parseFloat(creatineDefaultGrams)
       if (isNaN(grams) || grams <= 0) {
-        Alert.alert("Invalid Amount", "Please enter a valid number of grams.")
+        alert(
+          "Invalid Amount",
+          "Please enter a valid number of grams.",
+          [{ text: "OK" }],
+          "error",
+        )
         return
       }
 
       const notificationsReady = await initializeCreatineNotifications()
       if (!notificationsReady) {
-        Alert.alert(
+        alert(
           "Notifications Required",
           "Please enable notifications for reminders to work.",
+          [{ text: "OK" }],
+          "warning",
         )
         return
       }
@@ -350,9 +361,11 @@ export default function SettingsScreen() {
         const { status: foregroundStatus } =
           await Location.requestForegroundPermissionsAsync()
         if (foregroundStatus !== "granted") {
-          Alert.alert(
+          alert(
             "Permission Required",
-            "Location access is needed for location-based reminders",
+            "Location access is needed for location-based reminders.",
+            [{ text: "OK" }],
+            "warning",
           )
           return
         }
@@ -361,7 +374,7 @@ export default function SettingsScreen() {
           const { status: backgroundStatus } =
             await Location.requestBackgroundPermissionsAsync()
           if (backgroundStatus !== "granted") {
-            Alert.alert(
+            alert(
               "Background Permission Required",
               "Background location access is needed for location-based reminders to work when the app is closed.\n\nPlease select 'Allow all the time' in the next screen.",
               [
@@ -371,6 +384,7 @@ export default function SettingsScreen() {
                   onPress: () => Linking.openSettings(),
                 },
               ],
+              "warning",
             )
             return
           }
@@ -421,9 +435,11 @@ export default function SettingsScreen() {
         )
 
         if (!identifier) {
-          Alert.alert(
+          alert(
             "Warning",
             "Could not schedule time-based notification. Please try again.",
+            [{ text: "OK" }],
+            "warning",
           )
         }
       } else if (creatineLocationBasedEnabled) {
@@ -431,9 +447,11 @@ export default function SettingsScreen() {
 
         const registered = await registerLocationTask()
         if (!registered) {
-          Alert.alert(
+          alert(
             "Warning",
             "Location tracking may not work properly. Please check permissions.",
+            [{ text: "OK" }],
+            "warning",
           )
         } else {
           await triggerImmediateLocationCheck()
@@ -451,10 +469,15 @@ export default function SettingsScreen() {
         successMessage += ` You'll get a notification at ${reminderTimeStr} when you're at your location. Background checks run every 10 minutes.`
       }
 
-      Alert.alert("✅ Success", successMessage)
+      alert("✅ Success", successMessage, [{ text: "OK" }], "success")
     } catch (error) {
       console.error("Error saving creatine settings:", error)
-      Alert.alert("Error", error.message || "Failed to save settings")
+      alert(
+        "Error",
+        error.message || "Failed to save settings",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -466,7 +489,7 @@ export default function SettingsScreen() {
   }
 
   const handleClearData = () => {
-    Alert.alert(
+    alert(
       "Clear All Data?",
       "This will delete your workout plan, selected profile, and all progress. Both local data and server data will be deleted. This cannot be undone.",
       [
@@ -488,24 +511,32 @@ export default function SettingsScreen() {
               }
 
               await clearAllData()
-              Alert.alert(
+              alert(
                 "Success",
                 "All data has been cleared (local and server)",
+                [{ text: "OK" }],
+                "success",
               )
             } catch (error) {
               console.error("Error clearing data:", error)
-              Alert.alert("Error", "Failed to clear all data")
+              alert(
+                "Error",
+                "Failed to clear all data",
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
       ],
+      "error",
     )
   }
 
   const handleResetProgress = () => {
     const hasActiveSession = !!workoutStartTime
 
-    Alert.alert(
+    alert(
       "Reset All Progress?",
       hasActiveSession
         ? "⚠️ You have an active workout session. This will end the session and clear all completed sets and unlock all days. Both local data and server data will be deleted. This cannot be undone."
@@ -535,37 +566,50 @@ export default function SettingsScreen() {
               await saveCompletedDays({})
               await saveLockedDays({})
 
-              Alert.alert(
+              alert(
                 "Success",
                 "All progress has been reset (local and server)",
+                [{ text: "OK" }],
+                "success",
               )
             } catch (error) {
               console.error("Error resetting progress:", error)
-              Alert.alert("Error", "Failed to reset progress")
+              alert(
+                "Error",
+                "Failed to reset progress",
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
       ],
+      "warning",
     )
   }
 
   const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          await logout()
+    alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            await logout()
+          },
         },
-      },
-    ])
+      ],
+      "warning",
+    )
   }
 
   const handleUnlockAllDays = () => {
     const hasActiveSession = !!workoutStartTime
 
-    Alert.alert(
+    alert(
       "Unlock All Days?",
       hasActiveSession
         ? "⚠️ You have an active workout session. Unlocking will end this session and clear its data.\n\nYour completed workout history on the server will remain intact and visible in Analytics."
@@ -581,7 +625,6 @@ export default function SettingsScreen() {
                 await clearActiveWorkout()
               }
 
-              // Only clear locked days — do NOT wipe completedDays
               await saveLockedDays({})
 
               const allDayNumbers =
@@ -591,19 +634,22 @@ export default function SettingsScreen() {
                 ) || {}
               await saveUnlockedOverrides(allDayNumbers)
 
-              Alert.alert(
+              alert(
                 "Success",
                 hasActiveSession
                   ? "Active session ended and all days unlocked. Your workout history is preserved in Analytics."
                   : "All days have been unlocked. Your workout history is preserved in Analytics.",
+                [{ text: "OK" }],
+                "success",
               )
             } catch (error) {
               console.error("Error unlocking days:", error)
-              Alert.alert("Error", "Failed to unlock days")
+              alert("Error", "Failed to unlock days", [{ text: "OK" }], "error")
             }
           },
         },
       ],
+      "lock",
     )
   }
 
@@ -614,7 +660,7 @@ export default function SettingsScreen() {
     const isCurrentDay = dayNumber === currentDay
     const willAffectActiveSession = hasActiveSession && isCurrentDay
 
-    Alert.alert(
+    alert(
       "Reset Day?",
       willAffectActiveSession
         ? `⚠️ You have an active workout session on ${dayTitle}. Unlocking will end this session and clear its data.\n\nYour completed workout history on the server will remain intact and visible in Analytics.`
@@ -630,30 +676,32 @@ export default function SettingsScreen() {
                 await clearActiveWorkout()
               }
 
-              // Clear completed sets for this day
               const newCompletedDays = { ...completedDays }
               delete newCompletedDays[dayNumber]
               await saveCompletedDays(newCompletedDays)
 
-              // Only remove the lock
               const newLockedDays = { ...lockedDays }
               delete newLockedDays[dayNumber]
               await saveLockedDays(newLockedDays)
 
               const newOverrides = { ...unlockedOverrides, [dayNumber]: true }
-              // Use saveUnlockedOverrides directly (which now also clears sets),
-              // but since we already cleared above, just call the context fn:
               await saveUnlockedOverrides(newOverrides)
 
               setShowResetDayModal(false)
-              Alert.alert("Success" /* existing message */)
+              alert(
+                "Success",
+                `${dayTitle} has been unlocked.`,
+                [{ text: "OK" }],
+                "success",
+              )
             } catch (error) {
               console.error("Error resetting day:", error)
-              Alert.alert("Error", "Failed to reset day")
+              alert("Error", "Failed to reset day", [{ text: "OK" }], "error")
             }
           },
         },
       ],
+      willAffectActiveSession ? "warning" : "info",
     )
   }
 
@@ -682,11 +730,18 @@ export default function SettingsScreen() {
     if (value && value > 0 && value <= 600) {
       saveTimeBetweenSets(value)
       setShowTimeBetweenSetsModal(false)
-      Alert.alert("Success", `Time between sets set to ${formatTime(value)}`)
+      alert(
+        "Success",
+        `Time between sets set to ${formatTime(value)}`,
+        [{ text: "OK" }],
+        "success",
+      )
     } else {
-      Alert.alert(
+      alert(
         "Invalid Input",
         "Please enter a value between 1 and 600 seconds",
+        [{ text: "OK" }],
+        "error",
       )
     }
   }
@@ -700,12 +755,22 @@ export default function SettingsScreen() {
     const url = tempServerUrl.trim()
 
     if (!url) {
-      Alert.alert("Invalid URL", "Please enter a server URL")
+      alert(
+        "Invalid URL",
+        "Please enter a server URL",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      Alert.alert("Invalid URL", "URL must start with http:// or https://")
+      alert(
+        "Invalid URL",
+        "URL must start with http:// or https://",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
@@ -713,14 +778,19 @@ export default function SettingsScreen() {
     if (success) {
       setCurrentServerUrl(url)
       setShowServerUrlModal(false)
-      Alert.alert("Success", "Server URL updated successfully!")
+      alert(
+        "Success",
+        "Server URL updated successfully!",
+        [{ text: "OK" }],
+        "success",
+      )
     } else {
-      Alert.alert("Error", "Failed to save server URL")
+      alert("Error", "Failed to save server URL", [{ text: "OK" }], "error")
     }
   }
 
   const handleResetServerUrl = async () => {
-    Alert.alert(
+    alert(
       "Reset Server URL?",
       `This will reset the server URL to the default: ${getDefaultServerUrl()}`,
       [
@@ -732,19 +802,30 @@ export default function SettingsScreen() {
             if (success) {
               setCurrentServerUrl(getDefaultServerUrl())
               setShowServerUrlModal(false)
-              Alert.alert("Success", "Server URL updated successfully!")
+              alert(
+                "Success",
+                "Server URL updated successfully!",
+                [{ text: "OK" }],
+                "success",
+              )
             } else {
-              Alert.alert("Error", "Failed to reset server URL")
+              alert(
+                "Error",
+                "Failed to reset server URL",
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
       ],
+      "warning",
     )
   }
 
   const handleToggleDemoMode = (value) => {
     if (!value) {
-      Alert.alert(
+      alert(
         "Turn Off Demo Mode?",
         "This will delete all demo session data. Your real workout data will be preserved.",
         [
@@ -754,6 +835,7 @@ export default function SettingsScreen() {
             onPress: () => toggleDemoMode(false),
           },
         ],
+        "warning",
       )
     } else {
       toggleDemoMode(true)
@@ -762,7 +844,7 @@ export default function SettingsScreen() {
 
   const handleToggleManualTime = (value) => {
     if (value) {
-      Alert.alert(
+      alert(
         "Use Manual Time?",
         "This will use your manually set time instead of the average calculated from your workout sessions.",
         [
@@ -772,6 +854,7 @@ export default function SettingsScreen() {
             onPress: () => toggleUseManualTime(true),
           },
         ],
+        "info",
       )
     } else {
       toggleUseManualTime(false)
@@ -780,11 +863,16 @@ export default function SettingsScreen() {
 
   const handleManualSync = async () => {
     if (pendingSyncs.length === 0) {
-      Alert.alert("No Data to Sync", "All workout data is already synced!")
+      alert(
+        "No Data to Sync",
+        "All workout data is already synced!",
+        [{ text: "OK" }],
+        "success",
+      )
       return
     }
 
-    Alert.alert(
+    alert(
       "Sync Pending Data?",
       `You have ${pendingSyncs.length} pending sync operation(s). Sync now?`,
       [
@@ -793,15 +881,18 @@ export default function SettingsScreen() {
           text: "Sync",
           onPress: async () => {
             await syncPendingData()
-            Alert.alert(
+            alert(
               "Sync Complete",
               pendingSyncs.length === 0
                 ? "All data synced successfully!"
                 : `${pendingSyncs.length} operation(s) still pending. Check your connection.`,
+              [{ text: "OK" }],
+              pendingSyncs.length === 0 ? "success" : "warning",
             )
           },
         },
       ],
+      "info",
     )
   }
 
@@ -840,29 +931,6 @@ export default function SettingsScreen() {
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
       >
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👤 Account</Text>
-          <View style={styles.card}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Username</Text>
-              <Text style={styles.infoValue}>{user?.username}</Text>
-            </View>
-            <View style={styles.divider} />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.dangerButton]}
-            onPress={handleLogout}
-          >
-            <Text style={styles.actionButtonIcon}>🚪</Text>
-            <Text style={[styles.actionButtonText, styles.dangerText]}>
-              Logout
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.content}>
           {/* Creatine Reminders Section */}
           <View style={styles.section}>
@@ -962,7 +1030,9 @@ export default function SettingsScreen() {
             <View style={styles.card}>
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>App Version</Text>
-                <Text style={styles.infoValue}>1.0.0</Text>
+                <Text style={styles.infoValue}>
+                  {require("../../app.json").expo.version}
+                </Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.infoRow}>
@@ -1256,6 +1326,29 @@ export default function SettingsScreen() {
                   Delete everything
                 </Text>
               </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>👤 Account</Text>
+            <View style={styles.card}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Username</Text>
+                <Text style={styles.infoValue}>{user?.username}</Text>
+              </View>
+              <View style={styles.divider} />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.dangerButton]}
+              onPress={handleLogout}
+            >
+              <Text style={styles.actionButtonIcon}>🚪</Text>
+              <Text style={[styles.actionButtonText, styles.dangerText]}>
+                Logout
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -1642,15 +1735,26 @@ export default function SettingsScreen() {
                 location.address,
                 location.radius,
               )
-              Alert.alert("Location Set", `Location saved: ${location.address}`)
+              alert(
+                "Location Set",
+                `Location saved: ${location.address}`,
+                [{ text: "OK" }],
+                "success",
+              )
             } catch (error) {
               console.error("Error saving location:", error)
-              Alert.alert("Error", "Failed to save location")
+              alert(
+                "Error",
+                "Failed to save location",
+                [{ text: "OK" }],
+                "error",
+              )
             }
           }}
           initialLocation={reminderLocation}
         />
       </ScrollView>
+      {AlertComponent}
     </SafeAreaView>
   )
 }
@@ -1755,7 +1859,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: "center",
   },
-  // ── Modal content styles ──────────────────────────────────────────────────
   modalDescription: {
     fontSize: 15,
     color: "#666",
@@ -1779,7 +1882,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   resetButtonText: { color: "#333", fontSize: 16, fontWeight: "600" },
-  // ── Day list (Unlock Single Day modal) ───────────────────────────────────
   dayListItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1815,7 +1917,6 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: "600", color: "#333" },
   emptyDayList: { padding: 40, alignItems: "center" },
   emptyDayListText: { fontSize: 15, color: "#999", textAlign: "center" },
-  // ── Creatine modal ────────────────────────────────────────────────────────
   creatineModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +19,7 @@ import {
   getDefaultServerUrl,
 } from "../services/api"
 import ModalSheet from "../components/ModalSheet"
+import { useAlert } from "../components/CustomAlert"
 
 export default function LoginScreen({ navigation }) {
   const [usernameOrEmail, setUsernameOrEmail] = useState("")
@@ -30,6 +30,7 @@ export default function LoginScreen({ navigation }) {
   const [tempServerUrl, setTempServerUrl] = useState("")
   const [currentServerUrl, setCurrentServerUrl] = useState("")
   const { signin } = useAuth()
+  const { alert, AlertComponent } = useAlert()
 
   useEffect(() => {
     setCurrentServerUrl(getServerUrl())
@@ -37,7 +38,12 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!usernameOrEmail || !password) {
-      Alert.alert("Error", "Please enter your username/email and password")
+      alert(
+        "Error",
+        "Please enter your username/email and password",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
@@ -47,14 +53,21 @@ export default function LoginScreen({ navigation }) {
       const result = await signin(usernameOrEmail.trim(), password)
       setIsLoading(false)
       if (!result.success) {
-        Alert.alert(
+        alert(
           "Login Failed",
           result.error || "Invalid username/email or password",
+          [{ text: "OK" }],
+          "error",
         )
       }
     } catch (error) {
       setIsLoading(false)
-      Alert.alert("Error", "An unexpected error occurred. Please try again.")
+      alert(
+        "Error",
+        "An unexpected error occurred. Please try again.",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -67,12 +80,22 @@ export default function LoginScreen({ navigation }) {
     const url = tempServerUrl.trim()
 
     if (!url) {
-      Alert.alert("Invalid URL", "Please enter a server URL")
+      alert(
+        "Invalid URL",
+        "Please enter a server URL",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      Alert.alert("Invalid URL", "URL must start with http:// or https://")
+      alert(
+        "Invalid URL",
+        "URL must start with http:// or https://",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
@@ -80,14 +103,19 @@ export default function LoginScreen({ navigation }) {
     if (success) {
       setCurrentServerUrl(url)
       setShowServerModal(false)
-      Alert.alert("Success", "Server URL updated successfully!")
+      alert(
+        "Success",
+        "Server URL updated successfully!",
+        [{ text: "OK" }],
+        "success",
+      )
     } else {
-      Alert.alert("Error", "Failed to save server URL")
+      alert("Error", "Failed to save server URL", [{ text: "OK" }], "error")
     }
   }
 
   const handleResetServerUrl = async () => {
-    Alert.alert(
+    alert(
       "Reset Server URL?",
       `This will reset the server URL to the default: ${getDefaultServerUrl()}`,
       [
@@ -99,16 +127,24 @@ export default function LoginScreen({ navigation }) {
             if (success) {
               setCurrentServerUrl(getDefaultServerUrl())
               setShowServerModal(false)
-              Alert.alert(
+              alert(
                 "Success",
                 "Server URL reset to default successfully!",
+                [{ text: "OK" }],
+                "success",
               )
             } else {
-              Alert.alert("Error", "Failed to reset server URL")
+              alert(
+                "Error",
+                "Failed to reset server URL",
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
       ],
+      "warning",
     )
   }
 
@@ -261,6 +297,8 @@ export default function LoginScreen({ navigation }) {
             💡 Make sure you can reach this server before logging in
           </Text>
         </ModalSheet>
+
+        {AlertComponent}
       </KeyboardAvoidingView>
     </SafeAreaView>
   )
@@ -370,7 +408,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   footerLink: { color: "#667eea", fontWeight: "600" },
-  // ── Modal content styles ──────────────────────────────────────────────────
   modalDescription: {
     fontSize: 15,
     color: "#666",

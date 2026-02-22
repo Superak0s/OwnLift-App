@@ -5,13 +5,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Platform,
 } from "react-native"
 import { WebView } from "react-native-webview"
 import * as Location from "expo-location"
 import ModalSheet from "./ModalSheet"
+import { useAlert } from "./CustomAlert"
 
 export default function CreatineLocationPicker({
   visible,
@@ -25,6 +25,7 @@ export default function CreatineLocationPicker({
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const webViewRef = useRef(null)
+  const { alert, AlertComponent } = useAlert()
 
   useEffect(() => {
     if (visible) {
@@ -70,7 +71,7 @@ export default function CreatineLocationPicker({
       }
     } catch (error) {
       console.error("Error initializing location:", error)
-      Alert.alert("Error", "Could not get your location")
+      alert("Error", "Could not get your location", [{ text: "OK" }], "error")
     }
   }
 
@@ -78,9 +79,11 @@ export default function CreatineLocationPicker({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== "granted") {
-        Alert.alert(
+        alert(
           "Permission Required",
           "Location access is needed to select a reminder location",
+          [{ text: "OK" }],
+          "warning",
         )
         setLoading(false)
         return
@@ -106,7 +109,12 @@ export default function CreatineLocationPicker({
       await fetchAddressFromCoords(latitude, longitude)
     } catch (error) {
       console.error("Error getting current location:", error)
-      Alert.alert("Error", "Could not get your current location")
+      alert(
+        "Error",
+        "Could not get your current location",
+        [{ text: "OK" }],
+        "error",
+      )
       setLoading(false)
     }
   }
@@ -145,7 +153,12 @@ export default function CreatineLocationPicker({
 
   const handleAddressSearch = async () => {
     if (!address.trim()) {
-      Alert.alert("Enter Address", "Please enter an address to search")
+      alert(
+        "Enter Address",
+        "Please enter an address to search",
+        [{ text: "OK" }],
+        "warning",
+      )
       return
     }
 
@@ -178,16 +191,20 @@ export default function CreatineLocationPicker({
           setAddress(data[0].display_name)
         }
       } else {
-        Alert.alert(
+        alert(
           "Not Found",
           "Could not find that address. Try being more specific.",
+          [{ text: "OK" }],
+          "warning",
         )
       }
     } catch (error) {
       console.error("Error searching address:", error)
-      Alert.alert(
+      alert(
         "Error",
         "Could not search for that address. Please check your internet connection.",
+        [{ text: "OK" }],
+        "error",
       )
     } finally {
       setSearching(false)
@@ -200,7 +217,12 @@ export default function CreatineLocationPicker({
       await useCurrentLocation()
     } catch (error) {
       console.error("Error getting current location:", error)
-      Alert.alert("Error", "Could not get your current location")
+      alert(
+        "Error",
+        "Could not get your current location",
+        [{ text: "OK" }],
+        "error",
+      )
     } finally {
       setLoading(false)
     }
@@ -208,7 +230,12 @@ export default function CreatineLocationPicker({
 
   const handleSave = () => {
     if (!markerPosition) {
-      Alert.alert("Select Location", "Please select a location on the map")
+      alert(
+        "Select Location",
+        "Please select a location on the map",
+        [{ text: "OK" }],
+        "warning",
+      )
       return
     }
 
@@ -377,9 +404,11 @@ export default function CreatineLocationPicker({
           startInLoadingState={false}
           onError={(syntheticEvent) => {
             console.error("WebView error:", syntheticEvent.nativeEvent)
-            Alert.alert(
+            alert(
               "Map Error",
               "Could not load map. Check internet connection.",
+              [{ text: "OK" }],
+              "error",
             )
           }}
           onHttpError={(syntheticEvent) => {
@@ -483,6 +512,8 @@ export default function CreatineLocationPicker({
           <Text style={styles.saveButtonText}>✓ Save Location</Text>
         </TouchableOpacity>
       </View>
+
+      {AlertComponent}
     </ModalSheet>
   )
 }

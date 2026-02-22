@@ -3,13 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
   TextInput,
-  Alert,
   Platform,
 } from "react-native"
 import ModalSheet from "./ModalSheet"
+import { useAlert } from "./CustomAlert"
 
 export default function QuickLogCreatine({
   visible,
@@ -19,11 +18,17 @@ export default function QuickLogCreatine({
 }) {
   const [grams, setGrams] = useState(String(defaultGrams))
   const [note, setNote] = useState("")
+  const { alert, AlertComponent } = useAlert()
 
   const handleLog = () => {
     const amount = parseFloat(grams)
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert("Invalid Amount", "Please enter a valid number of grams.")
+      alert(
+        "Invalid Amount",
+        "Please enter a valid number of grams.",
+        [{ text: "OK" }],
+        "error",
+      )
       return
     }
 
@@ -103,6 +108,8 @@ export default function QuickLogCreatine({
           <Text style={styles.logButtonText}>✓ Log Entry</Text>
         </TouchableOpacity>
       </View>
+
+      {AlertComponent}
     </ModalSheet>
   )
 }

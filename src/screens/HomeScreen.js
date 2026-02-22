@@ -15,6 +15,7 @@ import { workoutApi, programApi } from "../services/api"
 import { SafeAreaView } from "react-native-safe-area-context"
 import UniversalCalendar from "../components/UniversalCalendar"
 import ModalSheet from "../components/ModalSheet"
+import { useAlert } from "../components/CustomAlert"
 
 export default function HomeScreen({ navigation }) {
   const {
@@ -28,6 +29,7 @@ export default function HomeScreen({ navigation }) {
     fetchSessionHistory,
     hasActiveSession,
   } = useWorkout()
+  const { alert, AlertComponent } = useAlert()
   const [isUploading, setIsUploading] = useState(false)
   const [showDayPicker, setShowDayPicker] = useState(false)
   const [sessionHistory, setSessionHistory] = useState([])
@@ -47,7 +49,7 @@ export default function HomeScreen({ navigation }) {
     if (selectedPerson) {
       loadSessionHistory().catch((error) => {
         if (error.message === "SESSION_EXPIRED") {
-          Alert.alert(
+          alert(
             "Session Expired",
             "Your session has expired. Please log in again.",
             [
@@ -61,6 +63,7 @@ export default function HomeScreen({ navigation }) {
                 },
               },
             ],
+            "warning",
           )
         }
       })
@@ -109,7 +112,7 @@ export default function HomeScreen({ navigation }) {
       if (error.message === "SESSION_EXPIRED") {
         throw error
       } else {
-        Alert.alert("Error", "Failed to refresh session history")
+        alert("Error", "Failed to refresh session history", "error")
       }
     } finally {
       setRefreshing(false)
@@ -130,14 +133,15 @@ export default function HomeScreen({ navigation }) {
 
       if (data.success) {
         await saveWorkoutData(data)
-        Alert.alert(
+        alert(
           "Success!",
           `Loaded ${data.totalDays} workout days for ${data.people.join(", ")}`,
           [{ text: "OK" }],
+          "success",
         )
       }
     } catch (error) {
-      Alert.alert("Error", error.message || "Failed to upload workout file")
+      alert("Error", error.message || "Failed to upload workout file", "error")
     } finally {
       setIsUploading(false)
     }
@@ -145,21 +149,27 @@ export default function HomeScreen({ navigation }) {
 
   const handleSelectPerson = (person) => {
     saveSelectedPerson(person)
-    Alert.alert("Success", `Selected ${person}'s workout plan`)
+    alert(
+      "Success",
+      `Selected ${person}'s workout plan`,
+      [{ text: "OK" }],
+      "success",
+    )
   }
 
   const handleSelectDay = (day) => {
     if (hasActiveSession()) {
-      Alert.alert(
+      alert(
         "Active Workout Session",
         "You have an active workout session in progress. Please complete or end your current workout before selecting a different day.",
         [{ text: "OK" }],
+        "warning",
       )
       return
     }
 
     if (isDayLocked(day)) {
-      Alert.alert(
+      alert(
         "View Locked Day",
         `Day ${day} has been completed and locked this week. You can view the workout details but cannot make changes.\n\nSelect this day to view it in read-only mode.`,
         [
@@ -172,6 +182,7 @@ export default function HomeScreen({ navigation }) {
             },
           },
         ],
+        "lock",
       )
       return
     }
@@ -222,7 +233,7 @@ export default function HomeScreen({ navigation }) {
       setShowSessionDetails(true)
       setSelectedDate(null)
     } catch (error) {
-      Alert.alert("Error", "Failed to load session details")
+      alert("Error", "Failed to load session details")
     }
   }
 
@@ -749,6 +760,7 @@ export default function HomeScreen({ navigation }) {
           )}
         </ModalSheet>
       </ScrollView>
+      {AlertComponent}
     </SafeAreaView>
   )
 }

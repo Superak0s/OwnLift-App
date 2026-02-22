@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  Alert,
   Image,
   Dimensions,
   ActivityIndicator,
@@ -34,6 +33,7 @@ import CreatineLocationPicker from "../components/CreatineLocationPicker"
 import QuickLogCreatine from "../components/QuickLogCreatine"
 import ProgressChart from "../components/ProgressChart"
 import ModalSheet from "../components/ModalSheet"
+import { useAlert } from "../components/CustomAlert"
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window")
 
@@ -57,22 +57,9 @@ export async function getCurrentBodyWeight(userId) {
 
 const LOCATION_TASK_NAME = "creatine-location-reminder"
 
-try {
-  if (Notifications && Notifications.setNotificationHandler) {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
-    })
-  }
-} catch (error) {
-  console.log("Notifications not available in Expo Go:", error.message)
-}
-
 export default function TrackingScreen() {
   const { user, authToken } = useAuth()
+  const { alert, AlertComponent } = useAlert()
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -95,7 +82,6 @@ export default function TrackingScreen() {
   // UNIFIED DAY MODAL
   // ─────────────────────────────────────────────────────────────
   const [dayModal, setDayModal] = useState(null)
-  // { date, tab, existingEntries: [] | null, isToday: bool }
 
   // Past-day weight
   const [pastWeight, setPastWeight] = useState("")
@@ -116,7 +102,6 @@ export default function TrackingScreen() {
   const [pastHip, setPastHip] = useState("")
   const [pastMeasurementUnit, setPastMeasurementUnit] = useState("cm")
   const [pastGender, setPastGender] = useState("male")
-  // Whether to show the inline add form inside the unified modal
   const [dayModalShowAddForm, setDayModalShowAddForm] = useState(false)
 
   // ─────────────────────────────────────────────────────────────
@@ -203,7 +188,7 @@ export default function TrackingScreen() {
   // ─────────────────────────────────────────────────────────────
   // SELECTED LOG DATE
   // ─────────────────────────────────────────────────────────────
-  const [selectedLogDate, setSelectedLogDate] = useState(null) // Date | null
+  const [selectedLogDate, setSelectedLogDate] = useState(null)
 
   const getUserKey = (key) => (user?.id ? `${key}_user_${user.id}` : key)
 
@@ -331,11 +316,16 @@ export default function TrackingScreen() {
         setShowMacrosModal(true)
         break
       case "photos":
-        Alert.alert("Add Photo", "Choose a source", [
-          { text: "Camera", onPress: takePhoto },
-          { text: "Gallery", onPress: pickPhotoFromGallery },
-          { text: "Cancel", style: "cancel" },
-        ])
+        alert(
+          "Add Photo",
+          "Choose a source",
+          [
+            { text: "Camera", onPress: takePhoto },
+            { text: "Gallery", onPress: pickPhotoFromGallery },
+            { text: "Cancel", style: "cancel" },
+          ],
+          "info",
+        )
         break
       case "bodyfat":
         setWaist("")
@@ -350,9 +340,13 @@ export default function TrackingScreen() {
   // DELETE HANDLERS
   // ─────────────────────────────────────────────────────────────
   const deleteWeightEntry = (entry) => {
-    Alert.alert(
+    const label =
+      weightUnit === "kg"
+        ? `${entry.weight_kg.toFixed(1)} kg`
+        : `${(entry.weight_kg * 2.20462).toFixed(1)} lbs`
+    alert(
       "Delete Entry",
-      `Remove ${weightUnit === "kg" ? entry.weight_kg.toFixed(1) + " kg" : (entry.weight_kg * 2.20462).toFixed(1) + " lbs"}?`,
+      `Remove ${label}?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -373,48 +367,56 @@ export default function TrackingScreen() {
                 }
               })
             } catch (err) {
-              Alert.alert("Error", err.message)
+              alert("Error", err.message, [{ text: "OK" }], "error")
             }
           },
         },
       ],
+      "warning",
     )
   }
 
   const deleteCreatineEntry = (entry) => {
-    Alert.alert("Delete Entry", "Remove this creatine log?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await bodyTrackingApi.deleteCreatineEntry(entry.id)
-            setCreatineHistory((prev) => prev.filter((c) => c.id !== entry.id))
-            setDayModal((prev) => {
-              if (!prev) return null
-              const remaining = (prev.existingEntries || []).filter(
-                (e) => e.id !== entry.id,
+    alert(
+      "Delete Entry",
+      "Remove this creatine log?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await bodyTrackingApi.deleteCreatineEntry(entry.id)
+              setCreatineHistory((prev) =>
+                prev.filter((c) => c.id !== entry.id),
               )
-              return {
-                ...prev,
-                existingEntries: remaining.length > 0 ? remaining : null,
-              }
-            })
-            const entryDate = isoToLocalDateStr(entry.taken_at || entry.date)
-            if (entryDate === toLocalDateStr(new Date()))
-              setCreatineTakenToday(false)
-            loadData()
-          } catch (err) {
-            Alert.alert("Error", err.message)
-          }
+              setDayModal((prev) => {
+                if (!prev) return null
+                const remaining = (prev.existingEntries || []).filter(
+                  (e) => e.id !== entry.id,
+                )
+                return {
+                  ...prev,
+                  existingEntries: remaining.length > 0 ? remaining : null,
+                }
+              })
+              const entryDate = isoToLocalDateStr(entry.taken_at || entry.date)
+              if (entryDate === toLocalDateStr(new Date()))
+                setCreatineTakenToday(false)
+              loadData()
+            } catch (err) {
+              alert("Error", err.message, [{ text: "OK" }], "error")
+            }
+          },
         },
-      },
-    ])
+      ],
+      "warning",
+    )
   }
 
   const deleteMacroEntry = (entry) => {
-    Alert.alert(
+    alert(
       "Delete Entry",
       entry.name ? `Remove "${entry.name}"?` : "Remove this entry?",
       [
@@ -438,87 +440,98 @@ export default function TrackingScreen() {
               })
               loadData()
             } catch (err) {
-              Alert.alert("Error", err.message)
+              alert("Error", err.message, [{ text: "OK" }], "error")
             }
           },
         },
       ],
+      "warning",
     )
   }
 
   const deletePhoto = (photo) => {
-    Alert.alert("Delete Photo", "Permanently delete this progress photo?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await bodyTrackingApi.deleteProgressPhoto(photo.id)
-            setProgressPhotos((prev) => prev.filter((p) => p.id !== photo.id))
-            setPhotoUriCache((prev) => {
-              const next = { ...prev }
-              delete next[photo.id]
-              return next
-            })
-            setDayModal((prev) => {
-              if (!prev) return null
-              const remaining = (prev.existingEntries || []).filter(
-                (p) => p.id !== photo.id,
-              )
-              return {
-                ...prev,
-                existingEntries: remaining.length > 0 ? remaining : null,
+    alert(
+      "Delete Photo",
+      "Permanently delete this progress photo?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await bodyTrackingApi.deleteProgressPhoto(photo.id)
+              setProgressPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+              setPhotoUriCache((prev) => {
+                const next = { ...prev }
+                delete next[photo.id]
+                return next
+              })
+              setDayModal((prev) => {
+                if (!prev) return null
+                const remaining = (prev.existingEntries || []).filter(
+                  (p) => p.id !== photo.id,
+                )
+                return {
+                  ...prev,
+                  existingEntries: remaining.length > 0 ? remaining : null,
+                }
+              })
+              setSelectedDatePhotos((prev) => {
+                if (!prev) return null
+                const remaining = prev.photos.filter((p) => p.id !== photo.id)
+                return remaining.length > 0
+                  ? { ...prev, photos: remaining }
+                  : null
+              })
+              if (
+                !selectedDatePhotos ||
+                selectedDatePhotos.photos.filter((p) => p.id !== photo.id)
+                  .length === 0
+              ) {
+                setShowDatePhotosModal(false)
               }
-            })
-            setSelectedDatePhotos((prev) => {
-              if (!prev) return null
-              const remaining = prev.photos.filter((p) => p.id !== photo.id)
-              return remaining.length > 0
-                ? { ...prev, photos: remaining }
-                : null
-            })
-            if (
-              !selectedDatePhotos ||
-              selectedDatePhotos.photos.filter((p) => p.id !== photo.id)
-                .length === 0
-            ) {
-              setShowDatePhotosModal(false)
+            } catch (err) {
+              alert("Error", err.message, [{ text: "OK" }], "error")
             }
-          } catch (err) {
-            Alert.alert("Error", err.message)
-          }
+          },
         },
-      },
-    ])
+      ],
+      "warning",
+    )
   }
 
   const deleteBodyFatEntry = (entry) => {
-    Alert.alert("Delete Entry", `Remove ${entry.percentage}% reading?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await bodyFatApi.deleteBodyFatEntry(entry.id)
-            setBodyFatHistory((prev) => prev.filter((b) => b.id !== entry.id))
-            setDayModal((prev) => {
-              if (!prev) return null
-              const remaining = (prev.existingEntries || []).filter(
-                (b) => b.id !== entry.id,
-              )
-              return {
-                ...prev,
-                existingEntries: remaining.length > 0 ? remaining : null,
-              }
-            })
-          } catch (err) {
-            Alert.alert("Error", err.message)
-          }
+    alert(
+      "Delete Entry",
+      `Remove ${entry.percentage}% reading?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await bodyFatApi.deleteBodyFatEntry(entry.id)
+              setBodyFatHistory((prev) => prev.filter((b) => b.id !== entry.id))
+              setDayModal((prev) => {
+                if (!prev) return null
+                const remaining = (prev.existingEntries || []).filter(
+                  (b) => b.id !== entry.id,
+                )
+                return {
+                  ...prev,
+                  existingEntries: remaining.length > 0 ? remaining : null,
+                }
+              })
+            } catch (err) {
+              alert("Error", err.message, [{ text: "OK" }], "error")
+            }
+          },
         },
-      },
-    ])
+      ],
+      "warning",
+    )
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -531,20 +544,30 @@ export default function TrackingScreen() {
     try {
       if (tab === "weight") {
         if (!pastWeight || isNaN(pastWeight))
-          return Alert.alert("Invalid Input", "Enter a valid weight")
+          return alert(
+            "Invalid Input",
+            "Enter a valid weight",
+            [{ text: "OK" }],
+            "error",
+          )
         const value = parseFloat(pastWeight)
         const recordedAt = buildLocalISOForDate(date, "08:00")
         await bodyTrackingApi.logWeight(value, weightUnit, null, recordedAt)
-        Alert.alert("✅ Logged", "Weight entry added")
+        alert("Logged", "Weight entry added", [{ text: "OK" }], "success")
       }
 
       if (tab === "creatine") {
         const grams = parseFloat(pastCreatineGrams)
         if (!grams || isNaN(grams) || grams <= 0)
-          return Alert.alert("Invalid Input", "Enter valid grams")
+          return alert(
+            "Invalid Input",
+            "Enter valid grams",
+            [{ text: "OK" }],
+            "error",
+          )
         const takenAt = buildLocalISOForDate(date, pastCreatineTime)
         await bodyTrackingApi.markCreatineTaken(grams, null, takenAt)
-        Alert.alert("✅ Logged", `${grams}g creatine added`)
+        alert("Logged", `${grams}g creatine added`, [{ text: "OK" }], "success")
       }
 
       if (tab === "macros") {
@@ -558,9 +581,11 @@ export default function TrackingScreen() {
         const hasValue =
           protein != null || carbs != null || fat != null || calories != null
         if (!hasValue && !pastMacrosName.trim())
-          return Alert.alert(
+          return alert(
             "Nothing to log",
             "Enter at least a name or one macro value",
+            [{ text: "OK" }],
+            "warning",
           )
         const dateStr = toLocalDateStr(date)
         await macrosTrackingApi.logMacros({
@@ -573,7 +598,7 @@ export default function TrackingScreen() {
           time: pastMacrosTime,
           date: dateStr,
         })
-        Alert.alert("✅ Logged", "Macros entry added")
+        alert("Logged", "Macros entry added", [{ text: "OK" }], "success")
       }
 
       if (tab === "photos") {
@@ -584,12 +609,19 @@ export default function TrackingScreen() {
 
       if (tab === "bodyfat") {
         if (!pastWaist || !pastNeck || (pastGender === "female" && !pastHip))
-          return Alert.alert("Missing Data", "Please enter all measurements")
+          return alert(
+            "Missing Data",
+            "Please enter all measurements",
+            [{ text: "OK" }],
+            "error",
+          )
         let heightCm = height?.height_cm ? parseFloat(height.height_cm) : null
         if (!heightCm) {
-          return Alert.alert(
+          return alert(
             "Height Required",
             "Set your height in the Body Fat tab first.",
+            [{ text: "OK" }],
+            "warning",
           )
         }
         let waistCm = parseFloat(pastWaist)
@@ -623,13 +655,23 @@ export default function TrackingScreen() {
           pastGender,
           dateIso,
         )
-        Alert.alert("✅ Logged", `Body fat ${pct.toFixed(1)}% added`)
+        alert(
+          "Logged",
+          `Body fat ${pct.toFixed(1)}% added`,
+          [{ text: "OK" }],
+          "success",
+        )
       }
 
       setDayModal(null)
       loadData()
     } catch (err) {
-      Alert.alert("Error", err.message || "Failed to save entry")
+      alert(
+        "Error",
+        err.message || "Failed to save entry",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -792,12 +834,16 @@ export default function TrackingScreen() {
     const hasValue =
       protein != null || carbs != null || fat != null || calories != null
     if (!hasValue && !newMacrosName.trim()) {
-      return Alert.alert("Nothing to log", "Enter at least a name or one value")
+      return alert(
+        "Nothing to log",
+        "Enter at least a name or one value",
+        [{ text: "OK" }],
+        "warning",
+      )
     }
 
     try {
       const dateStr = selectedLogDate ? toLocalDateStr(selectedLogDate) : null
-
       await macrosTrackingApi.logMacros({
         name: newMacrosName.trim() || null,
         protein,
@@ -817,10 +863,10 @@ export default function TrackingScreen() {
       setNewMacrosTime(new Date().toTimeString().slice(0, 5))
       setShowMacrosModal(false)
       setSelectedLogDate(null)
-      Alert.alert("✅ Logged", "Macros logged!")
+      alert("Logged", "Macros logged!", [{ text: "OK" }], "success")
       loadData()
     } catch (error) {
-      Alert.alert("Error", error.message)
+      alert("Error", error.message, [{ text: "OK" }], "error")
     }
   }
 
@@ -879,14 +925,19 @@ export default function TrackingScreen() {
       isNaN(calories) ||
       calories <= 0
     ) {
-      return Alert.alert("Invalid Input", "Please enter valid goals")
+      return alert(
+        "Invalid Input",
+        "Please enter valid goals",
+        [{ text: "OK" }],
+        "error",
+      )
     }
     try {
       await macrosTrackingApi.setMacrosGoals({ protein, carbs, fat, calories })
       setDailyMacrosGoals({ protein, carbs, fat, calories })
       setShowMacrosGoalModal(false)
     } catch (error) {
-      Alert.alert("Error", error.message)
+      alert("Error", error.message, [{ text: "OK" }], "error")
     }
   }
 
@@ -895,20 +946,30 @@ export default function TrackingScreen() {
   // ─────────────────────────────────────────────────────────────
   const calculateBodyFat = async () => {
     if (!waist || !neck || (gender === "female" && !hip)) {
-      return Alert.alert("Missing Data", "Please enter all measurements")
+      return alert(
+        "Missing Data",
+        "Please enter all measurements",
+        [{ text: "OK" }],
+        "error",
+      )
     }
     let heightCm = height?.height_cm ? parseFloat(height.height_cm) : null
     if (!heightCm) {
-      return Alert.alert("Height Required", "Please set your height first.", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Set Height",
-          onPress: () => {
-            setShowBodyFatModal(false)
-            setShowHeightModal(true)
+      return alert(
+        "Height Required",
+        "Please set your height first.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Set Height",
+            onPress: () => {
+              setShowBodyFatModal(false)
+              setShowHeightModal(true)
+            },
           },
-        },
-      ])
+        ],
+        "warning",
+      )
     }
     let waistCm = parseFloat(waist)
     let neckCm = parseFloat(neck)
@@ -936,7 +997,6 @@ export default function TrackingScreen() {
     }
     try {
       const dateStr = selectedLogDate ? toLocalDateStr(selectedLogDate) : null
-
       await bodyFatApi.logBodyFat(
         parseFloat(bodyFatPercentage.toFixed(1)),
         { waist: waistCm, neck: neckCm, hip: hipCm, unit: "cm" },
@@ -948,13 +1008,15 @@ export default function TrackingScreen() {
       setNeck("")
       setHip("")
       setSelectedLogDate(null)
-      Alert.alert(
+      alert(
         "Body Fat Calculated",
         `Your body fat is ${bodyFatPercentage.toFixed(1)}%`,
+        [{ text: "OK" }],
+        "success",
       )
       loadData()
     } catch (error) {
-      Alert.alert("Error", error.message)
+      alert("Error", error.message, [{ text: "OK" }], "error")
     }
   }
 
@@ -964,15 +1026,25 @@ export default function TrackingScreen() {
   const markCreatineTaken = async () => {
     const grams = parseFloat(creatineGrams)
     if (!grams || isNaN(grams) || grams <= 0)
-      return Alert.alert("Invalid Input", "Enter valid grams")
+      return alert(
+        "Invalid Input",
+        "Enter valid grams",
+        [{ text: "OK" }],
+        "error",
+      )
     try {
       await bodyTrackingApi.markCreatineTaken(grams)
       setCreatineTakenToday(true)
       setShowCreatineModal(false)
-      Alert.alert("✅ Success", `Logged ${grams}g of creatine`)
+      alert(
+        "Success",
+        `Logged ${grams}g of creatine`,
+        [{ text: "OK" }],
+        "success",
+      )
       loadData()
     } catch (error) {
-      Alert.alert("Error", error.message)
+      alert("Error", error.message, [{ text: "OK" }], "error")
     }
   }
 
@@ -1026,7 +1098,12 @@ export default function TrackingScreen() {
     try {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync()
       if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Camera access is needed")
+        alert(
+          "Permission Required",
+          "Camera access is needed",
+          [{ text: "OK" }],
+          "warning",
+        )
         return
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -1040,7 +1117,7 @@ export default function TrackingScreen() {
         await uploadPhoto(result.assets[0].uri, dateStr)
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to take photo.")
+      alert("Error", "Failed to take photo.", [{ text: "OK" }], "error")
     }
   }
 
@@ -1049,7 +1126,12 @@ export default function TrackingScreen() {
       const permissionResult =
         await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Photo library access is needed")
+        alert(
+          "Permission Required",
+          "Photo library access is needed",
+          [{ text: "OK" }],
+          "warning",
+        )
         return
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -1063,7 +1145,7 @@ export default function TrackingScreen() {
         await uploadPhoto(result.assets[0].uri, dateStr)
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to select photo.")
+      alert("Error", "Failed to select photo.", [{ text: "OK" }], "error")
     }
   }
 
@@ -1072,7 +1154,12 @@ export default function TrackingScreen() {
       const permissionResult =
         await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (!permissionResult.granted) {
-        Alert.alert("Permission Required", "Photo library access is needed")
+        alert(
+          "Permission Required",
+          "Photo library access is needed",
+          [{ text: "OK" }],
+          "warning",
+        )
         return
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -1088,14 +1175,16 @@ export default function TrackingScreen() {
           null,
           toLocalDateStr(date),
         )
-        Alert.alert(
-          "✅ Photo added",
+        alert(
+          "Photo added",
           `Photo saved for ${date.toLocaleDateString()}`,
+          [{ text: "OK" }],
+          "success",
         )
         loadData()
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to add photo.")
+      alert("Error", "Failed to add photo.", [{ text: "OK" }], "error")
     }
   }
 
@@ -1108,10 +1197,10 @@ export default function TrackingScreen() {
         dateStr,
       )
       setSelectedLogDate(null)
-      Alert.alert("✅ Success", "Progress photo saved!")
+      alert("Success", "Progress photo saved!", [{ text: "OK" }], "success")
       loadData()
     } catch (error) {
-      Alert.alert("Error", "Failed to upload photo")
+      alert("Error", "Failed to upload photo", [{ text: "OK" }], "error")
     }
   }
 
@@ -1127,12 +1216,16 @@ export default function TrackingScreen() {
   // ─────────────────────────────────────────────────────────────
   const addWeight = async () => {
     if (!newWeight || isNaN(newWeight))
-      return Alert.alert("Invalid Input", "Enter a valid weight")
+      return alert(
+        "Invalid Input",
+        "Enter a valid weight",
+        [{ text: "OK" }],
+        "error",
+      )
     try {
       const recordedAt = selectedLogDate
         ? buildLocalISOForDate(selectedLogDate, "08:00")
         : null
-
       await bodyTrackingApi.logWeight(
         parseFloat(newWeight),
         weightUnit,
@@ -1142,10 +1235,10 @@ export default function TrackingScreen() {
       setNewWeight("")
       setShowWeightModal(false)
       setSelectedLogDate(null)
-      Alert.alert("✅ Success", "Weight logged!")
+      alert("Success", "Weight logged!", [{ text: "OK" }], "success")
       loadData()
     } catch (err) {
-      Alert.alert("Error", err.message)
+      alert("Error", err.message, [{ text: "OK" }], "error")
     }
   }
 
@@ -1194,11 +1287,21 @@ export default function TrackingScreen() {
       if (heightUnit === "cm") {
         heightValue = parseFloat(newHeightCm)
         if (!heightValue || isNaN(heightValue) || heightValue <= 0)
-          return Alert.alert("Invalid Input", "Enter a valid height")
+          return alert(
+            "Invalid Input",
+            "Enter a valid height",
+            [{ text: "OK" }],
+            "error",
+          )
       } else {
         const ft = parseFloat(newHeightFt)
         if (!ft || isNaN(ft) || ft <= 0)
-          return Alert.alert("Invalid Input", "Enter valid feet")
+          return alert(
+            "Invalid Input",
+            "Enter valid feet",
+            [{ text: "OK" }],
+            "error",
+          )
         heightValue = ft
       }
       const heightData = {
@@ -1212,9 +1315,9 @@ export default function TrackingScreen() {
       setNewHeightCm("")
       setNewHeightFt("")
       setNewHeightIn("")
-      Alert.alert("✅ Success", "Height saved!")
+      alert("Success", "Height saved!", [{ text: "OK" }], "success")
     } catch (error) {
-      Alert.alert("Error", error.message)
+      alert("Error", error.message, [{ text: "OK" }], "error")
     }
   }
 
@@ -1255,11 +1358,7 @@ export default function TrackingScreen() {
       const photos = grouped[dateStr]
       const label = new Date(dateStr + "T12:00:00").toLocaleDateString(
         "en-US",
-        {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        },
+        { weekday: "short", month: "short", day: "numeric" },
       )
       return (
         <View key={dateStr} style={styles.photoGroupContainer}>
@@ -1312,7 +1411,6 @@ export default function TrackingScreen() {
     })
   }
 
-  // ── Render existing entries inside unified day modal ──
   const renderDayModalExistingEntries = () => {
     const existingEntries = dayModal?.existingEntries
     if (!existingEntries || existingEntries.length === 0) return null
@@ -2455,7 +2553,7 @@ export default function TrackingScreen() {
               location.radius,
             )
           } catch (error) {
-            Alert.alert("Error", "Failed to save location")
+            alert("Error", "Failed to save location", [{ text: "OK" }], "error")
           }
         }}
         initialLocation={reminderLocation}
@@ -2480,16 +2578,13 @@ export default function TrackingScreen() {
             setSelectedLogDate(null)
             loadData()
           } catch (error) {
-            Alert.alert("Error", error.message)
+            alert("Error", error.message, [{ text: "OK" }], "error")
           }
         }}
         defaultGrams={defaultCreatineGrams}
       />
 
-      {/* ════════════════════════════════════════
-          UNIFIED DAY MODAL
-          Inner ScrollView removed — ModalSheet handles scrolling via scrollable={true}
-      ════════════════════════════════════════ */}
+      {/* UNIFIED DAY MODAL */}
       <ModalSheet
         visible={!!dayModal}
         onClose={() => {
@@ -2500,7 +2595,6 @@ export default function TrackingScreen() {
         showConfirmButton={false}
         scrollable={true}
       >
-        {/* Header */}
         <View style={styles.dayModalHeader}>
           <View style={styles.dayModalIconCircle}>
             <Text style={styles.dayModalIcon}>
@@ -2540,10 +2634,8 @@ export default function TrackingScreen() {
         </View>
         <View style={styles.dayModalDivider} />
 
-        {/* Existing entries */}
         {renderDayModalExistingEntries()}
 
-        {/* No entries message */}
         {(!dayModal?.existingEntries ||
           dayModal.existingEntries.length === 0) && (
           <View style={styles.dayModalEmptyState}>
@@ -2564,7 +2656,6 @@ export default function TrackingScreen() {
           </View>
         )}
 
-        {/* Log Entry button */}
         <TouchableOpacity
           style={styles.logEntryBtn}
           onPress={() => openLogModalForTab(dayModal?.tab)}
@@ -2608,11 +2699,7 @@ export default function TrackingScreen() {
               <Text style={styles.photoViewerTime}>
                 {new Date(expandedPhoto.photo.takenAt).toLocaleDateString(
                   "en-US",
-                  {
-                    weekday: "long",
-                    month: "long",
-                    day: "numeric",
-                  },
+                  { weekday: "long", month: "long", day: "numeric" },
                 )}
                 {"  ·  "}
                 {new Date(expandedPhoto.photo.takenAt).toLocaleTimeString([], {
@@ -2629,6 +2716,9 @@ export default function TrackingScreen() {
           )}
         </View>
       </ModalSheet>
+
+      {/* Custom Alert */}
+      {AlertComponent}
     </SafeAreaView>
   )
 }

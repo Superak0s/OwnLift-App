@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +12,7 @@ import {
 } from "react-native"
 import { useAuth } from "../context/AuthContext"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { useAlert } from "../components/CustomAlert"
 
 export default function SignupScreen({ navigation }) {
   const [username, setUsername] = useState("")
@@ -24,58 +24,70 @@ export default function SignupScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const { signup } = useAuth()
+  const { alert, AlertComponent } = useAlert()
 
-  // Validation functions
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return emailRegex.test(email)
   }
 
   const validateUsername = (username) => {
-    // Username must be 3-20 characters, alphanumeric with underscores
     const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
     return usernameRegex.test(username)
   }
 
   const validatePassword = (password) => {
-    // Password must be at least 8 characters
     return password.length >= 8
   }
 
   const validateForm = () => {
-    // Check if all required fields are filled
     if (!username || !email || !password || !confirmPassword) {
-      Alert.alert("Error", "Please fill in all required fields")
+      alert(
+        "Error",
+        "Please fill in all required fields",
+        [{ text: "OK" }],
+        "error",
+      )
       return false
     }
 
-    // Validate username
     if (!validateUsername(username)) {
-      Alert.alert(
+      alert(
         "Invalid Username",
         "Username must be 3-20 characters long and contain only letters, numbers, and underscores",
+        [{ text: "OK" }],
+        "error",
       )
       return false
     }
 
-    // Validate email
     if (!validateEmail(email)) {
-      Alert.alert("Invalid Email", "Please enter a valid email address")
+      alert(
+        "Invalid Email",
+        "Please enter a valid email address",
+        [{ text: "OK" }],
+        "error",
+      )
       return false
     }
 
-    // Validate password length
     if (!validatePassword(password)) {
-      Alert.alert(
+      alert(
         "Weak Password",
         "Password must be at least 8 characters long",
+        [{ text: "OK" }],
+        "error",
       )
       return false
     }
 
-    // Check if passwords match
     if (password !== confirmPassword) {
-      Alert.alert("Password Mismatch", "Passwords do not match")
+      alert(
+        "Password Mismatch",
+        "Passwords do not match",
+        [{ text: "OK" }],
+        "error",
+      )
       return false
     }
 
@@ -100,13 +112,21 @@ export default function SignupScreen({ navigation }) {
       setIsLoading(false)
 
       if (!result.success) {
-        Alert.alert("Signup Failed", result.error || "Could not create account")
+        alert(
+          "Signup Failed",
+          result.error || "Could not create account",
+          [{ text: "OK" }],
+          "error",
+        )
       }
-      // If successful, AuthContext will update isAuthenticated
-      // and user will be automatically redirected to Main tabs
     } catch (error) {
       setIsLoading(false)
-      Alert.alert("Error", "An unexpected error occurred. Please try again.")
+      alert(
+        "Error",
+        "An unexpected error occurred. Please try again.",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -269,6 +289,7 @@ export default function SignupScreen({ navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {AlertComponent}
     </SafeAreaView>
   )
 }
