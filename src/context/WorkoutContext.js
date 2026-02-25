@@ -4,10 +4,12 @@ import React, {
   useContext,
   useEffect,
   useRef,
+  useCallback,
 } from "react"
 import { useAuth } from "./AuthContext"
+import { useRealtimeSocket } from "./hooks/useRealtimeSocket"
+import { authService } from "../services/api"
 
-// Utilities
 import {
   STORAGE_KEYS,
   saveToStorage,
@@ -39,11 +41,11 @@ import {
   shouldResetForMonday,
 } from "./utils/dayCompletion"
 
-// Hooks
 import { useSyncManager } from "./hooks/useSyncManager"
 import { useSessionOperations } from "./hooks/useSessionOperations"
 import { useProgramOperations } from "./hooks/useProgramOperations"
 import { useServerSync } from "./hooks/useServerSync"
+import { useJointSession } from "./hooks/useJointSession"
 
 const WorkoutContext = createContext()
 
@@ -71,25 +73,62 @@ export const WorkoutProvider = ({ children }) => {
   const [lastResetDate, setLastResetDate] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Time settings
   const [timeBetweenSets, setTimeBetweenSets] = useState(120)
   const [useManualTime, setUseManualTime] = useState(false)
 
-  // Session state
   const [workoutStartTime, setWorkoutStartTime] = useState(null)
   const [currentSessionId, setCurrentSessionId] = useState(null)
   const [lastSetEndTime, setLastSetEndTime] = useState(null)
   const [lastActivityTime, setLastActivityTime] = useState(null)
   const [isDemoMode, setIsDemoMode] = useState(false)
 
-  // Analytics
   const [serverAnalytics, setServerAnalytics] = useState(null)
 
-  // Sync state
   const [pendingSyncs, setPendingSyncs] = useState([])
   const [isSyncing, setIsSyncing] = useState(false)
 
   const hasSyncedRef = useRef(false)
+  const [authToken, setAuthToken] = useState(null)
+
+  // ========================================
+  // JOINT SESSION (single instance for the whole app)
+  // ========================================
+  const currentDayAllExercises = (() => {
+    if (!workoutData?.days || !currentDay) return []
+    const day = workoutData.days.find((d) => d.dayNumber === currentDay)
+    if (!day?.people) return []
+    const result = []
+    Object.entries(day.people).forEach(([person, personWorkout]) => {
+      ;(personWorkout?.exercises ?? []).forEach((ex) => {
+        result.push({ name: ex.name, sets: ex.sets, person })
+      })
+    })
+    return result
+  })()
+
+  const handleSocketMessage = useCallback((msg) => {
+    console.log("[CONTEXT_WS_MESSAGE]", msg.type)
+
+    // Forward to joint session handler
+    jointSessionMessageHandlerRef.current?.(msg)
+  }, [])
+
+  const jointSessionMessageHandlerRef = useRef(null)
+
+  const socket = useRealtimeSocket({
+    token: authToken,
+    enabled: !!userId,
+    onMessage: handleSocketMessage,
+  })
+
+  const jointSession = useJointSession({
+    userId,
+    currentSessionId,
+    workoutStartTime,
+    currentDayExercises: currentDayAllExercises,
+    selectedPerson,
+    socket, // ← add this
+  })
 
   // ========================================
   // FETCH ANALYTICS
@@ -195,14 +234,12 @@ export const WorkoutProvider = ({ children }) => {
   }
 
   const saveCurrentDay = async (day) => {
-    // Clear active workout when changing days
     if (day !== currentDay && workoutStartTime) {
       console.log(
         `Switching from day ${currentDay} to day ${day}, clearing active workout`,
       )
       await sessionOps.clearActiveWorkout()
     }
-
     await saveToStorage(STORAGE_KEYS.CURRENT_DAY, day.toString(), userId)
     setCurrentDay(day)
   }
@@ -221,7 +258,6 @@ export const WorkoutProvider = ({ children }) => {
     await saveToStorage(STORAGE_KEYS.UNLOCKED_OVERRIDES, overrides, userId)
     setUnlockedOverrides(overrides)
 
-    // Clear completed sets for any newly unlocked days
     const newCompletedDays = { ...completedDays }
     let changed = false
     Object.keys(overrides).forEach((dayNumber) => {
@@ -252,7 +288,6 @@ export const WorkoutProvider = ({ children }) => {
       userId,
     )
     setUseManualTime(enabled)
-
     if (!enabled && selectedPerson) {
       await fetchAnalytics()
     }
@@ -261,7 +296,6 @@ export const WorkoutProvider = ({ children }) => {
   const toggleDemoMode = async (enabled) => {
     await saveToStorage(STORAGE_KEYS.IS_DEMO_MODE, enabled.toString(), userId)
     setIsDemoMode(enabled)
-
     if (!enabled) {
       const { clearDemoSessions } = require("../services/api")
       try {
@@ -381,7 +415,6 @@ export const WorkoutProvider = ({ children }) => {
     try {
       const dateToCheck = resetDate !== undefined ? resetDate : lastResetDate
       const newMondayDate = shouldResetForMonday(dateToCheck)
-
       if (newMondayDate) {
         console.log("Resetting completed days and locked days for new week!")
         await saveCompletedDays({})
@@ -397,26 +430,24 @@ export const WorkoutProvider = ({ children }) => {
   const checkAndEndStaleSession = async () => {
     if (!workoutStartTime || !currentSessionId) return false
     if (!lastSetEndTime) return false
-
     if (isSessionInactive(lastSetEndTime)) {
       console.log("🔍 Detected stale session, auto-ending...")
-      await sessionOps.endWorkout(true) // true = autoCompleted
+      await sessionOps.endWorkout(true)
       console.log("✅ Stale session ended")
       return true
     }
-
     return false
   }
 
   const clearAllData = async () => {
     if (!userId) return
-
     const keys = Object.values(STORAGE_KEYS)
     await removeMultipleFromStorage(keys, userId)
     resetAllState()
   }
 
-  const hasActiveSession = () => !!workoutStartTime
+  const hasActiveSession = () =>
+    !!workoutStartTime && !isDayLocked(lockedDays, currentDay)
 
   // ========================================
   // TIME ESTIMATION FUNCTIONS
@@ -428,7 +459,6 @@ export const WorkoutProvider = ({ children }) => {
       workoutStartTime,
       timeBetweenSets,
     )
-
     return getEstimatedTimeRemaining(
       workoutData,
       selectedPerson,
@@ -444,7 +474,6 @@ export const WorkoutProvider = ({ children }) => {
 
   const getEstimatedEndTimeForDay = (dayNumber) => {
     if (!workoutStartTime) return null
-
     const remainingSeconds = getEstimatedTimeRemainingForDay(dayNumber)
     return getEstimatedEndTime(remainingSeconds)
   }
@@ -453,9 +482,7 @@ export const WorkoutProvider = ({ children }) => {
   // SESSION STATISTICS FUNCTIONS
   // ========================================
   const getTotalSessionTime = () => calculateSessionTime(workoutStartTime)
-
   const getCurrentRestTime = () => calculateRestTime(lastSetEndTime)
-
   const getSessionAverageRestTime = (dayNumber) =>
     calculateSessionAverageRest(
       completedDays,
@@ -463,7 +490,6 @@ export const WorkoutProvider = ({ children }) => {
       workoutStartTime,
       timeBetweenSets,
     )
-
   const getSessionStats = (dayNumber) =>
     getSessionStatistics(
       workoutStartTime,
@@ -501,6 +527,9 @@ export const WorkoutProvider = ({ children }) => {
   // ========================================
   // EFFECTS
   // ========================================
+  useEffect(() => {
+    jointSessionMessageHandlerRef.current = jointSession.handleSocketMessage
+  }, [jointSession.handleSocketMessage])
 
   useEffect(() => {
     if (userId) {
@@ -518,13 +547,11 @@ export const WorkoutProvider = ({ children }) => {
 
   useEffect(() => {
     if (!userId) return
-
     const syncInterval = setInterval(() => {
       if (pendingSyncs.length > 0 && !isSyncing) {
         syncManager.syncPendingData()
       }
     }, 30000)
-
     return () => clearInterval(syncInterval)
   }, [pendingSyncs, isSyncing, userId])
 
@@ -537,14 +564,11 @@ export const WorkoutProvider = ({ children }) => {
   useEffect(() => {
     const checkStaleSessionOnStart = async () => {
       if (isLoading) return
-
       const hadStaleSession = await checkAndEndStaleSession()
-
       if (hadStaleSession && !useManualTime && selectedPerson) {
         await fetchAnalytics()
       }
     }
-
     checkStaleSessionOnStart()
   }, [isLoading])
 
@@ -552,7 +576,6 @@ export const WorkoutProvider = ({ children }) => {
     if (isLoading) return
     if (!userId || !selectedPerson || !workoutData) return
     if (hasSyncedRef.current) return
-
     hasSyncedRef.current = true
     serverSync.syncFromServer()
   }, [isLoading, userId, selectedPerson])
@@ -565,14 +588,41 @@ export const WorkoutProvider = ({ children }) => {
     if (!workoutStartTime || !currentSessionId) return
     const interval = setInterval(async () => {
       await checkAndEndStaleSession()
-    }, 60 * 1000) // check every minute
-
+    }, 60 * 1000)
     return () => clearInterval(interval)
   }, [workoutStartTime, currentSessionId, lastSetEndTime, lockedDays])
+
+  useEffect(() => {
+    if (!userId) {
+      setAuthToken(null)
+      return
+    }
+    authService
+      .getToken()
+      .then(setAuthToken)
+      .catch(() => setAuthToken(null))
+  }, [userId])
+
+  const startWorkout = useCallback(async () => {
+    const sessionId = await sessionOps.startWorkout()
+    if (sessionId) socket.send({ type: "session_started", sessionId })
+    return sessionId
+  }, [sessionOps, socket])
+
+  const endWorkout = useCallback(
+    async (autoCompleted = false) => {
+      const result = await sessionOps.endWorkout(autoCompleted)
+      socket.send({ type: "session_ended" })
+      return result
+    },
+    [sessionOps, socket],
+  )
+
   // ========================================
   // CONTEXT VALUE
   // ========================================
   const value = {
+    socketLastMessage: socket.lastMessage,
     // State
     workoutData,
     selectedPerson,
@@ -604,8 +654,8 @@ export const WorkoutProvider = ({ children }) => {
 
     // Session operations
     hasActiveSession,
-    startWorkout: sessionOps.startWorkout,
-    endWorkout: sessionOps.endWorkout,
+    startWorkout,
+    endWorkout,
     saveSetDetails: sessionOps.saveSetDetails,
     deleteSetDetails: sessionOps.deleteSetDetails,
     lockDay: sessionOps.lockDay,
@@ -645,6 +695,32 @@ export const WorkoutProvider = ({ children }) => {
     // Utilities
     clearAllData,
     checkAndEndStaleSession,
+
+    // ── Joint session (single shared instance) ──
+    jointSession: jointSession.jointSession,
+    isInJointSession: jointSession.isInJointSession,
+    partnerProgress: jointSession.partnerProgress,
+    partnerExerciseList: jointSession.partnerExerciseList,
+    myJointProgress: jointSession.myProgress,
+    pendingJointInvite: jointSession.pendingInvite,
+    jointInviteStatus: jointSession.inviteStatus,
+    isPartnerReady: jointSession.isPartnerReady,
+    syncPulse: jointSession.syncPulse,
+    sendJointInvite: jointSession.sendInvite,
+    acceptJointInvite: jointSession.acceptInvite,
+    declineJointInvite: jointSession.declineInvite,
+    leaveJointSession: jointSession.leaveJointSession,
+    pushJointProgress: jointSession.pushProgress,
+    partnerCompletedSets: jointSession.partnerCompletedSets,
+
+    // ── Watch session (single shared instance) ──
+    isWatching: jointSession.isWatching,
+    watchTarget: jointSession.watchTarget,
+    watchSession: jointSession.watchSession,
+    watchLoading: jointSession.watchLoading,
+    watchError: jointSession.watchError,
+    startWatching: jointSession.startWatching,
+    stopWatching: jointSession.stopWatching,
   }
 
   return (

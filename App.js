@@ -21,7 +21,6 @@ import {
   PanResponder,
   ScrollView,
   Keyboard,
-  Alert,
 } from "react-native"
 import Constants from "expo-constants"
 import * as Linking from "expo-linking"
@@ -34,6 +33,9 @@ import * as NavigationBar from "expo-navigation-bar"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Notifications from "expo-notifications"
 import { rescheduleTimeReminder } from "./tasks/creatineLocationTask"
+import { useAlert } from "./src/components/CustomAlert"
+import { useTabBar, TabBarProvider } from "./src/context/TabBarContext"
+import { VersionGuard } from "./src/components/VersionGuard"
 
 import LoginScreen from "./src/screens/LoginScreen"
 import SignupScreen from "./src/screens/SignupScreen"
@@ -68,6 +70,7 @@ try {
 } catch (error) {
   console.log("Notifications not available in Expo Go:", error.message)
 }
+
 const TabIcon = ({ icon, label, focused }) => {
   return (
     <View style={styles.tabIconContainer}>
@@ -85,6 +88,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
   const slideAnim = useRef(new Animated.Value(0)).current
   const rotateAnim = useRef(new Animated.Value(0)).current
+  const { setIsTabBarCollapsed } = useTabBar()
 
   useEffect(() => {
     const activeIndex = state.index
@@ -117,7 +121,9 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
         friction: 8,
       }),
     ]).start()
-    setIsCollapsed(!isCollapsed)
+    const next = !isCollapsed
+    setIsCollapsed(next)
+    setIsTabBarCollapsed(next)
   }
 
   const tabBarTranslateX = slideAnim.interpolate({
@@ -135,7 +141,6 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
     outputRange: ["0deg", "180deg"],
   })
 
-  // opacity+pointerEvents instead of returning null — avoids hooks count mismatch
   return (
     <View
       style={{ opacity: isKeyboardVisible ? 0 : 1 }}
@@ -226,7 +231,6 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   )
 }
 
-// Fixed: was calling addNotificationResponseReceivedListener twice
 function NotificationListener() {
   const { user } = useAuth()
 
@@ -255,6 +259,46 @@ function NotificationListener() {
   }, [user?.id])
 
   return null
+}
+
+// Handles the update check alert inside the provider tree so useAlert works
+function UpdateChecker() {
+  const { alert, AlertComponent } = useAlert()
+
+  useEffect(() => {
+    async function checkForUpdate() {
+      try {
+        const response = await fetch(
+          "https://api.github.com/repos/Superak0s/SuperGym-App/releases/latest",
+        )
+        const release = await response.json()
+
+        const latestVersion = release.tag_name.replace(/^v/, "").split("-")[0]
+        const currentVersion = Constants.expoConfig.version
+
+        if (latestVersion !== currentVersion) {
+          const apkUrl = release.assets.find((a) =>
+            a.name.endsWith(".apk"),
+          )?.browser_download_url
+
+          alert(
+            "Update Available",
+            `Version ${latestVersion} is available. Do you want to download it?`,
+            [
+              { text: "Later", style: "cancel" },
+              { text: "Download", onPress: () => Linking.openURL(apkUrl) },
+            ],
+            "info",
+          )
+        }
+      } catch (e) {
+        console.log("Update check failed:", e)
+      }
+    }
+    checkForUpdate()
+  }, [])
+
+  return AlertComponent
 }
 
 function MainTabs() {
@@ -411,14 +455,6 @@ function MainTabs() {
           }}
         />
       </Tab.Navigator>
-
-      {Platform.OS === "android" && (
-        <View style={styles.hintContainer}>
-          <Text style={styles.hintText}>
-            Swipe up from bottom to show navigation buttons
-          </Text>
-        </View>
-      )}
     </View>
   )
 }
@@ -449,46 +485,20 @@ function AppNavigator() {
 }
 
 export default function App() {
-  useEffect(() => {
-    async function checkForUpdate() {
-      try {
-        const response = await fetch(
-          "https://api.github.com/repos/Superak0s/SuperGym-App/releases/latest",
-        )
-        const release = await response.json()
-
-        const latestVersion = release.tag_name.replace(/^v/, "").split("-")[0]
-        const currentVersion = Constants.expoConfig.version
-
-        if (latestVersion !== currentVersion) {
-          const apkUrl = release.assets.find((a) =>
-            a.name.endsWith(".apk"),
-          )?.browser_download_url
-
-          Alert.alert(
-            "Update Available",
-            `Version ${latestVersion} is available. Do you want to download it?`,
-            [
-              { text: "Later", style: "cancel" },
-              { text: "Download", onPress: () => Linking.openURL(apkUrl) },
-            ],
-          )
-        }
-      } catch (e) {
-        console.log("Update check failed:", e)
-      }
-    }
-    checkForUpdate()
-  }, [])
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <WorkoutProvider>
-          <NavigationContainer>
-            <StatusBar style='light' />
-            <AppNavigator />
-          </NavigationContainer>
-        </WorkoutProvider>
+        <TabBarProvider>
+          <WorkoutProvider>
+            <NavigationContainer>
+              <StatusBar style='light' />
+              <VersionGuard>
+                <UpdateChecker />
+                <AppNavigator />
+              </VersionGuard>
+            </NavigationContainer>
+          </WorkoutProvider>
+        </TabBarProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   )
@@ -497,7 +507,7 @@ export default function App() {
 const styles = StyleSheet.create({
   customTabBarContainer: {
     position: "absolute",
-    bottom: 25,
+    bottom: 0,
     left: 20,
     height: 73,
     width: "76%",
@@ -577,7 +587,7 @@ const styles = StyleSheet.create({
   },
   toggleContainer: {
     position: "absolute",
-    bottom: 40,
+    bottom: 15,
     right: 20,
     zIndex: 1000,
     alignItems: "center",
@@ -613,18 +623,5 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 64,
-  },
-  hintContainer: {
-    position: "absolute",
-    bottom: 5,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    opacity: 0.5,
-  },
-  hintText: {
-    fontSize: 10,
-    color: "#9ca3af",
-    textAlign: "center",
   },
 })

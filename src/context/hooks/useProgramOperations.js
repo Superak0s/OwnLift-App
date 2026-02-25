@@ -39,7 +39,8 @@ export const useProgramOperations = ({
         // Update local state immediately
         day.people[person].exercises[exerciseIndex].name = newName
         if (newMuscleGroup !== undefined) {
-          day.people[person].exercises[exerciseIndex].muscleGroup = newMuscleGroup
+          day.people[person].exercises[exerciseIndex].muscleGroup =
+            newMuscleGroup
         }
 
         await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, updatedData, userId)
@@ -100,7 +101,10 @@ export const useProgramOperations = ({
             additionalSets,
           )
         } catch (err) {
-          console.warn("Could not sync set count change to server:", err.message)
+          console.warn(
+            "Could not sync set count change to server:",
+            err.message,
+          )
         }
       } catch (error) {
         console.error("Error adding extra sets:", error)

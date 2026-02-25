@@ -2,364 +2,395 @@ import { getServerUrl } from "./config"
 import { authenticatedFetch } from "./auth"
 
 /**
- * Sharing API - Implements documented endpoints
- * Routes are registered under /api/sharing/
+ * Sharing API
+ * Routes registered under /api/sharing/
+ *
+ * All five sharing types are now unified permissions:
+ *   'history'       – view workout history
+ *   'analytics'     – view workout analytics
+ *   'program'       – share a workout program  (payload: { programData, message })
+ *   'joint_session' – lift together
+ *   'watch_session' – watch live session
  */
 export const sharingApi = {
+  // ──────────────────────────────────────────────────────────────────────────
+  // Unified permissions
+  // ──────────────────────────────────────────────────────────────────────────
+
   /**
-   * Share analytics with a friend
-   * POST /api/sharing/analytics
+   * Grant a permission to a friend.
+   * POST /api/sharing/permissions
+   * @param {number} friendId
+   * @param {string} permissionType  – one of the five types above
+   * @param {object|null} payload    – required for 'program': { programData, message? }
+   *                                   optional for 'analytics': { message? }
    */
+  grantPermission: async (friendId, permissionType, payload = null) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/permissions`,
+      {
+        method: "POST",
+        body: JSON.stringify({ friendId, permissionType, payload }),
+      },
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to grant permission")
+    return data
+  },
+
+  /**
+   * Revoke a permission I previously granted.
+   * DELETE /api/sharing/permissions/:permissionId
+   */
+  revokePermission: async (permissionId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/permissions/${permissionId}`,
+      { method: "DELETE" },
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to revoke permission")
+    return data
+  },
+
+  /**
+   * All permissions I have granted to friends.
+   * GET /api/sharing/permissions/granted
+   * → [{ id, toUserId, toUsername, permissionType, payload, createdAt }]
+   */
+  getGrantedPermissions: async () => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/permissions/granted`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get granted permissions")
+    return (data.permissions || []).map((p) => ({
+      id: p.id,
+      toUserId: p.to_user_id,
+      toUsername: p.to_username,
+      permissionType: p.permission_type,
+      payload: p.payload ?? null,
+      createdAt: p.created_at,
+    }))
+  },
+
+  /**
+   * All permissions friends have granted me.
+   * GET /api/sharing/permissions/received
+   * → [{ id, fromUserId, fromUsername, permissionType, payload, createdAt }]
+   */
+  getReceivedPermissions: async () => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/permissions/received`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get received permissions")
+    return (data.permissions || []).map((p) => ({
+      id: p.id,
+      fromUserId: p.from_user_id,
+      fromUsername: p.from_username,
+      permissionType: p.permission_type,
+      payload: p.payload ?? null,
+      createdAt: p.created_at,
+    }))
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Convenience: analytics
+  // These thin wrappers call the generic routes but keep call-sites readable.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Share analytics with a friend (grants 'analytics' permission). */
   shareAnalytics: async (
     friendId,
-    includeAllSessions = true,
-    dayNumber = null,
+    _includeAllSessions,
+    _dayNumber,
     message = null,
   ) => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/analytics`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            friendId,
-            includeAllSessions,
-            dayNumber,
-            message,
-          }),
-        },
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to share analytics")
-      }
-
-      return data
-    } catch (error) {
-      console.error("Error sharing analytics:", error)
-      throw error
-    }
+    return sharingApi.grantPermission(
+      friendId,
+      "analytics",
+      message ? { message } : null,
+    )
   },
 
-  /**
-   * Get received analytics shares
-   * GET /api/sharing/analytics/received
-   */
   getReceivedAnalytics: async () => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/analytics/received`,
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get received analytics")
-      }
-
-      // Map backend field names to frontend expected names
-      return (data.shares || []).map((share) => ({
-        id: share.id,
-        senderId: share.from_user_id,
-        senderUsername: share.from_username,
-        senderName: share.from_name,
-        sharedAt: share.created_at,
-        message: share.message,
-        includeAllSessions: share.include_all_sessions,
-        dayNumber: share.include_day_number,
-      }))
-    } catch (error) {
-      console.error("Error getting received analytics:", error)
-      throw error
-    }
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/analytics/received`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get received analytics")
+    return data.shares || []
   },
 
-  /**
-   * Get sent analytics shares
-   * GET /api/sharing/analytics/sent
-   */
   getSentAnalytics: async () => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/analytics/sent`,
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get sent analytics")
-      }
-
-      // Map backend field names to frontend expected names
-      return (data.shares || []).map((share) => ({
-        id: share.id,
-        receiverId: share.to_user_id,
-        receiverUsername: share.to_username,
-        receiverName: share.to_name,
-        sharedAt: share.created_at,
-        message: share.message,
-        includeAllSessions: share.include_all_sessions,
-        dayNumber: share.include_day_number,
-      }))
-    } catch (error) {
-      console.error("Error getting sent analytics:", error)
-      throw error
-    }
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/analytics/sent`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get sent analytics")
+    return data.shares || []
   },
 
-  /**
-   * View friend's analytics
-   * GET /api/sharing/analytics/:shareId/view
-   */
-  viewFriendAnalytics: async (shareId, friendId) => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/analytics/${shareId}/view?friendId=${friendId}`,
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to view friend analytics")
-      }
-
-      return data.analytics
-    } catch (error) {
-      console.error("Error viewing friend analytics:", error)
-      throw error
-    }
+  viewFriendAnalytics: async (_shareId, friendId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/analytics/friend/${friendId}`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to view friend analytics")
+    return data.analytics
   },
 
-  /**
-   * Get friend's workout sessions
-   * GET /api/sharing/sessions/friend/:friendId
-   */
-  getFriendSessions: async (friendId, limit = 60) => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/sessions/friend/${friendId}?limit=${limit}`,
-      )
+  // ──────────────────────────────────────────────────────────────────────────
+  // Convenience: program
+  // ──────────────────────────────────────────────────────────────────────────
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get friend sessions")
-      }
-
-      return data.sessions || []
-    } catch (error) {
-      console.error("Error getting friend sessions:", error)
-      throw error
-    }
-  },
-
-  /**
-   * Get friend's workout session details
-   * GET /api/sharing/sessions/friend/:friendId/:sessionId
-   */
-  getFriendSessionDetails: async (friendId, sessionId) => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/sessions/friend/${friendId}/${sessionId}`,
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get friend session details")
-      }
-
-      return data.session || null
-    } catch (error) {
-      console.error("Error getting friend session details:", error)
-      throw error
-    }
-  },
-
-  /**
-   * Share program with a friend
-   * POST /api/sharing/program
-   */
+  /** Share a program with a friend (grants 'program' permission with payload). */
   shareProgram: async (friendId, programData, message = null) => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/program`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            friendId,
-            programData,
-            message,
-          }),
-        },
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to share program")
-      }
-
-      return data
-    } catch (error) {
-      console.error("Error sharing program:", error)
-      throw error
-    }
+    return sharingApi.grantPermission(friendId, "program", {
+      programData,
+      message,
+    })
   },
 
-  /**
-   * Get received programs
-   * GET /api/sharing/program/received
-   */
   getReceivedPrograms: async () => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/program/received`,
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get received programs")
-      }
-
-      return (data.programs || []).map((program) => ({
-        id: program.id,
-        senderId: program.from_user_id,
-        senderUsername: program.from_username,
-        senderName: program.from_name,
-        sharedAt: program.created_at,
-        message: program.message,
-        programData: program.program_data,
-        accepted: program.accepted,
-        acceptedAt: program.accepted_at,
-      }))
-    } catch (error) {
-      console.error("Error getting received programs:", error)
-      throw error
-    }
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/program/received`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get received programs")
+    return (data.programs || []).map((p) => ({
+      id: p.id,
+      senderId: p.senderId,
+      senderUsername: p.senderUsername,
+      sharedAt: p.sharedAt,
+      message: p.message,
+      programData: p.programData,
+    }))
   },
 
-  /**
-   * Get sent programs
-   * GET /api/sharing/program/sent
-   */
   getSentPrograms: async () => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/program/sent`,
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get sent programs")
-      }
-
-      // Map backend field names to frontend expected names
-      return (data.programs || []).map((program) => ({
-        id: program.id,
-        receiverId: program.to_user_id,
-        receiverUsername: program.to_username,
-        receiverName: program.to_name,
-        sharedAt: program.created_at,
-        message: program.message,
-        programData: program.program_data,
-        accepted: program.accepted,
-        acceptedAt: program.accepted_at,
-      }))
-    } catch (error) {
-      console.error("Error getting sent programs:", error)
-      throw error
-    }
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/program/sent`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get sent programs")
+    return (data.programs || []).map((p) => ({
+      id: p.id,
+      receiverId: p.receiverId,
+      receiverUsername: p.receiverUsername,
+      sharedAt: p.sharedAt,
+      message: p.message,
+      programData: p.programData,
+    }))
   },
 
   /**
-   * Accept shared program
-   * POST /api/sharing/program/:shareId/accept
+   * Delete any share (analytics or program) by revoking the permission.
+   * The old /api/sharing/:shareType/:shareId DELETE is gone; this maps
+   * shareType to a revokePermission call.
    */
-  acceptProgram: async (shareId) => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/program/${shareId}/accept`,
-        {
-          method: "POST",
-        },
-      )
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to accept program")
-      }
-
-      return data
-    } catch (error) {
-      console.error("Error accepting program:", error)
-      throw error
-    }
+  deleteShare: async (_shareType, permissionId) => {
+    return sharingApi.revokePermission(permissionId)
   },
 
-  /**
-   * Delete a share (analytics or program)
-   * DELETE /api/sharing/:shareType/:shareId
-   */
-  deleteShare: async (shareType, shareId) => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/${shareType}/${shareId}`,
-        {
-          method: "DELETE",
-        },
-      )
+  // ──────────────────────────────────────────────────────────────────────────
+  // Session history
+  // ──────────────────────────────────────────────────────────────────────────
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to delete share")
-      }
-
-      return data
-    } catch (error) {
-      console.error("Error deleting share:", error)
-      throw error
-    }
+  getFriendSessions: async (friendId, limit = 60) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/sessions/friend/${friendId}?limit=${limit}`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get friend sessions")
+    return data.sessions || []
   },
 
-  /**
-   * Get sharing statistics
-   * GET /api/sharing/stats
-   */
+  getFriendSessionDetails: async (friendId, sessionId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/sessions/friend/${friendId}/${sessionId}`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get friend session details")
+    return data.session || null
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Stats
+  // ──────────────────────────────────────────────────────────────────────────
+
   getSharingStats: async () => {
-    try {
-      const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/sharing/stats`,
-      )
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/stats`,
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get sharing stats")
+    return data.stats
+  },
 
-      const data = await response.json()
+  // ──────────────────────────────────────────────────────────────────────────
+  // Joint sessions
+  // ──────────────────────────────────────────────────────────────────────────
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get sharing stats")
-      }
+  getFriendSessionStatus: async (friendId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/friend/${friendId}/status`,
+    )
+    if (response.status === 404) return { hasActiveSession: false }
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get friend session status")
+    return data
+  },
 
-      return data.stats
-    } catch (error) {
-      console.error("Error getting sharing stats:", error)
-      throw error
-    }
+  sendJointInvite: async ({ toUserId, fromSessionId }) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/invite`,
+      {
+        method: "POST",
+        body: JSON.stringify({ toUserId, fromSessionId }),
+      },
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to send joint invite")
+    return data
+  },
+
+  getInviteStatus: async (inviteId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/invites/${inviteId}`,
+    )
+    if (response.status === 404) return null
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get invite status")
+    return data
+  },
+
+  getMyPendingInvite: async () => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/invites/pending`,
+    )
+    if (response.status === 404) return null
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get pending invite")
+    return data
+  },
+
+  acceptJointInvite: async (inviteId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/invites/${inviteId}/accept`,
+      { method: "POST" },
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to accept joint invite")
+    return data
+  },
+
+  declineJointInvite: async (inviteId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/invites/${inviteId}/decline`,
+      { method: "POST" },
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to decline joint invite")
+    return data
+  },
+
+  getJointSession: async (jointSessionId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/${jointSessionId}`,
+    )
+    if (response.status === 404) return null
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get joint session")
+    return data.jointSession ?? data
+  },
+
+  pushJointProgress: async (jointSessionId, progress) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/${jointSessionId}/progress`,
+      { method: "PATCH", body: JSON.stringify(progress) },
+    )
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || "Failed to push progress")
+    return data
+  },
+
+  leaveJointSession: async (jointSessionId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/joint-sessions/${jointSessionId}/leave`,
+      { method: "DELETE" },
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to leave joint session")
+    return data
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Watch session
+  // ──────────────────────────────────────────────────────────────────────────
+
+  getFriendActiveSession: async (friendId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/watch/friend/${friendId}/active`,
+    )
+    if (response.status === 404 || response.status === 403) return null
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get friend active session")
+    return data.session ?? null
+  },
+
+  getFriendLiveSession: async (friendId, sessionId) => {
+    const API_BASE_URL = getServerUrl()
+    const response = await authenticatedFetch(
+      `${API_BASE_URL}/api/sharing/watch/friend/${friendId}/session/${sessionId}/live`,
+    )
+    if (response.status === 404 || response.status === 403) return null
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(data.error || "Failed to get friend live session")
+    return data.liveSession ?? null
   },
 }

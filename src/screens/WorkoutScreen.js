@@ -1,4 +1,11 @@
-import React, { useState, useEffect } from "react"
+/**
+ * WorkoutScreen – with Joint Session highlights
+ *
+ * Joint session state is now consumed from WorkoutContext (single shared
+ * instance). This screen no longer instantiates useJointSession directly.
+ */
+
+import React, { useState, useEffect, useRef, useMemo } from "react"
 import {
   View,
   Text,
@@ -6,8 +13,12 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Animated,
 } from "react-native"
+import { ActivityIndicator } from "react-native"
 import { useWorkout } from "../context/WorkoutContext"
+import { useAuth } from "../context/AuthContext"
+import { useTabBar } from "../context/TabBarContext"
 import { SafeAreaView } from "react-native-safe-area-context"
 import {
   getAllExerciseNames,
@@ -18,14 +29,205 @@ import {
 } from "../utils/exerciseMatching"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
+import { LinearGradient } from "expo-linear-gradient"
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Partner banner – compact strip pinned to the very top of the screen
+// ─────────────────────────────────────────────────────────────────────────────
+function PartnerBanner({
+  partnerProgress,
+  isPartnerReady,
+  syncPulse,
+  partnerUsername,
+  onLeave,
+}) {
+  const pulse = useRef(new Animated.Value(1)).current
+
+  useEffect(() => {
+    if (syncPulse) {
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.04,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1.04,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+      ]).start()
+    }
+  }, [syncPulse, pulse])
+
+  const exerciseLabel = partnerProgress?.exerciseName
+    ? partnerProgress.exerciseName
+    : partnerProgress?.exerciseIndex != null
+      ? `Ex ${partnerProgress.exerciseIndex + 1}`
+      : "—"
+  const setLabel =
+    partnerProgress?.setIndex != null
+      ? `Set ${partnerProgress.setIndex + 1}`
+      : "—"
+  const statusText = isPartnerReady
+    ? "✅ Ready for next set"
+    : partnerProgress
+      ? `${exerciseLabel} · ${setLabel}`
+      : "Waiting…"
+
+  return (
+    <Animated.View
+      style={[bannerStyles.container, { transform: [{ scale: pulse }] }]}
+    >
+      <View style={bannerStyles.liveDot} />
+      <View style={bannerStyles.avatarRing}>
+        <Text style={bannerStyles.avatarText}>
+          {partnerUsername?.charAt(0).toUpperCase() || "?"}
+        </Text>
+      </View>
+      <Text style={bannerStyles.label} numberOfLines={1}>
+        <Text style={bannerStyles.name}>{partnerUsername}</Text>
+        {"  "}
+        <Text style={bannerStyles.status}>{statusText}</Text>
+      </Text>
+      <TouchableOpacity style={bannerStyles.leaveBtn} onPress={onLeave}>
+        <Text style={bannerStyles.leaveBtnText}>Leave</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  )
+}
+
+const bannerStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1a1a2e",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    gap: 8,
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#10b981",
+  },
+  avatarRing: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#7c3aed",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#a78bfa",
+  },
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  label: { flex: 1, fontSize: 12 },
+  name: { color: "#fff", fontWeight: "700" },
+  status: { color: "rgba(255,255,255,0.6)" },
+  leaveBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  leaveBtnText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Partner is here" pill
+// ─────────────────────────────────────────────────────────────────────────────
+function PartnerExercisePill({ username }) {
+  return (
+    <View style={pillStyles.pill}>
+      <View style={pillStyles.dot} />
+      <Text style={pillStyles.text}>{username} is here</Text>
+    </View>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Badge showing set-count difference for shared exercises
+// ─────────────────────────────────────────────────────────────────────────────
+function PartnerExerciseMatchBadge({ partnerSets, mySets }) {
+  const diff = (partnerSets ?? 0) - mySets
+  const diffText =
+    diff === 0
+      ? "Same sets"
+      : diff > 0
+        ? `+${diff} partner sets`
+        : `${diff} partner sets`
+  const diffColor = diff === 0 ? "#78350f" : diff > 0 ? "#92400e" : "#78350f"
+  const bgColor = diff === 0 ? "#fef9c3" : diff > 0 ? "#fef3c7" : "#fef9c3"
+  const borderColor = diff === 0 ? "#fde68a" : diff > 0 ? "#fcd34d" : "#fde68a"
+  return (
+    <View
+      style={[matchStyles.badge, { backgroundColor: bgColor, borderColor }]}
+    >
+      <Text style={[matchStyles.setsText, { color: diffColor }]}>
+        🤝 {diffText}
+      </Text>
+    </View>
+  )
+}
+
+const pillStyles = StyleSheet.create({
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#ede9fe",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+    marginBottom: 8,
+  },
+  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#7c3aed" },
+  text: { fontSize: 11, fontWeight: "700", color: "#5b21b6" },
+})
+
+const matchStyles = StyleSheet.create({
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  setsText: { fontSize: 11, fontWeight: "700" },
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main screen
+// ─────────────────────────────────────────────────────────────────────────────
 export default function WorkoutScreen() {
+  const { user } = useAuth()
+  const { isTabBarCollapsed } = useTabBar()
   const {
     workoutData,
     selectedPerson,
     currentDay,
     completedDays,
-    saveSetDetails,
+    saveSetDetails: saveSetDetailsCtx,
     deleteSetDetails,
     isSetComplete,
     getSetDetails,
@@ -35,6 +237,7 @@ export default function WorkoutScreen() {
     getEstimatedTimeRemaining,
     getEstimatedEndTime,
     workoutStartTime,
+    currentSessionId,
     endWorkout,
     updateExerciseName,
     addExtraSetsToExercise,
@@ -44,10 +247,30 @@ export default function WorkoutScreen() {
     getTotalSessionTime,
     getCurrentRestTime,
     getSessionStats,
+    // ── joint session ──
+    isInJointSession,
+    jointSession,
+    partnerProgress,
+    partnerExerciseList,
+    isPartnerReady,
+    syncPulse,
+    pushJointProgress,
+    leaveJointSession,
+    partnerCompletedSets,
   } = useWorkout()
 
   const { alert, AlertComponent } = useAlert()
 
+  const partnerUsername =
+    jointSession?.participants?.find((p) => p.userId !== user?.id)?.username ??
+    "Partner"
+
+  const bottomAnim = useRef(new Animated.Value(74)).current
+  const leftAnim = useRef(new Animated.Value(0)).current
+  const borderRadiusAnim = useRef(new Animated.Value(0)).current
+  const paddingBottomAnim = useRef(new Animated.Value(15)).current
+
+  // ── local state ──────────────────────────────────────────────────────
   const [showSetModal, setShowSetModal] = useState(false)
   const [selectedSet, setSelectedSet] = useState(null)
   const [weight, setWeight] = useState("")
@@ -56,20 +279,15 @@ export default function WorkoutScreen() {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [setNote, setSetNote] = useState("")
   const [isWarmupSet, setIsWarmupSet] = useState(false)
-  const [assistedWeight, setAssistedWeight] = useState("")
-
-  // Exercise management modals
   const [showEditNameModal, setShowEditNameModal] = useState(false)
   const [editingExercise, setEditingExercise] = useState(null)
   const [newExerciseName, setNewExerciseName] = useState("")
   const [newMuscleGroup, setNewMuscleGroup] = useState("")
   const [nameSuggestions, setNameSuggestions] = useState([])
   const [muscleGroupSuggestions, setMuscleGroupSuggestions] = useState([])
-
   const [showAddSetsModal, setShowAddSetsModal] = useState(false)
   const [addingSetsExercise, setAddingSetsExercise] = useState(null)
   const [additionalSets, setAdditionalSets] = useState("")
-
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false)
   const [newExercise, setNewExercise] = useState({
     name: "",
@@ -81,27 +299,18 @@ export default function WorkoutScreen() {
     newExerciseMuscleGroupSuggestions,
     setNewExerciseMuscleGroupSuggestions,
   ] = useState([])
-
-  // Session stats tracking
   const [currentRestTimer, setCurrentRestTimer] = useState(0)
   const [sessionStats, setSessionStats] = useState(null)
 
-  // Get all unique exercise names and muscle groups for matching
   const allExerciseNames = getAllExerciseNames(workoutData, selectedPerson)
   const allMuscleGroups = getAllMuscleGroups(workoutData, selectedPerson)
-
-  // Check if current day is locked
   const isCurrentDayLocked = isDayLocked(currentDay)
-  // Check if all sets are actually completed
   const areAllSetsComplete = isDayComplete(currentDay)
 
-  // Get current day's workout
   const getCurrentDayWorkout = () => {
     if (!workoutData?.days || !selectedPerson) return null
-
     const day = workoutData.days.find((d) => d.dayNumber === currentDay)
     if (!day || !day.people[selectedPerson]) return null
-
     return {
       dayNumber: day.dayNumber,
       dayTitle: day.dayTitle,
@@ -110,227 +319,185 @@ export default function WorkoutScreen() {
       totalSets: day.people[selectedPerson].totalSets || 0,
     }
   }
-
   const dayWorkout = getCurrentDayWorkout()
 
-  // Update session stats every second
+  // ── session stats ticker ─────────────────────────────────────────────
   useEffect(() => {
     if (!workoutStartTime || isCurrentDayLocked) return
-
     const interval = setInterval(() => {
-      const stats = getSessionStats(currentDay)
-      setSessionStats(stats)
-
-      const currentRest = getCurrentRestTime()
-      setCurrentRestTimer(currentRest)
+      setSessionStats(getSessionStats(currentDay))
+      setCurrentRestTimer(getCurrentRestTime())
     }, 1000)
-
     return () => clearInterval(interval)
   }, [workoutStartTime, isCurrentDayLocked, currentDay])
 
-  // Load performance history when set modal opens
   useEffect(() => {
-    if (showSetModal && selectedSet) {
-      loadPerformanceHistory()
-    }
+    if (showSetModal && selectedSet) loadPerformanceHistory()
   }, [showSetModal, selectedSet])
 
-  // Check exercise name for suggestions when editing
   useEffect(() => {
     if (showEditNameModal && newExerciseName.trim()) {
-      const typoCheck = checkForTypo(newExerciseName, allExerciseNames)
-      setNameSuggestions(
-        typoCheck.suggestions.length > 0 ? typoCheck.suggestions : [],
-      )
-    } else {
-      setNameSuggestions([])
-    }
+      const t = checkForTypo(newExerciseName, allExerciseNames)
+      setNameSuggestions(t.suggestions.length > 0 ? t.suggestions : [])
+    } else setNameSuggestions([])
   }, [newExerciseName, showEditNameModal])
 
-  // Check muscle group for suggestions when editing
   useEffect(() => {
     if (showEditNameModal && newMuscleGroup.trim()) {
-      const typoCheck = checkMuscleGroupForTypo(newMuscleGroup, allMuscleGroups)
-      setMuscleGroupSuggestions(
-        typoCheck.suggestions.length > 0 ? typoCheck.suggestions : [],
-      )
-    } else {
-      setMuscleGroupSuggestions([])
-    }
+      const t = checkMuscleGroupForTypo(newMuscleGroup, allMuscleGroups)
+      setMuscleGroupSuggestions(t.suggestions.length > 0 ? t.suggestions : [])
+    } else setMuscleGroupSuggestions([])
   }, [newMuscleGroup, showEditNameModal])
 
-  // Check new exercise name for suggestions
   useEffect(() => {
     if (showAddExerciseModal && newExercise.name.trim()) {
-      const typoCheck = checkForTypo(newExercise.name, allExerciseNames)
-      setNewExerciseSuggestions(
-        typoCheck.suggestions.length > 0 ? typoCheck.suggestions : [],
-      )
-    } else {
-      setNewExerciseSuggestions([])
-    }
+      const t = checkForTypo(newExercise.name, allExerciseNames)
+      setNewExerciseSuggestions(t.suggestions.length > 0 ? t.suggestions : [])
+    } else setNewExerciseSuggestions([])
   }, [newExercise.name, showAddExerciseModal])
 
-  // Check new exercise muscle group for suggestions
   useEffect(() => {
     if (showAddExerciseModal && newExercise.muscleGroup.trim()) {
-      const typoCheck = checkMuscleGroupForTypo(
+      const t = checkMuscleGroupForTypo(
         newExercise.muscleGroup,
         allMuscleGroups,
       )
       setNewExerciseMuscleGroupSuggestions(
-        typoCheck.suggestions.length > 0 ? typoCheck.suggestions : [],
+        t.suggestions.length > 0 ? t.suggestions : [],
       )
-    } else {
-      setNewExerciseMuscleGroupSuggestions([])
-    }
+    } else setNewExerciseMuscleGroupSuggestions([])
   }, [newExercise.muscleGroup, showAddExerciseModal])
 
-  // Check for session auto-completion on mount
   useEffect(() => {
-    const checkAutoCompletion = async () => {
-      if (isDayLocked(currentDay) && workoutStartTime && lastActivityTime) {
-        const now = Date.now()
-        const lastActivity = new Date(lastActivityTime).getTime()
-        const timeSinceLastActivity = now - lastActivity
-        const INACTIVITY_TIMEOUT = 30 * 60 * 1000
-
-        if (timeSinceLastActivity >= INACTIVITY_TIMEOUT) {
-          alert(
-            "Session Auto-Completed",
-            "Your workout session was automatically completed due to 30 minutes of inactivity. The day has been locked.",
-            [{ text: "OK" }],
-            "info",
-          )
-        }
-      }
+    if (isDayLocked(currentDay) && workoutStartTime && lastActivityTime) {
+      const since = Date.now() - new Date(lastActivityTime).getTime()
+      if (since >= 30 * 60 * 1000)
+        alert(
+          "Session Auto-Completed",
+          "Your workout session was automatically completed due to 30 minutes of inactivity.",
+          [{ text: "OK" }],
+          "info",
+        )
     }
-
-    checkAutoCompletion()
   }, [])
 
+  useEffect(() => {
+    Animated.spring(bottomAnim, {
+      toValue: isTabBarCollapsed ? -10 : 74,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 8,
+    }).start()
+    Animated.spring(leftAnim, {
+      toValue: isTabBarCollapsed ? 66 : 0,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 8,
+    }).start()
+    Animated.spring(borderRadiusAnim, {
+      toValue: isTabBarCollapsed ? 16 : 0,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 8,
+    }).start()
+    Animated.spring(paddingBottomAnim, {
+      toValue: isTabBarCollapsed ? 25 : 15,
+      useNativeDriver: false,
+      tension: 50,
+      friction: 8,
+    }).start()
+  }, [isTabBarCollapsed])
+
+  // ── performance history ──────────────────────────────────────────────
   const loadPerformanceHistory = async () => {
     if (!selectedSet || !dayWorkout) return
-
     setLoadingHistory(true)
     try {
       const exercise = dayWorkout.exercises[selectedSet.exerciseIndex]
-      const exerciseName = exercise.name
-      const canonicalName = getCanonicalName(exerciseName, allExerciseNames)
-
-      const exerciseHistory = []
-
+      const canonicalName = getCanonicalName(exercise.name, allExerciseNames)
+      const history = []
       Object.keys(completedDays).forEach((dayNumber) => {
         const day = workoutData.days.find(
           (d) => d.dayNumber === parseInt(dayNumber),
         )
         if (!day) return
-
-        const personWorkout = day.people[selectedPerson]
-        if (!personWorkout?.exercises) return
-
-        personWorkout.exercises.forEach((ex, exerciseIndex) => {
-          const exName = getCanonicalName(ex.name, allExerciseNames)
-          if (exName.toLowerCase() !== canonicalName.toLowerCase()) return
-
-          const exerciseSets = completedDays[dayNumber]?.[exerciseIndex]
-          if (!exerciseSets) return
-
-          Object.keys(exerciseSets).forEach((setIndex) => {
-            const setData = exerciseSets[setIndex]
-            const rawWeight = setData.weight ?? 0
-            const rawReps = setData.reps ?? 0
-
-            exerciseHistory.push({
-              date: new Date(setData.completedAt),
-              weight: isFinite(rawWeight) ? rawWeight : 0,
-              reps: isFinite(rawReps) ? rawReps : 0,
-              volume: isFinite(rawWeight * rawReps) ? rawWeight * rawReps : 0,
-              setIndex: parseInt(setIndex),
-              dayNumber: parseInt(dayNumber),
-              note: setData.note || "",
-              isWarmup: setData.isWarmup || false,
+        const pw = day.people[selectedPerson]
+        if (!pw?.exercises) return
+        pw.exercises.forEach((ex, exerciseIndex) => {
+          if (
+            getCanonicalName(ex.name, allExerciseNames).toLowerCase() !==
+            canonicalName.toLowerCase()
+          )
+            return
+          const sets = completedDays[dayNumber]?.[exerciseIndex]
+          if (!sets) return
+          Object.keys(sets).forEach((si) => {
+            const s = sets[si]
+            const w = s.weight ?? 0,
+              r = s.reps ?? 0
+            history.push({
+              date: new Date(s.completedAt),
+              weight: isFinite(w) ? w : 0,
+              reps: isFinite(r) ? r : 0,
+              volume: isFinite(w * r) ? w * r : 0,
+              note: s.note || "",
+              isWarmup: s.isWarmup || false,
             })
           })
         })
       })
-
-      if (exerciseHistory.length === 0) {
+      if (!history.length) {
         setPerformanceHistory(null)
         return
       }
-
-      const todayMidnight = new Date()
-      todayMidnight.setHours(0, 0, 0, 0)
-
-      const previousHistory = exerciseHistory.filter(
-        (entry) => entry.date < todayMidnight && !entry.isWarmup,
-      )
-
-      if (previousHistory.length === 0) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const prev = history.filter((e) => e.date < today && !e.isWarmup)
+      if (!prev.length) {
         setPerformanceHistory(null)
         return
       }
-
-      previousHistory.sort((a, b) => b.date - a.date)
-
-      const lastPerformance = previousHistory[0]
-
-      const bestPerformance = previousHistory.reduce((best, current) => {
-        return current.volume > best.volume ? current : best
-      }, previousHistory[0])
-
-      setPerformanceHistory({
-        last: lastPerformance,
-        best: bestPerformance,
-        totalAttempts: previousHistory.length,
-      })
-    } catch (error) {
-      console.error("Error loading performance history:", error)
+      prev.sort((a, b) => b.date - a.date)
+      const last = prev[0]
+      const best = prev.reduce((b, c) => (c.volume > b.volume ? c : b), prev[0])
+      setPerformanceHistory({ last, best, totalAttempts: prev.length })
+    } catch (e) {
+      console.error("Error loading performance history:", e)
       setPerformanceHistory(null)
     } finally {
       setLoadingHistory(false)
     }
   }
 
+  // ── set press ────────────────────────────────────────────────────────
   const handleSetPress = (exerciseIndex, setIndex) => {
     if (isCurrentDayLocked) {
       alert(
         "Day Locked",
-        "This day has been completed and is now locked. You can view the details but cannot make changes. Please select a different day to continue your workout.",
+        "This day has been completed and locked.",
         [{ text: "OK" }],
         "lock",
       )
       return
     }
-
-    const existingDetails = getSetDetails(currentDay, exerciseIndex, setIndex)
-
-    if (existingDetails) {
-      let detailsMessage = `Weight: ${existingDetails.weight || 0} kg\nReps: ${existingDetails.reps || 0}`
-
-      if (existingDetails.isWarmup) {
-        detailsMessage = `🔥 WARM-UP SET\n${detailsMessage}`
-      }
-
-      if (existingDetails.note) {
-        detailsMessage += `\n\nNote: ${existingDetails.note}`
-      }
-
+    const existing = getSetDetails(currentDay, exerciseIndex, setIndex)
+    if (existing) {
+      let msg = `Weight: ${existing.weight || 0} kg\nReps: ${existing.reps || 0}`
+      if (existing.isWarmup) msg = `🔥 WARM-UP SET\n${msg}`
+      if (existing.note) msg += `\n\nNote: ${existing.note}`
       alert(
         "Set Completed",
-        detailsMessage,
+        msg,
         [
           { text: "Cancel", style: "cancel" },
           {
             text: "Edit",
             onPress: () => {
               setSelectedSet({ exerciseIndex, setIndex })
-              setWeight(existingDetails.weight?.toString() || "")
-              setReps(existingDetails.reps?.toString() || "")
-              setSetNote(existingDetails.note || "")
-              setIsWarmupSet(existingDetails.isWarmup || false)
-              setAssistedWeight("")
+              setWeight(existing.weight?.toString() || "")
+              setReps(existing.reps?.toString() || "")
+              setSetNote(existing.note || "")
+              setIsWarmupSet(existing.isWarmup || false)
               setShowSetModal(true)
             },
           },
@@ -353,31 +520,59 @@ export default function WorkoutScreen() {
     }
   }
 
-  const handleSaveSetDetails = () => {
+  // ── save set ─────────────────────────────────────────────────────────
+  const handleSaveSetDetails = async () => {
+    console.log("[SAVE_SET_START]", {
+      selectedSet,
+      weight,
+      reps,
+      isInJointSession,
+    })
+
     if (!selectedSet) return
+    const w = parseFloat(weight) || 0,
+      r = parseInt(reps) || 0
 
-    const weightValue = parseFloat(weight) || 0
-    const repsValue = parseInt(reps) || 0
-
-    if (weightValue === 0 || repsValue === 0) {
+    if (w === 0 || r === 0) {
       alert(
         "Invalid Set",
-        "Please enter a weight and reps greater than 0 before saving.",
+        "Please enter a weight and reps greater than 0.",
         [{ text: "OK" }],
         "error",
       )
       return
     }
 
-    saveSetDetails(
+    await saveSetDetailsCtx(
       currentDay,
       selectedSet.exerciseIndex,
       selectedSet.setIndex,
-      weightValue,
-      repsValue,
+      w,
+      r,
       setNote.trim(),
       isWarmupSet,
     )
+
+    console.log("[SAVE_SET_SAVED_TO_STORAGE]")
+
+    if (isInJointSession) {
+      const exercise = dayWorkout.exercises[selectedSet.exerciseIndex]
+      console.log("[PUSH_JOINT_PROGRESS_START]", {
+        exerciseName: exercise.name,
+        setIndex: selectedSet.setIndex,
+      })
+
+      await pushJointProgress({
+        exerciseIndex: selectedSet.exerciseIndex,
+        setIndex: selectedSet.setIndex,
+        exerciseName: exercise.name,
+        readyForNext: false,
+      })
+
+      console.log("[PUSH_JOINT_PROGRESS_DONE]")
+    }
+
+    console.log("[SAVE_SET_CLOSING_MODAL]")
 
     setShowSetModal(false)
     setSelectedSet(null)
@@ -388,6 +583,7 @@ export default function WorkoutScreen() {
     setPerformanceHistory(null)
   }
 
+  // ── exercise editing ─────────────────────────────────────────────────
   const handleEditExerciseName = (exerciseIndex) => {
     if (isCurrentDayLocked) {
       alert(
@@ -398,7 +594,6 @@ export default function WorkoutScreen() {
       )
       return
     }
-
     const exercise = dayWorkout.exercises[exerciseIndex]
     setEditingExercise({ index: exerciseIndex, exercise })
     setNewExerciseName(exercise.name)
@@ -420,31 +615,29 @@ export default function WorkoutScreen() {
       alert("Error", "Exercise name cannot be empty", [{ text: "OK" }], "error")
       return
     }
-
-    const trimmedName = newExerciseName.trim()
-    const trimmedMuscleGroup = newMuscleGroup.trim()
-    const typoCheck = checkForTypo(trimmedName, allExerciseNames)
-
-    if (typoCheck.exactMatch) {
+    const trimmed = newExerciseName.trim(),
+      trimmedMG = newMuscleGroup.trim()
+    const tc = checkForTypo(trimmed, allExerciseNames)
+    if (tc.exactMatch) {
       updateExerciseName(
         currentDay,
         selectedPerson,
         editingExercise.index,
-        typoCheck.exactMatch,
-        trimmedMuscleGroup,
+        tc.exactMatch,
+        trimmedMG,
       )
       alert(
         "Exercise Matched! 🎯",
-        `This exercise matches "${typoCheck.exactMatch}". Historical data will be loaded automatically.`,
+        `Matched to "${tc.exactMatch}".`,
         [{ text: "Great!" }],
         "success",
       )
       closeEditModal()
-    } else if (typoCheck.isLikelyTypo && typoCheck.suggestions.length > 0) {
-      const topSuggestion = typoCheck.suggestions[0]
+    } else if (tc.isLikelyTypo && tc.suggestions.length > 0) {
+      const top = tc.suggestions[0]
       alert(
         "Did you mean?",
-        `The exercise name "${trimmedName}" is similar to "${topSuggestion.name}". Would you like to use that instead? This will load historical data for that exercise.`,
+        `"${trimmed}" is similar to "${top.name}". Use that instead?`,
         [
           {
             text: "Use Original",
@@ -454,21 +647,21 @@ export default function WorkoutScreen() {
                 currentDay,
                 selectedPerson,
                 editingExercise.index,
-                trimmedName,
-                trimmedMuscleGroup,
+                trimmed,
+                trimmedMG,
               )
               closeEditModal()
             },
           },
           {
-            text: `Use "${topSuggestion.name}"`,
+            text: `Use "${top.name}"`,
             onPress: () => {
               updateExerciseName(
                 currentDay,
                 selectedPerson,
                 editingExercise.index,
-                topSuggestion.name,
-                trimmedMuscleGroup,
+                top.name,
+                trimmedMG,
               )
               closeEditModal()
             },
@@ -476,14 +669,13 @@ export default function WorkoutScreen() {
         ],
         "warning",
       )
-      return
     } else {
       updateExerciseName(
         currentDay,
         selectedPerson,
         editingExercise.index,
-        trimmedName,
-        trimmedMuscleGroup,
+        trimmed,
+        trimmedMG,
       )
       closeEditModal()
     }
@@ -499,7 +691,6 @@ export default function WorkoutScreen() {
       )
       return
     }
-
     addExtraSetsToExercise(currentDay, selectedPerson, exerciseIndex, 1)
   }
 
@@ -513,16 +704,16 @@ export default function WorkoutScreen() {
       )
       return
     }
-
-    const exercise = dayWorkout.exercises[exerciseIndex]
-    setAddingSetsExercise({ index: exerciseIndex, exercise })
+    setAddingSetsExercise({
+      index: exerciseIndex,
+      exercise: dayWorkout.exercises[exerciseIndex],
+    })
     setAdditionalSets("")
     setShowAddSetsModal(true)
   }
 
   const handleSaveAdditionalSets = () => {
     if (!addingSetsExercise) return
-
     const sets = parseInt(additionalSets)
     if (isNaN(sets) || sets < 1) {
       alert(
@@ -533,14 +724,12 @@ export default function WorkoutScreen() {
       )
       return
     }
-
     addExtraSetsToExercise(
       currentDay,
       selectedPerson,
       addingSetsExercise.index,
       sets,
     )
-
     setShowAddSetsModal(false)
     setAddingSetsExercise(null)
     setAdditionalSets("")
@@ -556,7 +745,6 @@ export default function WorkoutScreen() {
       )
       return
     }
-
     setNewExercise({ name: "", muscleGroup: "", sets: "" })
     setShowAddExerciseModal(true)
   }
@@ -570,12 +758,10 @@ export default function WorkoutScreen() {
 
   const handleSaveNewExercise = () => {
     const { name, muscleGroup, sets } = newExercise
-
     if (!name.trim()) {
       alert("Error", "Exercise name is required", [{ text: "OK" }], "error")
       return
     }
-
     const setsNum = parseInt(sets)
     if (isNaN(setsNum) || setsNum < 1) {
       alert(
@@ -586,51 +772,48 @@ export default function WorkoutScreen() {
       )
       return
     }
-
-    const trimmedName = name.trim()
-    const trimmedMuscleGroup = muscleGroup.trim()
-    const typoCheck = checkForTypo(trimmedName, allExerciseNames)
-
-    if (typoCheck.exactMatch) {
+    const trimmed = name.trim(),
+      trimmedMG = muscleGroup.trim()
+    const tc = checkForTypo(trimmed, allExerciseNames)
+    if (tc.exactMatch) {
       addNewExercise(currentDay, selectedPerson, {
-        name: typoCheck.exactMatch,
-        muscleGroup: trimmedMuscleGroup,
+        name: tc.exactMatch,
+        muscleGroup: trimmedMG,
         sets: setsNum,
       })
       alert(
         "Exercise Matched! 🎯",
-        `This exercise matches "${typoCheck.exactMatch}". Historical data will be loaded automatically.`,
+        `Matched to "${tc.exactMatch}".`,
         [{ text: "Great!" }],
         "success",
       )
       closeAddExerciseModal()
       return
     }
-
-    if (typoCheck.isLikelyTypo && typoCheck.suggestions.length > 0) {
-      const topSuggestion = typoCheck.suggestions[0]
+    if (tc.isLikelyTypo && tc.suggestions.length > 0) {
+      const top = tc.suggestions[0]
       alert(
         "Did you mean?",
-        `The exercise name "${trimmedName}" is similar to "${topSuggestion.name}". Would you like to use that instead? This will load historical data for that exercise.`,
+        `"${trimmed}" is similar to "${top.name}".`,
         [
           {
             text: "Use Original",
             style: "cancel",
             onPress: () => {
               addNewExercise(currentDay, selectedPerson, {
-                name: trimmedName,
-                muscleGroup: trimmedMuscleGroup,
+                name: trimmed,
+                muscleGroup: trimmedMG,
                 sets: setsNum,
               })
               closeAddExerciseModal()
             },
           },
           {
-            text: `Use "${topSuggestion.name}"`,
+            text: `Use "${top.name}"`,
             onPress: () => {
               addNewExercise(currentDay, selectedPerson, {
-                name: topSuggestion.name,
-                muscleGroup: trimmedMuscleGroup,
+                name: top.name,
+                muscleGroup: trimmedMG,
                 sets: setsNum,
               })
               closeAddExerciseModal()
@@ -641,10 +824,9 @@ export default function WorkoutScreen() {
       )
       return
     }
-
     addNewExercise(currentDay, selectedPerson, {
-      name: trimmedName,
-      muscleGroup: trimmedMuscleGroup,
+      name: trimmed,
+      muscleGroup: trimmedMG,
       sets: setsNum,
     })
     closeAddExerciseModal()
@@ -652,21 +834,15 @@ export default function WorkoutScreen() {
 
   const handleSuggestionPress = (suggestion, field = "name") => {
     if (showEditNameModal) {
-      if (field === "muscleGroup") {
-        setNewMuscleGroup(suggestion.name)
-        setMuscleGroupSuggestions([])
-      } else {
-        setNewExerciseName(suggestion.name)
-        setNameSuggestions([])
-      }
+      field === "muscleGroup"
+        ? (setNewMuscleGroup(suggestion.name), setMuscleGroupSuggestions([]))
+        : (setNewExerciseName(suggestion.name), setNameSuggestions([]))
     } else if (showAddExerciseModal) {
-      if (field === "muscleGroup") {
-        setNewExercise({ ...newExercise, muscleGroup: suggestion.name })
-        setNewExerciseMuscleGroupSuggestions([])
-      } else {
-        setNewExercise({ ...newExercise, name: suggestion.name })
-        setNewExerciseSuggestions([])
-      }
+      field === "muscleGroup"
+        ? (setNewExercise({ ...newExercise, muscleGroup: suggestion.name }),
+          setNewExerciseMuscleGroupSuggestions([]))
+        : (setNewExercise({ ...newExercise, name: suggestion.name }),
+          setNewExerciseSuggestions([]))
     }
   }
 
@@ -674,38 +850,35 @@ export default function WorkoutScreen() {
     if (isCurrentDayLocked) {
       alert(
         "Day Already Locked",
-        "This day has already been completed and locked.",
+        "This day has already been completed.",
         [{ text: "OK" }],
         "lock",
       )
       return
     }
-
-    const completedSetsCount = getCompletedSetsCount()
-    const totalSetsCount = dayWorkout?.totalSets || 0
-    const allSetsComplete = completedSetsCount === totalSetsCount
-
-    const message = allSetsComplete
-      ? "Are you sure you want to finish this workout session? You've completed all sets!"
-      : `You've completed ${completedSetsCount} out of ${totalSetsCount} sets. Are you sure you want to end this workout session? This day will be locked and you won't be able to add more sets.`
-
+    const done = getCompletedSetsCount(),
+      total = dayWorkout?.totalSets || 0
+    const msg =
+      done === total
+        ? "Are you sure you want to finish? You've completed all sets!"
+        : `You've completed ${done}/${total} sets. End this session? The day will be locked.`
     alert(
       "Complete Workout?",
-      message,
+      msg,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Complete & Lock",
           onPress: async () => {
-            const wasAutoCompleted = await endWorkout()
-            if (!wasAutoCompleted) {
+            if (isInJointSession) await leaveJointSession()
+            const auto = await endWorkout()
+            if (!auto)
               alert(
                 "Workout Completed! 💪",
-                `Day ${currentDay} is now locked. You can view it anytime, but you won't be able to make changes until the Monday reset.`,
+                `Day ${currentDay} is now locked.`,
                 [{ text: "OK" }],
                 "success",
               )
-            }
           },
         },
       ],
@@ -715,39 +888,34 @@ export default function WorkoutScreen() {
 
   const getCompletedSetsCount = () => {
     if (!dayWorkout) return 0
-    let count = 0
-    dayWorkout.exercises.forEach((exercise, exerciseIndex) => {
-      count += getExerciseCompletedSets(currentDay, exerciseIndex)
-    })
-    return count
+    return dayWorkout.exercises.reduce(
+      (n, _, i) => n + getExerciseCompletedSets(currentDay, i),
+      0,
+    )
   }
 
   const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-
-    if (hours > 0) return `${hours}h ${minutes}m`
-    if (minutes > 0) return `${minutes}m ${secs}s`
-    return `${secs}s`
+    const h = Math.floor(seconds / 3600),
+      m = Math.floor((seconds % 3600) / 60),
+      s = seconds % 60
+    if (h > 0) return `${h}h ${m}m`
+    if (m > 0) return `${m}m ${s}s`
+    return `${s}s`
   }
-
-  const formatEndTime = (date) => {
-    if (!date) return ""
-    const hours = date.getHours()
-    const minutes = date.getMinutes()
-    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
-  }
-
-  const formatDate = (date) => {
-    return date.toLocaleDateString("en-US", {
+  const formatEndTime = (d) =>
+    d
+      ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+      : ""
+  const formatDate = (d) =>
+    d.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     })
-  }
+  const isAssistedExercise = (name) => name.toLowerCase().includes("assisted")
 
-  if (!workoutData) {
+  // ── empty states ─────────────────────────────────────────────────────
+  if (!workoutData)
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyIcon}>📁</Text>
@@ -757,9 +925,7 @@ export default function WorkoutScreen() {
         </Text>
       </View>
     )
-  }
-
-  if (!selectedPerson) {
+  if (!selectedPerson)
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyIcon}>👤</Text>
@@ -769,9 +935,7 @@ export default function WorkoutScreen() {
         </Text>
       </View>
     )
-  }
-
-  if (!dayWorkout) {
+  if (!dayWorkout)
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyIcon}>🤷</Text>
@@ -781,28 +945,60 @@ export default function WorkoutScreen() {
         </Text>
       </View>
     )
-  }
 
   const completedSetsCount = getCompletedSetsCount()
   const totalSetsCount = dayWorkout.totalSets
   const progressPercentage =
     totalSetsCount > 0 ? (completedSetsCount / totalSetsCount) * 100 : 0
   const allSetsComplete = areAllSetsComplete && !isCurrentDayLocked
-
   const totalSessionTime = getTotalSessionTime()
-  const currentRestTime = getCurrentRestTime()
   const sessionAvgRest = getSessionAverageRestTime(currentDay)
+  const estimatedRemaining = getEstimatedTimeRemaining(currentDay)
+  const estimatedEnd = getEstimatedEndTime(currentDay)
 
-  const estimatedTimeRemaining = getEstimatedTimeRemaining(currentDay)
-  const estimatedEndTime = getEstimatedEndTime(currentDay)
+  // ── Build a fast lookup Set of partner exercise names (lowercase) ──────────
+  const partnerParticipant = isInJointSession
+    ? jointSession?.participants?.find((p) => p.userId !== user?.id)
+    : null
 
-  const isAssistedExercise = (exerciseName) =>
-    exerciseName.toLowerCase().includes("assisted")
+  const partnerNameSet = useMemo(() => {
+    if (!isInJointSession) return new Set()
+
+    // Get partner's exercise list from jointSession
+    const partnerExerciseNames = jointSession?.participants?.find(
+      (p) => p.userId !== user?.id,
+    )?.exerciseNames
+
+    if (!partnerExerciseNames?.length) return new Set()
+
+    // Build set of partner exercise names (lowercase)
+    const partnerSet = new Set(
+      partnerExerciseNames.map((e) =>
+        (typeof e === "string" ? e : e.name).trim().toLowerCase(),
+      ),
+    )
+
+    // Return only MY exercises that match partner
+    const myExerciseNames = (dayWorkout?.exercises ?? [])
+      .map((ex) => ex.name?.trim().toLowerCase())
+      .filter(Boolean)
+
+    return new Set(myExerciseNames.filter((n) => partnerSet.has(n)))
+  }, [isInJointSession, jointSession?.participants, dayWorkout])
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
       <View style={styles.container}>
-        {/* Locked Banner */}
+        {isInJointSession && (
+          <PartnerBanner
+            partnerProgress={partnerProgress}
+            isPartnerReady={isPartnerReady}
+            syncPulse={syncPulse}
+            partnerUsername={partnerUsername}
+            onLeave={leaveJointSession}
+          />
+        )}
+
         {isCurrentDayLocked && (
           <View style={styles.lockedBanner}>
             <Text style={styles.lockedBannerIcon}>🔒</Text>
@@ -817,7 +1013,7 @@ export default function WorkoutScreen() {
           </View>
         )}
 
-        {/* Header Card */}
+        {/* ── Header card – stats only, NO button inside ── */}
         <View
           style={[
             styles.headerCard,
@@ -837,8 +1033,6 @@ export default function WorkoutScreen() {
               <Text style={styles.setsValue}>{dayWorkout.totalSets}</Text>
             </View>
           </View>
-
-          {/* Progress Bar */}
           <View style={styles.progressContainer}>
             <View style={styles.progressBar}>
               <View
@@ -853,24 +1047,22 @@ export default function WorkoutScreen() {
                 {completedSetsCount} / {totalSetsCount} sets completed
               </Text>
               {workoutStartTime &&
-                estimatedTimeRemaining > 0 &&
+                estimatedRemaining > 0 &&
                 !isCurrentDayLocked && (
                   <Text style={styles.progressText}>
-                    ~{formatTime(estimatedTimeRemaining)} left
+                    ~{formatTime(estimatedRemaining)} left
                   </Text>
                 )}
             </View>
             {workoutStartTime &&
-              estimatedEndTime &&
-              estimatedTimeRemaining > 0 &&
+              estimatedEnd &&
+              estimatedRemaining > 0 &&
               !isCurrentDayLocked && (
                 <Text style={styles.endTimeText}>
-                  Estimated finish: {formatEndTime(estimatedEndTime)}
+                  Estimated finish: {formatEndTime(estimatedEnd)}
                 </Text>
               )}
           </View>
-
-          {/* Session Stats */}
           {workoutStartTime && !isCurrentDayLocked && sessionStats && (
             <View style={styles.sessionStatsContainer}>
               <View style={styles.sessionStatRow}>
@@ -887,7 +1079,7 @@ export default function WorkoutScreen() {
                   </Text>
                 </View>
               </View>
-              {currentRestTime > 0 && (
+              {getCurrentRestTime() > 0 && (
                 <View style={styles.currentRestContainer}>
                   <Text style={styles.currentRestLabel}>
                     Rest since last set:
@@ -895,17 +1087,17 @@ export default function WorkoutScreen() {
                   <Text
                     style={[
                       styles.currentRestValue,
-                      currentRestTime > sessionAvgRest &&
+                      getCurrentRestTime() > sessionAvgRest &&
                         styles.currentRestOvertime,
                     ]}
                   >
-                    {formatTime(currentRestTime)}
-                    {currentRestTime > sessionAvgRest && (
+                    {formatTime(getCurrentRestTime())}
+                    {getCurrentRestTime() > sessionAvgRest && (
                       <Text style={styles.overtimeText}>
                         {" "}
                         (+
                         {formatTime(
-                          Math.round(currentRestTime - sessionAvgRest),
+                          Math.round(getCurrentRestTime() - sessionAvgRest),
                         )}
                         )
                       </Text>
@@ -915,7 +1107,6 @@ export default function WorkoutScreen() {
               )}
             </View>
           )}
-
           {(allSetsComplete || isCurrentDayLocked) && (
             <View style={styles.completeMessage}>
               <Text style={styles.completeMessageText}>
@@ -927,7 +1118,6 @@ export default function WorkoutScreen() {
           )}
         </View>
 
-        {/* Exercise List */}
         <ScrollView
           style={styles.exerciseList}
           contentContainerStyle={styles.exerciseListContent}
@@ -937,25 +1127,66 @@ export default function WorkoutScreen() {
               currentDay,
               exerciseIndex,
             )
-            const allSetsComplete = completedSets === exercise.sets
+            const allDone = completedSets === exercise.sets
             const isAssisted = isAssistedExercise(exercise.name)
+
+            const exerciseNameLower = exercise.name?.trim().toLowerCase() ?? ""
+            const partnerMatchesByName =
+              isInJointSession && partnerNameSet.has(exerciseNameLower)
+
+            const partnerActiveNameLower = partnerProgress?.exerciseName
+              ?.trim()
+              .toLowerCase()
+            const partnerOnThis =
+              isInJointSession &&
+              !!partnerActiveNameLower &&
+              partnerMatchesByName &&
+              partnerActiveNameLower === exerciseNameLower
+
+            const partnerSetCount = partnerMatchesByName
+              ? (() => {
+                  const entry = (partnerParticipant?.exerciseNames ?? []).find(
+                    (e) =>
+                      (typeof e === "string" ? e : e.name)
+                        .trim()
+                        .toLowerCase() === exerciseNameLower,
+                  )
+                  return typeof entry === "object"
+                    ? (entry?.sets ?? null)
+                    : null
+                })()
+              : null
 
             return (
               <View
                 key={exerciseIndex}
                 style={[
                   styles.exerciseCard,
-                  allSetsComplete && styles.exerciseCardComplete,
+                  allDone && styles.exerciseCardComplete,
                   isCurrentDayLocked && styles.exerciseCardLocked,
+                  partnerMatchesByName && styles.exerciseCardShared,
+                  partnerOnThis && styles.exerciseCardPartner,
                 ]}
               >
+                {partnerOnThis && (
+                  <PartnerExercisePill username={partnerUsername} />
+                )}
+                {partnerMatchesByName &&
+                  !partnerOnThis &&
+                  partnerSetCount !== null && (
+                    <PartnerExerciseMatchBadge
+                      partnerSets={partnerSetCount}
+                      mySets={exercise.sets}
+                    />
+                  )}
+
                 <View style={styles.exerciseHeader}>
                   <View style={styles.exerciseInfo}>
                     <View style={styles.exerciseNameRow}>
                       <Text
                         style={[
                           styles.exerciseName,
-                          allSetsComplete && styles.exerciseNameComplete,
+                          allDone && styles.exerciseNameComplete,
                         ]}
                       >
                         {exercise.name}
@@ -983,56 +1214,61 @@ export default function WorkoutScreen() {
                   </View>
                 </View>
 
-                {/* Sets */}
                 <View style={styles.setsContainer}>
                   {Array.from({ length: exercise.sets }, (_, setIndex) => {
-                    const isCompleted = isSetComplete(
+                    const done = isSetComplete(
                       currentDay,
                       exerciseIndex,
                       setIndex,
                     )
-                    if (isCurrentDayLocked && !isCompleted) return null
-
+                    if (isCurrentDayLocked && !done) return null
                     const setDetails = getSetDetails(
                       currentDay,
                       exerciseIndex,
                       setIndex,
                     )
-
+                    const partnerDoneThisSet =
+                      isInJointSession &&
+                      partnerCompletedSets.some(
+                        (s) =>
+                          s.exerciseName?.trim().toLowerCase() ===
+                            exerciseNameLower && s.setIndex === setIndex,
+                      )
+                    const partnerOnSet =
+                      partnerOnThis && partnerProgress?.setIndex === setIndex
                     return (
                       <TouchableOpacity
                         key={setIndex}
                         style={[
                           styles.setButton,
-                          isCompleted && styles.setButtonComplete,
-                          isCurrentDayLocked &&
-                            isCompleted &&
-                            styles.setButtonLocked,
+                          done && styles.setButtonComplete,
+                          isCurrentDayLocked && done && styles.setButtonLocked,
                           setDetails?.isWarmup && styles.setButtonWarmup,
+                          partnerDoneThisSet && styles.setButtonPartnerDone,
+                          partnerOnSet && styles.setButtonPartner,
                         ]}
                         onPress={() => handleSetPress(exerciseIndex, setIndex)}
                         activeOpacity={isCurrentDayLocked ? 1 : 0.7}
-                        disabled={isCurrentDayLocked && !isCompleted}
+                        disabled={isCurrentDayLocked && !done}
                       >
+                        {partnerOnSet && <View style={styles.partnerSetDot} />}
                         <Text
                           style={[
                             styles.setButtonNumber,
-                            isCompleted && styles.setButtonNumberComplete,
-                            isCurrentDayLocked && isCompleted
-                              ? { color: "#333" }
-                              : null,
+                            done && styles.setButtonNumberComplete,
+                            isCurrentDayLocked && done && { color: "#333" },
                             setDetails?.isWarmup && styles.warmupText,
+                            partnerDoneThisSet && done && { color: "#7c3aed" },
                           ]}
                         >
                           {setDetails?.isWarmup ? "W" : setIndex + 1}
                         </Text>
-
-                        {isCompleted && setDetails && (
+                        {done && setDetails && (
                           <View style={styles.setDetailsPreview}>
                             <Text
                               style={[
                                 styles.setDetailsText,
-                                isCurrentDayLocked ? { color: "#333" } : null,
+                                isCurrentDayLocked && { color: "#333" },
                               ]}
                             >
                               {setDetails.weight || 0}kg
@@ -1040,7 +1276,7 @@ export default function WorkoutScreen() {
                             <Text
                               style={[
                                 styles.setDetailsText,
-                                isCurrentDayLocked ? { color: "#333" } : null,
+                                isCurrentDayLocked && { color: "#333" },
                               ]}
                             >
                               ×{setDetails.reps || 0}
@@ -1050,8 +1286,7 @@ export default function WorkoutScreen() {
                             )}
                           </View>
                         )}
-
-                        {isCompleted && (
+                        {done && (
                           <View style={styles.setCheckmark}>
                             <Text style={styles.setCheckmarkText}>✓</Text>
                           </View>
@@ -1059,7 +1294,6 @@ export default function WorkoutScreen() {
                       </TouchableOpacity>
                     )
                   })}
-
                   {!isCurrentDayLocked && (
                     <TouchableOpacity
                       style={styles.addSetButton}
@@ -1074,7 +1308,7 @@ export default function WorkoutScreen() {
                 {!isCurrentDayLocked && (
                   <View style={styles.exerciseHint}>
                     <Text style={styles.exerciseHintText}>
-                      Tap + to add 1 set • Long press for multiple
+                      Tap + to add 1 set · Long press for multiple
                     </Text>
                   </View>
                 )}
@@ -1093,21 +1327,40 @@ export default function WorkoutScreen() {
           )}
         </ScrollView>
 
-        {/* Complete Workout Button */}
+        {/* ── Complete Session button – floats above the tab bar ── */}
         {workoutStartTime && !isCurrentDayLocked && (
-          <View style={styles.bottomActions}>
+          <Animated.View
+            style={[
+              styles.bottomActions,
+              {
+                bottom: bottomAnim,
+                left: leftAnim,
+                borderTopLeftRadius: borderRadiusAnim,
+                paddingBottom: paddingBottomAnim,
+              },
+            ]}
+          >
             <TouchableOpacity
               style={styles.completeWorkoutButton}
               onPress={handleCompleteWorkout}
+              activeOpacity={0.85}
             >
-              <Text style={styles.completeWorkoutButtonText}>
-                Complete Workout Session
-              </Text>
+              <LinearGradient
+                colors={["#667eea", "#764ba2"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.completeWorkoutGradient}
+              >
+                <Text style={styles.completeWorkoutIcon}>💪</Text>
+                <Text style={styles.completeWorkoutButtonText}>
+                  Complete Session
+                </Text>
+              </LinearGradient>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         )}
 
-        {/* ── Set Details Modal ─────────────────────────────────────────── */}
+        {/* ── Set Details Modal ── */}
         <ModalSheet
           visible={showSetModal}
           onClose={() => {
@@ -1124,7 +1377,6 @@ export default function WorkoutScreen() {
           showCancelButton={false}
           showConfirmButton={false}
         >
-          {/* Warm-up Toggle */}
           <TouchableOpacity
             style={[
               styles.warmupToggle,
@@ -1141,8 +1393,6 @@ export default function WorkoutScreen() {
               {isWarmupSet ? "🔥 Warm-up Set" : "Tap to mark as warm-up"}
             </Text>
           </TouchableOpacity>
-
-          {/* Performance History */}
           {loadingHistory ? (
             <View style={styles.historyLoading}>
               <Text style={styles.historyLoadingText}>Loading history...</Text>
@@ -1152,7 +1402,6 @@ export default function WorkoutScreen() {
               <Text style={styles.performanceSectionTitle}>
                 📊 Performance History
               </Text>
-
               <View style={styles.performanceCard}>
                 <View style={styles.performanceCardHeader}>
                   <Text style={styles.performanceCardTitle}>🕐 Last Time</Text>
@@ -1181,7 +1430,6 @@ export default function WorkoutScreen() {
                   </View>
                 </View>
               </View>
-
               <View
                 style={[styles.performanceCard, styles.bestPerformanceCard]}
               >
@@ -1229,7 +1477,6 @@ export default function WorkoutScreen() {
                   </View>
                 </View>
               </View>
-
               <Text style={styles.performanceTotalAttempts}>
                 Total attempts: {performanceHistory.totalAttempts}
               </Text>
@@ -1241,8 +1488,6 @@ export default function WorkoutScreen() {
               </Text>
             </View>
           )}
-
-          {/* Input Fields */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Weight (kg)</Text>
             <TextInput
@@ -1254,7 +1499,6 @@ export default function WorkoutScreen() {
               placeholderTextColor='#999'
             />
           </View>
-
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Reps</Text>
             <TextInput
@@ -1266,8 +1510,6 @@ export default function WorkoutScreen() {
               placeholderTextColor='#999'
             />
           </View>
-
-          {/* Assisted Exercise Info */}
           {selectedSet &&
             dayWorkout.exercises[selectedSet.exerciseIndex] &&
             isAssistedExercise(
@@ -1275,27 +1517,23 @@ export default function WorkoutScreen() {
             ) && (
               <View style={styles.assistedInfoBox}>
                 <Text style={styles.assistedInfoText}>
-                  🤝 Assisted Exercise - For assisted exercises, "Weight"
-                  represents the assistance/counterweight from the machine.
-                  Lower weight = more difficult.
+                  🤝 Assisted Exercise - Weight represents assistance from the
+                  machine. Lower = harder.
                 </Text>
               </View>
             )}
-
-          {/* Set Notes */}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Notes (optional)</Text>
             <TextInput
               style={[styles.input, styles.notesInput]}
               value={setNote}
               onChangeText={setSetNote}
-              placeholder='e.g., felt strong, use lighter next time'
+              placeholder='e.g., felt strong'
               placeholderTextColor='#999'
               multiline
               numberOfLines={3}
             />
           </View>
-
           <TouchableOpacity
             style={styles.saveButton}
             onPress={handleSaveSetDetails}
@@ -1304,7 +1542,7 @@ export default function WorkoutScreen() {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* ── Edit Exercise Modal ───────────────────────────────────────── */}
+        {/* ── Edit Exercise Modal ── */}
         <ModalSheet
           visible={showEditNameModal}
           onClose={closeEditModal}
@@ -1324,25 +1562,23 @@ export default function WorkoutScreen() {
               autoFocus={true}
             />
           </View>
-
           {nameSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
-              {nameSuggestions.map((suggestion, index) => (
+              {nameSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={index}
+                  key={i}
                   style={styles.suggestionButton}
-                  onPress={() => handleSuggestionPress(suggestion, "name")}
+                  onPress={() => handleSuggestionPress(s, "name")}
                 >
-                  <Text style={styles.suggestionText}>{suggestion.name}</Text>
+                  <Text style={styles.suggestionText}>{s.name}</Text>
                   <Text style={styles.suggestionMatch}>
-                    {Math.round(suggestion.similarity * 100)}% match
+                    {Math.round(s.similarity * 100)}% match
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
-
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Muscle Group</Text>
             <TextInput
@@ -1353,27 +1589,23 @@ export default function WorkoutScreen() {
               placeholderTextColor='#999'
             />
           </View>
-
           {muscleGroupSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
-              {muscleGroupSuggestions.map((suggestion, index) => (
+              {muscleGroupSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={index}
+                  key={i}
                   style={styles.suggestionButton}
-                  onPress={() =>
-                    handleSuggestionPress(suggestion, "muscleGroup")
-                  }
+                  onPress={() => handleSuggestionPress(s, "muscleGroup")}
                 >
-                  <Text style={styles.suggestionText}>{suggestion.name}</Text>
+                  <Text style={styles.suggestionText}>{s.name}</Text>
                   <Text style={styles.suggestionMatch}>
-                    {Math.round(suggestion.similarity * 100)}% match
+                    {Math.round(s.similarity * 100)}% match
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
-
           <TouchableOpacity
             style={styles.saveButton}
             onPress={handleSaveExerciseName}
@@ -1382,7 +1614,7 @@ export default function WorkoutScreen() {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* ── Add Sets Modal ────────────────────────────────────────────── */}
+        {/* ── Add Sets Modal ── */}
         <ModalSheet
           visible={showAddSetsModal}
           onClose={() => {
@@ -1411,7 +1643,6 @@ export default function WorkoutScreen() {
               autoFocus={true}
             />
           </View>
-
           <TouchableOpacity
             style={styles.saveButton}
             onPress={handleSaveAdditionalSets}
@@ -1420,7 +1651,7 @@ export default function WorkoutScreen() {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* ── Add New Exercise Modal ────────────────────────────────────── */}
+        {/* ── Add New Exercise Modal ── */}
         <ModalSheet
           visible={showAddExerciseModal}
           onClose={closeAddExerciseModal}
@@ -1434,80 +1665,69 @@ export default function WorkoutScreen() {
             <TextInput
               style={styles.input}
               value={newExercise.name}
-              onChangeText={(text) =>
-                setNewExercise({ ...newExercise, name: text })
-              }
+              onChangeText={(t) => setNewExercise({ ...newExercise, name: t })}
               placeholder='e.g., Bench Press'
               placeholderTextColor='#999'
               autoFocus={true}
             />
           </View>
-
           {newExerciseSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
-              {newExerciseSuggestions.map((suggestion, index) => (
+              {newExerciseSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={index}
+                  key={i}
                   style={styles.suggestionButton}
-                  onPress={() => handleSuggestionPress(suggestion, "name")}
+                  onPress={() => handleSuggestionPress(s, "name")}
                 >
-                  <Text style={styles.suggestionText}>{suggestion.name}</Text>
+                  <Text style={styles.suggestionText}>{s.name}</Text>
                   <Text style={styles.suggestionMatch}>
-                    {Math.round(suggestion.similarity * 100)}% match
+                    {Math.round(s.similarity * 100)}% match
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
-
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Muscle Group</Text>
             <TextInput
               style={styles.input}
               value={newExercise.muscleGroup}
-              onChangeText={(text) =>
-                setNewExercise({ ...newExercise, muscleGroup: text })
+              onChangeText={(t) =>
+                setNewExercise({ ...newExercise, muscleGroup: t })
               }
               placeholder='e.g., Chest'
               placeholderTextColor='#999'
             />
           </View>
-
           {newExerciseMuscleGroupSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
-              {newExerciseMuscleGroupSuggestions.map((suggestion, index) => (
+              {newExerciseMuscleGroupSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={index}
+                  key={i}
                   style={styles.suggestionButton}
-                  onPress={() =>
-                    handleSuggestionPress(suggestion, "muscleGroup")
-                  }
+                  onPress={() => handleSuggestionPress(s, "muscleGroup")}
                 >
-                  <Text style={styles.suggestionText}>{suggestion.name}</Text>
+                  <Text style={styles.suggestionText}>{s.name}</Text>
                   <Text style={styles.suggestionMatch}>
-                    {Math.round(suggestion.similarity * 100)}% match
+                    {Math.round(s.similarity * 100)}% match
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
-
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Number of Sets *</Text>
             <TextInput
               style={styles.input}
               value={newExercise.sets}
-              onChangeText={(text) =>
-                setNewExercise({ ...newExercise, sets: text })
-              }
+              onChangeText={(t) => setNewExercise({ ...newExercise, sets: t })}
               keyboardType='number-pad'
               placeholder='0'
               placeholderTextColor='#999'
             />
           </View>
-
           <TouchableOpacity
             style={styles.saveButton}
             onPress={handleSaveNewExercise}
@@ -1516,7 +1736,6 @@ export default function WorkoutScreen() {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* Custom Alert */}
         {AlertComponent}
       </View>
     </SafeAreaView>
@@ -1524,10 +1743,7 @@ export default function WorkoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
+  container: { flex: 1, backgroundColor: "#f5f5f5" },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -1596,7 +1812,7 @@ const styles = StyleSheet.create({
   progressContainer: { marginTop: 10 },
   progressBar: {
     height: 8,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    backgroundColor: "rgba(255,255,255,0.3)",
     borderRadius: 4,
     overflow: "hidden",
     marginBottom: 8,
@@ -1612,7 +1828,7 @@ const styles = StyleSheet.create({
   sessionStatsContainer: {
     marginTop: 15,
     padding: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 8,
   },
   sessionStatRow: {
@@ -1634,7 +1850,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.2)",
+    borderTopColor: "rgba(255,255,255,0.2)",
   },
   currentRestLabel: {
     fontSize: 14,
@@ -1648,7 +1864,7 @@ const styles = StyleSheet.create({
   completeMessage: {
     marginTop: 15,
     padding: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    backgroundColor: "rgba(255,255,255,0.2)",
     borderRadius: 8,
   },
   completeMessageText: {
@@ -1674,6 +1890,8 @@ const styles = StyleSheet.create({
   },
   exerciseCardComplete: { backgroundColor: "#f0fff4", borderColor: "#10b981" },
   exerciseCardLocked: { backgroundColor: "#f9fafb", borderColor: "#d1d5db" },
+  exerciseCardShared: { borderColor: "#f59e0b", backgroundColor: "#fffbeb" },
+  exerciseCardPartner: { borderColor: "#7c3aed", backgroundColor: "#faf5ff" },
   exerciseHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1716,6 +1934,26 @@ const styles = StyleSheet.create({
   setButtonComplete: { backgroundColor: "#667eea", borderColor: "#667eea" },
   setButtonLocked: { backgroundColor: "#ff9800", borderColor: "#d97706" },
   setButtonWarmup: { backgroundColor: "#fb923c", borderColor: "#ea580c" },
+  setButtonPartner: {
+    borderColor: "#7c3aed",
+    borderWidth: 3,
+    backgroundColor: "#ede9fe",
+  },
+  setButtonPartnerDone: {
+    borderColor: "#a78bfa",
+    borderWidth: 2,
+  },
+  partnerSetDot: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#7c3aed",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
   setButtonNumber: {
     fontSize: 18,
     fontWeight: "bold",
@@ -1772,27 +2010,40 @@ const styles = StyleSheet.create({
   },
   addExerciseButtonIcon: { fontSize: 32, marginBottom: 8 },
   addExerciseButtonText: { fontSize: 16, fontWeight: "600", color: "#667eea" },
+  // ── Complete Session button ──
   bottomActions: {
     position: "absolute",
-    bottom: 100,
-    left: 0,
     right: 0,
-    padding: 15,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: "transparent",
   },
   completeWorkoutButton: {
-    backgroundColor: "#667eea",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowColor: "#667eea",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
+    elevation: 12,
   },
+  completeWorkoutGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 17,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    gap: 10,
+  },
+  completeWorkoutIcon: { fontSize: 20 },
   completeWorkoutButtonText: {
     color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: 0.4,
   },
+  // ── Modals ──
   warmupToggle: {
     backgroundColor: "#f3f4f6",
     padding: 12,

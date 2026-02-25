@@ -1,3 +1,21 @@
+/**
+ * FriendsScreen
+ *
+ * All sharing is now permission-based. Five permission types:
+ *   history, analytics, program, joint_session, watch_session
+ *
+ * Analytics and program sharing are granted via PermissionRow toggles in the
+ * Actions tab, exactly like the other three.  The old "Share My Analytics" /
+ * "Share My Program" action rows and their separate API calls are removed.
+ *
+ * Program data is stored in the permission payload so there is no separate
+ * program_shares table.  When the user grants the 'program' permission, the
+ * current workoutData is packaged into the payload at that moment.
+ *
+ * A new "Live" tab shows the friend's current workout session in real-time,
+ * styled like WorkoutScreen. Requires the friend to have granted watch_session.
+ */
+
 import React, { useState, useEffect, useCallback } from "react"
 import {
   View,
@@ -8,7 +26,7 @@ import {
   TextInput,
   ActivityIndicator,
   RefreshControl,
-  Modal,
+  Animated,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useAuth } from "../context/AuthContext"
@@ -17,11 +35,287 @@ import { useWorkout } from "../context/WorkoutContext"
 import ModalSheet from "../components/ModalSheet"
 import UniversalCalendar from "../components/UniversalCalendar"
 import ExerciseAnalytics from "../components/ExerciseAnalytics"
+import LiveSessionTab from "../components/LiveSessionTab"
 import { useAlert } from "../components/CustomAlert"
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Friend active-session status polling
+// ─────────────────────────────────────────────────────────────────────────────
+const useFriendSessionStatuses = (friends, socketLastMessage, loadFriends) => {
+  const [statuses, setStatuses] = useState({})
+
+  // Initial load — fetch once on mount
+  const refresh = useCallback(async () => {
+    if (!friends.length) {
+      setStatuses({})
+      return
+    }
+    const results = await Promise.allSettled(
+      friends.map((f) =>
+        sharingApi
+          .getFriendSessionStatus(f.id)
+          .then((r) => ({ id: f.id, active: !!r?.hasActiveSession }))
+          .catch(() => ({ id: f.id, active: false })),
+      ),
+    )
+    const map = {}
+    results.forEach((r) => {
+      if (r.status === "fulfilled") map[r.value.id] = r.value.active
+    })
+    setStatuses(map)
+  }, [friends])
+
+  // Run once on mount (and when friends list changes)
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  useEffect(() => {
+    if (!socketLastMessage) return
+    if (socketLastMessage.type === "friend_request_received") {
+      loadFriends?.()
+    }
+  }, [socketLastMessage, loadFriends])
+  // React to WS pushes instead of polling
+  useEffect(() => {
+    if (!socketLastMessage) return
+    if (socketLastMessage.type === "friend_session_started") {
+      setStatuses((prev) => ({ ...prev, [socketLastMessage.friendId]: true }))
+    }
+    if (socketLastMessage.type === "friend_session_ended") {
+      setStatuses((prev) => ({ ...prev, [socketLastMessage.friendId]: false }))
+    }
+  }, [socketLastMessage])
+
+  return statuses
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Incoming invite banner
+// ─────────────────────────────────────────────────────────────────────────────
+function InviteBanner({ invite, onAccept, onDecline }) {
+  if (!invite) return null
+  return (
+    <View style={bannerStyles.container}>
+      <View style={bannerStyles.left}>
+        <Text style={bannerStyles.icon}>🏋️</Text>
+        <View>
+          <Text style={bannerStyles.title}>Joint Session Invite</Text>
+          <Text style={bannerStyles.sub}>
+            <Text style={bannerStyles.username}>{invite.fromUsername}</Text>
+            {" wants to lift together!"}
+          </Text>
+        </View>
+      </View>
+      <View style={bannerStyles.actions}>
+        <TouchableOpacity style={bannerStyles.decline} onPress={onDecline}>
+          <Text style={bannerStyles.declineText}>✕</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={bannerStyles.accept} onPress={onAccept}>
+          <Text style={bannerStyles.acceptText}>Join</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
+
+const bannerStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "#1a1a2e",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  left: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
+  icon: { fontSize: 28 },
+  title: { color: "#fff", fontWeight: "700", fontSize: 14, marginBottom: 2 },
+  sub: { color: "rgba(255,255,255,0.7)", fontSize: 13 },
+  username: { color: "#a78bfa", fontWeight: "600" },
+  actions: { flexDirection: "row", gap: 8, alignItems: "center" },
+  decline: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  declineText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
+  accept: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#7c3aed",
+  },
+  acceptText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lift Together button
+// ─────────────────────────────────────────────────────────────────────────────
+function LiftTogetherButton({ onPress, status, small = false }) {
+  const label =
+    status === "sending"
+      ? "Sending…"
+      : status === "waiting"
+        ? "Waiting…"
+        : status === "active"
+          ? "✓ In Session"
+          : status === "declined"
+            ? "Declined"
+            : "🏋️ Lift Together"
+  const bg =
+    status === "active"
+      ? "#10b981"
+      : status === "waiting"
+        ? "#f59e0b"
+        : status === "declined"
+          ? "#6b7280"
+          : "#7c3aed"
+  const busy = status === "sending" || status === "waiting"
+  return (
+    <TouchableOpacity
+      style={[
+        liftStyles.button,
+        small && liftStyles.buttonSmall,
+        { backgroundColor: bg },
+        busy && { opacity: 0.75 },
+      ]}
+      onPress={onPress}
+      disabled={busy || status === "active"}
+      activeOpacity={0.8}
+    >
+      {busy ? (
+        <ActivityIndicator
+          size='small'
+          color='#fff'
+          style={{ marginRight: 6 }}
+        />
+      ) : null}
+      <Text style={[liftStyles.label, small && liftStyles.labelSmall]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  )
+}
+
+const liftStyles = StyleSheet.create({
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  buttonSmall: { paddingHorizontal: 10, paddingVertical: 6 },
+  label: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  labelSmall: { fontSize: 12 },
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Permission toggle row
+// ─────────────────────────────────────────────────────────────────────────────
+function PermissionRow({
+  icon,
+  title,
+  description,
+  granted,
+  loading,
+  onGrant,
+  onRevoke,
+}) {
+  return (
+    <View style={[permStyles.row, granted && permStyles.rowGranted]}>
+      <Text style={permStyles.icon}>{icon}</Text>
+      <View style={permStyles.text}>
+        <Text style={permStyles.title}>{title}</Text>
+        <Text style={permStyles.desc}>{description}</Text>
+      </View>
+      {loading ? (
+        <ActivityIndicator
+          size='small'
+          color='#667eea'
+          style={{ marginLeft: 8 }}
+        />
+      ) : granted ? (
+        <TouchableOpacity style={permStyles.revokeBtn} onPress={onRevoke}>
+          <Text style={permStyles.revokeBtnText}>Revoke</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity style={permStyles.grantBtn} onPress={onGrant}>
+          <Text style={permStyles.grantBtnText}>Grant</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  )
+}
+
+const permStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  rowGranted: { borderColor: "#a7f3d0", backgroundColor: "#f0fdf4" },
+  icon: { fontSize: 24, marginRight: 12 },
+  text: { flex: 1 },
+  title: { fontSize: 14, fontWeight: "700", color: "#222", marginBottom: 2 },
+  desc: { fontSize: 12, color: "#888", lineHeight: 17 },
+  grantBtn: {
+    backgroundColor: "#667eea",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  grantBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  revokeBtn: {
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  revokeBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "600" },
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main screen
+// ─────────────────────────────────────────────────────────────────────────────
 export default function FriendsScreen() {
   const { user } = useAuth()
-  const { workoutData } = useWorkout()
+  const {
+    workoutData,
+    workoutStartTime,
+    currentSessionId,
+    isInJointSession,
+    jointSession,
+    pendingJointInvite,
+    jointInviteStatus,
+    sendJointInvite,
+    acceptJointInvite,
+    declineJointInvite,
+    leaveJointSession,
+    isWatching,
+    watchTarget,
+    watchLoading,
+    startWatching,
+    stopWatching,
+    socketLastMessage,
+  } = useWorkout()
+
   const { alert, AlertComponent } = useAlert()
 
   const [loading, setLoading] = useState(true)
@@ -36,51 +330,241 @@ export default function FriendsScreen() {
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
 
-  const [receivedAnalytics, setReceivedAnalytics] = useState([])
-  const [sentAnalytics, setSentAnalytics] = useState([])
-  const [receivedPrograms, setReceivedPrograms] = useState([])
-  const [sentPrograms, setSentPrograms] = useState([])
   const [sharingStats, setSharingStats] = useState(null)
 
-  const [showShareAnalyticsModal, setShowShareAnalyticsModal] = useState(false)
-  const [showShareProgramModal, setShowShareProgramModal] = useState(false)
+  // ── Permissions ───────────────────────────────────────────────────────────
+  const [grantedPermissions, setGrantedPermissions] = useState([])
+  const [receivedPermissions, setReceivedPermissions] = useState([])
+  const [permissionLoading, setPermissionLoading] = useState({})
+
   const [showFriendDetailModal, setShowFriendDetailModal] = useState(false)
   const [activeFriendTab, setActiveFriendTab] = useState("history")
   const [selectedFriend, setSelectedFriend] = useState(null)
-  const [shareMessage, setShareMessage] = useState("")
-  const [includeAllSessions, setIncludeAllSessions] = useState(true)
 
   const [friendSessionHistory, setFriendSessionHistory] = useState([])
   const [loadingFriendSessions, setLoadingFriendSessions] = useState(false)
   const [selectedSession, setSelectedSession] = useState(null)
   const [showSessionDetails, setShowSessionDetails] = useState(false)
-
   const [friendSessionsWithTimings, setFriendSessionsWithTimings] = useState([])
   const [loadingAnalytics, setLoadingAnalytics] = useState(false)
-
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedProgram, setSelectedProgram] = useState(null)
 
-  const [sharingAnalytics, setSharingAnalytics] = useState(false)
-  const [sharingProgram, setSharingProgram] = useState(false)
+  const [checkingActiveSession, setCheckingActiveSession] = useState(false)
+
+  const hasOwnActiveSession = !!workoutStartTime && !!currentSessionId
+  const friendSessionStatuses = useFriendSessionStatuses(
+    friends,
+    socketLastMessage,
+    loadFriends,
+  )
+  const [inviteTargetId, setInviteTargetId] = useState(null)
+
+  // ── Permission helpers ────────────────────────────────────────────────────
+
+  const getGrantedPermission = (friendId, type) =>
+    grantedPermissions.find(
+      (p) => p.toUserId === friendId && p.permissionType === type,
+    ) ?? null
+
+  const hasReceivedPermission = (friendId, type) =>
+    receivedPermissions.some(
+      (p) => p.fromUserId === friendId && p.permissionType === type,
+    )
+
+  const setPermLoading = (friendId, type, val) =>
+    setPermissionLoading((prev) => ({ ...prev, [`${friendId}:${type}`]: val }))
+
+  const isPermLoading = (friendId, type) =>
+    !!permissionLoading[`${friendId}:${type}`]
+
+  const handleGrantPermission = async (friend, type, payload = null) => {
+    setPermLoading(friend.id, type, true)
+    try {
+      await sharingApi.grantPermission(friend.id, type, payload)
+      await loadPermissions()
+    } catch (e) {
+      alert(
+        "Error",
+        e.message || "Failed to grant permission",
+        [{ text: "OK" }],
+        "error",
+      )
+    } finally {
+      setPermLoading(friend.id, type, false)
+    }
+  }
+
+  const handleRevokePermission = async (friend, type) => {
+    const perm = getGrantedPermission(friend.id, type)
+    if (!perm) return
+    setPermLoading(friend.id, type, true)
+    try {
+      await sharingApi.revokePermission(perm.id)
+      await loadPermissions()
+    } catch (e) {
+      alert(
+        "Error",
+        e.message || "Failed to revoke permission",
+        [{ text: "OK" }],
+        "error",
+      )
+    } finally {
+      setPermLoading(friend.id, type, false)
+    }
+  }
+
+  /**
+   * Granting 'program' bundles the current workoutData into the payload.
+   */
+  const handleGrantProgramPermission = async (friend) => {
+    if (!workoutData) {
+      alert(
+        "No Program Loaded",
+        "Load a workout program first before sharing it.",
+        [{ text: "OK" }],
+        "info",
+      )
+      return
+    }
+    const payload = {
+      programData: {
+        name: `${workoutData.people?.join("/")} Program — ${workoutData.totalDays} Days`,
+        totalDays: workoutData.totalDays,
+        people: workoutData.people,
+        days: workoutData.days,
+      },
+      message: null,
+    }
+    await handleGrantPermission(friend, "program", payload)
+  }
+
+  // ── Joint session helpers ─────────────────────────────────────────────────
+
+  const getInviteStatusForFriend = (friendId) => {
+    if (isInJointSession) {
+      const partnerInSession = jointSession?.participants?.find(
+        (p) => p.userId !== user?.id,
+      )
+      return partnerInSession?.userId === friendId ? "active" : "idle"
+    }
+    if (inviteTargetId === friendId) return jointInviteStatus
+    return "idle"
+  }
+
+  const handleSendInvite = async (friend) => {
+    if (!hasOwnActiveSession) {
+      alert(
+        "Start a workout first",
+        "You need to have an active workout session before inviting a friend.",
+        [{ text: "OK" }],
+        "info",
+      )
+      return
+    }
+    setInviteTargetId(friend.id)
+    const ok = await sendJointInvite(friend.id)
+    if (!ok) {
+      setInviteTargetId(null)
+      alert(
+        "Error",
+        "Could not send the invite. Try again.",
+        [{ text: "OK" }],
+        "error",
+      )
+    }
+  }
 
   useEffect(() => {
-    if (user?.id) {
-      loadData()
-    }
-  }, [user?.id])
+    if (jointInviteStatus === "idle" || jointInviteStatus === "active")
+      setInviteTargetId(null)
+  }, [jointInviteStatus])
 
-  const hasFriendSharedAnalyticsWith = (friendId) => {
-    if (!friendId) return false
-    return receivedAnalytics.some((s) => s.senderId === friendId)
+  const handleAcceptInvite = async () => {
+    if (!workoutStartTime) {
+      alert(
+        "Start your workout first",
+        "Accept the invite after you've begun your own workout session.",
+        [{ text: "OK" }],
+        "info",
+      )
+      return
+    }
+    const ok = await acceptJointInvite()
+    if (!ok)
+      alert("Error", "Could not join the session.", [{ text: "OK" }], "error")
   }
+
+  // ── Watch session ─────────────────────────────────────────────────────────
+
+  const handleWatchSession = async (friend) => {
+    if (!friend) return
+    if (isWatching && watchTarget?.friendId === friend.id) {
+      alert(
+        "Already Watching",
+        `You're already watching ${friend.username}'s session. Switch to the Workout tab.`,
+        [{ text: "OK" }],
+        "info",
+      )
+      return
+    }
+    if (isWatching) stopWatching()
+
+    setCheckingActiveSession(true)
+    try {
+      const activeSession = await sharingApi.getFriendActiveSession(friend.id)
+      if (!activeSession) {
+        alert(
+          "No Active Session",
+          `${friend.username} doesn't have an active workout session right now.`,
+          [{ text: "OK" }],
+          "info",
+        )
+        return
+      }
+      const ok = await startWatching(
+        friend.id,
+        friend.username,
+        activeSession.sessionId,
+      )
+      if (ok) {
+        alert(
+          "Watching 👀",
+          `You're now watching ${friend.username}'s workout. Switch to the Workout tab to see it live.`,
+          [{ text: "Go to Workout" }],
+          "success",
+        )
+      } else {
+        alert(
+          "Session Ended",
+          `${friend.username}'s session may have just ended.`,
+          [{ text: "OK" }],
+          "info",
+        )
+      }
+    } catch (err) {
+      alert(
+        "Error",
+        "Could not load the live session. Try again.",
+        [{ text: "OK" }],
+        "error",
+      )
+    } finally {
+      setCheckingActiveSession(false)
+    }
+  }
+
+  // ── Data loading ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (user?.id) loadData()
+  }, [user?.id])
 
   const loadData = async () => {
     setLoading(true)
     try {
-      await Promise.all([loadFriends(), loadSharing()])
+      await Promise.all([loadFriends(), loadPermissions(), loadStats()])
     } catch (error) {
-      console.error("Error loading friends data:", error)
       alert("Error", "Failed to load friends data", [{ text: "OK" }], "error")
     } finally {
       setLoading(false)
@@ -88,52 +572,63 @@ export default function FriendsScreen() {
   }
 
   const loadFriends = async () => {
-    try {
-      const [friendsData, pendingData, sentData] = await Promise.all([
-        friendsApi.getFriends(),
-        friendsApi.getPendingRequests(),
-        friendsApi.getSentRequests(),
-      ])
-      setFriends(friendsData || [])
-      setPendingRequests(pendingData || [])
-      setSentRequests(sentData || [])
-    } catch (error) {
-      console.error("Error loading friends:", error)
-      throw error
-    }
+    const [friendsData, pendingData, sentData] = await Promise.all([
+      friendsApi.getFriends(),
+      friendsApi.getPendingRequests(),
+      friendsApi.getSentRequests(),
+    ])
+    setFriends(friendsData || [])
+    setPendingRequests(pendingData || [])
+    setSentRequests(sentData || [])
   }
 
-  const loadSharing = async () => {
-    try {
-      const [receivedAn, sentAn, receivedProg, sentProg, stats] =
-        await Promise.all([
-          sharingApi.getReceivedAnalytics(),
-          sharingApi.getSentAnalytics(),
-          sharingApi.getReceivedPrograms(),
-          sharingApi.getSentPrograms(),
-          sharingApi.getSharingStats(),
-        ])
-      setReceivedAnalytics(receivedAn || [])
-      setSentAnalytics(sentAn || [])
-      setReceivedPrograms(receivedProg || [])
-      setSentPrograms(sentProg || [])
-      setSharingStats(stats || null)
-    } catch (error) {
-      console.error("Error loading sharing data:", error)
-      throw error
-    }
+  const loadPermissions = async () => {
+    const [granted, received] = await Promise.all([
+      sharingApi.getGrantedPermissions().catch(() => []),
+      sharingApi.getReceivedPermissions().catch(() => []),
+    ])
+    setGrantedPermissions(granted)
+    setReceivedPermissions(received)
+  }
+
+  const loadStats = async () => {
+    const stats = await sharingApi.getSharingStats().catch(() => null)
+    setSharingStats(stats)
   }
 
   const onRefresh = async () => {
     setRefreshing(true)
     try {
       await loadData()
-    } catch (error) {
-      console.error("Refresh failed:", error)
+    } catch (_) {
     } finally {
       setRefreshing(false)
     }
   }
+
+  // ── Derived data from permissions ─────────────────────────────────────────
+
+  const hasFriendSharedAnalyticsWith = (friendId) =>
+    !!friendId && hasReceivedPermission(friendId, "analytics")
+
+  const hasAlreadySharedAnalyticsWith = (friendId) =>
+    !!friendId && !!getGrantedPermission(friendId, "analytics")
+
+  const hasAlreadySharedProgramWith = (friendId) =>
+    !!friendId && !!getGrantedPermission(friendId, "program")
+
+  const receivedPrograms = receivedPermissions
+    .filter((p) => p.permissionType === "program" && p.payload?.programData)
+    .map((p) => ({
+      id: p.id,
+      senderId: p.fromUserId,
+      senderUsername: p.fromUsername,
+      sharedAt: p.createdAt,
+      message: p.payload?.message ?? null,
+      programData: p.payload.programData,
+    }))
+
+  // ── Search ────────────────────────────────────────────────────────────────
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -145,7 +640,6 @@ export default function FriendsScreen() {
       const results = await friendsApi.searchUsers(searchQuery.trim(), 10)
       setSearchResults(results || [])
     } catch (error) {
-      console.error("Error searching users:", error)
       alert("Error", "Failed to search users", [{ text: "OK" }], "error")
     } finally {
       setSearching(false)
@@ -154,11 +648,8 @@ export default function FriendsScreen() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchQuery.trim()) {
-        handleSearch()
-      } else {
-        setSearchResults([])
-      }
+      if (searchQuery.trim()) handleSearch()
+      else setSearchResults([])
     }, 500)
     return () => clearTimeout(timer)
   }, [searchQuery])
@@ -170,7 +661,6 @@ export default function FriendsScreen() {
       setSearchQuery("")
       setSearchResults([])
     } catch (error) {
-      console.error("Error sending friend request:", error)
       alert(
         "Error",
         error.message || "Failed to send friend request",
@@ -180,12 +670,11 @@ export default function FriendsScreen() {
     }
   }
 
-  const acceptFriendRequest = async (friendshipId, username) => {
+  const acceptFriendRequest = async (friendshipId) => {
     try {
       await friendsApi.acceptFriendRequest(friendshipId)
       await loadFriends()
     } catch (error) {
-      console.error("Error accepting friend request:", error)
       alert(
         "Error",
         error.message || "Failed to accept friend request",
@@ -207,21 +696,9 @@ export default function FriendsScreen() {
           onPress: async () => {
             try {
               await friendsApi.rejectFriendRequest(friendshipId)
-              alert(
-                "Request Rejected",
-                `Rejected request from ${username}`,
-                [{ text: "OK" }],
-                "info",
-              )
               await loadFriends()
-            } catch (error) {
-              console.error("Error rejecting friend request:", error)
-              alert(
-                "Error",
-                error.message || "Failed to reject request",
-                [{ text: "OK" }],
-                "error",
-              )
+            } catch (e) {
+              alert("Error", e.message || "Failed", [{ text: "OK" }], "error")
             }
           },
         },
@@ -242,21 +719,9 @@ export default function FriendsScreen() {
           onPress: async () => {
             try {
               await friendsApi.removeFriend(friendId)
-              alert(
-                "Friend Removed",
-                `${username} has been removed`,
-                [{ text: "OK" }],
-                "info",
-              )
               await loadFriends()
-            } catch (error) {
-              console.error("Error removing friend:", error)
-              alert(
-                "Error",
-                error.message || "Failed to remove friend",
-                [{ text: "OK" }],
-                "error",
-              )
+            } catch (e) {
+              alert("Error", e.message || "Failed", [{ text: "OK" }], "error")
             }
           },
         },
@@ -265,57 +730,24 @@ export default function FriendsScreen() {
     )
   }
 
-  const shareAnalytics = async () => {
-    if (!selectedFriend)
-      return alert("Error", "Please select a friend", [{ text: "OK" }], "error")
-    try {
-      await sharingApi.shareAnalytics(
-        selectedFriend.id,
-        includeAllSessions,
-        null,
-        shareMessage.trim() || null,
-      )
-      alert(
-        "Analytics Shared",
-        `Your analytics have been shared with ${selectedFriend.username}`,
-        [{ text: "OK" }],
-        "success",
-      )
-      setShowShareAnalyticsModal(false)
-      setShareMessage("")
-      setIncludeAllSessions(true)
-      await loadSharing()
-    } catch (error) {
-      console.error("Error sharing analytics:", error)
-      alert(
-        "Error",
-        error.message || "Failed to share analytics",
-        [{ text: "OK" }],
-        "error",
-      )
-    }
-  }
+  // ── Friend detail ─────────────────────────────────────────────────────────
 
   const loadFriendData = async (friend) => {
     setShowFriendDetailModal(true)
     setActiveFriendTab(
       hasFriendSharedAnalyticsWith(friend.id) ? "history" : "actions",
     )
-
     if (!hasFriendSharedAnalyticsWith(friend.id)) {
       setFriendSessionHistory([])
       setFriendSessionsWithTimings([])
-      setLoadingFriendSessions(false)
       return
     }
-
     setLoadingFriendSessions(true)
     setFriendSessionsWithTimings([])
     try {
       const sessions = await sharingApi.getFriendSessions(friend.id, 60)
       setFriendSessionHistory(sessions || [])
-    } catch (error) {
-      console.error("Error loading friend sessions:", error)
+    } catch (_) {
       alert(
         "Error",
         "Failed to load friend's workout history",
@@ -334,136 +766,40 @@ export default function FriendsScreen() {
     try {
       const detailed = await Promise.all(
         sessions.map((s) =>
-          sharingApi.getFriendSessionDetails(friend.id, s.id).catch((err) => {
-            console.warn(`Failed to load session ${s.id}:`, err)
-            return { ...s, set_timings: [] }
-          }),
+          sharingApi
+            .getFriendSessionDetails(friend.id, s.id)
+            .catch(() => ({ ...s, set_timings: [] })),
         ),
       )
-      const totalTimings = detailed.reduce(
-        (n, s) => n + (s.set_timings?.length ?? 0),
-        0,
-      )
-      console.log(
-        `Analytics: ${detailed.length} sessions, ${totalTimings} total set_timings`,
-      )
       setFriendSessionsWithTimings(detailed)
-    } catch (error) {
-      console.error("Error loading friend analytics:", error)
+    } catch (_) {
     } finally {
       setLoadingAnalytics(false)
     }
   }
 
-  const hasAlreadySharedAnalyticsWith = (friendId) => {
-    if (!friendId) return false
-    return sentAnalytics.some((s) => s.receiverId === friendId)
+  const toLocalDateStr = (d) => {
+    const y = d.getFullYear(),
+      m = String(d.getMonth() + 1).padStart(2, "0"),
+      dd = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${dd}`
   }
-
-  const hasAlreadySharedProgramWith = (friendId) => {
-    if (!friendId) return false
-    return sentPrograms.some((s) => s.receiverId === friendId)
-  }
-
-  const shareAnalyticsToFriend = async (friend) => {
-    if (!friend) return
-    setSharingAnalytics(true)
-    try {
-      await sharingApi.shareAnalytics(friend.id, true, null, null)
-      alert(
-        "Analytics Shared",
-        `Your analytics have been shared with ${friend.username}`,
-        [{ text: "OK" }],
-        "success",
-      )
-      await loadSharing()
-    } catch (error) {
-      console.error("Error sharing analytics:", error)
-      alert(
-        "Error",
-        error.message || "Failed to share analytics",
-        [{ text: "OK" }],
-        "error",
-      )
-    } finally {
-      setSharingAnalytics(false)
-    }
-  }
-
-  const shareProgramToFriend = async (friend) => {
-    if (!friend) return
-    if (!workoutData)
-      return alert(
-        "Error",
-        "No program loaded to share",
-        [{ text: "OK" }],
-        "error",
-      )
-    setSharingProgram(true)
-    try {
-      const programData = {
-        name: `${workoutData.people?.join("/")} Program - ${workoutData.totalDays} Days`,
-        totalDays: workoutData.totalDays,
-        people: workoutData.people,
-        days: workoutData.days,
-      }
-      await sharingApi.shareProgram(friend.id, programData, null)
-      alert(
-        "Program Shared",
-        `Program shared with ${friend.username}`,
-        [{ text: "OK" }],
-        "success",
-      )
-      await loadSharing()
-    } catch (error) {
-      console.error("Error sharing program:", error)
-      alert(
-        "Error",
-        error.message || "Failed to share program",
-        [{ text: "OK" }],
-        "error",
-      )
-    } finally {
-      setSharingProgram(false)
-    }
-  }
-
-  const toLocalDateStr = (date) => {
-    const y = date.getFullYear()
-    const m = String(date.getMonth() + 1).padStart(2, "0")
-    const d = String(date.getDate()).padStart(2, "0")
-    return `${y}-${m}-${d}`
-  }
-
   const getSessionsForDate = (date) => {
-    const targetStr = toLocalDateStr(date)
-    return friendSessionHistory.filter((session) => {
-      const sessionDateStr = String(session.start_time)
-        .replace("T", " ")
-        .split(" ")[0]
-      return sessionDateStr === targetStr
-    })
+    const t = toLocalDateStr(date)
+    return friendSessionHistory.filter(
+      (s) => String(s.start_time).replace("T", " ").split(" ")[0] === t,
+    )
   }
-
   const hasSessionOnDate = (date) => getSessionsForDate(date).length > 0
-
   const handleDatePress = (date) => {
-    const sessionsOnDate = getSessionsForDate(date)
-    if (sessionsOnDate.length === 1) {
-      handleSessionPress(sessionsOnDate[0], selectedFriend)
-    } else if (sessionsOnDate.length > 1) {
-      setSelectedDate(date)
-    }
+    const s = getSessionsForDate(date)
+    if (s.length === 1) handleSessionPress(s[0], selectedFriend)
+    else if (s.length > 1) setSelectedDate(date)
   }
 
   const handleSessionPress = async (session, friend = selectedFriend) => {
     if (!friend) {
-      alert(
-        "Error",
-        "Friend context lost. Please try again.",
-        [{ text: "OK" }],
-        "error",
-      )
+      alert("Error", "Friend context lost.", [{ text: "OK" }], "error")
       return
     }
     try {
@@ -471,30 +807,22 @@ export default function FriendsScreen() {
         friend.id,
         session.id,
       )
-
-      if (details.set_timings && details.set_timings.length > 0) {
-        const exerciseMap = new Map()
-        details.set_timings.forEach((timing) => {
-          const key =
-            timing.exercise_name || `Exercise ${timing.exercise_id ?? "?"}`
-          if (!exerciseMap.has(key)) {
-            exerciseMap.set(key, { exerciseName: key, sets: [] })
-          }
-          exerciseMap.get(key).sets.push(timing)
+      if (details.set_timings?.length > 0) {
+        const map = new Map()
+        details.set_timings.forEach((t) => {
+          const k = t.exercise_name || `Exercise ${t.exercise_id ?? "?"}`
+          if (!map.has(k)) map.set(k, { exerciseName: k, sets: [] })
+          map.get(k).sets.push(t)
         })
-        exerciseMap.forEach((exercise) => {
-          exercise.sets.sort((a, b) => a.set_index - b.set_index)
-        })
-        details.groupedExercises = Array.from(exerciseMap.values())
+        map.forEach((ex) => ex.sets.sort((a, b) => a.set_index - b.set_index))
+        details.groupedExercises = Array.from(map.values())
       } else {
         details.groupedExercises = []
       }
-
       setSelectedSession(details)
       setSelectedDate(null)
       setShowSessionDetails(true)
-    } catch (error) {
-      console.error("Error loading session details:", error)
+    } catch (_) {
       alert(
         "Error",
         "Failed to load session details",
@@ -504,189 +832,38 @@ export default function FriendsScreen() {
     }
   }
 
-  const openShareProgramModal = (friend) => {
-    setSelectedFriend(friend)
-    setShowShareProgramModal(true)
-  }
-
-  const shareProgram = async () => {
-    if (!selectedFriend)
-      return alert("Error", "Please select a friend", [{ text: "OK" }], "error")
-    if (!workoutData)
-      return alert(
-        "Error",
-        "No program loaded to share",
-        [{ text: "OK" }],
-        "error",
-      )
-
-    try {
-      const programData = {
-        name: `${workoutData.people?.join("/")} Program - ${workoutData.totalDays} Days`,
-        totalDays: workoutData.totalDays,
-        people: workoutData.people,
-        days: workoutData.days,
-      }
-      await sharingApi.shareProgram(
-        selectedFriend.id,
-        programData,
-        shareMessage.trim() || null,
-      )
-      alert(
-        "Program Shared",
-        `Program shared with ${selectedFriend.username}`,
-        [{ text: "OK" }],
-        "success",
-      )
-      setShowShareProgramModal(false)
-      setSelectedFriend(null)
-      setShareMessage("")
-      await loadSharing()
-    } catch (error) {
-      console.error("Error sharing program:", error)
-      alert(
-        "Error",
-        error.message || "Failed to share program",
-        [{ text: "OK" }],
-        "error",
-      )
-    }
-  }
-
-  const acceptProgram = async (shareId, programName) => {
-    alert(
-      "Accept Program",
-      `Add "${programName}" to your programs?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          onPress: async () => {
-            try {
-              await sharingApi.acceptProgram(shareId)
-              alert(
-                "Success",
-                `Program "${programName}" added to your library`,
-                [{ text: "OK" }],
-                "success",
-              )
-              await loadSharing()
-            } catch (error) {
-              console.error("Error accepting program:", error)
-              alert(
-                "Error",
-                error.message || "Failed to accept program",
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          },
-        },
-      ],
-      "info",
-    )
-  }
-
-  const deleteShare = async (shareType, shareId, description) => {
-    alert(
-      "Delete Share",
-      `Delete this ${shareType} share?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await sharingApi.deleteShare(shareType, shareId)
-              alert(
-                "Share Deleted",
-                `${description} has been deleted`,
-                [{ text: "OK" }],
-                "info",
-              )
-              await loadSharing()
-            } catch (error) {
-              console.error("Error deleting share:", error)
-              alert(
-                "Error",
-                error.message || "Failed to delete share",
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          },
-        },
-      ],
-      "warning",
-    )
-  }
-
-  const formatDate = (dateString) =>
-    new Date(dateString).toLocaleDateString("en-US", {
+  const formatDate = (s) =>
+    new Date(s).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
     })
-
-  const formatCalendarDate = (date) =>
-    date.toLocaleDateString("en-US", {
+  const formatCalDate = (d) =>
+    d.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
       day: "numeric",
     })
-
-  const formatSessionTime = (dateString) => {
-    if (!dateString) return ""
-    const timePart = String(dateString).replace("T", " ").split(" ")[1] || ""
-    const [hourStr, minuteStr] = timePart.split(":")
-    const hour = parseInt(hourStr)
-    const minute = minuteStr || "00"
-    const ampm = hour >= 12 ? "PM" : "AM"
-    const hour12 = hour % 12 || 12
-    return `${hour12}:${minute} ${ampm}`
+  const formatSessionTime = (s) => {
+    const p = String(s).replace("T", " ").split(" ")[1] || ""
+    const [h, m] = p.split(":")
+    const hr = parseInt(h)
+    return `${hr % 12 || 12}:${m || "00"} ${hr >= 12 ? "PM" : "AM"}`
   }
-
-  const formatTime = (seconds) => {
-    if (!seconds) return "N/A"
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const remainingSeconds = seconds % 60
-    if (hours > 0) return `${hours}h ${minutes}m`
-    if (seconds >= 60)
-      return remainingSeconds > 0
-        ? `${minutes}m ${remainingSeconds}s`
-        : `${minutes}m`
-    return `${seconds}s`
+  const formatTime = (sec) => {
+    if (!sec) return "N/A"
+    const h = Math.floor(sec / 3600),
+      m = Math.floor((sec % 3600) / 60),
+      s = sec % 60
+    if (h > 0) return `${h}h ${m}m`
+    if (sec >= 60) return s > 0 ? `${m}m ${s}s` : `${m}m`
+    return `${sec}s`
   }
-
-  const getSessionTitle = (session) => {
-    if (!session?.day_title) return `Day ${session?.day_number ?? ""}`
-    const parts = session.day_title.split("—")
-    return parts.length > 1 ? parts[1].trim() : session.day_title
+  const getSessionTitle = (s) => {
+    if (!s?.day_title) return `Day ${s?.day_number ?? ""}`
+    const p = s.day_title.split("—")
+    return p.length > 1 ? p[1].trim() : s.day_title
   }
-
-  const groupedReceivedAnalytics = receivedAnalytics.reduce((acc, share) => {
-    const key = share.senderId
-    if (!acc[key]) {
-      acc[key] = {
-        senderId: share.senderId,
-        senderUsername: share.senderUsername,
-        senderName: share.senderName,
-        shares: [],
-        latestShare: share.sharedAt,
-      }
-    }
-    acc[key].shares.push(share)
-    if (new Date(share.sharedAt) > new Date(acc[key].latestShare)) {
-      acc[key].latestShare = share.sharedAt
-    }
-    return acc
-  }, {})
-
-  const groupedAnalyticsList = Object.values(groupedReceivedAnalytics).sort(
-    (a, b) => new Date(b.latestShare) - new Date(a.latestShare),
-  )
 
   if (loading) {
     return (
@@ -699,6 +876,34 @@ export default function FriendsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+      <InviteBanner
+        invite={pendingJointInvite}
+        onAccept={handleAcceptInvite}
+        onDecline={declineJointInvite}
+      />
+
+      {isInJointSession && (
+        <View style={styles.activeSessionPill}>
+          <View style={styles.liveIndicator} />
+          <Text style={styles.activeSessionText}>Joint session active</Text>
+          <TouchableOpacity onPress={leaveJointSession}>
+            <Text style={styles.leaveText}>Leave</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {isWatching && (
+        <View style={[styles.activeSessionPill, watchStyles.pill]}>
+          <Text style={watchStyles.pillIcon}>👀</Text>
+          <Text style={watchStyles.pillText}>
+            Watching {watchTarget?.friendUsername}
+          </Text>
+          <TouchableOpacity onPress={stopWatching}>
+            <Text style={styles.leaveText}>Stop</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView
         style={styles.container}
         refreshControl={
@@ -718,6 +923,7 @@ export default function FriendsScreen() {
             </Text>
           </View>
 
+          {/* Tabs */}
           <View style={styles.tabContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {[
@@ -754,6 +960,7 @@ export default function FriendsScreen() {
             </ScrollView>
           </View>
 
+          {/* ── Friends tab ── */}
           {activeTab === "friends" && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -761,7 +968,6 @@ export default function FriendsScreen() {
                   Your Friends ({friends.length})
                 </Text>
               </View>
-
               {friends.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyIcon}>👋</Text>
@@ -778,40 +984,93 @@ export default function FriendsScreen() {
                 </View>
               ) : (
                 <View style={styles.listContainer}>
-                  {friends.map((friend) => (
-                    <TouchableOpacity
-                      key={friend.id}
-                      style={styles.friendCard}
-                      onPress={() => {
-                        setSelectedFriend(friend)
-                        loadFriendData(friend)
-                      }}
-                    >
-                      <View style={styles.friendInfo}>
-                        <View style={styles.avatar}>
-                          <Text style={styles.avatarText}>
-                            {friend.username?.charAt(0).toUpperCase() || "?"}
-                          </Text>
+                  {friends.map((friend) => {
+                    const friendIsWorkingOut =
+                      !!friendSessionStatuses[friend.id]
+                    const cardStatus = getInviteStatusForFriend(friend.id)
+                    const showLiftButton =
+                      hasOwnActiveSession &&
+                      friendIsWorkingOut &&
+                      cardStatus !== "active"
+                    const isBeingWatched =
+                      isWatching && watchTarget?.friendId === friend.id
+
+                    return (
+                      <TouchableOpacity
+                        key={friend.id}
+                        style={[
+                          styles.friendCard,
+                          friendIsWorkingOut && styles.friendCardActive,
+                          isBeingWatched && watchStyles.friendCardWatched,
+                        ]}
+                        onPress={() => {
+                          setSelectedFriend(friend)
+                          loadFriendData(friend)
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.friendInfo}>
+                          <View
+                            style={[
+                              styles.avatar,
+                              friendIsWorkingOut && styles.avatarActive,
+                            ]}
+                          >
+                            <Text style={styles.avatarText}>
+                              {friend.username?.charAt(0).toUpperCase() || "?"}
+                            </Text>
+                            {friendIsWorkingOut && (
+                              <View style={styles.workingOutDot} />
+                            )}
+                          </View>
+                          <View style={styles.friendDetails}>
+                            <Text style={styles.friendName}>
+                              {friend.username}
+                            </Text>
+                            <Text style={styles.friendMeta}>
+                              {isBeingWatched
+                                ? "👀 Watching their session"
+                                : friendIsWorkingOut
+                                  ? "🏋️ Working out now"
+                                  : `Friends since ${formatDate(friend.createdAt)}`}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={styles.friendDetails}>
-                          <Text style={styles.friendName}>
-                            {friend.username}
-                          </Text>
-                          <Text style={styles.friendMeta}>
-                            Friends since {formatDate(friend.createdAt)}
-                          </Text>
+                        <View style={styles.friendCardRight}>
+                          {showLiftButton && (
+                            <LiftTogetherButton
+                              small
+                              status={cardStatus}
+                              onPress={(e) => {
+                                e?.stopPropagation?.()
+                                handleSendInvite(friend)
+                              }}
+                            />
+                          )}
+                          {cardStatus === "active" && (
+                            <View
+                              style={[
+                                liftStyles.button,
+                                liftStyles.buttonSmall,
+                                { backgroundColor: "#10b981" },
+                              ]}
+                            >
+                              <Text style={liftStyles.labelSmall}>
+                                ✓ Together
+                              </Text>
+                            </View>
+                          )}
+                          <Text style={styles.chevronRight}>›</Text>
                         </View>
-                      </View>
-                      <View style={styles.friendActions}>
-                        <Text style={styles.chevronRight}>›</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                      </TouchableOpacity>
+                    )
+                  })}
                 </View>
               )}
             </View>
           )}
 
+          {/* ── Requests tab ── */}
           {activeTab === "requests" && (
             <View style={styles.section}>
               <View style={styles.subsection}>
@@ -874,7 +1133,6 @@ export default function FriendsScreen() {
                   </View>
                 )}
               </View>
-
               <View style={styles.subsection}>
                 <Text style={styles.subsectionTitle}>
                   Sent Requests ({sentRequests.length})
@@ -917,10 +1175,10 @@ export default function FriendsScreen() {
             </View>
           )}
 
+          {/* ── Search tab ── */}
           {activeTab === "search" && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Find Friends</Text>
-
               <View style={styles.searchContainer}>
                 <TextInput
                   style={styles.searchInput}
@@ -938,18 +1196,16 @@ export default function FriendsScreen() {
                   />
                 )}
               </View>
-
               {searchResults.length > 0 ? (
                 <View style={styles.listContainer}>
                   {searchResults.map((result) => {
                     const isFriend = friends.some((f) => f.id === result.id)
-                    const hasSentRequest = sentRequests.some(
+                    const hasSent = sentRequests.some(
                       (r) => r.receiverId === result.id,
                     )
-                    const hasPendingRequest = pendingRequests.some(
+                    const hasPending = pendingRequests.some(
                       (r) => r.senderId === result.id,
                     )
-
                     return (
                       <View key={result.id} style={styles.searchResultCard}>
                         <View style={styles.friendInfo}>
@@ -985,13 +1241,13 @@ export default function FriendsScreen() {
                                 ✓ Friends
                               </Text>
                             </View>
-                          ) : hasSentRequest ? (
+                          ) : hasSent ? (
                             <View style={styles.statusBadge}>
                               <Text style={styles.statusBadgeText}>
                                 Pending
                               </Text>
                             </View>
-                          ) : hasPendingRequest ? (
+                          ) : hasPending ? (
                             <TouchableOpacity
                               style={styles.respondButton}
                               onPress={() => setActiveTab("requests")}
@@ -1024,51 +1280,6 @@ export default function FriendsScreen() {
           )}
         </View>
       </ScrollView>
-
-      {/* ── Share Program Modal ── */}
-      <ModalSheet
-        visible={showShareProgramModal}
-        onClose={() => {
-          setShowShareProgramModal(false)
-          setSelectedFriend(null)
-          setShareMessage("")
-        }}
-        title={`Share Program with ${selectedFriend?.username || ""}`}
-        onConfirm={shareProgram}
-        confirmText='Share'
-      >
-        {!workoutData ? (
-          <View style={styles.emptyStateSmall}>
-            <Text style={styles.emptyTextSmall}>
-              No program loaded. Upload a workout file first.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <View style={styles.programPreview}>
-              <Text style={styles.programPreviewTitle}>Current Program</Text>
-              <Text style={styles.programPreviewText}>
-                📋 {workoutData.people?.join("/")} Program
-              </Text>
-              <Text style={styles.programPreviewText}>
-                📅 {workoutData.totalDays} Days
-              </Text>
-            </View>
-            <Text style={styles.inputLabel}>Message (optional)</Text>
-            <TextInput
-              style={styles.textArea}
-              placeholder='Add a message...'
-              value={shareMessage}
-              onChangeText={setShareMessage}
-              multiline
-              numberOfLines={3}
-            />
-            <Text style={styles.modalHint}>
-              Share your current workout program with your friend
-            </Text>
-          </>
-        )}
-      </ModalSheet>
 
       {/* ── Friend Detail Modal ── */}
       <ModalSheet
@@ -1105,37 +1316,39 @@ export default function FriendsScreen() {
             <View style={styles.backButton} />
           </View>
 
-          {/* ── Friend Tabs ── */}
+          {/* ── Friend tabs ── */}
           <View style={styles.friendTabContainer}>
             {(() => {
-              const hasSharedWithMe = hasFriendSharedAnalyticsWith(
+              const hasAnalytics = hasFriendSharedAnalyticsWith(
                 selectedFriend?.id,
               )
-              const programsFromFriend = receivedPrograms.filter(
+              const hasProgramFromFriend = receivedPrograms.some(
                 (p) => p.senderId === selectedFriend?.id,
               )
-              const hasProgramFromFriend = programsFromFriend.length > 0
+              const hasWatch = hasReceivedPermission(
+                selectedFriend?.id,
+                "watch_session",
+              )
 
-              const tabs = [
-                {
-                  key: "history",
-                  label: "📅 History",
-                  locked: !hasSharedWithMe,
-                },
+              return [
+                { key: "history", label: "📅 History", locked: !hasAnalytics },
                 {
                   key: "analytics",
                   label: "📊 Analytics",
-                  locked: !hasSharedWithMe,
+                  locked: !hasAnalytics,
                 },
                 {
                   key: "program",
                   label: "📋 Program",
                   locked: !hasProgramFromFriend,
                 },
+                {
+                  key: "live",
+                  label: "🔴 Live",
+                  locked: !hasWatch,
+                },
                 { key: "actions", label: "⚙️ Actions", locked: false },
-              ]
-
-              return tabs.map((tab) => (
+              ].map((tab) => (
                 <TouchableOpacity
                   key={tab.key}
                   style={[
@@ -1145,14 +1358,13 @@ export default function FriendsScreen() {
                   ]}
                   onPress={() => {
                     if (tab.locked) {
-                      alert(
-                        "Not Available",
+                      const msg =
                         tab.key === "program"
                           ? `${selectedFriend?.username} hasn't shared a program with you yet.`
-                          : `${selectedFriend?.username} hasn't shared their workout data with you yet.`,
-                        [{ text: "OK" }],
-                        "lock",
-                      )
+                          : tab.key === "live"
+                            ? `${selectedFriend?.username} hasn't granted you Watch Session permission yet.`
+                            : `${selectedFriend?.username} hasn't granted you analytics access yet.`
+                      alert("Not Available", msg, [{ text: "OK" }], "lock")
                       return
                     }
                     setActiveFriendTab(tab.key)
@@ -1161,9 +1373,8 @@ export default function FriendsScreen() {
                       friendSessionsWithTimings.length === 0 &&
                       !loadingAnalytics &&
                       friendSessionHistory.length > 0
-                    ) {
+                    )
                       loadFriendAnalytics(selectedFriend, friendSessionHistory)
-                    }
                   }}
                 >
                   <Text
@@ -1181,15 +1392,15 @@ export default function FriendsScreen() {
             })()}
           </View>
 
-          {/* ── History Tab ── */}
+          {/* ── History tab ── */}
           {activeFriendTab === "history" &&
             (!hasFriendSharedAnalyticsWith(selectedFriend?.id) ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>🔒</Text>
                 <Text style={styles.emptyTitle}>Not shared yet</Text>
                 <Text style={styles.emptyText}>
-                  {selectedFriend?.username} hasn't shared their workout history
-                  with you.
+                  {selectedFriend?.username} hasn't granted you analytics
+                  access.
                 </Text>
               </View>
             ) : (
@@ -1223,7 +1434,7 @@ export default function FriendsScreen() {
               </ScrollView>
             ))}
 
-          {/* ── Analytics Tab ── */}
+          {/* ── Analytics tab ── */}
           {activeFriendTab === "analytics" &&
             (loadingAnalytics ? (
               <View style={styles.analyticsLoading}>
@@ -1247,13 +1458,13 @@ export default function FriendsScreen() {
               </View>
             ))}
 
-          {/* ── Program Tab ── */}
+          {/* ── Program tab ── */}
           {activeFriendTab === "program" &&
             (() => {
               const programsFromFriend = receivedPrograms.filter(
                 (p) => p.senderId === selectedFriend?.id,
               )
-              if (programsFromFriend.length === 0) {
+              if (!programsFromFriend.length)
                 return (
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyIcon}>🔒</Text>
@@ -1264,14 +1475,12 @@ export default function FriendsScreen() {
                     </Text>
                   </View>
                 )
-              }
               const program = programsFromFriend[0]
               const pd = program.programData
               const people = pd?.days?.[0]?.exercises?.[0]?.setsByPerson
                 ? Object.keys(pd.days[0].exercises[0].setsByPerson)
                 : []
               const allOptions = ["All", ...people]
-
               return (
                 <View style={{ flex: 1 }}>
                   <View style={styles.peopleSelectorContainer}>
@@ -1307,7 +1516,6 @@ export default function FriendsScreen() {
                       ))}
                     </ScrollView>
                   </View>
-
                   <ScrollView
                     style={{ flex: 1 }}
                     contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
@@ -1324,20 +1532,16 @@ export default function FriendsScreen() {
                         Shared {formatDate(program.sharedAt)}
                       </Text>
                     </View>
-
                     {Array.isArray(pd?.days) &&
                       pd.days.map((day, dayIdx) => {
                         const exercises = Array.isArray(day.exercises)
-                          ? day.exercises.filter((ex) => {
-                              if (!selectedProgram) return true
-                              const count =
-                                ex.setsByPerson?.[selectedProgram] ?? 0
-                              return count > 0
-                            })
+                          ? day.exercises.filter(
+                              (ex) =>
+                                !selectedProgram ||
+                                (ex.setsByPerson?.[selectedProgram] ?? 0) > 0,
+                            )
                           : []
-
-                        if (exercises.length === 0) return null
-
+                        if (!exercises.length) return null
                         return (
                           <View key={dayIdx} style={styles.programDayCard}>
                             <View style={styles.programDayHeader}>
@@ -1355,7 +1559,6 @@ export default function FriendsScreen() {
                                   : ""}
                               </Text>
                             </View>
-
                             {exercises.map((exercise, exIdx) => {
                               const setsByPerson = exercise.setsByPerson ?? {}
                               const personEntries = selectedProgram
@@ -1411,132 +1614,387 @@ export default function FriendsScreen() {
               )
             })()}
 
-          {/* ── Actions Tab ── */}
+          {/* ── Live tab ── */}
+          {activeFriendTab === "live" && (
+            <LiveSessionTab
+              friend={selectedFriend}
+              isVisible={activeFriendTab === "live" && showFriendDetailModal}
+              receivedPrograms={receivedPrograms}
+              socketLastMessage={socketLastMessage}
+            />
+          )}
+
+          {/* ── Actions tab ── */}
           {activeFriendTab === "actions" && (
             <ScrollView style={styles.modalScroll}>
               <View style={styles.actionsTabContent}>
+                {/* ═══ Permissions I've Granted ════════════════════════════ */}
                 <Text style={styles.actionsTabSectionTitle}>
-                  Share With {selectedFriend?.username}
+                  Permissions for {selectedFriend?.username}
+                </Text>
+                <Text style={styles.actionsTabSectionHint}>
+                  Control what {selectedFriend?.username} is allowed to see and
+                  do.
                 </Text>
 
-                {hasAlreadySharedAnalyticsWith(selectedFriend?.id) ? (
-                  <View style={styles.actionRow}>
-                    <Text style={styles.actionRowIcon}>📊</Text>
-                    <View style={styles.actionRowText}>
-                      <Text style={styles.actionRowTitle}>
-                        Analytics Shared
-                      </Text>
-                      <Text style={styles.actionRowSub}>
-                        Already shared your analytics with{" "}
-                        {selectedFriend?.username}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.deleteShareButton}
-                      onPress={() => {
-                        const share = sentAnalytics.find(
-                          (s) => s.receiverId === selectedFriend?.id,
-                        )
-                        if (share)
-                          deleteShare("analytics", share.id, "Analytics share")
-                      }}
-                    >
-                      <Text style={styles.deleteShareButtonText}>Remove</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionRow,
-                      sharingAnalytics && styles.actionRowDisabled,
-                    ]}
-                    onPress={() => shareAnalyticsToFriend(selectedFriend)}
-                    disabled={sharingAnalytics}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.actionRowIcon}>📊</Text>
-                    <View style={styles.actionRowText}>
-                      <Text style={styles.actionRowTitle}>
-                        Share My Analytics
-                      </Text>
-                      <Text style={styles.actionRowSub}>
-                        Share your full workout analytics & progress
-                      </Text>
-                    </View>
-                    {sharingAnalytics ? (
-                      <ActivityIndicator size='small' color='#667eea' />
-                    ) : (
-                      <Text style={styles.actionRowArrow}>›</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
+                <PermissionRow
+                  icon='📅'
+                  title='History Access'
+                  description={`Let ${selectedFriend?.username} view your workout history calendar and session details.`}
+                  granted={
+                    !!getGrantedPermission(selectedFriend?.id, "history")
+                  }
+                  loading={isPermLoading(selectedFriend?.id, "history")}
+                  onGrant={() =>
+                    handleGrantPermission(selectedFriend, "history")
+                  }
+                  onRevoke={() =>
+                    handleRevokePermission(selectedFriend, "history")
+                  }
+                />
 
-                {hasAlreadySharedProgramWith(selectedFriend?.id) ? (
-                  <View style={styles.actionRow}>
-                    <Text style={styles.actionRowIcon}>📋</Text>
-                    <View style={styles.actionRowText}>
-                      <Text style={styles.actionRowTitle}>Program Shared</Text>
-                      <Text style={styles.actionRowSub}>
-                        Already shared your program with{" "}
-                        {selectedFriend?.username}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.deleteShareButton}
-                      onPress={() => {
-                        const share = sentPrograms.find(
-                          (s) => s.receiverId === selectedFriend?.id,
-                        )
-                        if (share)
-                          deleteShare("program", share.id, "Program share")
-                      }}
+                <PermissionRow
+                  icon='📊'
+                  title='Analytics Access'
+                  description={`Let ${selectedFriend?.username} view your workout analytics and progress charts.`}
+                  granted={
+                    !!getGrantedPermission(selectedFriend?.id, "analytics")
+                  }
+                  loading={isPermLoading(selectedFriend?.id, "analytics")}
+                  onGrant={() =>
+                    handleGrantPermission(selectedFriend, "analytics")
+                  }
+                  onRevoke={() =>
+                    handleRevokePermission(selectedFriend, "analytics")
+                  }
+                />
+
+                <PermissionRow
+                  icon='📋'
+                  title='Share My Program'
+                  description={
+                    workoutData
+                      ? `Share your current program (${workoutData.people?.join("/")} — ${workoutData.totalDays} days) with ${selectedFriend?.username}.`
+                      : `No program loaded. Load a workout program first to share it.`
+                  }
+                  granted={
+                    !!getGrantedPermission(selectedFriend?.id, "program")
+                  }
+                  loading={isPermLoading(selectedFriend?.id, "program")}
+                  onGrant={() => handleGrantProgramPermission(selectedFriend)}
+                  onRevoke={() =>
+                    handleRevokePermission(selectedFriend, "program")
+                  }
+                />
+
+                <PermissionRow
+                  icon='🏋️'
+                  title='Joint Session'
+                  description={`Let ${selectedFriend?.username} invite you to lift together when you're both working out.`}
+                  granted={
+                    !!getGrantedPermission(selectedFriend?.id, "joint_session")
+                  }
+                  loading={isPermLoading(selectedFriend?.id, "joint_session")}
+                  onGrant={() =>
+                    handleGrantPermission(selectedFriend, "joint_session")
+                  }
+                  onRevoke={() =>
+                    handleRevokePermission(selectedFriend, "joint_session")
+                  }
+                />
+
+                <PermissionRow
+                  icon='👀'
+                  title='Watch Session'
+                  description={`Let ${selectedFriend?.username} watch your active workout session live.`}
+                  granted={
+                    !!getGrantedPermission(selectedFriend?.id, "watch_session")
+                  }
+                  loading={isPermLoading(selectedFriend?.id, "watch_session")}
+                  onGrant={() =>
+                    handleGrantPermission(selectedFriend, "watch_session")
+                  }
+                  onRevoke={() =>
+                    handleRevokePermission(selectedFriend, "watch_session")
+                  }
+                />
+
+                {/* ═══ Their permissions for me (read-only) ════════════════ */}
+                <Text
+                  style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}
+                >
+                  {selectedFriend?.username}'s Permissions for You
+                </Text>
+                <Text style={styles.actionsTabSectionHint}>
+                  What {selectedFriend?.username} has allowed you to do.
+                </Text>
+
+                {[
+                  { type: "history", icon: "📅", label: "History Access" },
+                  { type: "analytics", icon: "📊", label: "Analytics Access" },
+                  { type: "program", icon: "📋", label: "Shared Program" },
+                  { type: "joint_session", icon: "🏋️", label: "Joint Session" },
+                  { type: "watch_session", icon: "👀", label: "Watch Session" },
+                ].map(({ type, icon, label }) => {
+                  const has = hasReceivedPermission(selectedFriend?.id, type)
+                  return (
+                    <View
+                      key={type}
+                      style={[
+                        permStyles.row,
+                        has ? permStyles.rowGranted : { opacity: 0.5 },
+                      ]}
                     >
-                      <Text style={styles.deleteShareButtonText}>Remove</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={[
-                      styles.actionRow,
-                      (!workoutData || sharingProgram) &&
-                        styles.actionRowDisabled,
-                    ]}
-                    onPress={() => shareProgramToFriend(selectedFriend)}
-                    disabled={sharingProgram || !workoutData}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.actionRowIcon}>📋</Text>
-                    <View style={styles.actionRowText}>
-                      <Text style={styles.actionRowTitle}>
-                        Share My Program
-                      </Text>
-                      <Text style={styles.actionRowSub}>
-                        {workoutData
-                          ? `${workoutData.people?.join("/")} — ${workoutData.totalDays} days`
-                          : "No program loaded"}
-                      </Text>
-                    </View>
-                    {sharingProgram ? (
-                      <ActivityIndicator size='small' color='#667eea' />
-                    ) : (
-                      <Text
+                      <Text style={permStyles.icon}>{icon}</Text>
+                      <View style={permStyles.text}>
+                        <Text style={permStyles.title}>{label}</Text>
+                        <Text style={permStyles.desc}>
+                          {has
+                            ? `${selectedFriend?.username} has granted you this.`
+                            : `${selectedFriend?.username} hasn't granted this yet.`}
+                        </Text>
+                      </View>
+                      <View
                         style={[
-                          styles.actionRowArrow,
-                          !workoutData && { color: "#ddd" },
+                          permStyles.grantBtn,
+                          { backgroundColor: has ? "#dcfce7" : "#f3f4f6" },
                         ]}
                       >
-                        ›
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                        <Text
+                          style={[
+                            permStyles.grantBtnText,
+                            { color: has ? "#059669" : "#9ca3af" },
+                          ]}
+                        >
+                          {has ? "✓ Granted" : "Not yet"}
+                        </Text>
+                      </View>
+                    </View>
+                  )
+                })}
+
+                {/* ═══ Live Session (watch) ════════════════════════════════ */}
+                {hasReceivedPermission(selectedFriend?.id, "watch_session") && (
+                  <>
+                    <Text
+                      style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}
+                    >
+                      Live Session
+                    </Text>
+                    {(() => {
+                      const friendActive =
+                        !!friendSessionStatuses[selectedFriend?.id]
+                      const alreadyWatchingThis =
+                        isWatching &&
+                        watchTarget?.friendId === selectedFriend?.id
+
+                      if (alreadyWatchingThis)
+                        return (
+                          <View
+                            style={[styles.actionRow, watchStyles.activeRow]}
+                          >
+                            <Text style={styles.actionRowIcon}>👀</Text>
+                            <View style={styles.actionRowText}>
+                              <Text
+                                style={[
+                                  styles.actionRowTitle,
+                                  { color: "#1e40af" },
+                                ]}
+                              >
+                                Watching Now
+                              </Text>
+                              <Text style={styles.actionRowSub}>
+                                Switch to the Workout tab to see{" "}
+                                {selectedFriend?.username}'s live session.
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={watchStyles.stopBtn}
+                              onPress={stopWatching}
+                            >
+                              <Text style={watchStyles.stopBtnText}>Stop</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )
+
+                      if (!friendActive)
+                        return (
+                          <View style={[styles.actionRow, { opacity: 0.55 }]}>
+                            <Text style={styles.actionRowIcon}>👀</Text>
+                            <View style={styles.actionRowText}>
+                              <Text style={styles.actionRowTitle}>
+                                View Current Session
+                              </Text>
+                              <Text style={styles.actionRowSub}>
+                                {selectedFriend?.username} isn't working out
+                                right now.
+                              </Text>
+                            </View>
+                          </View>
+                        )
+
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            styles.actionRow,
+                            watchStyles.availableRow,
+                            checkingActiveSession && { opacity: 0.7 },
+                          ]}
+                          onPress={() => handleWatchSession(selectedFriend)}
+                          disabled={checkingActiveSession}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.actionRowIcon}>👀</Text>
+                          <View style={styles.actionRowText}>
+                            <Text
+                              style={[
+                                styles.actionRowTitle,
+                                { color: "#1e40af" },
+                              ]}
+                            >
+                              View Current Session
+                            </Text>
+                            <Text style={styles.actionRowSub}>
+                              {selectedFriend?.username} is working out now —
+                              watch their session live.
+                            </Text>
+                          </View>
+                          {checkingActiveSession ? (
+                            <ActivityIndicator size='small' color='#2563eb' />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.actionRowArrow,
+                                { color: "#2563eb" },
+                              ]}
+                            >
+                              ›
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      )
+                    })()}
+                  </>
                 )}
 
+                {/* ═══ Lift Together ════════════════════════════════════════ */}
+                {hasOwnActiveSession &&
+                  hasReceivedPermission(
+                    selectedFriend?.id,
+                    "joint_session",
+                  ) && (
+                    <>
+                      <Text
+                        style={[
+                          styles.actionsTabSectionTitle,
+                          { marginTop: 28 },
+                        ]}
+                      >
+                        Lift Together
+                      </Text>
+                      {(() => {
+                        const friendActive =
+                          !!friendSessionStatuses[selectedFriend?.id]
+                        const cs = getInviteStatusForFriend(selectedFriend?.id)
+
+                        if (isInJointSession && cs === "active")
+                          return (
+                            <View
+                              style={[styles.actionRow, jointStyles.activeRow]}
+                            >
+                              <View style={jointStyles.liveDot} />
+                              <View style={styles.actionRowText}>
+                                <Text
+                                  style={[
+                                    styles.actionRowTitle,
+                                    { color: "#065f46" },
+                                  ]}
+                                >
+                                  Joint session active 🎉
+                                </Text>
+                                <Text style={styles.actionRowSub}>
+                                  Your sets are synced – open the Workout tab.
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={jointStyles.leaveBtn}
+                                onPress={leaveJointSession}
+                              >
+                                <Text style={jointStyles.leaveBtnText}>
+                                  Leave
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )
+
+                        if (!friendActive)
+                          return (
+                            <View style={[styles.actionRow, { opacity: 0.6 }]}>
+                              <Text style={styles.actionRowIcon}>🏋️</Text>
+                              <View style={styles.actionRowText}>
+                                <Text style={styles.actionRowTitle}>
+                                  Lift Together
+                                </Text>
+                                <Text style={styles.actionRowSub}>
+                                  {selectedFriend?.username} is not currently in
+                                  a workout session.
+                                </Text>
+                              </View>
+                            </View>
+                          )
+
+                        return (
+                          <TouchableOpacity
+                            style={[
+                              styles.actionRow,
+                              jointStyles.inviteRow,
+                              cs === "waiting" && { opacity: 0.7 },
+                            ]}
+                            onPress={() => handleSendInvite(selectedFriend)}
+                            disabled={cs === "sending" || cs === "waiting"}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.actionRowIcon}>🏋️</Text>
+                            <View style={styles.actionRowText}>
+                              <Text
+                                style={[
+                                  styles.actionRowTitle,
+                                  { color: "#5b21b6" },
+                                ]}
+                              >
+                                {cs === "waiting"
+                                  ? "Waiting for response…"
+                                  : "Invite to Lift Together"}
+                              </Text>
+                              <Text style={styles.actionRowSub}>
+                                {selectedFriend?.username} is working out. Sync
+                                up!
+                              </Text>
+                            </View>
+                            {cs === "sending" || cs === "waiting" ? (
+                              <ActivityIndicator size='small' color='#7c3aed' />
+                            ) : (
+                              <Text
+                                style={[
+                                  styles.actionRowArrow,
+                                  { color: "#7c3aed" },
+                                ]}
+                              >
+                                ›
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        )
+                      })()}
+                    </>
+                  )}
+
+                {/* ═══ Danger Zone ══════════════════════════════════════════ */}
                 <Text
                   style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}
                 >
                   Danger Zone
                 </Text>
-
                 <TouchableOpacity
                   style={[styles.actionRow, styles.actionRowDanger]}
                   onPress={() => {
@@ -1567,11 +2025,11 @@ export default function FriendsScreen() {
         </SafeAreaView>
       </ModalSheet>
 
-      {/* ── Date Session Picker Modal ── */}
+      {/* ── Date session picker modal ── */}
       <ModalSheet
         visible={selectedDate !== null}
         onClose={() => setSelectedDate(null)}
-        title={selectedDate ? formatCalendarDate(selectedDate) : ""}
+        title={selectedDate ? formatCalDate(selectedDate) : ""}
         showCancelButton={false}
         showConfirmButton={false}
         scrollable={true}
@@ -1584,21 +2042,21 @@ export default function FriendsScreen() {
               onPress={() => handleSessionPress(session, selectedFriend)}
             >
               <View style={styles.sessionListLeft}>
-                <Text style={styles.sessionListTitle}>
-                  {`Day ${session.day_number} - ${getSessionTitle(session)}`}
-                </Text>
+                <Text
+                  style={styles.sessionListTitle}
+                >{`Day ${session.day_number} - ${getSessionTitle(session)}`}</Text>
                 <View style={styles.sessionListMeta}>
-                  <Text style={styles.sessionListTime}>
-                    {`⏱️ ${formatSessionTime(session.start_time)}`}
-                  </Text>
+                  <Text
+                    style={styles.sessionListTime}
+                  >{`⏱️ ${formatSessionTime(session.start_time)}`}</Text>
                   {!!session.total_duration && (
-                    <Text style={styles.sessionListDuration}>
-                      {` • ${formatTime(session.total_duration)}`}
-                    </Text>
+                    <Text
+                      style={styles.sessionListDuration}
+                    >{` • ${formatTime(session.total_duration)}`}</Text>
                   )}
-                  <Text style={styles.sessionListSets}>
-                    {` • ${session.completed_sets} sets`}
-                  </Text>
+                  <Text
+                    style={styles.sessionListSets}
+                  >{` • ${session.completed_sets} sets`}</Text>
                 </View>
               </View>
               <Text style={styles.sessionListArrow}>›</Text>
@@ -1606,7 +2064,7 @@ export default function FriendsScreen() {
           ))}
       </ModalSheet>
 
-      {/* ── Session Details Modal ── */}
+      {/* ── Session details modal ── */}
       <ModalSheet
         visible={showSessionDetails}
         onClose={() => {
@@ -1632,7 +2090,6 @@ export default function FriendsScreen() {
             <Text style={styles.modalHeaderTitle}>Workout Details</Text>
             <View style={styles.backButton} />
           </View>
-
           <ScrollView style={styles.modalScroll}>
             <View style={styles.sessionDetailsContent}>
               {selectedSession && (
@@ -1647,17 +2104,16 @@ export default function FriendsScreen() {
                     {Array.isArray(selectedSession.muscle_groups) &&
                       selectedSession.muscle_groups.length > 0 && (
                         <View style={styles.muscleGroupsRow}>
-                          {selectedSession.muscle_groups.map((group, idx) => (
-                            <View key={idx} style={styles.muscleTag}>
+                          {selectedSession.muscle_groups.map((g, i) => (
+                            <View key={i} style={styles.muscleTag}>
                               <Text style={styles.muscleTagText}>
-                                {String(group)}
+                                {String(g)}
                               </Text>
                             </View>
                           ))}
                         </View>
                       )}
                   </View>
-
                   <View style={styles.detailSection}>
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Date</Text>
@@ -1673,20 +2129,6 @@ export default function FriendsScreen() {
                       </Text>
                     </View>
                     <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Start Time</Text>
-                      <Text style={styles.detailValue}>
-                        {formatSessionTime(selectedSession.start_time)}
-                      </Text>
-                    </View>
-                    {!!selectedSession.end_time && (
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>End Time</Text>
-                        <Text style={styles.detailValue}>
-                          {formatSessionTime(selectedSession.end_time)}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Duration</Text>
                       <Text style={styles.detailValue}>
                         {formatTime(selectedSession.total_duration)}
@@ -1699,14 +2141,13 @@ export default function FriendsScreen() {
                       </Text>
                     </View>
                   </View>
-
                   {Array.isArray(selectedSession.groupedExercises) &&
                     selectedSession.groupedExercises.length > 0 && (
                       <View style={styles.detailSection}>
                         <Text style={styles.detailSectionTitle}>Exercises</Text>
                         {selectedSession.groupedExercises.map(
-                          (exercise, exerciseIdx) => (
-                            <View key={exerciseIdx} style={styles.exerciseCard}>
+                          (exercise, ei) => (
+                            <View key={ei} style={styles.exerciseCard}>
                               <View style={styles.exerciseHeader}>
                                 <Text style={styles.exerciseName}>
                                   {exercise.exerciseName}
@@ -1715,37 +2156,15 @@ export default function FriendsScreen() {
                                   {exercise.sets.length} sets
                                 </Text>
                               </View>
-
-                              {exercise.sets.map((set, setIdx) => (
-                                <View key={setIdx} style={styles.setTimingCard}>
-                                  <View style={styles.setTimingHeader}>
-                                    <Text style={styles.setTimingTitle}>
-                                      Set {set.set_index + 1}
-                                    </Text>
-                                  </View>
-                                  <View style={styles.setTimingDetails}>
-                                    <Text style={styles.setTimingDetail}>
-                                      {(() => {
-                                        const w = parseFloat(set.weight ?? 0)
-                                        const r = parseInt(set.reps ?? 0)
-                                        const volume = w * r
-                                        const displayVolume = Number.isInteger(
-                                          volume,
-                                        )
-                                          ? `${volume}`
-                                          : `${volume.toFixed(1)}`
-                                        return `${w}kg × ${r} = ${displayVolume}kg`
-                                      })()}
-                                    </Text>
-                                    {!!set.set_duration && (
-                                      <Text style={styles.setTimingDetail}>
-                                        Duration:{" "}
-                                        {set.set_duration >= 60
-                                          ? `${Math.floor(set.set_duration / 60)}m${set.set_duration % 60 > 0 ? ` ${set.set_duration % 60}s` : ""}`
-                                          : `${set.set_duration}s`}
-                                      </Text>
-                                    )}
-                                  </View>
+                              {exercise.sets.map((set, si) => (
+                                <View key={si} style={styles.setTimingCard}>
+                                  <Text style={styles.setTimingTitle}>
+                                    Set {set.set_index + 1}
+                                  </Text>
+                                  <Text style={styles.setTimingDetail}>
+                                    {parseFloat(set.weight ?? 0)}kg ×{" "}
+                                    {parseInt(set.reps ?? 0)}
+                                  </Text>
                                 </View>
                               ))}
                             </View>
@@ -1765,6 +2184,75 @@ export default function FriendsScreen() {
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Watch session styles
+// ─────────────────────────────────────────────────────────────────────────────
+const watchStyles = StyleSheet.create({
+  pill: { backgroundColor: "#eff6ff", borderBottomColor: "#bfdbfe" },
+  pillIcon: { fontSize: 16 },
+  pillText: { flex: 1, fontSize: 13, fontWeight: "600", color: "#1e40af" },
+  friendCardWatched: {
+    borderWidth: 2,
+    borderColor: "#2563eb",
+    backgroundColor: "#eff6ff",
+  },
+  activeRow: {
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  availableRow: {
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#f0f7ff",
+  },
+  stopBtn: {
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  stopBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "600" },
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Joint session styles
+// ─────────────────────────────────────────────────────────────────────────────
+const jointStyles = StyleSheet.create({
+  activeRow: {
+    backgroundColor: "#ecfdf5",
+    borderWidth: 1,
+    borderColor: "#6ee7b7",
+  },
+  inviteRow: {
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    backgroundColor: "#faf5ff",
+  },
+  liveDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#10b981",
+    marginRight: 14,
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  leaveBtn: {
+    backgroundColor: "#fee2e2",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  leaveBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "600" },
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Base styles
+// ─────────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f5f5" },
   content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
@@ -1825,6 +2313,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  friendCardActive: {
+    borderWidth: 2,
+    borderColor: "#a78bfa",
+    backgroundColor: "#faf5ff",
+  },
+  friendCardRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   friendInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
   avatar: {
     width: 48,
@@ -1834,6 +2328,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+    position: "relative",
+  },
+  avatarActive: { backgroundColor: "#7c3aed" },
+  workingOutDot: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#10b981",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   avatarText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
   friendDetails: { flex: 1 },
@@ -1844,7 +2351,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   friendMeta: { fontSize: 13, color: "#999" },
-  friendActions: { flexDirection: "row", gap: 8, alignItems: "center" },
   requestCard: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -1954,45 +2460,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   emptyTextSmall: { fontSize: 14, color: "#999" },
-  inputLabel: { fontSize: 13, color: "#555", marginBottom: 6, marginTop: 8 },
-  textArea: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  checkboxRow: { flexDirection: "row", alignItems: "center", marginBottom: 15 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#667eea",
-    marginRight: 10,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkboxCheck: { color: "#667eea", fontSize: 16, fontWeight: "bold" },
-  checkboxLabel: { fontSize: 15, color: "#333" },
-  modalHint: { fontSize: 13, color: "#999", textAlign: "center", marginTop: 8 },
-  programPreview: {
-    backgroundColor: "#f0f3ff",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-  },
-  programPreviewTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#667eea",
-    marginBottom: 8,
-  },
-  programPreviewText: { fontSize: 14, color: "#333", marginBottom: 4 },
   calendarHint: {
     fontSize: 14,
     color: "#666",
@@ -2022,19 +2489,6 @@ const styles = StyleSheet.create({
   modalHeaderTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
   modalScroll: { flex: 1, backgroundColor: "#f5f5f5" },
   friendDetailContent: { padding: 20, paddingBottom: 40 },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#f9fafb",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  actionButtonDanger: { backgroundColor: "#fef2f2", borderColor: "#fecaca" },
-  actionButtonIcon: { fontSize: 24, marginRight: 12 },
-  actionButtonText: { fontSize: 16, fontWeight: "600", color: "#333" },
-  actionButtonTextDanger: { color: "#ef4444" },
   workoutHistorySection: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -2139,14 +2593,7 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
   },
-  setTimingHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
   setTimingTitle: { fontSize: 15, fontWeight: "600", color: "#333" },
-  setTimingDetails: { flexDirection: "row", justifyContent: "space-between" },
   setTimingDetail: { fontSize: 14, color: "#666" },
   friendTabContainer: {
     flexDirection: "row",
@@ -2177,7 +2624,13 @@ const styles = StyleSheet.create({
     color: "#aaa",
     textTransform: "uppercase",
     letterSpacing: 0.9,
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  actionsTabSectionHint: {
+    fontSize: 12,
+    color: "#bbb",
+    marginBottom: 12,
+    lineHeight: 17,
   },
   actionRow: {
     flexDirection: "row",
@@ -2208,14 +2661,6 @@ const styles = StyleSheet.create({
   },
   actionRowSub: { fontSize: 13, color: "#888", lineHeight: 18 },
   actionRowArrow: { fontSize: 24, color: "#ccc", marginLeft: 4 },
-  deleteShareButton: {
-    backgroundColor: "#fee2e2",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  deleteShareButtonText: { color: "#ef4444", fontSize: 13, fontWeight: "600" },
   programViewHeader: {
     backgroundColor: "#fff",
     borderRadius: 12,
@@ -2298,12 +2743,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  programNoExercises: {
-    fontSize: 13,
-    color: "#bbb",
-    fontStyle: "italic",
-    paddingVertical: 8,
-  },
   programSetsRow: { flexDirection: "row", gap: 6 },
   peopleSelectorContainer: {
     backgroundColor: "#fff",
@@ -2323,4 +2762,27 @@ const styles = StyleSheet.create({
   peoplePillActive: { backgroundColor: "#e0e7ff", borderColor: "#667eea" },
   peoplePillText: { fontSize: 14, fontWeight: "600", color: "#888" },
   peoplePillTextActive: { color: "#667eea" },
+  activeSessionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ecfdf5",
+    borderBottomWidth: 1,
+    borderBottomColor: "#a7f3d0",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  liveIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#10b981",
+  },
+  activeSessionText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#065f46",
+  },
+  leaveText: { fontSize: 13, fontWeight: "700", color: "#ef4444" },
 })
