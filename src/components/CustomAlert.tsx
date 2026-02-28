@@ -1,0 +1,312 @@
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactElement,
+} from "react"
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+} from "react-native"
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type AlertType =
+  | "success"
+  | "error"
+  | "warning"
+  | "info"
+  | "lock"
+  | "session"
+  | "default"
+
+export interface AlertButton {
+  text: string
+  style?: "default" | "cancel" | "destructive"
+  onPress?: () => void
+}
+
+interface AlertConfig {
+  visible: boolean
+  title: string
+  message: string
+  buttons: AlertButton[]
+  type: AlertType
+}
+
+interface CustomAlertProps {
+  visible: boolean
+  title: string
+  message: string
+  buttons: AlertButton[]
+  type: AlertType
+  onDismiss: () => void
+}
+
+export interface UseAlertReturn {
+  alert: (
+    title: string,
+    message: string,
+    buttons?: AlertButton[],
+    type?: AlertType,
+  ) => void
+  AlertComponent: ReactElement
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const ICONS: Record<AlertType, string> = {
+  success: "✓",
+  error: "✕",
+  warning: "!",
+  info: "i",
+  lock: "🔒",
+  session: "💪",
+  default: "i",
+}
+
+const ACCENT_COLORS: Record<AlertType, string> = {
+  success: "#10b981",
+  error: "#ef4444",
+  warning: "#f59e0b",
+  info: "#667eea",
+  lock: "#6b7280",
+  session: "#667eea",
+  default: "#667eea",
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+function CustomAlert({
+  visible,
+  title,
+  message,
+  buttons,
+  type,
+  onDismiss,
+}: CustomAlertProps) {
+  const safeButtons =
+    Array.isArray(buttons) && buttons.length > 0 ? buttons : [{ text: "OK" }]
+  const safeType: AlertType = type ?? "default"
+  const accent = ACCENT_COLORS[safeType]
+  const icon = ICONS[safeType]
+
+  const scaleAnim = useRef(new Animated.Value(0.85)).current
+  const opacityAnim = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 120,
+          friction: 8,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start()
+    } else {
+      scaleAnim.setValue(0.85)
+      opacityAnim.setValue(0)
+    }
+  }, [visible])
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
+    >
+      <Animated.View style={[styles.backdrop, { opacity: opacityAnim }]}>
+        <Animated.View
+          style={[styles.card, { transform: [{ scale: scaleAnim }] }]}
+        >
+          <View style={[styles.accentStripe, { backgroundColor: accent }]} />
+
+          <View style={[styles.iconBadge, { backgroundColor: accent + "22" }]}>
+            <Text style={[styles.iconText, { color: accent }]}>{icon}</Text>
+          </View>
+
+          <View style={styles.content}>
+            {!!title && <Text style={styles.title}>{title}</Text>}
+            {!!message && <Text style={styles.message}>{message}</Text>}
+          </View>
+
+          <View style={styles.buttonRow}>
+            {safeButtons.map((btn, idx) => {
+              const isCancel = btn.style === "cancel"
+              const isDestructive = btn.style === "destructive"
+              const isPrimary =
+                !isCancel && !isDestructive && idx === safeButtons.length - 1
+
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.button,
+                    isPrimary && { backgroundColor: accent },
+                    isDestructive && styles.buttonDestructive,
+                    isCancel && styles.buttonCancel,
+                  ]}
+                  onPress={() => {
+                    onDismiss()
+                    btn.onPress?.()
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      isPrimary && styles.buttonTextPrimary,
+                      isDestructive && styles.buttonTextDestructive,
+                      isCancel && styles.buttonTextCancel,
+                    ]}
+                  >
+                    {btn.text}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  )
+}
+
+// ─── Hook ────────────────────────────────────────────────────────────────────
+
+export function useAlert(): UseAlertReturn {
+  const [config, setConfig] = useState<AlertConfig>({
+    visible: false,
+    title: "",
+    message: "",
+    buttons: [{ text: "OK" }],
+    type: "default",
+  })
+
+  const alert = useCallback(
+    (
+      title: string,
+      message: string,
+      buttons?: AlertButton[],
+      type?: AlertType,
+    ) => {
+      setConfig({
+        visible: true,
+        title: title ?? "",
+        message: message ?? "",
+        buttons:
+          Array.isArray(buttons) && buttons.length > 0
+            ? buttons
+            : [{ text: "OK" }],
+        type: type ?? "default",
+      })
+    },
+    [],
+  )
+
+  const dismiss = useCallback(() => {
+    setConfig((prev) => ({ ...prev, visible: false }))
+  }, [])
+
+  const AlertComponent = (
+    <CustomAlert
+      visible={config.visible}
+      title={config.title}
+      message={config.message}
+      buttons={config.buttons}
+      type={config.type}
+      onDismiss={dismiss}
+    />
+  )
+
+  return { alert, AlertComponent }
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  accentStripe: { height: 4, width: "100%" },
+  iconBadge: {
+    alignSelf: "center",
+    marginTop: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconText: { fontSize: 22, fontWeight: "700" },
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    paddingBottom: 24,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  message: {
+    fontSize: 14.5,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 21,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+    padding: 10,
+    gap: 8,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "#f3f4f6",
+  },
+  buttonCancel: { backgroundColor: "#f3f4f6" },
+  buttonDestructive: { backgroundColor: "#fef2f2" },
+  buttonText: { fontSize: 15, fontWeight: "600", color: "#374151" },
+  buttonTextPrimary: { color: "#ffffff" },
+  buttonTextDestructive: { color: "#ef4444" },
+  buttonTextCancel: { color: "#6b7280" },
+})
