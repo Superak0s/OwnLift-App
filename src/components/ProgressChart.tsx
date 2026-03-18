@@ -2,6 +2,7 @@ import React from "react"
 import { View, Text, StyleSheet, Dimensions } from "react-native"
 import { LineChart } from "react-native-chart-kit"
 import type { ChartData } from "react-native-chart-kit/dist/HelperTypes"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,16 +12,18 @@ interface ProgressChartProps {
   data: ChartData
   yAxisSuffix?: string
   chartWidth?: number
+  chartColor?: string       // override the gradient/dot color
+  chartColorDark?: string   // override the darker shade (optional)
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const { width } = Dimensions.get("window")
 
-const chartConfig = {
-  backgroundColor: "#667eea",
-  backgroundGradientFrom: "#667eea",
-  backgroundGradientTo: "#764ba2",
+const makeChartConfig = (colors: any, chartColor: string, chartColorDark: string) => ({
+  backgroundColor: chartColor,
+  backgroundGradientFrom: chartColor,
+  backgroundGradientTo: chartColorDark,
   decimalPlaces: 1,
   color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
   labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
@@ -28,9 +31,9 @@ const chartConfig = {
   propsForDots: {
     r: "6",
     strokeWidth: "2",
-    stroke: "#764ba2",
+    stroke: chartColorDark,
   },
-}
+})
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -40,7 +43,15 @@ export default function ProgressChart({
   data,
   yAxisSuffix = "",
   chartWidth,
+  chartColor,
+  chartColorDark,
 }: ProgressChartProps) {
+  const { colors, resolvedChartColor, resolvedChartColorDark } = useTheme()
+  // Explicit prop overrides > user setting > theme default
+  const effectiveColor = chartColor ?? resolvedChartColor
+  const effectiveColorDark = chartColorDark ?? resolvedChartColorDark
+  const chartConfig = makeChartConfig(colors, effectiveColor, effectiveColorDark)
+  const styles = makeStyles(colors)
   return (
     <View style={styles.chartSection}>
       <Text style={styles.chartTitle}>
@@ -66,12 +77,12 @@ export default function ProgressChart({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   chartSection: { marginBottom: 25 },
   chartTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 15,
   },
   chart: { marginVertical: 8, borderRadius: 16 },

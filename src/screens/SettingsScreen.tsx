@@ -47,10 +47,14 @@ import {
 } from "../../tasks/creatineLocationTask"
 import CreatineLocationPicker from "../components/CreatineLocationPicker"
 import BatterySettingsModal from "../components/BatterySettingsModal"
+import ThemeEditorModal from "../components/ThemeEditorModal"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
+import { useTheme } from "../context/ThemeContext"
 
 export default function SettingsScreen(): React.JSX.Element {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const { user, logout } = useAuth()
   const { alert, AlertComponent } = useAlert()
 
@@ -112,6 +116,7 @@ export default function SettingsScreen(): React.JSX.Element {
     useState<boolean>(false)
 
   const [showBatterySettings, setShowBatterySettings] = useState<boolean>(false)
+  const [showThemeEditor, setShowThemeEditor] = useState<boolean>(false)
   const [batteryPreset, setBatteryPreset] = useState<string>("MEDIUM")
 
   const [serverProgress, setServerProgress] = useState<{
@@ -1046,6 +1051,19 @@ export default function SettingsScreen(): React.JSX.Element {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>⚙️ Settings</Text>
             <View style={styles.card}>
+              <TouchableOpacity
+                style={styles.settingRow}
+                onPress={() => setShowThemeEditor(true)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingLabel}>Appearance & Themes</Text>
+                  <Text style={styles.settingDescription}>
+                    Dark mode, custom themes, export & import
+                  </Text>
+                </View>
+                <Text style={styles.settingValue}>🎨</Text>
+              </TouchableOpacity>
+              <View style={styles.divider} />
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>App Version</Text>
                 <Text style={styles.infoValue}>
@@ -1143,8 +1161,11 @@ export default function SettingsScreen(): React.JSX.Element {
                 <Switch
                   value={isDemoMode}
                   onValueChange={handleToggleDemoMode}
-                  trackColor={{ false: "#e0e0e0", true: "#667eea" }}
-                  thumbColor={isDemoMode ? "#fff" : "#f4f3f4"}
+                  trackColor={{
+                    false: colors.surfaceBorder,
+                    true: colors.accent,
+                  }}
+                  thumbColor={isDemoMode ? colors.surface : "#f4f3f4"}
                 />
               </View>
             </View>
@@ -1206,8 +1227,11 @@ export default function SettingsScreen(): React.JSX.Element {
                 <Switch
                   value={useManualTime}
                   onValueChange={handleToggleManualTime}
-                  trackColor={{ false: "#e0e0e0", true: "#667eea" }}
-                  thumbColor={useManualTime ? "#fff" : "#f4f3f4"}
+                  trackColor={{
+                    false: colors.surfaceBorder,
+                    true: colors.accent,
+                  }}
+                  thumbColor={useManualTime ? colors.surface : "#f4f3f4"}
                 />
               </View>
               <View style={styles.divider} />
@@ -1276,9 +1300,6 @@ export default function SettingsScreen(): React.JSX.Element {
                   </>
                 )}
               </View>
-              <Text style={styles.helperText}>
-                💡 Progress resets automatically every Monday
-              </Text>
             </View>
           )}
 
@@ -1501,7 +1522,7 @@ export default function SettingsScreen(): React.JSX.Element {
           showCancelButton={false}
           showConfirmButton={false}
         >
-          <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
             <View style={styles.creatineModalHeader}>
               <TouchableOpacity
                 onPress={() => setShowCreatineSettings(false)}
@@ -1543,7 +1564,10 @@ export default function SettingsScreen(): React.JSX.Element {
                   <Switch
                     value={creatineTimeBasedEnabled}
                     onValueChange={setCreatineTimeBasedEnabled}
-                    trackColor={{ false: "#d1d5db", true: "#667eea" }}
+                    trackColor={{
+                      false: colors.surfaceBorder,
+                      true: colors.accent,
+                    }}
                     thumbColor='#fff'
                   />
                 </View>
@@ -1593,7 +1617,10 @@ export default function SettingsScreen(): React.JSX.Element {
                   <Switch
                     value={creatineLocationBasedEnabled}
                     onValueChange={setCreatineLocationBasedEnabled}
-                    trackColor={{ false: "#d1d5db", true: "#667eea" }}
+                    trackColor={{
+                      false: colors.surfaceBorder,
+                      true: colors.accent,
+                    }}
                     thumbColor='#fff'
                   />
                 </View>
@@ -1736,6 +1763,10 @@ export default function SettingsScreen(): React.JSX.Element {
         </ModalSheet>
 
         {/* Battery Settings Modal */}
+        <ThemeEditorModal
+          visible={showThemeEditor}
+          onClose={() => setShowThemeEditor(false)}
+        />
         <BatterySettingsModal
           visible={showBatterySettings}
           onClose={() => setShowBatterySettings(false)}
@@ -1781,354 +1812,379 @@ export default function SettingsScreen(): React.JSX.Element {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  contentContainer: { paddingBottom: 120 },
-  content: { padding: 20, paddingTop: 60 },
-  section: { marginBottom: 25 },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 12,
-  },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  infoLabel: { fontSize: 16, color: "#666" },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    maxWidth: "50%",
-  },
-  activeValue: { fontSize: 16, fontWeight: "600", color: "#10b981" },
-  warningValue: { fontSize: 16, fontWeight: "600", color: "#ff9800" },
-  settingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  settingDescription: { fontSize: 13, color: "#666" },
-  settingValue: { fontSize: 16, fontWeight: "600", color: "#667eea" },
-  divider: { height: 1, backgroundColor: "#e0e0e0" },
-  helperText: {
-    fontSize: 14,
-    color: "#667eea",
-    marginTop: 10,
-    fontStyle: "italic",
-  },
-  warningText: {
-    fontSize: 14,
-    color: "#ff9800",
-    marginTop: 10,
-    fontStyle: "italic",
-  },
-  syncButton: {
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 44,
-  },
-  syncButtonText: { fontSize: 16, fontWeight: "600", color: "#667eea" },
-  actionButton: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  dangerButton: { borderWidth: 1, borderColor: "#ff4444" },
-  actionButtonIcon: { fontSize: 28, marginRight: 16 },
-  actionButtonContent: { flex: 1 },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  dangerText: { color: "#ff4444" },
-  actionButtonSubtext: { fontSize: 14, color: "#666" },
-  aboutText: {
-    fontSize: 15,
-    color: "#666",
-    lineHeight: 24,
-    textAlign: "center",
-  },
-  modalDescription: {
-    fontSize: 15,
-    color: "#666",
-    marginBottom: 20,
-    lineHeight: 22,
-  },
-  input: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 18,
-    color: "#333",
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
-    marginBottom: 16,
-  },
-  resetButton: {
-    backgroundColor: "#e0e0e0",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  resetButtonText: { color: "#333", fontSize: 16, fontWeight: "600" },
-  dayListItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  dayListItemContent: { flex: 1 },
-  dayListItemTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
-  },
-  dayListItemSubtitle: { fontSize: 14, color: "#666" },
-  dayListItemBadges: { flexDirection: "row", gap: 8 },
-  completedBadge: {
-    backgroundColor: "#e8f5e9",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  lockedBadge: {
-    backgroundColor: "#fff3e0",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  badgeText: { fontSize: 12, fontWeight: "600", color: "#333" },
-  emptyDayList: { padding: 40, alignItems: "center" },
-  emptyDayListText: { fontSize: 15, color: "#999", textAlign: "center" },
-  creatineModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  modalHeaderButton: { padding: 8 },
-  modalHeaderButtonText: {
-    fontSize: 16,
-    color: "#ef4444",
-    fontWeight: "600",
-  },
-  creatineModalTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
-  fullModalContent: { padding: 20, paddingBottom: 20 },
-  fullModalFooter: {
-    padding: 20,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-  },
-  infoCardBig: {
-    backgroundColor: "#e8eaf6",
-    borderRadius: 16,
-    padding: 20,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  infoIconBig: { fontSize: 48, marginBottom: 12 },
-  infoTitleBig: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 8,
-  },
-  infoTextBig: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  settingsSection: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  settingsSectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  settingsTitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  settingsSectionIcon: { fontSize: 24, marginRight: 12 },
-  settingsSectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#333",
-  },
-  settingsSectionSubtitle: {
-    fontSize: 13,
-    color: "#999",
-    marginTop: 2,
-  },
-  settingsSectionHeaderSimple: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  settingsSectionContent: { marginTop: 16 },
-  timePickerButton: {
-    backgroundColor: "#f9fafb",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#667eea",
-  },
-  timePickerLabel: { fontSize: 14, color: "#666", fontWeight: "600" },
-  timePickerValue: { fontSize: 24, fontWeight: "700", color: "#667eea" },
-  locationButton: {
-    backgroundColor: "#f0f9ff",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: "#0ea5e9",
-  },
-  locationButtonLabel: { fontSize: 15, color: "#0c4a6e", fontWeight: "600" },
-  bothEnabledCard: {
-    backgroundColor: "#dcfce7",
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: "#10b981",
-  },
-  bothEnabledIcon: { fontSize: 32, marginBottom: 8 },
-  bothEnabledTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#065f46",
-    marginBottom: 6,
-  },
-  bothEnabledText: {
-    fontSize: 13,
-    color: "#047857",
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  inputContainerBig: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f9fafb",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  inputBig: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "600",
-    paddingVertical: 14,
-    color: "#333",
-  },
-  inputUnitBig: { fontSize: 16, color: "#999", fontWeight: "600" },
-  hintText: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 8,
-    fontStyle: "italic",
-  },
-  notificationTypes: { flexDirection: "row", gap: 12, marginTop: 12 },
-  notificationOption: {
-    flex: 1,
-    backgroundColor: "#f9fafb",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#e5e7eb",
-  },
-  notificationOptionActive: {
-    backgroundColor: "#ede9fe",
-    borderColor: "#8b5cf6",
-  },
-  notificationIcon: { fontSize: 28, marginBottom: 8 },
-  notificationLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#666",
-    marginBottom: 4,
-  },
-  notificationLabelActive: { color: "#6d28d9" },
-  notificationDesc: { fontSize: 11, color: "#999", textAlign: "center" },
-  summaryCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: "#667eea",
-  },
-  summaryTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#333",
-    marginBottom: 8,
-  },
-  summaryText: { fontSize: 14, color: "#666", lineHeight: 20 },
-  saveButtonBig: {
-    backgroundColor: "#667eea",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    shadowColor: "#667eea",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  saveButtonTextBig: { fontSize: 18, fontWeight: "700", color: "#fff" },
-})
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    contentContainer: { paddingBottom: 120 },
+    content: { padding: 20, paddingTop: 60 },
+    section: { marginBottom: 25 },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    infoRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 12,
+    },
+    infoLabel: { fontSize: 16, color: colors.textSecondary },
+    infoValue: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      maxWidth: "50%",
+    },
+    activeValue: { fontSize: 16, fontWeight: "600", color: colors.success },
+    warningValue: { fontSize: 16, fontWeight: "600", color: "#ff9800" },
+    settingRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 12,
+    },
+    settingLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    settingDescription: { fontSize: 13, color: colors.textSecondary },
+    settingValue: { fontSize: 16, fontWeight: "600", color: colors.accent },
+    divider: { height: 1, backgroundColor: colors.surfaceBorder },
+    helperText: {
+      fontSize: 14,
+      color: colors.accent,
+      marginTop: 10,
+      fontStyle: "italic",
+    },
+    warningText: {
+      fontSize: 14,
+      color: "#ff9800",
+      marginTop: 10,
+      fontStyle: "italic",
+    },
+    syncButton: {
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: 44,
+    },
+    syncButtonText: { fontSize: 16, fontWeight: "600", color: colors.accent },
+    actionButton: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    dangerButton: { borderWidth: 1, borderColor: "#ff4444" },
+    actionButtonIcon: { fontSize: 28, marginRight: 16 },
+    actionButtonContent: { flex: 1 },
+    actionButtonText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    dangerText: { color: "#ff4444" },
+    actionButtonSubtext: { fontSize: 14, color: colors.textSecondary },
+    aboutText: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      lineHeight: 24,
+      textAlign: "center",
+    },
+    modalDescription: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      marginBottom: 20,
+      lineHeight: 22,
+    },
+    input: {
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      padding: 16,
+      fontSize: 18,
+      color: colors.textPrimary,
+      borderWidth: 2,
+      borderColor: colors.surfaceBorder,
+      marginBottom: 16,
+    },
+    resetButton: {
+      backgroundColor: colors.surfaceBorder,
+      paddingVertical: 14,
+      borderRadius: 12,
+      alignItems: "center",
+    },
+    resetButtonText: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    dayListItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    dayListItemContent: { flex: 1 },
+    dayListItemTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    dayListItemSubtitle: { fontSize: 14, color: colors.textSecondary },
+    dayListItemBadges: { flexDirection: "row", gap: 8 },
+    completedBadge: {
+      backgroundColor: "#e8f5e9",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    lockedBadge: {
+      backgroundColor: "#fff3e0",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 12,
+    },
+    badgeText: { fontSize: 12, fontWeight: "600", color: colors.textPrimary },
+    emptyDayList: { padding: 40, alignItems: "center" },
+    emptyDayListText: {
+      fontSize: 15,
+      color: colors.textMuted,
+      textAlign: "center",
+    },
+    creatineModalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceBorder,
+    },
+    modalHeaderButton: { padding: 8 },
+    modalHeaderButtonText: {
+      fontSize: 16,
+      color: colors.error,
+      fontWeight: "600",
+    },
+    creatineModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+    },
+    fullModalContent: { padding: 20, paddingBottom: 20 },
+    fullModalFooter: {
+      padding: 20,
+      paddingBottom: Platform.OS === "ios" ? 34 : 20,
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.inputBorder,
+    },
+    infoCardBig: {
+      backgroundColor: colors.infoLight,
+      borderRadius: 16,
+      padding: 20,
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    infoIconBig: { fontSize: 48, marginBottom: 12 },
+    infoTitleBig: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    infoTextBig: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 20,
+    },
+    settingsSection: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+    },
+    settingsSectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    settingsTitleContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      flex: 1,
+    },
+    settingsSectionIcon: { fontSize: 24, marginRight: 12 },
+    settingsSectionTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    settingsSectionSubtitle: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    settingsSectionHeaderSimple: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    settingsSectionContent: { marginTop: 16 },
+    timePickerButton: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.accent,
+    },
+    timePickerLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: "600",
+    },
+    timePickerValue: { fontSize: 24, fontWeight: "700", color: colors.accent },
+    locationButton: {
+      backgroundColor: "#f0f9ff",
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 2,
+      borderColor: "#0ea5e9",
+    },
+    locationButtonLabel: { fontSize: 15, color: "#0c4a6e", fontWeight: "600" },
+    bothEnabledCard: {
+      backgroundColor: colors.successLight,
+      borderRadius: 16,
+      padding: 16,
+      alignItems: "center",
+      marginBottom: 16,
+      borderWidth: 2,
+      borderColor: colors.success,
+    },
+    bothEnabledIcon: { fontSize: 32, marginBottom: 8 },
+    bothEnabledTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.success,
+      marginBottom: 6,
+    },
+    bothEnabledText: {
+      fontSize: 13,
+      color: "#047857",
+      textAlign: "center",
+      lineHeight: 18,
+    },
+    inputContainerBig: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    inputBig: {
+      flex: 1,
+      fontSize: 18,
+      fontWeight: "600",
+      paddingVertical: 14,
+      color: colors.textPrimary,
+    },
+    inputUnitBig: { fontSize: 16, color: colors.textMuted, fontWeight: "600" },
+    hintText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 8,
+      fontStyle: "italic",
+    },
+    notificationTypes: { flexDirection: "row", gap: 12, marginTop: 12 },
+    notificationOption: {
+      flex: 1,
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.inputBorder,
+    },
+    notificationOptionActive: {
+      backgroundColor: colors.infoLight,
+      borderColor: "#8b5cf6",
+    },
+    notificationIcon: { fontSize: 28, marginBottom: 8 },
+    notificationLabel: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textSecondary,
+      marginBottom: 4,
+    },
+    notificationLabelActive: { color: "#6d28d9" },
+    notificationDesc: {
+      fontSize: 11,
+      color: colors.textMuted,
+      textAlign: "center",
+    },
+    summaryCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 2,
+      borderColor: colors.accent,
+    },
+    summaryTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    summaryText: { fontSize: 14, color: colors.textSecondary, lineHeight: 20 },
+    saveButtonBig: {
+      backgroundColor: colors.accent,
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: "center",
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    saveButtonTextBig: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.surface,
+    },
+  })

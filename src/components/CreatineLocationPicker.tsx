@@ -12,6 +12,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview"
 import * as Location from "expo-location"
 import ModalSheet from "./ModalSheet"
 import { useAlert } from "./CustomAlert"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,8 @@ export default function CreatineLocationPicker({
   onLocationSelected,
   initialLocation,
 }: CreatineLocationPickerProps) {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const [markerPosition, setMarkerPosition] = useState<MarkerPosition | null>(
     null,
   )
@@ -525,28 +528,28 @@ export default function CreatineLocationPicker({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: colors.inputBorder,
     elevation: 3,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
   cancelButton: { padding: 8 },
-  cancelText: { fontSize: 16, color: "#ef4444", fontWeight: "600" },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
+  cancelText: { fontSize: 16, color: colors.error, fontWeight: "600" },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: colors.textPrimary },
   headerSpacer: { width: 60 },
   mapContainer: { flex: 1, position: "relative" },
-  map: { flex: 1, backgroundColor: "#f0f0f0" },
+  map: { flex: 1, backgroundColor: colors.separator },
   loadingOverlay: {
     position: "absolute",
     top: 0,
@@ -561,7 +564,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: "#666",
+    color: colors.textSecondary,
     fontWeight: "500",
   },
   currentLocationButton: {
@@ -571,10 +574,10 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -585,10 +588,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 20,
     left: 20,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -597,7 +600,7 @@ const styles = StyleSheet.create({
   radiusLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 8,
     textAlign: "center",
   },
@@ -606,11 +609,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
   },
-  radiusButtonText: { fontSize: 20, fontWeight: "bold", color: "#fff" },
+  radiusButtonText: { fontSize: 20, fontWeight: "bold", color: colors.surface },
   osmNotice: {
     position: "absolute",
     bottom: 20,
@@ -619,21 +622,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 3,
   },
-  osmText: { fontSize: 11, color: "#666", fontWeight: "500" },
+  osmText: { fontSize: 11, color: colors.textSecondary, fontWeight: "500" },
   addressBarContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: Platform.OS === "ios" ? 34 : 20,
     borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
-    shadowColor: "#000",
+    borderTopColor: colors.inputBorder,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
@@ -642,19 +645,19 @@ const styles = StyleSheet.create({
   addressInputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.inputBackground,
     borderRadius: 12,
     paddingHorizontal: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
   addressInput: {
     flex: 1,
     fontSize: 16,
     paddingVertical: 14,
     paddingRight: 8,
-    color: "#333",
+    color: colors.textPrimary,
   },
   clearButton: {
     padding: 8,
@@ -662,7 +665,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: 36,
   },
-  clearIcon: { fontSize: 18, color: "#999", fontWeight: "600" },
+  clearIcon: { fontSize: 18, color: colors.textMuted, fontWeight: "600" },
   searchButton: {
     padding: 8,
     justifyContent: "center",
@@ -673,23 +676,23 @@ const styles = StyleSheet.create({
   instructionsContainer: { alignItems: "center", marginBottom: 12 },
   instructionsText: {
     fontSize: 14,
-    color: "#667eea",
+    color: colors.accent,
     fontWeight: "600",
     textAlign: "center",
     marginBottom: 4,
   },
-  instructionsSubtext: { fontSize: 12, color: "#999", textAlign: "center" },
+  instructionsSubtext: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
   saveButtonBottom: {
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
-    shadowColor: "#667eea",
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
-  saveButtonDisabled: { backgroundColor: "#d1d5db", shadowOpacity: 0.1 },
-  saveButtonText: { fontSize: 18, fontWeight: "700", color: "#fff" },
+  saveButtonDisabled: { backgroundColor: colors.surfaceBorder, shadowOpacity: 0.1 },
+  saveButtonText: { fontSize: 18, fontWeight: "700", color: colors.surface },
 })

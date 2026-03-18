@@ -12,6 +12,7 @@ import {
   Animated,
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ export default function ModalSheet({
   dismissOnBackdropPress = true,
   fullHeight = false,
 }: ModalSheetProps) {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const insets = useSafeAreaInsets()
   const isKeyboardOpenRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -195,7 +198,7 @@ export default function ModalSheet({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   fullScreen: { flex: 1 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -207,13 +210,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     maxHeight: "90%",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     flexDirection: "column",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingTop: 20,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
@@ -226,21 +229,21 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: colors.separator,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
   },
-  closeButtonText: { fontSize: 16, color: "#666", fontWeight: "700", lineHeight: 18 },
+  closeButtonText: { fontSize: 16, color: colors.textSecondary, fontWeight: "700", lineHeight: 18 },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 4,
     textAlign: "center",
     paddingRight: 32,
   },
-  modalSubtitle: { fontSize: 14, color: "#999", marginBottom: 16, textAlign: "center" },
+  modalSubtitle: { fontSize: 14, color: colors.textMuted, marginBottom: 16, textAlign: "center" },
   staticBody: { marginTop: 8, flex: 1 },
   scrollBody: { marginTop: 8 },
   scrollBodyContent: { paddingBottom: 8 },
@@ -249,17 +252,17 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: colors.separator,
     alignItems: "center",
   },
-  modalButtonTextCancel: { color: "#666", fontWeight: "600", fontSize: 15 },
+  modalButtonTextCancel: { color: colors.textSecondary, fontWeight: "600", fontSize: 15 },
   modalButtonConfirm: {
     flex: 1,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     alignItems: "center",
   },
   modalButtonDisabled: { opacity: 0.5 },
-  modalButtonTextConfirm: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  modalButtonTextConfirm: { color: colors.surface, fontWeight: "700", fontSize: 15 },
 })

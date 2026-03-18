@@ -7,6 +7,7 @@ import {
 } from "../services/versionService"
 import { useAlert } from "./CustomAlert"
 import * as Linking from "expo-linking"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ export function VersionGuard({
   const { alert, AlertComponent } = useAlert()
   // Prevents concurrent calls to checkVersion (e.g. rapid taps on "Retry")
   const checkingRef = useRef(false)
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
 
   useEffect(() => {
     void checkVersion()
@@ -187,22 +190,22 @@ export function VersionGuard({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   loadingBox: { alignItems: "center", justifyContent: "center" },
   loadingEmoji: { fontSize: 48, marginBottom: 12 },
-  loadingText: { fontSize: 16, color: "#666", textAlign: "center" },
+  loadingText: { fontSize: 16, color: colors.textSecondary, textAlign: "center" },
   errorBox: {
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     margin: 20,
     padding: 24,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -213,35 +216,35 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.textPrimary,
     textAlign: "center",
   },
   errorContent: { marginBottom: 24 },
   errorMessage: {
     fontSize: 14,
-    color: "#6b7280",
+    color: colors.textSecondary,
     lineHeight: 21,
     textAlign: "center",
     marginBottom: 20,
   },
   versionInfo: {
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.inputBackground,
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 4,
-    borderLeftColor: "#667eea",
+    borderLeftColor: colors.accent,
   },
   versionLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#9ca3af",
+    color: colors.textMuted,
     marginTop: 8,
     marginBottom: 4,
   },
   versionValue: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#111827",
+    color: colors.textPrimary,
     fontFamily: "monospace",
   },
   buttonContainer: {
@@ -258,17 +261,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minWidth: "45%",
   },
-  buttonPrimary: { backgroundColor: "#667eea" },
+  buttonPrimary: { backgroundColor: colors.accent },
   buttonSecondary: {
-    backgroundColor: "#f3f4f6",
+    backgroundColor: colors.separator,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
-  buttonTextPrimary: { fontSize: 15, fontWeight: "600", color: "#ffffff" },
+  buttonTextPrimary: { fontSize: 15, fontWeight: "600", color: colors.surface },
   buttonTextSecondary: { fontSize: 15, fontWeight: "600", color: "#374151" },
   footnote: {
     fontSize: 12,
-    color: "#9ca3af",
+    color: colors.textMuted,
     textAlign: "center",
     fontStyle: "italic",
   },

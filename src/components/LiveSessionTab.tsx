@@ -16,6 +16,7 @@ import {
   Animated,
 } from "react-native"
 import { sharingApi } from "../services/api"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,8 @@ function elapsedFromStart(raw?: string): number {
 // ─── Live Dot ─────────────────────────────────────────────────────────────────
 
 function LiveDot() {
+  const { colors } = useTheme()
+  const liveDotSt = makeLiveDotSt(colors)
   const opacity = useRef(new Animated.Value(1)).current
   useEffect(() => {
     const anim = Animated.loop(
@@ -133,12 +136,12 @@ function LiveDot() {
   return <Animated.View style={[liveDotSt.dot, { opacity }]} />
 }
 
-const liveDotSt = StyleSheet.create({
+const makeLiveDotSt = (colors: any) => StyleSheet.create({
   dot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#10b981",
+    backgroundColor: colors.success,
     marginRight: 6,
   },
 })
@@ -151,6 +154,8 @@ interface SetBubbleProps {
 }
 
 function SetBubble({ setIndex, setData }: SetBubbleProps) {
+  const { colors } = useTheme()
+  const bbl = makeBblStyles(colors)
   const done = !!setData
   const isWarmup = done && (setData?.isWarmup ?? false)
 
@@ -176,12 +181,12 @@ function SetBubble({ setIndex, setData }: SetBubbleProps) {
   )
 }
 
-const bbl = StyleSheet.create({
+const makeBblStyles = (colors: any) => StyleSheet.create({
   bubble: {
     width: 70,
     height: 70,
     borderRadius: 12,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: colors.separator,
     borderWidth: 2,
     borderColor: "#ddd",
     alignItems: "center",
@@ -189,12 +194,12 @@ const bbl = StyleSheet.create({
     position: "relative",
     padding: 4,
   },
-  bubbleDone: { backgroundColor: "#667eea", borderColor: "#667eea" },
+  bubbleDone: { backgroundColor: colors.accent, borderColor: colors.accent },
   bubbleWarmup: { backgroundColor: "#fb923c", borderColor: "#ea580c" },
-  num: { fontSize: 18, fontWeight: "bold", color: "#999", marginBottom: 2 },
-  numDone: { color: "#fff" },
+  num: { fontSize: 18, fontWeight: "bold", color: colors.textMuted, marginBottom: 2 },
+  numDone: { color: colors.surface },
   details: { alignItems: "center" },
-  detailText: { fontSize: 10, color: "#fff", fontWeight: "500" },
+  detailText: { fontSize: 10, color: colors.surface, fontWeight: "500" },
   check: {
     position: "absolute",
     top: -4,
@@ -202,11 +207,11 @@ const bbl = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#10b981",
+    backgroundColor: colors.success,
     alignItems: "center",
     justifyContent: "center",
   },
-  checkText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
+  checkText: { color: colors.surface, fontSize: 12, fontWeight: "bold" },
 })
 
 // ─── Exercise Card ────────────────────────────────────────────────────────────
@@ -224,6 +229,8 @@ function ExerciseCard({
   totalSets,
   completedSetMap,
 }: ExerciseCardProps) {
+  const { colors } = useTheme()
+  const exSt = makeExStStyles(colors)
   const completedCount = Object.keys(completedSetMap).length
   const allDone = totalSets > 0 && completedCount >= totalSets
 
@@ -255,13 +262,13 @@ function ExerciseCard({
   )
 }
 
-const exSt = StyleSheet.create({
+const makeExStStyles = (colors: any) => StyleSheet.create({
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
@@ -269,7 +276,7 @@ const exSt = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  cardDone: { backgroundColor: "#f0fff4", borderColor: "#10b981" },
+  cardDone: { backgroundColor: "#f0fff4", borderColor: colors.success },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -277,16 +284,16 @@ const exSt = StyleSheet.create({
     marginBottom: 14,
   },
   info: { flex: 1, marginRight: 12 },
-  name: { fontSize: 17, fontWeight: "600", color: "#333", marginBottom: 3 },
-  nameDone: { color: "#10b981" },
-  muscle: { fontSize: 13, color: "#888" },
+  name: { fontSize: 17, fontWeight: "600", color: colors.textPrimary, marginBottom: 3 },
+  nameDone: { color: colors.success },
+  muscle: { fontSize: 13, color: colors.textMuted },
   badge: {
-    backgroundColor: "#f0f0f0",
+    backgroundColor: colors.separator,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 12,
   },
-  badgeText: { fontSize: 13, fontWeight: "600", color: "#667eea" },
+  badgeText: { fontSize: 13, fontWeight: "600", color: colors.accent },
   sets: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
 })
 
@@ -298,6 +305,8 @@ export default function LiveSessionTab({
   receivedPrograms = [],
   socketLastMessage,
 }: LiveSessionTabProps) {
+  const { colors } = useTheme()
+  const st = makeStStyles(colors)
   const [phase, setPhase] = useState<Phase>("idle")
   const [liveData, setLiveData] = useState<LiveData | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -593,7 +602,7 @@ export default function LiveSessionTab({
         <RefreshControl
           refreshing={refreshing}
           onRefresh={() => void onRefresh()}
-          colors={["#667eea"]}
+          colors={[colors.accent]}
           tintColor='#667eea'
         />
       }
@@ -710,46 +719,46 @@ export default function LiveSessionTab({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const st = StyleSheet.create({
+const makeStStyles = (colors: any) => StyleSheet.create({
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 40,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
     minHeight: 400,
   },
   centerIcon: { fontSize: 56, marginBottom: 16 },
   centerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 8,
     textAlign: "center",
   },
   centerSub: {
     fontSize: 14,
-    color: "#888",
+    color: colors.textMuted,
     textAlign: "center",
     lineHeight: 21,
     marginBottom: 24,
     marginTop: 6,
   },
   btn: {
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     paddingHorizontal: 28,
     paddingVertical: 12,
     borderRadius: 12,
   },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  scroll: { flex: 1, backgroundColor: "#f5f5f5" },
+  btnText: { color: colors.surface, fontWeight: "700", fontSize: 15 },
+  scroll: { flex: 1, backgroundColor: colors.background },
   scrollContent: { padding: 16, paddingBottom: 48 },
   headerCard: {
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
-    shadowColor: "#667eea",
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -757,7 +766,7 @@ const st = StyleSheet.create({
   },
   liveBadge: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
   liveBadgeText: {
-    color: "#10b981",
+    color: colors.success,
     fontWeight: "800",
     fontSize: 12,
     letterSpacing: 1.2,
@@ -776,13 +785,13 @@ const st = StyleSheet.create({
   dayNumber: {
     fontSize: 30,
     fontWeight: "bold",
-    color: "#fff",
+    color: colors.surface,
     marginBottom: 4,
   },
   dayTitle: { fontSize: 14, color: "rgba(255,255,255,0.85)", lineHeight: 20 },
   setsInfo: { alignItems: "flex-end" },
   setsLabel: { fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 2 },
-  setsValue: { fontSize: 36, fontWeight: "bold", color: "#fff" },
+  setsValue: { fontSize: 36, fontWeight: "bold", color: colors.surface },
   progressContainer: { marginBottom: 10 },
   progressBar: {
     height: 8,
@@ -791,7 +800,7 @@ const st = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 8,
   },
-  progressFill: { height: "100%", backgroundColor: "#fff", borderRadius: 4 },
+  progressFill: { height: "100%", backgroundColor: colors.surface, borderRadius: 4 },
   progressTextRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -809,7 +818,7 @@ const st = StyleSheet.create({
   },
   stat: { alignItems: "center" },
   statLabel: { fontSize: 11, color: "rgba(255,255,255,0.8)", marginBottom: 4 },
-  statValue: { fontSize: 18, fontWeight: "bold", color: "#fff" },
+  statValue: { fontSize: 18, fontWeight: "bold", color: colors.surface },
   muscleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   muscleTag: {
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -817,7 +826,7 @@ const st = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 14,
   },
-  muscleTagText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  muscleTagText: { color: colors.surface, fontSize: 12, fontWeight: "600" },
   noPlanNotice: {
     marginTop: 14,
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -831,7 +840,7 @@ const st = StyleSheet.create({
     lineHeight: 18,
   },
   noExercises: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 40,
     alignItems: "center",
@@ -840,13 +849,13 @@ const st = StyleSheet.create({
   noExercisesIcon: { fontSize: 36, marginBottom: 12 },
   noExercisesText: {
     fontSize: 14,
-    color: "#999",
+    color: colors.textMuted,
     textAlign: "center",
     fontStyle: "italic",
   },
   refreshHint: {
     fontSize: 12,
-    color: "#bbb",
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: 8,
     fontStyle: "italic",

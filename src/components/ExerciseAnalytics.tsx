@@ -17,6 +17,7 @@ import type { ChartData } from "react-native-chart-kit/dist/HelperTypes"
 
 // Re-use the canonical shared types instead of duplicating them here.
 import type { WorkoutData } from "../types/index"
+import { useTheme } from "../context/ThemeContext"
 
 const { width: screenWidth } = Dimensions.get("window")
 
@@ -110,6 +111,8 @@ export default function ExerciseAnalytics({
   title = "📊 Exercise Analytics",
   currentSessionId = null,
 }: ExerciseAnalyticsProps) {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null)
   const [exerciseData, setExerciseData] = useState<
     ExerciseHistoryEntry[] | null
@@ -146,7 +149,11 @@ export default function ExerciseAnalytics({
     (timing: SetTiming, session: Session): string => {
       if (timing.exercise_name?.trim()) return timing.exercise_name.trim()
 
-      if (workoutData?.days && selectedPerson && timing.exercise_index != null) {
+      if (
+        workoutData?.days &&
+        selectedPerson &&
+        timing.exercise_index != null
+      ) {
         const day = workoutData.days.find(
           (d) => d.dayNumber === session.day_number,
         )
@@ -172,7 +179,11 @@ export default function ExerciseAnalytics({
       workoutData.days.forEach((day) => {
         const personWorkout = day.people?.[selectedPerson]
         ;(personWorkout?.exercises ?? []).forEach((exercise, exerciseIndex) => {
-          const ex = exercise as { machineName?: string; name: string; muscleGroup?: string }
+          const ex = exercise as {
+            machineName?: string
+            name: string
+            muscleGroup?: string
+          }
           const key = ex.machineName ?? ex.name
           if (!exercisesMap.has(key)) {
             exercisesMap.set(key, {
@@ -564,8 +575,8 @@ export default function ExerciseAnalytics({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#667eea"]}
-            tintColor="#667eea"
+            colors={[colors.accent]}
+            tintColor={colors.accent}
           />
         ) : undefined
       }
@@ -633,7 +644,7 @@ export default function ExerciseAnalytics({
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#667eea" />
+            <ActivityIndicator size='large' color={colors.accent} />
             <Text style={styles.loadingText}>Loading data...</Text>
           </View>
         ) : exerciseData && exerciseData.length > 0 ? (
@@ -698,29 +709,29 @@ export default function ExerciseAnalytics({
               <UniversalCalendar
                 hasDataOnDate={hasSetsOnDate}
                 onDatePress={handleDatePress}
-                initialView="week"
+                initialView='week'
                 legendText={`Workout day for ${selectedExercise}`}
-                dotColor="#10b981"
+                dotColor={colors.success}
               />
             </View>
 
             <ProgressChart
-              title="Weight Progress (kg)"
-              icon="💪"
+              title='Weight Progress (kg)'
+              icon='💪'
               data={getChartData("weight")}
-              yAxisSuffix="kg"
+              yAxisSuffix='kg'
               chartWidth={containerWidth || screenWidth - 40}
             />
             <ProgressChart
-              title="Volume Progress (kg)"
-              icon="📦"
+              title='Volume Progress (kg)'
+              icon='📦'
               data={getChartData("volume")}
-              yAxisSuffix="kg"
+              yAxisSuffix='kg'
               chartWidth={containerWidth || screenWidth - 40}
             />
             <ProgressChart
-              title="Reps Progress"
-              icon="🔢"
+              title='Reps Progress'
+              icon='🔢'
               data={getChartData("reps")}
               chartWidth={containerWidth || screenWidth - 40}
             />
@@ -743,7 +754,7 @@ export default function ExerciseAnalytics({
           setShowDropdown(false)
           setSearchQuery("")
         }}
-        title="Select Exercise"
+        title='Select Exercise'
         showCancelButton={false}
         showConfirmButton={false}
         scrollable
@@ -751,11 +762,11 @@ export default function ExerciseAnalytics({
         <View style={styles.searchContainer}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search exercises..."
-            placeholderTextColor="#999"
+            placeholder='Search exercises...'
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            autoCapitalize="none"
+            autoCapitalize='none'
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
@@ -881,294 +892,324 @@ export default function ExerciseAnalytics({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  content: { padding: 20, paddingBottom: 40 },
-  header: { marginBottom: 25, alignItems: "center" },
-  title: { fontSize: 32, fontWeight: "bold", color: "#333", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#666", textAlign: "center" },
-  demoBanner: {
-    backgroundColor: "#fff3cd",
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#ffc107",
-  },
-  demoBannerIcon: { fontSize: 20, marginRight: 10 },
-  demoBannerText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#856404",
-    fontWeight: "500",
-  },
-  warningBanner: {
-    backgroundColor: "#fff3cd",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#ffc107",
-  },
-  warningIcon: { fontSize: 24, marginRight: 12 },
-  warningTextContainer: { flex: 1 },
-  warningTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#856404",
-    marginBottom: 4,
-  },
-  warningText: { fontSize: 14, color: "#856404", lineHeight: 20 },
-  section: { marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 12,
-  },
-  dropdownButton: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#667eea",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  dropdownButtonContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-  },
-  dropdownButtonLeft: { flex: 1 },
-  dropdownButtonText: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
-  },
-  dropdownButtonSubtext: { fontSize: 14, color: "#667eea" },
-  dropdownArrow: { fontSize: 16, color: "#667eea", marginLeft: 12 },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    position: "relative",
-  },
-  searchInput: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 12,
-    paddingRight: 40,
-    fontSize: 16,
-    color: "#333",
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  clearSearchButton: {
-    position: "absolute",
-    right: 24,
-    top: 14,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#ddd",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  clearSearchText: { fontSize: 14, color: "#666" },
-  filterContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    backgroundColor: "#f9fafb",
-  },
-  filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  filterButtonText: { fontSize: 14, fontWeight: "500", color: "#667eea" },
-  filterButtonIcon: { fontSize: 16 },
-  filterHint: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 6,
-    textAlign: "center",
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  dropdownItemSelected: { backgroundColor: "#f0f3ff" },
-  dropdownItemContent: { flex: 1 },
-  dropdownItemText: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#333",
-    marginBottom: 4,
-  },
-  dropdownItemTextSelected: { color: "#667eea", fontWeight: "600" },
-  dropdownItemMeta: { flexDirection: "row", alignItems: "center", gap: 12 },
-  dropdownItemMuscle: { fontSize: 13, color: "#666" },
-  dropdownItemSets: { fontSize: 13, color: "#10b981", fontWeight: "600" },
-  dropdownItemCheck: { fontSize: 20, color: "#667eea", marginLeft: 12 },
-  noResultsContainer: { padding: 40, alignItems: "center" },
-  noResultsText: { fontSize: 15, color: "#999", textAlign: "center" },
-  setCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  setCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  setCardTitle: { fontSize: 16, fontWeight: "600", color: "#333" },
-  setCardTime: { fontSize: 14, color: "#666" },
-  setCardStats: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 8,
-  },
-  setCardStat: { alignItems: "center" },
-  setCardStatValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#667eea",
-    marginBottom: 4,
-  },
-  setCardStatLabel: { fontSize: 12, color: "#666" },
-  setCardDay: {
-    fontSize: 12,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 8,
-  },
-  loadingContainer: { padding: 40, alignItems: "center" },
-  loadingText: { marginTop: 12, fontSize: 16, color: "#666" },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 10,
-  },
-  statCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    flex: 1,
-    minWidth: "47%",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#667eea",
-    marginBottom: 4,
-  },
-  statLabel: { fontSize: 13, color: "#666", textAlign: "center" },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
-  statCardWide: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statValueSmall: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#667eea",
-    marginBottom: 4,
-  },
-  lastWorkoutCard: {
-    backgroundColor: "#f0f3ff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: "#667eea",
-  },
-  lastWorkoutLabel: {
-    fontSize: 13,
-    color: "#667eea",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  lastWorkoutDate: { fontSize: 16, color: "#333", fontWeight: "600" },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 40,
-  },
-  emptyIcon: { fontSize: 64, marginBottom: 20 },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  emptyText: {
-    fontSize: 16,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  noDataContainer: {
-    padding: 40,
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    marginTop: 20,
-  },
-  noDataIcon: { fontSize: 48, marginBottom: 16 },
-  noDataTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
-  },
-  noDataText: {
-    fontSize: 15,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 22,
-  },
-})
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 20, paddingBottom: 40 },
+    header: { marginBottom: 25, alignItems: "center" },
+    title: {
+      fontSize: 32,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    demoBanner: {
+      backgroundColor: "#fff3cd",
+      borderRadius: 12,
+      padding: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: "#ffc107",
+    },
+    demoBannerIcon: { fontSize: 20, marginRight: 10 },
+    demoBannerText: {
+      flex: 1,
+      fontSize: 14,
+      color: "#856404",
+      fontWeight: "500",
+    },
+    warningBanner: {
+      backgroundColor: "#fff3cd",
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: "#ffc107",
+    },
+    warningIcon: { fontSize: 24, marginRight: 12 },
+    warningTextContainer: { flex: 1 },
+    warningTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: "#856404",
+      marginBottom: 4,
+    },
+    warningText: { fontSize: 14, color: "#856404", lineHeight: 20 },
+    section: { marginBottom: 20 },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    dropdownButton: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    dropdownButtonContent: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 16,
+    },
+    dropdownButtonLeft: { flex: 1 },
+    dropdownButtonText: {
+      fontSize: 17,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    dropdownButtonSubtext: { fontSize: 14, color: colors.accent },
+    dropdownArrow: { fontSize: 16, color: colors.accent, marginLeft: 12 },
+    searchContainer: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+      position: "relative",
+    },
+    searchInput: {
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      padding: 12,
+      paddingRight: 40,
+      fontSize: 16,
+      color: colors.textPrimary,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    clearSearchButton: {
+      position: "absolute",
+      right: 24,
+      top: 14,
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: "#ddd",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    clearSearchText: { fontSize: 14, color: colors.textSecondary },
+    filterContainer: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+      backgroundColor: colors.inputBackground,
+    },
+    filterButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: colors.surface,
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    filterButtonText: { fontSize: 14, fontWeight: "500", color: colors.accent },
+    filterButtonIcon: { fontSize: 16 },
+    filterHint: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 6,
+      textAlign: "center",
+    },
+    dropdownItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+    },
+    dropdownItemSelected: { backgroundColor: colors.accentLight },
+    dropdownItemContent: { flex: 1 },
+    dropdownItemText: {
+      fontSize: 16,
+      fontWeight: "500",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    dropdownItemTextSelected: { color: colors.accent, fontWeight: "600" },
+    dropdownItemMeta: { flexDirection: "row", alignItems: "center", gap: 12 },
+    dropdownItemMuscle: { fontSize: 13, color: colors.textSecondary },
+    dropdownItemSets: {
+      fontSize: 13,
+      color: colors.success,
+      fontWeight: "600",
+    },
+    dropdownItemCheck: { fontSize: 20, color: colors.accent, marginLeft: 12 },
+    noResultsContainer: { padding: 40, alignItems: "center" },
+    noResultsText: {
+      fontSize: 15,
+      color: colors.textMuted,
+      textAlign: "center",
+    },
+    setCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    setCardHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    setCardTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    setCardTime: { fontSize: 14, color: colors.textSecondary },
+    setCardStats: {
+      flexDirection: "row",
+      justifyContent: "space-around",
+      marginBottom: 8,
+    },
+    setCardStat: { alignItems: "center" },
+    setCardStatValue: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.accent,
+      marginBottom: 4,
+    },
+    setCardStatLabel: { fontSize: 12, color: colors.textSecondary },
+    setCardDay: {
+      fontSize: 12,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginTop: 8,
+    },
+    loadingContainer: { padding: 40, alignItems: "center" },
+    loadingText: { marginTop: 12, fontSize: 16, color: colors.textSecondary },
+    statsGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      marginBottom: 10,
+    },
+    statCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      flex: 1,
+      minWidth: "47%",
+      alignItems: "center",
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    statValue: {
+      fontSize: 28,
+      fontWeight: "bold",
+      color: colors.accent,
+      marginBottom: 4,
+    },
+    statLabel: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    statsRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
+    statCardWide: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: "center",
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    statValueSmall: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.accent,
+      marginBottom: 4,
+    },
+    lastWorkoutCard: {
+      backgroundColor: colors.accentLight,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      borderLeftWidth: 4,
+      borderLeftColor: colors.accent,
+    },
+    lastWorkoutLabel: {
+      fontSize: 13,
+      color: colors.accent,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    lastWorkoutDate: {
+      fontSize: 16,
+      color: colors.textPrimary,
+      fontWeight: "600",
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 40,
+    },
+    emptyIcon: { fontSize: 64, marginBottom: 20 },
+    emptyTitle: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 10,
+      textAlign: "center",
+    },
+    emptyText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 24,
+    },
+    noDataContainer: {
+      padding: 40,
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      marginTop: 20,
+    },
+    noDataIcon: { fontSize: 48, marginBottom: 16 },
+    noDataTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    noDataText: {
+      fontSize: 15,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 22,
+    },
+  })

@@ -14,6 +14,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { useAuth } from "../context/AuthContext"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useAlert } from "../components/CustomAlert"
+import { useTheme } from "../context/ThemeContext"
 
 type RootStackParamList = {
   Login: undefined
@@ -24,7 +25,11 @@ type SignupScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Signup">
 }
 
-export default function SignupScreen({ navigation }: SignupScreenProps): React.JSX.Element {
+export default function SignupScreen({
+  navigation,
+}: SignupScreenProps): React.JSX.Element {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const [username, setUsername] = useState<string>("")
   const [email, setEmail] = useState<string>("")
   const [name, setName] = useState<string>("")
@@ -171,7 +176,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps): React.J
                 <TextInput
                   style={styles.input}
                   placeholder="Choose a username"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={colors.textMuted}
                   value={username}
                   onChangeText={setUsername}
                   autoCapitalize="none"
@@ -191,7 +196,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps): React.J
                 <TextInput
                   style={styles.input}
                   placeholder="your.email@example.com"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={colors.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -206,7 +211,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps): React.J
                 <TextInput
                   style={styles.input}
                   placeholder="John Doe"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={colors.textMuted}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
@@ -222,7 +227,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps): React.J
                   <TextInput
                     style={styles.passwordInput}
                     placeholder="Create a strong password"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textMuted}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
@@ -249,7 +254,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps): React.J
                   <TextInput
                     style={styles.passwordInput}
                     placeholder="Re-enter your password"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textMuted}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     secureTextEntry={!showConfirmPassword}
@@ -273,7 +278,7 @@ export default function SignupScreen({ navigation }: SignupScreenProps): React.J
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.surface} />
                 ) : (
                   <Text style={styles.signupButtonText}>Create Account</Text>
                 )}
@@ -300,55 +305,55 @@ export default function SignupScreen({ navigation }: SignupScreenProps): React.J
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
+const makeStyles = (colors: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { flexGrow: 1, paddingBottom: 40 },
   content: { padding: 20, paddingTop: 60, paddingBottom: 40 },
   header: { marginBottom: 30, alignItems: "center" },
-  title: { fontSize: 32, fontWeight: "bold", color: "#333", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#666", textAlign: "center", lineHeight: 22 },
+  title: { fontSize: 32, fontWeight: "bold", color: colors.textPrimary, marginBottom: 8 },
+  subtitle: { fontSize: 16, color: colors.textSecondary, textAlign: "center", lineHeight: 22 },
   form: { width: "100%" },
   inputContainer: { marginBottom: 20 },
-  inputLabel: { fontSize: 14, fontWeight: "600", color: "#333", marginBottom: 8 },
+  inputLabel: { fontSize: 14, fontWeight: "600", color: colors.textPrimary, marginBottom: 8 },
   required: { color: "#ff4444" },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: "#333",
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.surfaceBorder,
   },
-  inputHint: { fontSize: 12, color: "#999", marginTop: 6, fontStyle: "italic" },
+  inputHint: { fontSize: 12, color: colors.textMuted, marginTop: 6, fontStyle: "italic" },
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.surfaceBorder,
   },
-  passwordInput: { flex: 1, padding: 16, fontSize: 16, color: "#333" },
+  passwordInput: { flex: 1, padding: 16, fontSize: 16, color: colors.textPrimary },
   eyeButton: { padding: 16 },
   eyeIcon: { fontSize: 20 },
   signupButton: {
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
     marginTop: 10,
-    shadowColor: "#667eea",
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
   signupButtonDisabled: { opacity: 0.6 },
-  signupButtonText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  signupButtonText: { color: colors.surface, fontSize: 18, fontWeight: "bold" },
   termsText: {
     fontSize: 12,
-    color: "#999",
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: 16,
     lineHeight: 18,
@@ -359,6 +364,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
   },
-  loginText: { fontSize: 15, color: "#666" },
-  loginLink: { fontSize: 15, color: "#667eea", fontWeight: "bold" },
+  loginText: { fontSize: 15, color: colors.textSecondary },
+  loginLink: { fontSize: 15, color: colors.accent, fontWeight: "bold" },
 })
