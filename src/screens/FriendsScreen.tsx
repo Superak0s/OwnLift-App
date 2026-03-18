@@ -40,6 +40,7 @@ import ExerciseAnalytics from "../components/ExerciseAnalytics"
 import LiveSessionTab from "../components/LiveSessionTab"
 import { useAlert } from "../components/CustomAlert"
 import type { PendingFriendRequest, SentFriendRequest } from "../services/api"
+import { useTheme } from "../context/ThemeContext"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Local interfaces
@@ -188,6 +189,8 @@ function InviteBanner({
   onAccept,
   onDecline,
 }: InviteBannerProps): React.JSX.Element | null {
+  const { colors } = useTheme()
+  const bannerStyles = makeBannerStyles(colors)
   if (!invite) return null
   return (
     <View style={bannerStyles.container}>
@@ -213,38 +216,44 @@ function InviteBanner({
   )
 }
 
-const bannerStyles = StyleSheet.create({
-  container: {
-    backgroundColor: "#1a1a2e",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-  },
-  left: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
-  icon: { fontSize: 28 },
-  title: { color: "#fff", fontWeight: "700", fontSize: 14, marginBottom: 2 },
-  sub: { color: "rgba(255,255,255,0.7)", fontSize: 13 },
-  username: { color: "#a78bfa", fontWeight: "600" },
-  actions: { flexDirection: "row", gap: 8, alignItems: "center" },
-  decline: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  declineText: { color: "#fff", fontSize: 14, fontWeight: "bold" },
-  accept: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#7c3aed",
-  },
-  acceptText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-})
+const makeBannerStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: colors.background,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+    },
+    left: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
+    icon: { fontSize: 28 },
+    title: {
+      color: colors.surface,
+      fontWeight: "700",
+      fontSize: 14,
+      marginBottom: 2,
+    },
+    sub: { color: "rgba(255,255,255,0.7)", fontSize: 13 },
+    username: { color: colors.info, fontWeight: "600" },
+    actions: { flexDirection: "row", gap: 8, alignItems: "center" },
+    decline: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: "rgba(255,255,255,0.12)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    declineText: { color: colors.surface, fontSize: 14, fontWeight: "bold" },
+    accept: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: colors.accentDark,
+    },
+    acceptText: { color: colors.surface, fontSize: 14, fontWeight: "700" },
+  })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lift Together button
@@ -260,6 +269,8 @@ function LiftTogetherButton({
   status,
   small = false,
 }: LiftTogetherButtonProps): React.JSX.Element {
+  const { colors } = useTheme()
+  const liftStyles = makeLiftStyles(colors)
   const label =
     status === "sending"
       ? "Sending…"
@@ -272,12 +283,12 @@ function LiftTogetherButton({
             : "🏋️ Lift Together"
   const bg =
     status === "active"
-      ? "#10b981"
+      ? colors.success
       : status === "waiting"
-        ? "#f59e0b"
+        ? colors.warning
         : status === "declined"
-          ? "#6b7280"
-          : "#7c3aed"
+          ? colors.textSecondary
+          : colors.accentDark
   const busy = status === "sending" || status === "waiting"
   return (
     <TouchableOpacity
@@ -305,18 +316,19 @@ function LiftTogetherButton({
   )
 }
 
-const liftStyles = StyleSheet.create({
-  button: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  buttonSmall: { paddingHorizontal: 10, paddingVertical: 6 },
-  label: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  labelSmall: { fontSize: 12 },
-})
+const makeLiftStyles = (colors: any) =>
+  StyleSheet.create({
+    button: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+      borderRadius: 10,
+    },
+    buttonSmall: { paddingHorizontal: 10, paddingVertical: 6 },
+    label: { color: colors.surface, fontWeight: "700", fontSize: 14 },
+    labelSmall: { fontSize: 12 },
+  })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Permission toggle row
@@ -340,6 +352,8 @@ function PermissionRow({
   onGrant,
   onRevoke,
 }: PermissionRowProps): React.JSX.Element {
+  const { colors } = useTheme()
+  const permStyles = makePermStyles(colors)
   return (
     <View style={[permStyles.row, granted && permStyles.rowGranted]}>
       <Text style={permStyles.icon}>{icon}</Text>
@@ -366,49 +380,64 @@ function PermissionRow({
   )
 }
 
-const permStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  rowGranted: { borderColor: "#a7f3d0", backgroundColor: "#f0fdf4" },
-  icon: { fontSize: 24, marginRight: 12 },
-  text: { flex: 1 },
-  title: { fontSize: 14, fontWeight: "700", color: "#222", marginBottom: 2 },
-  desc: { fontSize: 12, color: "#888", lineHeight: 17 },
-  grantBtn: {
-    backgroundColor: "#667eea",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  grantBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  revokeBtn: {
-    backgroundColor: "#fee2e2",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  revokeBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "600" },
-})
+const makePermStyles = (colors: any) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    rowGranted: {
+      borderColor: colors.success,
+      backgroundColor: colors.successLight,
+    },
+    icon: { fontSize: 24, marginRight: 12 },
+    text: { flex: 1 },
+    title: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    desc: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+    grantBtn: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 10,
+      marginLeft: 8,
+    },
+    grantBtnText: { color: colors.surface, fontSize: 13, fontWeight: "700" },
+    revokeBtn: {
+      backgroundColor: colors.errorLight,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
+      marginLeft: 8,
+    },
+    revokeBtnText: { color: colors.error, fontSize: 13, fontWeight: "600" },
+  })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main screen
 // ─────────────────────────────────────────────────────────────────────────────
 export default function FriendsScreen(): React.JSX.Element {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
+  const liftStyles = makeLiftStyles(colors)
+  const permStyles = makePermStyles(colors)
+  const watchStyles = makeWatchStyles(colors)
+  const jointStyles = makeJointStyles(colors)
   const { user } = useAuth()
   const {
     workoutData,
@@ -1120,7 +1149,7 @@ export default function FriendsScreen(): React.JSX.Element {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#667eea"]}
+            colors={[colors.accent]}
             tintColor='#667eea'
           />
         }
@@ -1259,7 +1288,7 @@ export default function FriendsScreen(): React.JSX.Element {
                               style={[
                                 liftStyles.button,
                                 liftStyles.buttonSmall,
-                                { backgroundColor: "#10b981" },
+                                { backgroundColor: colors.success },
                               ]}
                             >
                               <Text style={liftStyles.labelSmall}>
@@ -1503,7 +1532,7 @@ export default function FriendsScreen(): React.JSX.Element {
           setSelectedDate(null)
         }}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={styles.modalHeader}>
             <TouchableOpacity
               style={styles.backButton}
@@ -2015,13 +2044,17 @@ export default function FriendsScreen(): React.JSX.Element {
                       <View
                         style={[
                           permStyles.grantBtn,
-                          { backgroundColor: has ? "#dcfce7" : "#f3f4f6" },
+                          {
+                            backgroundColor: has
+                              ? colors.successLight
+                              : colors.separator,
+                          },
                         ]}
                       >
                         <Text
                           style={[
                             permStyles.grantBtnText,
-                            { color: has ? "#059669" : "#9ca3af" },
+                            { color: has ? colors.success : colors.textMuted },
                           ]}
                         >
                           {has ? "✓ Granted" : "Not yet"}
@@ -2058,7 +2091,7 @@ export default function FriendsScreen(): React.JSX.Element {
                               <Text
                                 style={[
                                   styles.actionRowTitle,
-                                  { color: "#1e40af" },
+                                  { color: colors.info },
                                 ]}
                               >
                                 Watching Now
@@ -2111,7 +2144,7 @@ export default function FriendsScreen(): React.JSX.Element {
                             <Text
                               style={[
                                 styles.actionRowTitle,
-                                { color: "#1e40af" },
+                                { color: colors.info },
                               ]}
                             >
                               View Current Session
@@ -2127,7 +2160,7 @@ export default function FriendsScreen(): React.JSX.Element {
                             <Text
                               style={[
                                 styles.actionRowArrow,
-                                { color: "#2563eb" },
+                                { color: colors.info },
                               ]}
                             >
                               ›
@@ -2173,7 +2206,7 @@ export default function FriendsScreen(): React.JSX.Element {
                                 <Text
                                   style={[
                                     styles.actionRowTitle,
-                                    { color: "#065f46" },
+                                    { color: colors.success },
                                   ]}
                                 >
                                   Joint session active 🎉
@@ -2227,7 +2260,7 @@ export default function FriendsScreen(): React.JSX.Element {
                               <Text
                                 style={[
                                   styles.actionRowTitle,
-                                  { color: "#5b21b6" },
+                                  { color: colors.accentDark },
                                 ]}
                               >
                                 {cs === "waiting"
@@ -2245,7 +2278,7 @@ export default function FriendsScreen(): React.JSX.Element {
                               <Text
                                 style={[
                                   styles.actionRowArrow,
-                                  { color: "#7c3aed" },
+                                  { color: colors.accentDark },
                                 ]}
                               >
                                 ›
@@ -2277,14 +2310,18 @@ export default function FriendsScreen(): React.JSX.Element {
                 >
                   <Text style={styles.actionRowIcon}>🚫</Text>
                   <View style={styles.actionRowText}>
-                    <Text style={[styles.actionRowTitle, { color: "#ef4444" }]}>
+                    <Text
+                      style={[styles.actionRowTitle, { color: colors.error }]}
+                    >
                       Remove Friend
                     </Text>
                     <Text style={styles.actionRowSub}>
                       Remove {selectedFriend?.username} from your friends list
                     </Text>
                   </View>
-                  <Text style={[styles.actionRowArrow, { color: "#ef4444" }]}>
+                  <Text
+                    style={[styles.actionRowArrow, { color: colors.error }]}
+                  >
                     ›
                   </Text>
                 </TouchableOpacity>
@@ -2345,7 +2382,7 @@ export default function FriendsScreen(): React.JSX.Element {
         showCancelButton={false}
         showConfirmButton={false}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f5f5" }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
           <View style={styles.modalHeader}>
             <TouchableOpacity
               style={styles.backButton}
@@ -2456,601 +2493,673 @@ export default function FriendsScreen(): React.JSX.Element {
 // ─────────────────────────────────────────────────────────────────────────────
 // Watch session styles
 // ─────────────────────────────────────────────────────────────────────────────
-const watchStyles = StyleSheet.create({
-  pill: { backgroundColor: "#eff6ff", borderBottomColor: "#bfdbfe" },
-  pillIcon: { fontSize: 16 },
-  pillText: { flex: 1, fontSize: 13, fontWeight: "600", color: "#1e40af" },
-  friendCardWatched: {
-    borderWidth: 2,
-    borderColor: "#2563eb",
-    backgroundColor: "#eff6ff",
-  },
-  activeRow: {
-    backgroundColor: "#eff6ff",
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-  },
-  availableRow: {
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-    backgroundColor: "#f0f7ff",
-  },
-  stopBtn: {
-    backgroundColor: "#fee2e2",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  stopBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "600" },
-})
+const makeWatchStyles = (colors: any) =>
+  StyleSheet.create({
+    pill: {
+      backgroundColor: colors.infoLight,
+      borderBottomColor: colors.surfaceBorder,
+    },
+    pillIcon: { fontSize: 16 },
+    pillText: { flex: 1, fontSize: 13, fontWeight: "600", color: colors.info },
+    friendCardWatched: {
+      borderWidth: 2,
+      borderColor: colors.info,
+      backgroundColor: colors.infoLight,
+    },
+    activeRow: {
+      backgroundColor: colors.infoLight,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    availableRow: {
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      backgroundColor: colors.infoLight,
+    },
+    stopBtn: {
+      backgroundColor: colors.errorLight,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
+    },
+    stopBtnText: { color: colors.error, fontSize: 13, fontWeight: "600" },
+  })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Joint session styles
 // ─────────────────────────────────────────────────────────────────────────────
-const jointStyles = StyleSheet.create({
-  activeRow: {
-    backgroundColor: "#ecfdf5",
-    borderWidth: 1,
-    borderColor: "#6ee7b7",
-  },
-  inviteRow: {
-    borderWidth: 1,
-    borderColor: "#ddd6fe",
-    backgroundColor: "#faf5ff",
-  },
-  liveDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#10b981",
-    marginRight: 14,
-    shadowColor: "#10b981",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  leaveBtn: {
-    backgroundColor: "#fee2e2",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-  },
-  leaveBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "600" },
-})
+const makeJointStyles = (colors: any) =>
+  StyleSheet.create({
+    activeRow: {
+      backgroundColor: "#ecfdf5",
+      borderWidth: 1,
+      borderColor: "#6ee7b7",
+    },
+    inviteRow: {
+      borderWidth: 1,
+      borderColor: "#ddd6fe",
+      backgroundColor: "#faf5ff",
+    },
+    liveDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: colors.success,
+      marginRight: 14,
+      shadowColor: colors.success,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    leaveBtn: {
+      backgroundColor: colors.errorLight,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
+    },
+    leaveBtnText: { color: colors.error, fontSize: 13, fontWeight: "600" },
+  })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Base styles
 // ─────────────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { marginTop: 12, color: "#666", fontSize: 16 },
-  header: { marginBottom: 25, alignItems: "center" },
-  title: { fontSize: 32, fontWeight: "bold", color: "#333", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#666", textAlign: "center" },
-  tabContainer: { marginBottom: 20 },
-  tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginRight: 10,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
-  },
-  tabActive: { backgroundColor: "#667eea" },
-  tabIcon: { fontSize: 20, marginRight: 8 },
-  tabLabel: { fontSize: 14, fontWeight: "600", color: "#666" },
-  tabLabelActive: { color: "#fff" },
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#ef4444",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 6,
-  },
-  badgeText: { color: "#fff", fontSize: 11, fontWeight: "bold" },
-  section: { marginBottom: 25 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  sectionTitle: { fontSize: 20, fontWeight: "bold", color: "#333" },
-  subsection: { marginBottom: 20 },
-  subsectionTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 12,
-  },
-  listContainer: { gap: 12 },
-  friendCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  friendCardActive: {
-    borderWidth: 2,
-    borderColor: "#a78bfa",
-    backgroundColor: "#faf5ff",
-  },
-  friendCardRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  friendInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#667eea",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-    position: "relative",
-  },
-  avatarActive: { backgroundColor: "#7c3aed" },
-  workingOutDot: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#10b981",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  avatarText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
-  friendDetails: { flex: 1 },
-  friendName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
-  },
-  friendMeta: { fontSize: 13, color: "#999" },
-  requestCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  requestActions: { flexDirection: "row", gap: 8 },
-  acceptButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#dcfce7",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  acceptButtonText: { color: "#10b981", fontSize: 20, fontWeight: "bold" },
-  rejectButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#fee2e2",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  rejectButtonText: { color: "#ef4444", fontSize: 20, fontWeight: "bold" },
-  sentRequestCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  statusBadge: {
-    backgroundColor: "#fef3c7",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusBadgeText: { color: "#92400e", fontSize: 12, fontWeight: "600" },
-  statusBadgeFriend: { backgroundColor: "#dcfce7" },
-  searchContainer: { position: "relative", marginBottom: 20 },
-  searchInput: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    borderWidth: 2,
-    borderColor: "#e0e7ff",
-  },
-  searchLoader: { position: "absolute", right: 14, top: 14 },
-  searchResultCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  searchResultActions: { flexDirection: "row", gap: 8 },
-  addButton: {
-    backgroundColor: "#667eea",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  addButtonText: { color: "#fff", fontWeight: "600", fontSize: 13 },
-  respondButton: {
-    backgroundColor: "#f0f3ff",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  respondButtonText: { color: "#667eea", fontWeight: "600", fontSize: 13 },
-  emptyState: {
-    alignItems: "center",
-    padding: 40,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-  },
-  emptyIcon: { fontSize: 64, marginBottom: 16 },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: "#999",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  emptyButton: {
-    backgroundColor: "#667eea",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  emptyButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
-  emptyStateSmall: {
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-  },
-  emptyTextSmall: { fontSize: 14, color: "#999" },
-  calendarHint: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  calendarLoading: { paddingVertical: 40, alignItems: "center" },
-  analyticsLoading: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 16,
-  },
-  analyticsLoadingText: { fontSize: 16, color: "#666" },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  backButton: { width: 80 },
-  backButtonText: { fontSize: 16, color: "#667eea", fontWeight: "600" },
-  modalHeaderTitle: { fontSize: 18, fontWeight: "bold", color: "#333" },
-  modalScroll: { flex: 1, backgroundColor: "#f5f5f5" },
-  friendDetailContent: { padding: 20, paddingBottom: 40 },
-  workoutHistorySection: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-  },
-  sectionTitleLarge: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
-  },
-  chevronRight: { fontSize: 28, color: "#ccc" },
-  sessionListItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  sessionListLeft: { flex: 1 },
-  sessionListTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 6,
-  },
-  sessionListMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  sessionListTime: { fontSize: 13, color: "#666" },
-  sessionListDuration: { fontSize: 13, color: "#666" },
-  sessionListSets: { fontSize: 13, color: "#666" },
-  sessionListArrow: { fontSize: 24, color: "#ccc", marginLeft: 10 },
-  sessionDetailsContent: { padding: 16, paddingBottom: 40 },
-  detailSection: { marginBottom: 20 },
-  detailTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  detailSubtitle: { fontSize: 16, color: "#666", marginBottom: 12 },
-  muscleGroupsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginRight: -8,
-    marginBottom: -8,
-  },
-  muscleTag: {
-    backgroundColor: "#f0f3ff",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  muscleTagText: { color: "#667eea", fontSize: 13, fontWeight: "500" },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  detailLabel: { fontSize: 15, color: "#666" },
-  detailValue: { fontSize: 15, fontWeight: "600", color: "#333" },
-  detailSectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 12,
-  },
-  exerciseCard: {
-    backgroundColor: "#f9fafb",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  exerciseHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  exerciseName: { fontSize: 17, fontWeight: "bold", color: "#333", flex: 1 },
-  exerciseSetsCount: { fontSize: 14, color: "#667eea", fontWeight: "600" },
-  setTimingCard: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  setTimingTitle: { fontSize: 15, fontWeight: "600", color: "#333" },
-  setTimingDetail: { fontSize: 14, color: "#666" },
-  friendTabContainer: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  friendTab: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 2,
-    alignItems: "center",
-    borderBottomWidth: 3,
-    borderBottomColor: "transparent",
-  },
-  friendTabActive: { borderBottomColor: "#667eea" },
-  friendTabText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#999",
-    textAlign: "center",
-  },
-  friendTabTextActive: { color: "#667eea" },
-  actionsTabContent: { padding: 20, paddingBottom: 60 },
-  actionsTabSectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#aaa",
-    textTransform: "uppercase",
-    letterSpacing: 0.9,
-    marginBottom: 6,
-  },
-  actionsTabSectionHint: {
-    fontSize: 12,
-    color: "#bbb",
-    marginBottom: 12,
-    lineHeight: 17,
-  },
-  actionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  actionRowDanger: {
-    borderWidth: 1,
-    borderColor: "#fecaca",
-    backgroundColor: "#fff5f5",
-  },
-  actionRowIcon: { fontSize: 28, marginRight: 14 },
-  actionRowText: { flex: 1 },
-  actionRowTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#222",
-    marginBottom: 2,
-  },
-  actionRowSub: { fontSize: 13, color: "#888", lineHeight: 18 },
-  actionRowArrow: { fontSize: 24, color: "#ccc", marginLeft: 4 },
-  programViewHeader: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  programViewTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
-  },
-  programViewMeta: {
-    fontSize: 14,
-    color: "#667eea",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  programViewShared: { fontSize: 13, color: "#999" },
-  programDayCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  programDayHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    gap: 10,
-  },
-  programDayNumber: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#667eea",
-    backgroundColor: "#e0e7ff",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  programDayTitle: { fontSize: 15, fontWeight: "600", color: "#333", flex: 1 },
-  programExerciseRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f5f5f5",
-  },
-  programExerciseLeft: { flex: 1, marginRight: 12 },
-  programExerciseName: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#222",
-    marginBottom: 2,
-  },
-  programExerciseSets: { fontSize: 13, color: "#888" },
-  programSetsBadge: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#e0e7ff",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minWidth: 44,
-  },
-  programSetsBadgeText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#667eea",
-    lineHeight: 18,
-  },
-  programSetsBadgeLabel: {
-    fontSize: 10,
-    color: "#667eea",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  programSetsRow: { flexDirection: "row", gap: 6 },
-  peopleSelectorContainer: {
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-    paddingVertical: 10,
-  },
-  peopleSelectorScroll: { paddingHorizontal: 16, gap: 8 },
-  peoplePill: {
-    paddingHorizontal: 18,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  peoplePillActive: { backgroundColor: "#e0e7ff", borderColor: "#667eea" },
-  peoplePillText: { fontSize: 14, fontWeight: "600", color: "#888" },
-  peoplePillTextActive: { color: "#667eea" },
-  activeSessionPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ecfdf5",
-    borderBottomWidth: 1,
-    borderBottomColor: "#a7f3d0",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  liveIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#10b981",
-  },
-  activeSessionText: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#065f46",
-  },
-  leaveText: { fontSize: 13, fontWeight: "700", color: "#ef4444" },
-})
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    loadingText: { marginTop: 12, color: colors.textSecondary, fontSize: 16 },
+    header: { marginBottom: 25, alignItems: "center" },
+    title: {
+      fontSize: 32,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    tabContainer: { marginBottom: 20 },
+    tab: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      marginRight: 10,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      flexDirection: "row",
+      alignItems: "center",
+      position: "relative",
+    },
+    tabActive: { backgroundColor: colors.accent },
+    tabIcon: { fontSize: 20, marginRight: 8 },
+    tabLabel: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
+    tabLabelActive: { color: colors.surface },
+    badge: {
+      position: "absolute",
+      top: -4,
+      right: -4,
+      backgroundColor: colors.error,
+      borderRadius: 10,
+      minWidth: 20,
+      height: 20,
+      justifyContent: "center",
+      alignItems: "center",
+      paddingHorizontal: 6,
+    },
+    badgeText: { color: colors.surface, fontSize: 11, fontWeight: "bold" },
+    section: { marginBottom: 25 },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 15,
+    },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+    },
+    subsection: { marginBottom: 20 },
+    subsectionTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    listContainer: { gap: 12 },
+    friendCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    friendCardActive: {
+      borderWidth: 2,
+      borderColor: colors.info,
+      backgroundColor: "#faf5ff",
+    },
+    friendCardRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+    friendInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
+    avatar: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: colors.accent,
+      justifyContent: "center",
+      alignItems: "center",
+      marginRight: 12,
+      position: "relative",
+    },
+    avatarActive: { backgroundColor: colors.accentDark },
+    workingOutDot: {
+      position: "absolute",
+      bottom: 0,
+      right: 0,
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: colors.success,
+      borderWidth: 2,
+      borderColor: colors.surface,
+    },
+    avatarText: { color: colors.surface, fontSize: 20, fontWeight: "bold" },
+    friendDetails: { flex: 1 },
+    friendName: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    friendMeta: { fontSize: 13, color: colors.textMuted },
+    requestCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    requestActions: { flexDirection: "row", gap: 8 },
+    acceptButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.successLight,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    acceptButtonText: {
+      color: colors.success,
+      fontSize: 20,
+      fontWeight: "bold",
+    },
+    rejectButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.errorLight,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    rejectButtonText: { color: colors.error, fontSize: 20, fontWeight: "bold" },
+    sentRequestCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    statusBadge: {
+      backgroundColor: colors.warningLight,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    statusBadgeText: { color: "#92400e", fontSize: 12, fontWeight: "600" },
+    statusBadgeFriend: { backgroundColor: colors.successLight },
+    searchContainer: { position: "relative", marginBottom: 20 },
+    searchInput: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 14,
+      fontSize: 16,
+      borderWidth: 2,
+      borderColor: colors.infoLight,
+    },
+    searchLoader: { position: "absolute", right: 14, top: 14 },
+    searchResultCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    searchResultActions: { flexDirection: "row", gap: 8 },
+    addButton: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    addButtonText: { color: colors.surface, fontWeight: "600", fontSize: 13 },
+    respondButton: {
+      backgroundColor: colors.accentLight,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    respondButtonText: {
+      color: colors.accent,
+      fontWeight: "600",
+      fontSize: 13,
+    },
+    emptyState: {
+      alignItems: "center",
+      padding: 40,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+    },
+    emptyIcon: { fontSize: 64, marginBottom: 16 },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    emptyText: {
+      fontSize: 15,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginBottom: 20,
+    },
+    emptyButton: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      borderRadius: 12,
+    },
+    emptyButtonText: { color: colors.surface, fontWeight: "600", fontSize: 15 },
+    emptyStateSmall: {
+      alignItems: "center",
+      padding: 24,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+    },
+    emptyTextSmall: { fontSize: 14, color: colors.textMuted },
+    calendarHint: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+      marginBottom: 16,
+    },
+    calendarLoading: { paddingVertical: 40, alignItems: "center" },
+    analyticsLoading: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 16,
+    },
+    analyticsLoadingText: { fontSize: 16, color: colors.textSecondary },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceBorder,
+    },
+    backButton: { width: 80 },
+    backButtonText: { fontSize: 16, color: colors.accent, fontWeight: "600" },
+    modalHeaderTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+    },
+    modalScroll: { flex: 1, backgroundColor: colors.background },
+    friendDetailContent: { padding: 20, paddingBottom: 40 },
+    workoutHistorySection: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+    },
+    sectionTitleLarge: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 16,
+    },
+    chevronRight: { fontSize: 28, color: colors.surfaceBorder },
+    sessionListItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 16,
+      paddingHorizontal: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    sessionListLeft: { flex: 1 },
+    sessionListTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 6,
+    },
+    sessionListMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    sessionListTime: { fontSize: 13, color: colors.textSecondary },
+    sessionListDuration: { fontSize: 13, color: colors.textSecondary },
+    sessionListSets: { fontSize: 13, color: colors.textSecondary },
+    sessionListArrow: {
+      fontSize: 24,
+      color: colors.surfaceBorder,
+      marginLeft: 10,
+    },
+    sessionDetailsContent: { padding: 16, paddingBottom: 40 },
+    detailSection: { marginBottom: 20 },
+    detailTitle: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    detailSubtitle: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginBottom: 12,
+    },
+    muscleGroupsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginRight: -8,
+      marginBottom: -8,
+    },
+    muscleTag: {
+      backgroundColor: colors.accentLight,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      marginRight: 8,
+      marginBottom: 8,
+    },
+    muscleTagText: { color: colors.accent, fontSize: 13, fontWeight: "500" },
+    detailRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+    },
+    detailLabel: { fontSize: 15, color: colors.textSecondary },
+    detailValue: { fontSize: 15, fontWeight: "600", color: colors.textPrimary },
+    detailSectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    exerciseCard: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    exerciseHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.inputBorder,
+    },
+    exerciseName: {
+      fontSize: 17,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    exerciseSetsCount: {
+      fontSize: 14,
+      color: colors.accent,
+      fontWeight: "600",
+    },
+    setTimingCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 8,
+    },
+    setTimingTitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    setTimingDetail: { fontSize: 14, color: colors.textSecondary },
+    friendTabContainer: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceBorder,
+    },
+    friendTab: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 2,
+      alignItems: "center",
+      borderBottomWidth: 3,
+      borderBottomColor: "transparent",
+    },
+    friendTabActive: { borderBottomColor: colors.accent },
+    friendTabText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textAlign: "center",
+    },
+    friendTabTextActive: { color: colors.accent },
+    actionsTabContent: { padding: 20, paddingBottom: 60 },
+    actionsTabSectionTitle: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: "#aaa",
+      textTransform: "uppercase",
+      letterSpacing: 0.9,
+      marginBottom: 6,
+    },
+    actionsTabSectionHint: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginBottom: 12,
+      lineHeight: 17,
+    },
+    actionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 10,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    actionRowDanger: {
+      borderWidth: 1,
+      borderColor: "#fecaca",
+      backgroundColor: "#fff5f5",
+    },
+    actionRowIcon: { fontSize: 28, marginRight: 14 },
+    actionRowText: { flex: 1 },
+    actionRowTitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    actionRowSub: { fontSize: 13, color: colors.textMuted, lineHeight: 18 },
+    actionRowArrow: {
+      fontSize: 24,
+      color: colors.surfaceBorder,
+      marginLeft: 4,
+    },
+    programViewHeader: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+    },
+    programViewTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    programViewMeta: {
+      fontSize: 14,
+      color: colors.accent,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    programViewShared: { fontSize: 13, color: colors.textMuted },
+    programDayCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    programDayHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+      gap: 10,
+    },
+    programDayNumber: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.accent,
+      backgroundColor: colors.infoLight,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    programDayTitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    programExerciseRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.background,
+    },
+    programExerciseLeft: { flex: 1, marginRight: 12 },
+    programExerciseName: {
+      fontSize: 15,
+      fontWeight: "500",
+      color: colors.textPrimary,
+      marginBottom: 2,
+    },
+    programExerciseSets: { fontSize: 13, color: colors.textMuted },
+    programSetsBadge: {
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.infoLight,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      minWidth: 44,
+    },
+    programSetsBadgeText: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.accent,
+      lineHeight: 18,
+    },
+    programSetsBadgeLabel: {
+      fontSize: 10,
+      color: colors.accent,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    programSetsRow: { flexDirection: "row", gap: 6 },
+    peopleSelectorContainer: {
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceBorder,
+      paddingVertical: 10,
+    },
+    peopleSelectorScroll: { paddingHorizontal: 16, gap: 8 },
+    peoplePill: {
+      paddingHorizontal: 18,
+      paddingVertical: 7,
+      borderRadius: 20,
+      backgroundColor: colors.separator,
+      borderWidth: 2,
+      borderColor: "transparent",
+    },
+    peoplePillActive: {
+      backgroundColor: colors.infoLight,
+      borderColor: colors.accent,
+    },
+    peoplePillText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textMuted,
+    },
+    peoplePillTextActive: { color: colors.accent },
+    activeSessionPill: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#ecfdf5",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.success,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      gap: 8,
+    },
+    liveIndicator: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.success,
+    },
+    activeSessionText: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.success,
+    },
+    leaveText: { fontSize: 13, fontWeight: "700", color: colors.error },
+  })

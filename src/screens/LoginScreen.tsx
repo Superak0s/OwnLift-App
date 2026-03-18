@@ -21,6 +21,7 @@ import {
 } from "../services/api"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
+import { useTheme } from "../context/ThemeContext"
 
 type RootStackParamList = {
   Login: undefined
@@ -31,7 +32,11 @@ type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Login">
 }
 
-export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX.Element {
+export default function LoginScreen({
+  navigation,
+}: LoginScreenProps): React.JSX.Element {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const [usernameOrEmail, setUsernameOrEmail] = useState<string>("")
   const [password, setPassword] = useState<string>("")
   const [showPassword, setShowPassword] = useState<boolean>(false)
@@ -185,7 +190,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
                 <TextInput
                   style={styles.input}
                   placeholder="Enter username or email"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={colors.textMuted}
                   value={usernameOrEmail}
                   onChangeText={setUsernameOrEmail}
                   autoCapitalize="none"
@@ -200,7 +205,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
                   <TextInput
                     style={styles.passwordInput}
                     placeholder="Enter your password"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={colors.textMuted}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
@@ -227,7 +232,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.surface} />
                 ) : (
                   <Text style={styles.loginButtonText}>Sign In</Text>
                 )}
@@ -275,7 +280,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
             onChangeText={setTempServerUrl}
             keyboardType="url"
             placeholder="http://192.168.1.100:3000"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -296,23 +301,23 @@ export default function LoginScreen({ navigation }: LoginScreenProps): React.JSX
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
+const makeStyles = (colors: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   scrollContent: { flexGrow: 1, paddingBottom: 40 },
   content: { padding: 20, paddingTop: 60, minHeight: "100%" },
   header: { marginBottom: 24, alignItems: "center" },
-  title: { fontSize: 36, fontWeight: "bold", color: "#333", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#666", textAlign: "center" },
+  title: { fontSize: 36, fontWeight: "bold", color: colors.textPrimary, marginBottom: 8 },
+  subtitle: { fontSize: 16, color: colors.textSecondary, textAlign: "center" },
   serverBadge: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    shadowColor: "#000",
+    borderColor: colors.surfaceBorder,
+    shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -322,111 +327,111 @@ const styles = StyleSheet.create({
   serverBadgeContent: { flex: 1 },
   serverBadgeLabel: {
     fontSize: 12,
-    color: "#999",
+    color: colors.textMuted,
     fontWeight: "600",
     marginBottom: 2,
   },
-  serverBadgeUrl: { fontSize: 14, color: "#333", fontWeight: "500" },
+  serverBadgeUrl: { fontSize: 14, color: colors.textPrimary, fontWeight: "500" },
   serverBadgeArrow: { fontSize: 18, marginLeft: 8 },
   form: { width: "100%" },
   inputContainer: { marginBottom: 20 },
   inputLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: "#333",
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.surfaceBorder,
   },
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.surfaceBorder,
   },
-  passwordInput: { flex: 1, padding: 16, fontSize: 16, color: "#333" },
+  passwordInput: { flex: 1, padding: 16, fontSize: 16, color: colors.textPrimary },
   eyeButton: { padding: 16 },
   eyeIcon: { fontSize: 20 },
   forgotPassword: { alignSelf: "flex-end", marginBottom: 20 },
-  forgotPasswordText: { fontSize: 14, color: "#667eea", fontWeight: "600" },
+  forgotPasswordText: { fontSize: 14, color: colors.accent, fontWeight: "600" },
   loginButton: {
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
-    shadowColor: "#667eea",
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
   loginButtonDisabled: { opacity: 0.6 },
-  loginButtonText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  loginButtonText: { color: colors.surface, fontSize: 18, fontWeight: "bold" },
   divider: {
     flexDirection: "row",
     alignItems: "center",
     marginVertical: 30,
   },
-  dividerLine: { flex: 1, height: 1, backgroundColor: "#e0e0e0" },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.surfaceBorder },
   dividerText: {
     marginHorizontal: 16,
     fontSize: 14,
-    color: "#999",
+    color: colors.textMuted,
     fontWeight: "600",
   },
   signupButton: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#667eea",
+    borderColor: colors.accent,
   },
-  signupButtonText: { color: "#667eea", fontSize: 18, fontWeight: "bold" },
+  signupButtonText: { color: colors.accent, fontSize: 18, fontWeight: "bold" },
   footer: { marginTop: 40, alignItems: "center" },
   footerText: {
     fontSize: 12,
-    color: "#999",
+    color: colors.textMuted,
     textAlign: "center",
     lineHeight: 18,
   },
-  footerLink: { color: "#667eea", fontWeight: "600" },
+  footerLink: { color: colors.accent, fontWeight: "600" },
   modalDescription: {
     fontSize: 15,
-    color: "#666",
+    color: colors.textSecondary,
     marginBottom: 20,
     lineHeight: 22,
   },
   modalInput: {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    color: "#333",
+    color: colors.textPrimary,
     borderWidth: 2,
-    borderColor: "#e0e0e0",
+    borderColor: colors.surfaceBorder,
     marginBottom: 16,
   },
   resetButton: {
-    backgroundColor: "#e0e0e0",
+    backgroundColor: colors.surfaceBorder,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
     marginBottom: 16,
   },
-  resetButtonText: { color: "#333", fontSize: 16, fontWeight: "600" },
+  resetButtonText: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
   modalHelperText: {
     fontSize: 13,
-    color: "#667eea",
+    color: colors.accent,
     textAlign: "center",
     fontStyle: "italic",
   },

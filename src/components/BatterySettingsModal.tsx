@@ -18,6 +18,7 @@ import {
 } from "../../tasks/creatineLocationTask"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,8 @@ export default function BatterySettingsModal({
   onClose,
   onSave,
 }: BatterySettingsModalProps) {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const [selectedPreset, setSelectedPreset] = useState<PresetKey>("MEDIUM")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [customTimeInterval, setCustomTimeInterval] = useState("10")
@@ -153,7 +156,7 @@ export default function BatterySettingsModal({
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#667eea" />
+          <ActivityIndicator size="large" color={colors.accent} />
           <Text style={styles.loadingText}>Loading settings…</Text>
         </View>
       ) : (
@@ -299,21 +302,21 @@ export default function BatterySettingsModal({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
+    borderBottomColor: colors.inputBorder,
   },
   headerButton: { padding: 8 },
-  cancelText: { fontSize: 16, color: "#ef4444", fontWeight: "600" },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#333" },
-  saveText: { fontSize: 16, color: "#667eea", fontWeight: "600" },
+  cancelText: { fontSize: 16, color: colors.error, fontWeight: "600" },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: colors.textPrimary },
+  saveText: { fontSize: 16, color: colors.accent, fontWeight: "600" },
   saveTextDisabled: { opacity: 0.4 },
   loadingContainer: {
     flex: 1,
@@ -321,11 +324,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
   },
-  loadingText: { fontSize: 15, color: "#666" },
+  loadingText: { fontSize: 15, color: colors.textSecondary },
   content: { flex: 1 },
   contentContainer: { padding: 20 },
   infoCard: {
-    backgroundColor: "#e8eaf6",
+    backgroundColor: colors.infoLight,
     borderRadius: 16,
     padding: 20,
     alignItems: "center",
@@ -335,12 +338,12 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: "#666",
+    color: colors.textSecondary,
     textAlign: "center",
     lineHeight: 20,
   },
@@ -348,45 +351,45 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   presetCard: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
-  presetCardActive: { borderColor: "#667eea", backgroundColor: "#f0f4ff" },
+  presetCardActive: { borderColor: colors.accent, backgroundColor: "#f0f4ff" },
   presetHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
   },
-  presetLabel: { fontSize: 16, fontWeight: "700", color: "#333" },
-  presetLabelActive: { color: "#667eea" },
-  checkmark: { fontSize: 20, color: "#667eea", fontWeight: "700" },
-  presetDescription: { fontSize: 14, color: "#666", marginBottom: 12 },
+  presetLabel: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
+  presetLabelActive: { color: colors.accent },
+  checkmark: { fontSize: 20, color: colors.accent, fontWeight: "700" },
+  presetDescription: { fontSize: 14, color: colors.textSecondary, marginBottom: 12 },
   presetDetails: { flexDirection: "row", gap: 16 },
-  presetDetail: { fontSize: 13, color: "#999" },
+  presetDetail: { fontSize: 13, color: colors.textMuted },
   advancedButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
   advancedIcon: { fontSize: 20, marginRight: 8 },
-  advancedText: { fontSize: 15, fontWeight: "600", color: "#667eea" },
+  advancedText: { fontSize: 15, fontWeight: "600", color: colors.accent },
   advancedSection: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
@@ -395,21 +398,21 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 4,
   },
-  inputHint: { fontSize: 12, color: "#999", marginBottom: 8 },
+  inputHint: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
   input: {
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.inputBackground,
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
-    color: "#333",
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
   warningCard: {
-    backgroundColor: "#fef3c7",
+    backgroundColor: colors.warningLight,
     borderRadius: 12,
     padding: 12,
     flexDirection: "row",
@@ -418,23 +421,23 @@ const styles = StyleSheet.create({
   warningIcon: { fontSize: 20, marginRight: 8 },
   warningText: { flex: 1, fontSize: 13, color: "#92400e", lineHeight: 18 },
   recommendationsCard: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
   recommendationsTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#333",
+    color: colors.textPrimary,
     marginBottom: 12,
   },
   recommendationItem: {
     fontSize: 14,
-    color: "#666",
+    color: colors.textSecondary,
     marginBottom: 8,
     lineHeight: 20,
   },
-  bold: { fontWeight: "700", color: "#333" },
+  bold: { fontWeight: "700", color: colors.textPrimary },
 })

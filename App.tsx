@@ -39,6 +39,7 @@ import { rescheduleTimeReminder } from "./tasks/creatineLocationTask"
 import { useAlert } from "./src/components/CustomAlert"
 import { useTabBar, TabBarProvider } from "./src/context/TabBarContext"
 import { VersionGuard } from "./src/components/VersionGuard"
+import { ThemeProvider, useTheme } from "./src/context/ThemeContext"
 
 import LoginScreen from "./src/screens/LoginScreen"
 import SignupScreen from "./src/screens/SignupScreen"
@@ -94,7 +95,6 @@ const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
 
 // ─── Notification handler ─────────────────────────────────────────────────────
-// FIX: include shouldShowBanner + shouldShowList required by NotificationBehavior
 try {
   if (Notifications?.setNotificationHandler) {
     Notifications.setNotificationHandler({
@@ -116,38 +116,51 @@ try {
 
 // ─── Android nav bar helper ───────────────────────────────────────────────────
 
-/** Hide the Android 3-button nav bar. Safe to call on any platform. */
 const hideNavBar = async () => {
   if (Platform.OS === "android") {
     try {
       await NavigationBar.setVisibilityAsync("hidden")
-    } catch (_) {
-      // silently ignore — NavigationBar may not be available in all environments
-    }
+    } catch (_) {}
   }
 }
 
-/** Show the Android 3-button nav bar then auto-hide after [ms] milliseconds. */
 const showNavBarTemporarily = async (ms = 3000) => {
   if (Platform.OS !== "android") return
   try {
     await NavigationBar.setVisibilityAsync("visible")
     setTimeout(() => void hideNavBar(), ms)
-  } catch (_) {
-    // ignore
-  }
+  } catch (_) {}
 }
 
 // ─── Tab Icon ─────────────────────────────────────────────────────────────────
 
-const TabIcon = ({ icon, label, focused }: TabIconProps) => (
-  <View style={styles.tabIconContainer}>
-    <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
-      <Text style={styles.icon}>{icon}</Text>
+const TabIcon = ({ icon, label, focused }: TabIconProps) => {
+  const { colors } = useTheme()
+  return (
+    <View style={styles.tabIconContainer}>
+      <View
+        style={[
+          styles.iconWrapper,
+          focused && {
+            backgroundColor: colors.accent,
+            shadowColor: colors.accent,
+            borderRadius: 23,
+          },
+        ]}
+      >
+        <Text style={styles.icon}>{icon}</Text>
+      </View>
+      <Text
+        style={[
+          styles.label,
+          focused && { color: colors.accent, fontWeight: "700" },
+        ]}
+      >
+        {label}
+      </Text>
     </View>
-    <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
-  </View>
-)
+  )
+}
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
@@ -156,6 +169,7 @@ const CustomTabBar = ({
   descriptors,
   navigation,
 }: CustomTabBarProps) => {
+  const { colors } = useTheme()
   const scrollViewRef = useRef<ScrollView>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const slideAnim = useRef(new Animated.Value(0)).current
@@ -215,12 +229,17 @@ const CustomTabBar = ({
       <Animated.View
         style={[
           styles.customTabBarContainer,
-          { transform: [{ translateX: tabBarTranslateX }] },
+          {
+            shadowColor: colors.accent,
+            transform: [{ translateX: tabBarTranslateX }],
+          },
         ]}
       >
-        <View style={styles.tabBarBackground}>
+        <View
+          style={[styles.tabBarBackground, { backgroundColor: colors.surface }]}
+        >
           <LinearGradient
-            colors={["#ffffff", "#f8f9ff"]}
+            colors={[colors.surface, colors.surfaceElevated]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.gradient}
@@ -275,7 +294,7 @@ const CustomTabBar = ({
           activeOpacity={0.7}
         >
           <LinearGradient
-            colors={["#667eea", "#764ba2"]}
+            colors={[colors.accent, colors.accentDark]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.toggleGradient}
@@ -388,76 +407,40 @@ function UpdateChecker() {
 
 function MainTabs() {
   const { user } = useAuth()
+  const { colors, isDark } = useTheme()
 
-  // ── Android nav bar: hide on mount, re-hide when app comes to foreground ────
   useEffect(() => {
     if (Platform.OS !== "android") return
-
     void hideNavBar()
-
     const subscription = AppState.addEventListener(
       "change",
       (nextState: AppStateStatus) => {
-        if (nextState === "active") {
-          // Re-hide after returning from background / another app
-          void hideNavBar()
-        }
+        if (nextState === "active") void hideNavBar()
       },
     )
-
     return () => subscription.remove()
   }, [])
 
   useEffect(() => {
     const initializeCreatineReminders = async () => {
-      if (!user?.id) {
-        console.log(
-          "⚠️ No user logged in, skipping creatine reminder initialization",
-        )
-        return
-      }
+      if (!user?.id) return
       try {
-        console.log("🔄 Initializing creatine reminders on app startup...")
         const notificationsReady = await initializeCreatineNotifications()
-        if (!notificationsReady) {
-          console.log("⚠️ Notifications not ready")
-          return
-        }
+        if (!notificationsReady) return
         await clearOldReminderKeys(user.id)
         const creatineSettingsKey = `creatineSettings_user_${user.id}`
         const settingsStr = await AsyncStorage.getItem(creatineSettingsKey)
-        if (!settingsStr) {
-          console.log("ℹ️ No creatine settings found")
-          return
-        }
+        if (!settingsStr) return
         const settings = JSON.parse(settingsStr) as {
           locationBasedReminder?: boolean
           enabled?: boolean
         }
-        console.log("📋 Loaded creatine settings:", settings)
         if (settings.locationBasedReminder && settings.enabled) {
-          console.log(
-            "📍 Location-based reminders are enabled, checking task status...",
-          )
           const isRegistered = await isLocationTaskRegistered()
-          if (!isRegistered) {
-            console.log("🚀 Registering location task...")
-            const registered = await registerLocationTask()
-            if (registered)
-              console.log("✅ Location task registered successfully on startup")
-            else console.error("❌ Failed to register location task on startup")
-          } else {
-            console.log("✅ Location task already registered")
-          }
+          if (!isRegistered) await registerLocationTask()
         } else {
-          console.log("ℹ️ Location-based reminders not enabled")
           const isRegistered = await isLocationTaskRegistered()
-          if (isRegistered) {
-            console.log(
-              "⏹️ Unregistering location task (disabled in settings)...",
-            )
-            await unregisterLocationTask()
-          }
+          if (isRegistered) await unregisterLocationTask()
         }
       } catch (error) {
         console.error("❌ Error initializing creatine reminders:", error)
@@ -466,18 +449,12 @@ function MainTabs() {
     void initializeCreatineReminders()
   }, [user?.id])
 
-  // ── PanResponder: swipe up from the very bottom edge → briefly reveal nav bar
-  // The gesture is intentionally strict so normal scrolling isn't affected:
-  //   • touch must start in the bottom 60px of the screen
-  //   • must be a clear upward swipe (dy < -30)
   const panResponder = useRef(
     PanResponder.create({
-      // Don't claim the responder on start — wait to see if it's a real swipe
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (evt, gestureState) => {
         const { height } = require("react-native").Dimensions.get("window")
         const touchY = evt.nativeEvent.pageY
-        // Only activate when finger started within the bottom 60px AND is moving up
         return touchY > height - 60 && gestureState.dy < -10
       },
       onPanResponderRelease: (evt, gestureState) => {
@@ -495,13 +472,16 @@ function MainTabs() {
   ).current
 
   return (
-    <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+    <View
+      style={{ flex: 1, backgroundColor: colors.background }}
+      {...panResponder.panHandlers}
+    >
       <NotificationListener />
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: "#667eea",
-          tabBarInactiveTintColor: "#9ca3af",
+          tabBarActiveTintColor: colors.accent,
+          tabBarInactiveTintColor: colors.textMuted,
           tabBarShowLabel: false,
         }}
         tabBar={(props) => (
@@ -571,10 +551,16 @@ function MainTabs() {
 
 function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth()
+  const { colors } = useTheme()
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: colors.background },
+        ]}
+      >
         <Text style={styles.loadingText}>💪</Text>
       </View>
     )
@@ -599,19 +585,21 @@ function AppNavigator() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <TabBarProvider>
-          <WorkoutProvider>
-            <NavigationContainer>
-              <StatusBar style='light' />
-              <VersionGuard>
-                <UpdateChecker />
-                <AppNavigator />
-              </VersionGuard>
-            </NavigationContainer>
-          </WorkoutProvider>
-        </TabBarProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <TabBarProvider>
+            <WorkoutProvider>
+              <NavigationContainer>
+                <StatusBar style='auto' />
+                <VersionGuard>
+                  <UpdateChecker />
+                  <AppNavigator />
+                </VersionGuard>
+              </NavigationContainer>
+            </WorkoutProvider>
+          </TabBarProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   )
 }
@@ -627,7 +615,6 @@ const styles = StyleSheet.create({
     width: "76%",
     borderRadius: 24,
     overflow: "hidden",
-    shadowColor: "#667eea",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.25,
     shadowRadius: 24,
@@ -666,20 +653,11 @@ const styles = StyleSheet.create({
   iconWrapper: {
     width: 46,
     height: 46,
-    borderRadius: 16,
+    borderRadius: 23,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
     backgroundColor: "transparent",
-  },
-  iconWrapperActive: {
-    borderRadius: 16,
-    backgroundColor: "#667eea",
-    shadowColor: "#667eea",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
   },
   icon: { fontSize: 24 },
   label: {
@@ -689,7 +667,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     letterSpacing: 0.3,
   },
-  labelActive: { color: "#667eea", fontWeight: "700" },
   toggleContainer: {
     position: "absolute",
     bottom: 15,
@@ -703,7 +680,6 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: "#667eea",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -720,7 +696,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
   },
   loadingText: { fontSize: 64 },
 })

@@ -5,6 +5,7 @@ import React, {
   useRef,
   type ReactElement,
 } from "react"
+import { useTheme } from "../context/ThemeContext"
 import {
   Modal,
   View,
@@ -70,15 +71,15 @@ const ICONS: Record<AlertType, string> = {
   default: "i",
 }
 
-const ACCENT_COLORS: Record<AlertType, string> = {
-  success: "#10b981",
-  error: "#ef4444",
-  warning: "#f59e0b",
-  info: "#667eea",
-  lock: "#6b7280",
-  session: "#667eea",
-  default: "#667eea",
-}
+const makeAccentColors = (colors: any): Record<AlertType, string> => ({
+  success: colors.success,
+  error: colors.error,
+  warning: colors.warning,
+  info: colors.accent,
+  lock: colors.textSecondary,
+  session: colors.accent,
+  default: colors.accent,
+})
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -90,6 +91,9 @@ function CustomAlert({
   type,
   onDismiss,
 }: CustomAlertProps) {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
+  const ACCENT_COLORS = makeAccentColors(colors)
   const safeButtons =
     Array.isArray(buttons) && buttons.length > 0 ? buttons : [{ text: "OK" }]
   const safeType: AlertType = type ?? "default"
@@ -124,7 +128,7 @@ function CustomAlert({
     <Modal
       visible={visible}
       transparent
-      animationType="none"
+      animationType='none'
       onRequestClose={onDismiss}
       statusBarTranslucent
     >
@@ -237,76 +241,77 @@ export function useAlert(): UseAlertReturn {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 28,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: "#ffffff",
-    borderRadius: 20,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
-    elevation: 16,
-  },
-  accentStripe: { height: 4, width: "100%" },
-  iconBadge: {
-    alignSelf: "center",
-    marginTop: 24,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconText: { fontSize: 22, fontWeight: "700" },
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 14,
-    paddingBottom: 24,
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    textAlign: "center",
-    marginBottom: 8,
-    letterSpacing: -0.3,
-  },
-  message: {
-    fontSize: 14.5,
-    color: "#6b7280",
-    textAlign: "center",
-    lineHeight: 21,
-  },
-  buttonRow: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-    padding: 10,
-    gap: 8,
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    backgroundColor: "#f3f4f6",
-  },
-  buttonCancel: { backgroundColor: "#f3f4f6" },
-  buttonDestructive: { backgroundColor: "#fef2f2" },
-  buttonText: { fontSize: 15, fontWeight: "600", color: "#374151" },
-  buttonTextPrimary: { color: "#ffffff" },
-  buttonTextDestructive: { color: "#ef4444" },
-  buttonTextCancel: { color: "#6b7280" },
-})
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 28,
+    },
+    card: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      overflow: "hidden",
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.2,
+      shadowRadius: 24,
+      elevation: 16,
+    },
+    accentStripe: { height: 4, width: "100%" },
+    iconBadge: {
+      alignSelf: "center",
+      marginTop: 24,
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    iconText: { fontSize: 22, fontWeight: "700" },
+    content: {
+      paddingHorizontal: 24,
+      paddingTop: 14,
+      paddingBottom: 24,
+      alignItems: "center",
+    },
+    title: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      textAlign: "center",
+      marginBottom: 8,
+      letterSpacing: -0.3,
+    },
+    message: {
+      fontSize: 14.5,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 21,
+    },
+    buttonRow: {
+      flexDirection: "row",
+      borderTopWidth: 1,
+      borderTopColor: colors.separator,
+      padding: 10,
+      gap: 8,
+    },
+    button: {
+      flex: 1,
+      paddingVertical: 13,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 12,
+      backgroundColor: colors.separator,
+    },
+    buttonCancel: { backgroundColor: colors.separator },
+    buttonDestructive: { backgroundColor: colors.errorLight },
+    buttonText: { fontSize: 15, fontWeight: "600", color: "#374151" },
+    buttonTextPrimary: { color: colors.surface },
+    buttonTextDestructive: { color: colors.error },
+    buttonTextCancel: { color: colors.textSecondary },
+  })

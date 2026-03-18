@@ -8,6 +8,7 @@ import {
 } from "react-native"
 import ModalSheet from "./ModalSheet"
 import { useAlert } from "./CustomAlert"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,8 @@ export default function QuickLogCreatine({
   onLog,
   defaultGrams = 5,
 }: QuickLogCreatineProps) {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const [grams, setGrams] = useState(String(defaultGrams))
   const [note, setNote] = useState("")
   const { alert, AlertComponent } = useAlert()
@@ -126,79 +129,79 @@ export default function QuickLogCreatine({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   header: { alignItems: "center", marginBottom: 24 },
   icon: { fontSize: 48, marginBottom: 8 },
-  title: { fontSize: 24, fontWeight: "700", color: "#333", marginBottom: 4 },
-  subtitle: { fontSize: 14, color: "#999" },
+  title: { fontSize: 24, fontWeight: "700", color: colors.textPrimary, marginBottom: 4 },
+  subtitle: { fontSize: 14, color: colors.textMuted },
   quickAmounts: { flexDirection: "row", gap: 12, marginBottom: 20 },
   quickButton: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.inputBackground,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
-  quickButtonActive: { backgroundColor: "#ede9fe", borderColor: "#8b5cf6" },
-  quickButtonText: { fontSize: 16, fontWeight: "700", color: "#666" },
+  quickButtonActive: { backgroundColor: colors.infoLight, borderColor: "#8b5cf6" },
+  quickButtonText: { fontSize: 16, fontWeight: "700", color: colors.textSecondary },
   quickButtonTextActive: { color: "#6d28d9" },
   inputSection: { marginBottom: 16 },
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#666",
+    color: colors.textSecondary,
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.inputBackground,
     borderRadius: 12,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
   },
   input: {
     flex: 1,
     fontSize: 24,
     fontWeight: "700",
     paddingVertical: 14,
-    color: "#333",
+    color: colors.textPrimary,
   },
-  inputUnit: { fontSize: 16, color: "#999", fontWeight: "600" },
+  inputUnit: { fontSize: 16, color: colors.textMuted, fontWeight: "600" },
   noteInput: {
-    backgroundColor: "#f9fafb",
+    backgroundColor: colors.inputBackground,
     borderRadius: 12,
     padding: 14,
     fontSize: 14,
-    color: "#333",
+    color: colors.textPrimary,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: colors.inputBorder,
     minHeight: 60,
     textAlignVertical: "top",
   },
   buttons: { flexDirection: "row", gap: 12, marginTop: 8 },
   cancelButton: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: colors.separator,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
   },
-  cancelButtonText: { fontSize: 16, fontWeight: "700", color: "#666" },
+  cancelButtonText: { fontSize: 16, fontWeight: "700", color: colors.textSecondary },
   logButton: {
     flex: 1,
-    backgroundColor: "#667eea",
+    backgroundColor: colors.accent,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
-    shadowColor: "#667eea",
+    shadowColor: colors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
   },
-  logButtonText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  logButtonText: { fontSize: 16, fontWeight: "700", color: colors.surface },
 })

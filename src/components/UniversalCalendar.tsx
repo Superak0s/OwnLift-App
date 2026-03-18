@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
+import { useTheme } from "../context/ThemeContext"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,8 +81,11 @@ export default function UniversalCalendar({
   onDatePress,
   initialView = "week",
   legendText = "Data logged",
-  dotColor = "#667eea",
+  dotColor,
 }: UniversalCalendarProps) {
+  const { colors } = useTheme()
+  const resolvedDotColor = dotColor ?? colors.accent
+  const styles = makeStyles(colors)
   const today = useMemo(() => {
     const d = new Date()
     d.setHours(0, 0, 0, 0)
@@ -185,7 +189,7 @@ export default function UniversalCalendar({
           {dayNumber}
         </Text>
         {hasData ? (
-          <View style={[styles.dot, { backgroundColor: dotColor }]} />
+          <View style={[styles.dot, { backgroundColor: resolvedDotColor }]} />
         ) : (
           <View style={styles.dotPlaceholder} />
         )}
@@ -255,7 +259,7 @@ export default function UniversalCalendar({
       {/* Legend */}
       <View style={styles.footer}>
         <View style={styles.legend}>
-          <View style={[styles.legendDot, { backgroundColor: dotColor }]} />
+          <View style={[styles.legendDot, { backgroundColor: resolvedDotColor }]} />
           <Text style={styles.legendText}>{legendText}</Text>
         </View>
       </View>
@@ -265,9 +269,9 @@ export default function UniversalCalendar({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
   container: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     marginBottom: 15,
@@ -277,22 +281,22 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: colors.separator,
     alignItems: "center",
     justifyContent: "center",
   },
-  navBtnText: { fontSize: 22, color: "#555", lineHeight: 26 },
+  navBtnText: { fontSize: 22, color: colors.textSecondary, lineHeight: 26 },
   headerLabelBtn: { flex: 1, alignItems: "center" },
-  headerLabel: { fontSize: 15, fontWeight: "700", color: "#333" },
-  todayLink: { fontSize: 11, color: "#667eea", marginTop: 1 },
+  headerLabel: { fontSize: 15, fontWeight: "700", color: colors.textPrimary },
+  todayLink: { fontSize: 11, color: colors.accent, marginTop: 1 },
   viewToggle: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: "#f0f3ff",
+    backgroundColor: colors.accentLight,
     marginLeft: 6,
   },
-  viewToggleText: { fontSize: 12, color: "#667eea", fontWeight: "600" },
+  viewToggleText: { fontSize: 12, color: colors.accent, fontWeight: "600" },
   weekRow: { flexDirection: "row", justifyContent: "space-between" },
   weekCell: {
     flex: 1,
@@ -301,8 +305,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginHorizontal: 1,
   },
-  dayName: { fontSize: 11, color: "#999", marginBottom: 3 },
-  dayNumber: { fontSize: 16, fontWeight: "700", color: "#333" },
+  dayName: { fontSize: 11, color: colors.textMuted, marginBottom: 3 },
+  dayNumber: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
   monthHeader: { flexDirection: "row", marginBottom: 2 },
   monthHeaderCell: {
     flex: 1,
@@ -321,12 +325,12 @@ const styles = StyleSheet.create({
     marginVertical: 1,
     marginHorizontal: 0.5,
   },
-  monthDayName: { fontSize: 9, color: "#bbb" },
-  monthDayNumber: { fontSize: 13, fontWeight: "600", color: "#333" },
+  monthDayName: { fontSize: 9, color: colors.textMuted },
+  monthDayNumber: { fontSize: 13, fontWeight: "600", color: colors.textPrimary },
   todayCell: { backgroundColor: "#667eea15" },
   futureCell: { opacity: 0.35 },
-  todayText: { color: "#667eea" },
-  futureText: { color: "#bbb" },
+  todayText: { color: colors.accent },
+  futureText: { color: colors.textMuted },
   dot: { width: 6, height: 6, borderRadius: 3, marginTop: 3 },
   dotPlaceholder: { width: 6, height: 6, marginTop: 3 },
   footer: {
@@ -337,5 +341,5 @@ const styles = StyleSheet.create({
   },
   legend: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11, color: "#999" },
+  legendText: { fontSize: 11, color: colors.textMuted },
 })

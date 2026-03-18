@@ -35,10 +35,13 @@ import QuickLogCreatine from "../components/QuickLogCreatine"
 import ProgressChart from "../components/ProgressChart"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
+import { useTheme } from "../context/ThemeContext"
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window")
 
-export async function getCurrentBodyWeight(userId: string | number): Promise<number | null> {
+export async function getCurrentBodyWeight(
+  userId: string | number,
+): Promise<number | null> {
   try {
     const weightData: any = await bodyTrackingApi.getWeightHistory()
     const weightEntries = weightData.entries || []
@@ -46,7 +49,10 @@ export async function getCurrentBodyWeight(userId: string | number): Promise<num
       const validWeightEntries = weightEntries
         .map((e: any) => ({ ...e, weight_kg: parseFloat(e.weight_kg) }))
         .filter((e: any) => !isNaN(e.weight_kg) && e.weight_kg > 0)
-        .sort((a: any, b: any) => (new Date(b.recorded_at) as any) - (new Date(a.recorded_at) as any))
+        .sort(
+          (a: any, b: any) =>
+            (new Date(b.recorded_at) as any) - (new Date(a.recorded_at) as any),
+        )
       if (validWeightEntries.length > 0) return validWeightEntries[0].weight_kg
     }
     return null
@@ -59,6 +65,8 @@ export async function getCurrentBodyWeight(userId: string | number): Promise<num
 const LOCATION_TASK_NAME = "creatine-location-reminder"
 
 export default function TrackingScreen(): React.JSX.Element {
+  const { colors } = useTheme()
+  const styles = makeStyles(colors)
   const { user, authToken } = useAuth()
   const { alert, AlertComponent } = useAlert()
 
@@ -126,7 +134,8 @@ export default function TrackingScreen(): React.JSX.Element {
   const [showCreatineModal, setShowCreatineModal] = useState<boolean>(false)
   const [creatineGrams, setCreatineGrams] = useState<string>("5")
   const [defaultCreatineGrams, setDefaultCreatineGrams] = useState<number>(5)
-  const [locationBasedReminder, setLocationBasedReminder] = useState<boolean>(false)
+  const [locationBasedReminder, setLocationBasedReminder] =
+    useState<boolean>(false)
   const [reminderLocation, setReminderLocation] = useState<any>(null)
   const [showLocationPicker, setShowLocationPicker] = useState<boolean>(false)
 
@@ -137,7 +146,9 @@ export default function TrackingScreen(): React.JSX.Element {
   const [selectedPhoto, setSelectedPhoto] = useState<any>(null)
   const [showPhotoModal, setShowPhotoModal] = useState<boolean>(false)
   const [photoUriCache, setPhotoUriCache] = useState<Record<string, string>>({})
-  const [photoUriLoading, setPhotoUriLoading] = useState<Record<string, boolean>>({})
+  const [photoUriLoading, setPhotoUriLoading] = useState<
+    Record<string, boolean>
+  >({})
   const [selectedDatePhotos, setSelectedDatePhotos] = useState<any>(null)
   const [showDatePhotosModal, setShowDatePhotosModal] = useState<boolean>(false)
   const [expandedPhoto, setExpandedPhoto] = useState<any>(null)
@@ -356,7 +367,9 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await bodyTrackingApi.deleteWeightEntry(entry.id)
-              setWeightHistory((prev: any) => prev.filter((e: any) => e.id !== entry.id))
+              setWeightHistory((prev: any) =>
+                prev.filter((e: any) => e.id !== entry.id),
+              )
               setDayModal((prev: any) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
@@ -428,7 +441,9 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await macrosTrackingApi.deleteMacrosEntry(entry.id)
-              setMacrosEntries((prev: any) => prev.filter((e: any) => e.id !== entry.id))
+              setMacrosEntries((prev: any) =>
+                prev.filter((e: any) => e.id !== entry.id),
+              )
               setDayModal((prev: any) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
@@ -462,7 +477,9 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await bodyTrackingApi.deleteProgressPhoto(photo.id)
-              setProgressPhotos((prev: any) => prev.filter((p: any) => p.id !== photo.id))
+              setProgressPhotos((prev: any) =>
+                prev.filter((p: any) => p.id !== photo.id),
+              )
               setPhotoUriCache((prev: any) => {
                 const next = { ...prev }
                 delete next[photo.id]
@@ -480,7 +497,9 @@ export default function TrackingScreen(): React.JSX.Element {
               })
               setSelectedDatePhotos((prev: any) => {
                 if (!prev) return null
-                const remaining = prev.photos.filter((p: any) => p.id !== photo.id)
+                const remaining = prev.photos.filter(
+                  (p: any) => p.id !== photo.id,
+                )
                 return remaining.length > 0
                   ? { ...prev, photos: remaining }
                   : null
@@ -514,7 +533,9 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await bodyFatApi.deleteBodyFatEntry(entry.id)
-              setBodyFatHistory((prev: any) => prev.filter((b: any) => b.id !== entry.id))
+              setBodyFatHistory((prev: any) =>
+                prev.filter((b: any) => b.id !== entry.id),
+              )
               setDayModal((prev: any) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
@@ -553,7 +574,12 @@ export default function TrackingScreen(): React.JSX.Element {
           )
         const value = parseFloat(pastWeight)
         const recordedAt = buildLocalISOForDate(date, "08:00")
-        await bodyTrackingApi.logWeight(value, weightUnit as any, null, recordedAt)
+        await bodyTrackingApi.logWeight(
+          value,
+          weightUnit as any,
+          null,
+          recordedAt,
+        )
         alert("Logged", "Weight entry added", [{ text: "OK" }], "success")
       }
 
@@ -616,7 +642,9 @@ export default function TrackingScreen(): React.JSX.Element {
             [{ text: "OK" }],
             "error",
           )
-        let heightCm = height?.height_cm ? parseFloat((height as any).height_cm) : null
+        let heightCm = height?.height_cm
+          ? parseFloat((height as any).height_cm)
+          : null
         if (!heightCm) {
           return alert(
             "Height Required",
@@ -732,12 +760,15 @@ export default function TrackingScreen(): React.JSX.Element {
     const validWeightEntries = weightEntries
       .map((e: any) => ({ ...e, weight_kg: parseFloat(e.weight_kg) }))
       .filter((e: any) => !isNaN(e.weight_kg) && e.weight_kg > 0)
-      .sort((a: any, b: any) => (new Date(b.recorded_at) as any) - (new Date(a.recorded_at) as any))
+      .sort(
+        (a: any, b: any) =>
+          (new Date(b.recorded_at) as any) - (new Date(a.recorded_at) as any),
+      )
     setWeightHistory(validWeightEntries)
     setWeightUnit(weightData.unit || "kg")
 
     try {
-      const heightData = await bodyTrackingApi.getHeightAndUnits() as any
+      const heightData = (await bodyTrackingApi.getHeightAndUnits()) as any
       if (heightData?.height) {
         setHeight(heightData.height)
         setHeightUnit(heightData.height.height_unit || "cm")
@@ -754,11 +785,12 @@ export default function TrackingScreen(): React.JSX.Element {
     setCreatineTakenToday(creatineData.takenToday || false)
     setCreatineStreak(creatineData.streak || 0)
 
-    const creatineHistoryData: any = await bodyTrackingApi.getCreatineHistory(90)
+    const creatineHistoryData: any =
+      await bodyTrackingApi.getCreatineHistory(90)
     setCreatineHistory(creatineHistoryData.entries || [])
 
     try {
-      const locationData = await creatineApi.getReminderLocation() as any
+      const locationData = (await creatineApi.getReminderLocation()) as any
       if (locationData.location) {
         setReminderLocation(locationData.location)
         setLocationBasedReminder(locationData.enabled || false)
@@ -768,7 +800,7 @@ export default function TrackingScreen(): React.JSX.Element {
     const photoData: any = await bodyTrackingApi.getPhotoList()
     setProgressPhotos(photoData.photos || [])
 
-    const macrosData = await macrosTrackingApi.getMacrosHistory(30) as any
+    const macrosData = (await macrosTrackingApi.getMacrosHistory(30)) as any
     setMacrosEntries(macrosData.entries || [])
     const macrosGoals: any = await macrosTrackingApi.getMacrosGoals()
     setDailyMacrosGoals(
@@ -782,7 +814,8 @@ export default function TrackingScreen(): React.JSX.Element {
 
     const bodyFatData: any = await bodyFatApi.getBodyFatHistory()
     const sortedBodyFat = (bodyFatData.entries || []).sort(
-      (a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      (a: any, b: any) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime(),
     )
     setBodyFatHistory(sortedBodyFat)
 
@@ -954,7 +987,9 @@ export default function TrackingScreen(): React.JSX.Element {
         "error",
       )
     }
-    let heightCm = height?.height_cm ? parseFloat((height as any).height_cm) : null
+    let heightCm = height?.height_cm
+      ? parseFloat((height as any).height_cm)
+      : null
     if (!heightCm) {
       return alert(
         "Height Required",
@@ -1240,7 +1275,9 @@ export default function TrackingScreen(): React.JSX.Element {
   }
 
   const loadMoreWeightEntries = () =>
-    setWeightEntriesShown((prev: any) => Math.min(prev + 10, weightHistory.length))
+    setWeightEntriesShown((prev: any) =>
+      Math.min(prev + 10, weightHistory.length),
+    )
 
   // ─────────────────────────────────────────────────────────────
   // CALENDAR HAS-DATA CHECKERS
@@ -1254,7 +1291,9 @@ export default function TrackingScreen(): React.JSX.Element {
 
   const hasPhotoData = (date: any) => {
     const dateStr = toLocalDateStr(date)
-    return progressPhotos.some((p: any) => isoToLocalDateStr(p?.takenAt) === dateStr)
+    return progressPhotos.some(
+      (p: any) => isoToLocalDateStr(p?.takenAt) === dateStr,
+    )
   }
 
   const hasCreatineData = (date: any) => {
@@ -1272,7 +1311,9 @@ export default function TrackingScreen(): React.JSX.Element {
 
   const hasBodyFatData = (date: any) => {
     const dateStr = toLocalDateStr(date)
-    return bodyFatHistory.some((b: any) => isoToLocalDateStr(b?.date) === dateStr)
+    return bodyFatHistory.some(
+      (b: any) => isoToLocalDateStr(b?.date) === dateStr,
+    )
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1306,7 +1347,10 @@ export default function TrackingScreen(): React.JSX.Element {
         unit: heightUnit,
         ...(heightUnit === "ft" && { inches: parseFloat(newHeightIn) || 0 }),
       }
-      await bodyTrackingApi.saveHeightAndUnits(heightData as any, weightUnit as any)
+      await bodyTrackingApi.saveHeightAndUnits(
+        heightData as any,
+        weightUnit as any,
+      )
       await loadData()
       setShowHeightModal(false)
       setNewHeightCm("")
@@ -1327,7 +1371,7 @@ export default function TrackingScreen(): React.JSX.Element {
         style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
       >
         <ActivityIndicator size='large' color='#667eea' />
-        <Text style={{ marginTop: 12, color: "#666" }}>
+        <Text style={{ marginTop: 12, color: colors.textSecondary }}>
           Loading tracking data…
         </Text>
       </SafeAreaView>
@@ -1350,7 +1394,9 @@ export default function TrackingScreen(): React.JSX.Element {
       if (!grouped[d]) grouped[d] = []
       grouped[d].push(p)
     })
-    const sortedDates = Object.keys(grouped).sort((a: any, b: any) => b.localeCompare(a))
+    const sortedDates = Object.keys(grouped).sort((a: any, b: any) =>
+      b.localeCompare(a),
+    )
     return sortedDates.slice(0, 10).map((dateStr: any) => {
       const photos = grouped[dateStr]
       const label = new Date(dateStr + "T12:00:00").toLocaleDateString(
@@ -1620,7 +1666,7 @@ export default function TrackingScreen(): React.JSX.Element {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={["#667eea"]}
+            colors={[colors.accent]}
             tintColor='#667eea'
           />
         }
@@ -1671,7 +1717,9 @@ export default function TrackingScreen(): React.JSX.Element {
               <Text style={styles.sectionTitle}>Weight Tracking</Text>
               <UniversalCalendar
                 hasDataOnDate={hasWeightData}
-                onDatePress={(date: any) => handleCalendarDatePress(date, "weight")}
+                onDatePress={(date: any) =>
+                  handleCalendarDatePress(date, "weight")
+                }
                 initialView='week'
                 legendText='Weight logged · tap any day to view/add'
                 dotColor='#667eea'
@@ -1868,7 +1916,9 @@ export default function TrackingScreen(): React.JSX.Element {
               <Text style={styles.sectionTitle}>Progress Photos</Text>
               <UniversalCalendar
                 hasDataOnDate={hasPhotoData}
-                onDatePress={(date: any) => handleCalendarDatePress(date, "photos")}
+                onDatePress={(date: any) =>
+                  handleCalendarDatePress(date, "photos")
+                }
                 initialView='week'
                 legendText='Photo taken · tap any day to view/add'
                 dotColor='#10b981'
@@ -2028,7 +2078,9 @@ export default function TrackingScreen(): React.JSX.Element {
               </View>
               <UniversalCalendar
                 hasDataOnDate={hasMacrosData}
-                onDatePress={(date: any) => handleCalendarDatePress(date, "macros")}
+                onDatePress={(date: any) =>
+                  handleCalendarDatePress(date, "macros")
+                }
                 initialView='week'
                 legendText='Macros logged · tap any day to view/add'
                 dotColor='#ef4444'
@@ -2043,21 +2095,26 @@ export default function TrackingScreen(): React.JSX.Element {
                         key: "calories",
                         label: "Calories",
                         unit: "kcal",
-                        color: "#f59e0b",
+                        color: colors.warning,
                       },
                       {
                         key: "protein",
                         label: "Protein",
                         unit: "g",
-                        color: "#667eea",
+                        color: colors.accent,
                       },
                       {
                         key: "carbs",
                         label: "Carbs",
                         unit: "g",
-                        color: "#10b981",
+                        color: colors.success,
                       },
-                      { key: "fat", label: "Fat", unit: "g", color: "#ef4444" },
+                      {
+                        key: "fat",
+                        label: "Fat",
+                        unit: "g",
+                        color: colors.error,
+                      },
                     ]
                       .filter(({ key }) => (todayStats as any)[key] != null)
                       .map(({ key, label, unit, color }) => {
@@ -2140,7 +2197,9 @@ export default function TrackingScreen(): React.JSX.Element {
                       onPress={() => {
                         if (height?.height_cm) {
                           if (heightUnit === "cm")
-                            setNewHeightCm(String((height as any).height_cm.toFixed(1)))
+                            setNewHeightCm(
+                              String((height as any).height_cm.toFixed(1)),
+                            )
                           else {
                             const ti = (height as any).height_cm / 2.54
                             setNewHeightFt(String(Math.floor(ti / 12)))
@@ -2170,7 +2229,9 @@ export default function TrackingScreen(): React.JSX.Element {
               </View>
               <UniversalCalendar
                 hasDataOnDate={hasBodyFatData}
-                onDatePress={(date: any) => handleCalendarDatePress(date, "bodyfat")}
+                onDatePress={(date: any) =>
+                  handleCalendarDatePress(date, "bodyfat")
+                }
                 initialView='week'
                 legendText='Measurement taken · tap any day to view/add'
                 dotColor='#8b5cf6'
@@ -2413,7 +2474,9 @@ export default function TrackingScreen(): React.JSX.Element {
           placeholder='e.g., 250'
           keyboardType='decimal-pad'
           value={macrosGoalInput.carbs}
-          onChangeText={(v) => setMacrosGoalInput((p: any) => ({ ...p, carbs: v }))}
+          onChangeText={(v) =>
+            setMacrosGoalInput((p: any) => ({ ...p, carbs: v }))
+          }
         />
         <Text style={styles.inputLabel}>Fat goal (g)</Text>
         <TextInput
@@ -2421,7 +2484,9 @@ export default function TrackingScreen(): React.JSX.Element {
           placeholder='e.g., 65'
           keyboardType='decimal-pad'
           value={macrosGoalInput.fat}
-          onChangeText={(v) => setMacrosGoalInput((p: any) => ({ ...p, fat: v }))}
+          onChangeText={(v) =>
+            setMacrosGoalInput((p: any) => ({ ...p, fat: v }))
+          }
         />
         <Text style={styles.inputLabel}>Calories goal (kcal)</Text>
         <TextInput
@@ -2722,526 +2787,608 @@ export default function TrackingScreen(): React.JSX.Element {
 // ═══════════════════════════════════════════════════════════════
 // STYLES
 // ═══════════════════════════════════════════════════════════════
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
-  header: { marginBottom: 25, alignItems: "center" },
-  title: { fontSize: 32, fontWeight: "bold", color: "#333", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: "#666", textAlign: "center" },
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
+    header: { marginBottom: 25, alignItems: "center" },
+    title: {
+      fontSize: 32,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
 
-  weightHistoryCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 15,
-  },
-  weightHistoryTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 12,
-  },
-  weightEntryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  weightEntryRowBorder: { borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
-  weightEntryDate: { fontSize: 14, fontWeight: "500", color: "#333" },
-  weightEntryTime: { fontSize: 12, color: "#999", marginTop: 2 },
-  weightEntryRight: { alignItems: "flex-end" },
-  weightEntryValueRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  weightEntryValue: { fontSize: 16, fontWeight: "600", color: "#555" },
-  weightEntryValueLatest: { color: "#667eea", fontSize: 18 },
-  weightEntryLatestBadge: {
-    fontSize: 11,
-    color: "#667eea",
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  deleteEntryBtn: { padding: 4, opacity: 0.55 },
-  deleteEntryBtnText: { fontSize: 15 },
-  loadMoreButton: {
-    marginTop: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "#f0f3ff",
-    alignItems: "center",
-  },
-  loadMoreText: { fontSize: 14, color: "#667eea", fontWeight: "600" },
+    weightHistoryCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 15,
+    },
+    weightHistoryTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    weightEntryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 10,
+    },
+    weightEntryRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+    },
+    weightEntryDate: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: colors.textPrimary,
+    },
+    weightEntryTime: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    weightEntryRight: { alignItems: "flex-end" },
+    weightEntryValueRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    weightEntryValue: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    weightEntryValueLatest: { color: colors.accent, fontSize: 18 },
+    weightEntryLatestBadge: {
+      fontSize: 11,
+      color: colors.accent,
+      fontWeight: "600",
+      marginTop: 2,
+    },
+    deleteEntryBtn: { padding: 4, opacity: 0.55 },
+    deleteEntryBtnText: { fontSize: 15 },
+    loadMoreButton: {
+      marginTop: 12,
+      paddingVertical: 10,
+      borderRadius: 8,
+      backgroundColor: colors.accentLight,
+      alignItems: "center",
+    },
+    loadMoreText: { fontSize: 14, color: colors.accent, fontWeight: "600" },
 
-  trendContainer: { marginTop: 12, alignItems: "center" },
-  trendBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  trendUp: { backgroundColor: "#fee2e2" },
-  trendDown: { backgroundColor: "#dcfce7" },
-  trendStable: { backgroundColor: "#f3f4f6" },
-  trendIcon: { fontSize: 16, fontWeight: "bold" },
-  trendText: { fontSize: 14, fontWeight: "600", color: "#333" },
-  trendPercent: { fontSize: 12, color: "#666" },
-  trendSubtext: { fontSize: 11, color: "#999", marginTop: 4 },
-  trendSelector: {
-    flexDirection: "row",
-    marginTop: 12,
-    gap: 8,
-    backgroundColor: "#f9fafb",
-    padding: 4,
-    borderRadius: 10,
-  },
-  trendOption: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
-  trendOptionActive: { backgroundColor: "#667eea" },
-  trendOptionText: { fontSize: 13, fontWeight: "600", color: "#666" },
-  trendOptionTextActive: { color: "#fff" },
+    trendContainer: { marginTop: 12, alignItems: "center" },
+    trendBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      gap: 6,
+    },
+    trendUp: { backgroundColor: colors.errorLight },
+    trendDown: { backgroundColor: colors.successLight },
+    trendStable: { backgroundColor: colors.separator },
+    trendIcon: { fontSize: 16, fontWeight: "bold" },
+    trendText: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
+    trendPercent: { fontSize: 12, color: colors.textSecondary },
+    trendSubtext: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
+    trendSelector: {
+      flexDirection: "row",
+      marginTop: 12,
+      gap: 8,
+      backgroundColor: colors.inputBackground,
+      padding: 4,
+      borderRadius: 10,
+    },
+    trendOption: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+    trendOptionActive: { backgroundColor: colors.accent },
+    trendOptionText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    trendOptionTextActive: { color: colors.surface },
 
-  tabContainer: { marginBottom: 20 },
-  tab: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginRight: 10,
-    borderRadius: 12,
-    backgroundColor: "#fff",
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tabActive: { backgroundColor: "#667eea" },
-  tabIcon: { fontSize: 20, marginRight: 8 },
-  tabLabel: { fontSize: 14, fontWeight: "600", color: "#666" },
-  tabLabelActive: { color: "#fff" },
+    tabContainer: { marginBottom: 20 },
+    tab: {
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      marginRight: 10,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    tabActive: { backgroundColor: colors.accent },
+    tabIcon: { fontSize: 20, marginRight: 8 },
+    tabLabel: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
+    tabLabelActive: { color: colors.surface },
 
-  section: { marginBottom: 25 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  sectionTitle: { fontSize: 20, fontWeight: "bold", color: "#333" },
+    section: { marginBottom: 25 },
+    sectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 15,
+    },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+    },
 
-  statsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
-    alignItems: "center",
-  },
-  statsTitle: { fontSize: 14, color: "#666", marginBottom: 8 },
-  statsValue: { fontSize: 36, fontWeight: "bold", color: "#667eea" },
-  statsDate: { fontSize: 13, color: "#999", marginTop: 4 },
+    statsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 15,
+      alignItems: "center",
+    },
+    statsTitle: { fontSize: 14, color: colors.textSecondary, marginBottom: 8 },
+    statsValue: { fontSize: 36, fontWeight: "bold", color: colors.accent },
+    statsDate: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
 
-  buttonRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: "#667eea",
-    padding: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  primaryButtonDisabled: { backgroundColor: "#d1d5db" },
-  primaryButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#667eea",
-  },
-  secondaryButtonText: { color: "#667eea", fontWeight: "700", fontSize: 15 },
-  goalButton: {
-    backgroundColor: "#f0f3ff",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  goalButtonText: { color: "#667eea", fontWeight: "600", fontSize: 14 },
+    buttonRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
+    primaryButton: {
+      flex: 1,
+      backgroundColor: colors.accent,
+      padding: 14,
+      borderRadius: 12,
+      alignItems: "center",
+    },
+    primaryButtonDisabled: { backgroundColor: colors.surfaceBorder },
+    primaryButtonText: {
+      color: colors.surface,
+      fontWeight: "700",
+      fontSize: 15,
+    },
+    secondaryButton: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      padding: 14,
+      borderRadius: 12,
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.accent,
+    },
+    secondaryButtonText: {
+      color: colors.accent,
+      fontWeight: "700",
+      fontSize: 15,
+    },
+    goalButton: {
+      backgroundColor: colors.accentLight,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    goalButtonText: { color: colors.accent, fontWeight: "600", fontSize: 14 },
 
-  creatineStatsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 15,
-  },
-  statRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  statLabel: { fontSize: 15, color: "#666" },
-  statValue: { fontSize: 15, fontWeight: "600", color: "#333" },
+    creatineStatsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 15,
+    },
+    statRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+    },
+    statLabel: { fontSize: 15, color: colors.textSecondary },
+    statValue: { fontSize: 15, fontWeight: "600", color: colors.textPrimary },
 
-  macrosStatsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 15,
-  },
-  macrosStatsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 16,
-  },
-  macroRow: { marginBottom: 16 },
-  macroLabelRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  macroLabel: { fontSize: 14, color: "#666", fontWeight: "500" },
-  macroValue: { fontSize: 14, fontWeight: "700", color: "#333" },
-  macroRange: { fontSize: 12, color: "#999", fontWeight: "normal" },
-  macroProgressBar: {
-    height: 10,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 5,
-    overflow: "hidden",
-  },
-  macroProgressFill: { height: "100%", borderRadius: 5 },
-  macroProgressText: { fontSize: 11, color: "#999", marginTop: 3 },
-  macrosEntriesCount: {
-    fontSize: 13,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 4,
-  },
+    macrosStatsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 15,
+    },
+    macrosStatsTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 16,
+    },
+    macroRow: { marginBottom: 16 },
+    macroLabelRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 4,
+    },
+    macroLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      fontWeight: "500",
+    },
+    macroValue: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
+    macroRange: { fontSize: 12, color: colors.textMuted, fontWeight: "normal" },
+    macroProgressBar: {
+      height: 10,
+      backgroundColor: colors.separator,
+      borderRadius: 5,
+      overflow: "hidden",
+    },
+    macroProgressFill: { height: "100%", borderRadius: 5 },
+    macroProgressText: { fontSize: 11, color: colors.textMuted, marginTop: 3 },
+    macrosEntriesCount: {
+      fontSize: 13,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginTop: 4,
+    },
 
-  bodyFatCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  bodyFatLabel: { fontSize: 14, color: "#666", marginBottom: 8 },
-  bodyFatValue: {
-    fontSize: 48,
-    fontWeight: "bold",
-    color: "#667eea",
-    marginBottom: 4,
-  },
-  bodyFatDate: { fontSize: 13, color: "#999" },
-  bodyFatMethod: {
-    fontSize: 12,
-    color: "#999",
-    marginTop: 8,
-    fontStyle: "italic",
-  },
-  bodyFatDeleteBtn: {
-    marginTop: 16,
-    backgroundColor: "#fee2e2",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  bodyFatDeleteBtnText: { fontSize: 13, color: "#dc2626", fontWeight: "600" },
+    bodyFatCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 20,
+      alignItems: "center",
+      marginBottom: 15,
+    },
+    bodyFatLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    bodyFatValue: {
+      fontSize: 48,
+      fontWeight: "bold",
+      color: colors.accent,
+      marginBottom: 4,
+    },
+    bodyFatDate: { fontSize: 13, color: colors.textMuted },
+    bodyFatMethod: {
+      fontSize: 12,
+      color: colors.textMuted,
+      marginTop: 8,
+      fontStyle: "italic",
+    },
+    bodyFatDeleteBtn: {
+      marginTop: 16,
+      backgroundColor: colors.errorLight,
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+    },
+    bodyFatDeleteBtnText: { fontSize: 13, color: "#dc2626", fontWeight: "600" },
 
-  emptyState: {
-    alignItems: "center",
-    padding: 40,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 15,
-  },
-  emptyText: { fontSize: 16, color: "#999" },
+    emptyState: {
+      alignItems: "center",
+      padding: 40,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      marginBottom: 15,
+    },
+    emptyText: { fontSize: 16, color: colors.textMuted },
 
-  inputLabel: { fontSize: 13, color: "#555", marginBottom: 4, marginTop: 8 },
-  inputLabelOptional: { fontSize: 12, color: "#aaa", fontWeight: "normal" },
-  input: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-  },
-  modalHint: {
-    fontSize: 13,
-    color: "#999",
-    marginBottom: 15,
-    textAlign: "center",
-  },
+    inputLabel: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginBottom: 4,
+      marginTop: 8,
+    },
+    inputLabelOptional: { fontSize: 12, color: "#aaa", fontWeight: "normal" },
+    input: {
+      color: colors.textSecondary,
+      borderRadius: 12,
+      padding: 14,
+      fontSize: 16,
+      marginBottom: 15,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    modalHint: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginBottom: 15,
+      textAlign: "center",
+    },
 
-  genderToggle: { flexDirection: "row", gap: 10, marginBottom: 15 },
-  genderButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: "#f0f0f0",
-    alignItems: "center",
-  },
-  genderButtonActive: { backgroundColor: "#667eea" },
-  genderButtonText: { color: "#666", fontWeight: "600" },
-  genderButtonTextActive: { color: "#fff" },
+    genderToggle: { flexDirection: "row", gap: 10, marginBottom: 15 },
+    genderButton: {
+      flex: 1,
+      padding: 12,
+      borderRadius: 8,
+      backgroundColor: colors.separator,
+      alignItems: "center",
+    },
+    genderButtonActive: { backgroundColor: colors.accent },
+    genderButtonText: { color: colors.textSecondary, fontWeight: "600" },
+    genderButtonTextActive: { color: colors.surface },
 
-  unitToggleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  unitToggle: {
-    flexDirection: "row",
-    marginLeft: "auto",
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
-    padding: 2,
-  },
-  unitButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
-  unitButtonActive: { backgroundColor: "#667eea" },
-  unitButtonText: { color: "#666", fontWeight: "600", fontSize: 12 },
-  unitButtonTextActive: { color: "#fff" },
+    unitToggleContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 15,
+    },
+    unitToggle: {
+      flexDirection: "row",
+      marginLeft: "auto",
+      backgroundColor: colors.separator,
+      borderRadius: 8,
+      padding: 2,
+    },
+    unitButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+    unitButtonActive: { backgroundColor: colors.accent },
+    unitButtonText: {
+      color: colors.textSecondary,
+      fontWeight: "600",
+      fontSize: 12,
+    },
+    unitButtonTextActive: { color: colors.surface },
 
-  optionalDivider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 12,
-    gap: 8,
-  },
-  optionalDividerLine: { flex: 1, height: 1, backgroundColor: "#e5e7eb" },
-  optionalDividerText: {
-    fontSize: 11,
-    color: "#9ca3af",
-    textAlign: "center",
-    flexShrink: 1,
-  },
+    optionalDivider: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginVertical: 12,
+      gap: 8,
+    },
+    optionalDividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: colors.inputBorder,
+    },
+    optionalDividerText: {
+      fontSize: 11,
+      color: colors.textMuted,
+      textAlign: "center",
+      flexShrink: 1,
+    },
 
-  photoGroupContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  photoGroupDate: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#555",
-    marginBottom: 8,
-  },
-  photoGroupRow: { flexDirection: "row" },
-  photoThumbWrap: { marginRight: 10, position: "relative" },
-  photoThumb: { width: 110, height: 140, borderRadius: 10 },
-  photoThumbLoading: {
-    backgroundColor: "#e8eaf6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoThumbError: {
-    backgroundColor: "#fee2e2",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoThumbDelete: {
-    position: "absolute",
-    top: 5,
-    right: 5,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  photoThumbDeleteText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    photoGroupContainer: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12,
+    },
+    photoGroupDate: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    photoGroupRow: { flexDirection: "row" },
+    photoThumbWrap: { marginRight: 10, position: "relative" },
+    photoThumb: { width: 110, height: 140, borderRadius: 10 },
+    photoThumbLoading: {
+      backgroundColor: colors.infoLight,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    photoThumbError: {
+      backgroundColor: colors.errorLight,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    photoThumbDelete: {
+      position: "absolute",
+      top: 5,
+      right: 5,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      borderRadius: 10,
+      width: 20,
+      height: 20,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    photoThumbDeleteText: {
+      color: colors.surface,
+      fontSize: 10,
+      fontWeight: "700",
+    },
 
-  existingEntriesSection: {
-    backgroundColor: "#f9fafb",
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  existingEntriesTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#888",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  existingEntryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    gap: 10,
-  },
-  existingEntryTime: { fontSize: 12, color: "#999", minWidth: 44 },
-  existingEntryValue: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#333",
-  },
-  existingEntryName: { fontSize: 14, fontWeight: "700", color: "#333" },
-  existingEntryMacros: { fontSize: 12, color: "#666", marginTop: 2 },
-  existingEntryNote: {
-    fontSize: 12,
-    color: "#888",
-    fontStyle: "italic",
-    flex: 1,
-  },
-  existingEntryDelete: { fontSize: 17, opacity: 0.55 },
+    existingEntriesSection: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      padding: 14,
+      marginTop: 16,
+      marginBottom: 4,
+    },
+    existingEntriesTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 10,
+    },
+    existingEntryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+      gap: 10,
+    },
+    existingEntryTime: { fontSize: 12, color: colors.textMuted, minWidth: 44 },
+    existingEntryValue: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    existingEntryName: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textPrimary,
+    },
+    existingEntryMacros: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    existingEntryNote: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontStyle: "italic",
+      flex: 1,
+    },
+    existingEntryDelete: { fontSize: 17, opacity: 0.55 },
 
-  logEntryBtn: {
-    marginTop: 20,
-    backgroundColor: "#667eea",
-    padding: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    shadowColor: "#667eea",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  logEntryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+    logEntryBtn: {
+      marginTop: 20,
+      backgroundColor: colors.accent,
+      padding: 16,
+      borderRadius: 14,
+      alignItems: "center",
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    logEntryBtnText: { color: colors.surface, fontWeight: "700", fontSize: 16 },
 
-  dayModalEmptyState: { alignItems: "center", paddingVertical: 32 },
-  dayModalEmptyIcon: { fontSize: 40, marginBottom: 10, opacity: 0.3 },
-  dayModalEmptyText: { fontSize: 15, color: "#bbb" },
+    dayModalEmptyState: { alignItems: "center", paddingVertical: 32 },
+    dayModalEmptyIcon: { fontSize: 40, marginBottom: 10, opacity: 0.3 },
+    dayModalEmptyText: { fontSize: 15, color: colors.textMuted },
 
-  dayModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  dayModalCard: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 16,
-  },
-  dayModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 20,
-    paddingBottom: 16,
-    gap: 12,
-  },
-  dayModalIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#f0f3ff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  dayModalIcon: { fontSize: 22 },
-  dayModalHeaderText: { flex: 1 },
-  dayModalTitle: { fontSize: 18, fontWeight: "700", color: "#1a1a2e" },
-  dayModalSubtitle: { fontSize: 13, color: "#888", marginTop: 2 },
-  dayModalDivider: {
-    height: 1,
-    backgroundColor: "#f0f0f0",
-    marginHorizontal: 20,
-  },
+    dayModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end",
+    },
+    dayModalCard: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      overflow: "hidden",
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      elevation: 16,
+    },
+    dayModalHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 20,
+      paddingBottom: 16,
+      gap: 12,
+    },
+    dayModalIconCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.accentLight,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    dayModalIcon: { fontSize: 22 },
+    dayModalHeaderText: { flex: 1 },
+    dayModalTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.background,
+    },
+    dayModalSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    dayModalDivider: {
+      height: 1,
+      backgroundColor: colors.separator,
+      marginHorizontal: 20,
+    },
 
-  heightCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 15,
-    borderWidth: 2,
-    borderColor: "#e8eaf6",
-  },
-  heightDisplay: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  heightInfo: { flex: 1 },
-  heightLabel: { fontSize: 13, color: "#666", marginBottom: 4 },
-  heightValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#667eea",
-    marginBottom: 4,
-  },
-  heightNote: { fontSize: 12, color: "#999", fontStyle: "italic" },
-  heightEditButton: {
-    backgroundColor: "#667eea",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  heightEditButtonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  heightSetButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#fef3c7",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#fbbf24",
-    borderStyle: "dashed",
-  },
-  heightSetIcon: { fontSize: 32, marginRight: 12 },
-  heightSetTextContainer: { flex: 1 },
-  heightSetTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#92400e",
-    marginBottom: 4,
-  },
-  heightSetSubtitle: { fontSize: 13, color: "#92400e" },
+    heightCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 15,
+      borderWidth: 2,
+      borderColor: colors.infoLight,
+    },
+    heightDisplay: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    heightInfo: { flex: 1 },
+    heightLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: 4 },
+    heightValue: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.accent,
+      marginBottom: 4,
+    },
+    heightNote: { fontSize: 12, color: colors.textMuted, fontStyle: "italic" },
+    heightEditButton: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    heightEditButtonText: {
+      color: colors.surface,
+      fontWeight: "700",
+      fontSize: 14,
+    },
+    heightSetButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      backgroundColor: colors.warningLight,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: colors.warning,
+      borderStyle: "dashed",
+    },
+    heightSetIcon: { fontSize: 32, marginRight: 12 },
+    heightSetTextContainer: { flex: 1 },
+    heightSetTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: "#92400e",
+      marginBottom: 4,
+    },
+    heightSetSubtitle: { fontSize: 13, color: "#92400e" },
 
-  photoViewerOverlay: {
-    flex: 1,
-    backgroundColor: "#000",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  photoViewerClose: {
-    position: "absolute",
-    top: 54,
-    right: 20,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-  },
-  photoViewerCloseText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  photoViewerImage: { width, height: SCREEN_HEIGHT * 0.8 },
-  photoViewerInfo: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    paddingVertical: 20,
-    paddingHorizontal: 24,
-    paddingBottom: 36,
-  },
-  photoViewerTime: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "500",
-    textAlign: "center",
-  },
-  photoViewerNote: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 13,
-    textAlign: "center",
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-})
+    photoViewerOverlay: {
+      flex: 1,
+      backgroundColor: colors.shadow,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    photoViewerClose: {
+      position: "absolute",
+      top: 54,
+      right: 20,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: "rgba(255,255,255,0.18)",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 10,
+    },
+    photoViewerCloseText: {
+      color: colors.surface,
+      fontSize: 16,
+      fontWeight: "700",
+    },
+    photoViewerImage: { width, height: SCREEN_HEIGHT * 0.8 },
+    photoViewerInfo: {
+      position: "absolute",
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      paddingVertical: 20,
+      paddingHorizontal: 24,
+      paddingBottom: 36,
+    },
+    photoViewerTime: {
+      color: colors.surface,
+      fontSize: 14,
+      fontWeight: "500",
+      textAlign: "center",
+    },
+    photoViewerNote: {
+      color: "rgba(255,255,255,0.75)",
+      fontSize: 13,
+      textAlign: "center",
+      marginTop: 4,
+      fontStyle: "italic",
+    },
+  })
