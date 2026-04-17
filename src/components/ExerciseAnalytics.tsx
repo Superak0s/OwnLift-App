@@ -95,6 +95,8 @@ interface ExerciseAnalyticsProps {
   refreshing?: boolean
   title?: string
   currentSessionId?: string | null
+  isLoading?: boolean // ← add this
+  error?: string | null // ← add this
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -110,6 +112,8 @@ export default function ExerciseAnalytics({
   refreshing = false,
   title = "📊 Exercise Analytics",
   currentSessionId = null,
+  isLoading = false, // ← add this
+  error = null, // ← add this
 }: ExerciseAnalyticsProps) {
   const { colors } = useTheme()
   const styles = makeStyles(colors)
@@ -552,6 +556,25 @@ export default function ExerciseAnalytics({
     const hasData = exercise.totalSets > 0 || showZeroSetExercises
     return matchesSearch && hasData
   })
+
+  if (isLoading) {
+    return (
+      <View style={styles.emptyContainer}>
+        <ActivityIndicator size='large' color={colors.accent} />
+        <Text style={styles.loadingText}>Loading sessions...</Text>
+      </View>
+    )
+  }
+
+  if (error) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>⚠️</Text>
+        <Text style={styles.emptyTitle}>Something went wrong</Text>
+        <Text style={styles.emptyText}>{error}</Text>
+      </View>
+    )
+  }
 
   if (!sessions?.length) {
     return (

@@ -591,10 +591,10 @@ export default function App() {
             <WorkoutProvider>
               <NavigationContainer>
                 <StatusBar style='auto' />
-                <VersionGuard>
+                {/* <VersionGuard>
                   <UpdateChecker />
                   <AppNavigator />
-                </VersionGuard>
+                </VersionGuard> */}
               </NavigationContainer>
             </WorkoutProvider>
           </TabBarProvider>

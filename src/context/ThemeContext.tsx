@@ -106,39 +106,38 @@ export const LIGHT_COLORS: ThemeColors = {
 }
 
 export const DARK_COLORS: ThemeColors = {
-  background: "#0f0f14",
-  surface: "#1a1a24",
-  surfaceElevated: "#22222f",
-  surfaceBorder: "#2e2e40",
+  background: "#111118",
+  surface: "#1c1c26",
+  surfaceElevated: "#252533",
+  surfaceBorder: "#2f2f42",
 
-  textPrimary: "#f1f1f6",
-  textSecondary: "#a0a0b8",
-  textMuted: "#787878",
+  textPrimary: "#eeeef5",
+  textSecondary: "#9898b0",
+  textMuted: "#5c5c72",
   textOnAccent: "#ffffff",
 
-  accent: "#4c4c4c",
-  accentLight: "#818cf822",
-  accentDark: "#6366f1",
+  accent: "#7c6df0",
+  accentLight: "#7c6df018",
+  accentDark: "#5f51d4",
 
-  success: "#34d399",
-  successLight: "#064e3b",
-  error: "#f87171",
-  errorLight: "#450a0a",
-  warning: "#fbbf24",
-  warningLight: "#451a03",
-  info: "#818cf8",
-  infoLight: "#1e1b4b",
+  success: "#2dd4a0",
+  successLight: "#0a2e22",
+  error: "#f06b6b",
+  errorLight: "#2d0a0a",
+  warning: "#f0b429",
+  warningLight: "#2d1f05",
+  info: "#7c8cf8",
+  infoLight: "#141230",
 
-  separator: "#2e2e40",
+  separator: "#22222e",
   shadow: "#000000",
-  inputBackground: "#13131c",
-  inputBorder: "#2e2e40",
-  badgeBackground: "#2e2e40",
+  inputBackground: "#16161f",
+  inputBorder: "#2a2a3a",
+  badgeBackground: "#252533",
 
-  chartColor: "#333333",
-  chartColorDark: "#494949",
+  chartColor: "#7c6df0",
+  chartColorDark: "#5f51d4",
 }
-
 // ─── Theme descriptor ─────────────────────────────────────────────────────────
 
 export type ThemeId = "light" | "dark" | "system" | string

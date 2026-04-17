@@ -1,9 +1,16 @@
 import { useCallback } from "react"
+import { programApi } from "../../services/api"
 import type { WorkoutData } from "../../types/index"
 
 /**
  * Program Operations Hook
  * Handles workout program modifications (rename exercises, add sets, etc.)
+ *
+ * Fixes applied:
+ * - Removed require() inside callbacks — programApi is imported at the top
+ * - Fixed shallow-spread + deep-mutation bug: workoutData is now deep-cloned
+ *   via JSON.parse/JSON.stringify before any nested mutation so the original
+ *   state objects are never touched
  */
 
 export interface UseProgramOperationsOptions {
@@ -39,6 +46,11 @@ export interface UseProgramOperationsReturn {
   ) => Promise<void>
 }
 
+/** Deep-clone WorkoutData so nested mutations never touch the original state. */
+function cloneWorkoutData(data: WorkoutData): WorkoutData {
+  return JSON.parse(JSON.stringify(data)) as WorkoutData
+}
+
 export const useProgramOperations = ({
   workoutData,
   setWorkoutData,
@@ -60,11 +72,11 @@ export const useProgramOperations = ({
       try {
         if (!workoutData?.days) return
 
-        const updatedData = { ...workoutData }
+        // Deep clone so we never mutate the existing state tree
+        const updatedData = cloneWorkoutData(workoutData)
         const dayIndex = updatedData.days.findIndex(
           (d) => d.dayNumber === dayNumber,
         )
-
         if (dayIndex === -1) return
 
         const day = updatedData.days[dayIndex]
@@ -80,7 +92,6 @@ export const useProgramOperations = ({
         setWorkoutData(updatedData)
 
         try {
-          const { programApi } = require("../../services/api")
           await programApi.renameExercise(
             dayNumber,
             person,
@@ -114,11 +125,10 @@ export const useProgramOperations = ({
       try {
         if (!workoutData?.days) return
 
-        const updatedData = { ...workoutData }
+        const updatedData = cloneWorkoutData(workoutData)
         const dayIndex = updatedData.days.findIndex(
           (d) => d.dayNumber === dayNumber,
         )
-
         if (dayIndex === -1) return
 
         const day = updatedData.days[dayIndex]
@@ -131,7 +141,6 @@ export const useProgramOperations = ({
         setWorkoutData(updatedData)
 
         try {
-          const { programApi } = require("../../services/api")
           await programApi.patchExerciseSets(
             dayNumber,
             person,
@@ -163,11 +172,10 @@ export const useProgramOperations = ({
       try {
         if (!workoutData?.days) return
 
-        const updatedData = { ...workoutData }
+        const updatedData = cloneWorkoutData(workoutData)
         const dayIndex = updatedData.days.findIndex(
           (d) => d.dayNumber === dayNumber,
         )
-
         if (dayIndex === -1) return
 
         const day = updatedData.days[dayIndex]
@@ -188,7 +196,6 @@ export const useProgramOperations = ({
         setWorkoutData(updatedData)
 
         try {
-          const { programApi } = require("../../services/api")
           await programApi.addExercise(dayNumber, person, newExercise)
         } catch (err) {
           console.warn(
