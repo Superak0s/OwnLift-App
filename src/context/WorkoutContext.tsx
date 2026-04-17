@@ -86,6 +86,7 @@ interface WorkoutContextValue {
   pendingSyncs: PendingSync[]
   isSyncing: boolean
   lastActivityTime: number | null
+  weightUnit: "kg" | "lbs"
   saveWorkoutData: (data: WorkoutData | null) => Promise<void>
   saveSelectedPerson: (person: string) => Promise<void>
   saveCurrentDay: (day: number) => Promise<void>
@@ -98,6 +99,8 @@ interface WorkoutContextValue {
   hasActiveSession: () => boolean
   startWorkout: () => Promise<string | null>
   endWorkout: (autoCompleted?: boolean) => Promise<unknown>
+  saveWeightUnit: (unit: "kg" | "lbs") => Promise<void>
+
   saveSetDetails: (
     dayNumber: number,
     exerciseIndex: number,
@@ -242,6 +245,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   const hasSyncedRef = useRef(false)
   const [authToken, setAuthToken] = useState<string | null>(null)
+  const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg")
 
   // ── Joint session exercise list ────────────────────────────────────────────
   const currentDayAllExercises = useMemo((): ExerciseEntry[] => {
@@ -478,6 +482,14 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     [userId],
   )
 
+  const saveWeightUnit = useCallback(
+    async (unit: "kg" | "lbs") => {
+      await saveToStorage(STORAGE_KEYS.WEIGHT_UNIT, unit, userId)
+      setWeightUnit(unit)
+    },
+    [userId],
+  )
+
   // ── Utility helpers ────────────────────────────────────────────────────────
   const resetAllState = useCallback(() => {
     setWorkoutData(null)
@@ -496,6 +508,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     setUseManualTime(false)
     setPendingSyncs([])
     setServerAnalytics(null)
+    setWeightUnit("kg")
     setIsLoading(false)
   }, [])
 
@@ -529,7 +542,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   const loadSavedData = useCallback(async () => {
     try {
-      // Parallel load — all 13 AsyncStorage reads happen concurrently
+      // Parallel load — all AsyncStorage reads happen concurrently
       const [
         data,
         person,
@@ -545,6 +558,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         manualTime,
         syncs,
         activity,
+        weightUnitLoaded,
       ] = await Promise.all([
         loadFromStorage(STORAGE_KEYS.WORKOUT_DATA, userId),
         loadFromStorage(STORAGE_KEYS.SELECTED_PERSON, userId, false),
@@ -560,6 +574,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         loadFromStorage(STORAGE_KEYS.USE_MANUAL_TIME, userId, false),
         loadFromStorage(STORAGE_KEYS.PENDING_SYNCS, userId),
         loadFromStorage(STORAGE_KEYS.LAST_ACTIVITY_TIME, userId, false),
+        loadFromStorage(STORAGE_KEYS.WEIGHT_UNIT, userId, false),
       ])
 
       if (data) setWorkoutData(data as WorkoutData)
@@ -575,6 +590,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       if (manualTime) setUseManualTime(manualTime === "true")
       if (syncs) setPendingSyncs(syncs as PendingSync[])
       if (activity) setLastActivityTime(parseInt(activity as string))
+      if (weightUnitLoaded) setWeightUnit(weightUnitLoaded as "kg" | "lbs")
 
       const loadedLastReset = lastReset ? (lastReset as string) : null
       if (loadedLastReset) setLastResetDate(loadedLastReset)
@@ -813,9 +829,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   }, [serverSync])
 
   // ── Context value (memoised to prevent all-consumers re-render) ───────────
-  // Each property is either primitive state or a stable useCallback/useMemo
-  // reference, so this object only gets a new identity when something actually
-  // changed.
   const value = useMemo<WorkoutContextValue>(
     () => ({
       socketLastMessage: socket.lastMessage,
@@ -835,6 +848,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       pendingSyncs,
       isSyncing,
       lastActivityTime,
+      weightUnit,
       saveWorkoutData,
       saveSelectedPerson,
       saveCurrentDay,
@@ -847,6 +861,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       hasActiveSession,
       startWorkout,
       endWorkout,
+      saveWeightUnit,
       saveSetDetails: sessionOps.saveSetDetails,
       deleteSetDetails: sessionOps.deleteSetDetails,
       lockDay: sessionOps.lockDay,
@@ -913,6 +928,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       pendingSyncs,
       isSyncing,
       lastActivityTime,
+      weightUnit,
       saveWorkoutData,
       saveSelectedPerson,
       saveCurrentDay,
@@ -925,6 +941,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       hasActiveSession,
       startWorkout,
       endWorkout,
+      saveWeightUnit,
       sessionOps.saveSetDetails,
       sessionOps.deleteSetDetails,
       sessionOps.lockDay,

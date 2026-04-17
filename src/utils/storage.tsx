@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 /**
  * Storage Utilities
@@ -23,7 +23,8 @@ export const saveToStorage = async (
 ): Promise<boolean> => {
   try {
     const storageKey = getUserKey(key, userId)
-    const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
+    const stringValue =
+      typeof value === "string" ? value : JSON.stringify(value)
     await AsyncStorage.setItem(storageKey, stringValue)
     return true
   } catch (error) {
@@ -35,7 +36,7 @@ export const saveToStorage = async (
 /**
  * Load data from AsyncStorage
  */
-export const loadFromStorage = async <T = unknown>(
+export const loadFromStorage = async <T = unknown,>(
   key: string,
   userId: string | null = null,
   parse: boolean = true,
@@ -82,7 +83,7 @@ export const removeMultipleFromStorage = async (
     await AsyncStorage.multiRemove(storageKeys)
     return true
   } catch (error) {
-    console.error('Error removing multiple items:', error)
+    console.error("Error removing multiple items:", error)
     return false
   }
 }
@@ -91,20 +92,21 @@ export const removeMultipleFromStorage = async (
  * Storage keys constants
  */
 export const STORAGE_KEYS = {
-  WORKOUT_DATA: 'workoutData',
-  SELECTED_PERSON: 'selectedPerson',
-  CURRENT_DAY: 'currentDay',
-  COMPLETED_DAYS: 'completedDays',
-  LOCKED_DAYS: 'lockedDays',
-  UNLOCKED_OVERRIDES: 'unlockedOverrides',
-  LAST_RESET_DATE: 'lastResetDate',
-  TIME_BETWEEN_SETS: 'timeBetweenSets',
-  WORKOUT_START_TIME: 'workoutStartTime',
-  CURRENT_SESSION_ID: 'currentSessionId',
-  IS_DEMO_MODE: 'isDemoMode',
-  USE_MANUAL_TIME: 'useManualTime',
-  PENDING_SYNCS: 'pendingSyncs',
-  LAST_ACTIVITY_TIME: 'lastActivityTime',
+  WORKOUT_DATA: "workoutData",
+  SELECTED_PERSON: "selectedPerson",
+  CURRENT_DAY: "currentDay",
+  COMPLETED_DAYS: "completedDays",
+  LOCKED_DAYS: "lockedDays",
+  UNLOCKED_OVERRIDES: "unlockedOverrides",
+  LAST_RESET_DATE: "lastResetDate",
+  TIME_BETWEEN_SETS: "timeBetweenSets",
+  WORKOUT_START_TIME: "workoutStartTime",
+  CURRENT_SESSION_ID: "currentSessionId",
+  IS_DEMO_MODE: "isDemoMode",
+  USE_MANUAL_TIME: "useManualTime",
+  PENDING_SYNCS: "pendingSyncs",
+  LAST_ACTIVITY_TIME: "lastActivityTime",
+  WEIGHT_UNIT: "weight_unit",
 } as const
 
-export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS]
+export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]

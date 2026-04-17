@@ -49,6 +49,25 @@ interface SimilarityMatch {
   similarity: number
 }
 
+// ─── Unit helpers ─────────────────────────────────────────────────────────────
+const LBS_TO_KG = 0.45359237
+const KG_TO_LBS = 2.20462262
+
+/** Convert a kg value (as stored) to the display unit, rounded to 1 dp. */
+function kgToDisplay(kg: number, unit: "kg" | "lbs"): string {
+  if (unit === "lbs") {
+    return (kg * KG_TO_LBS).toFixed(1)
+  }
+  return kg % 1 === 0 ? String(kg) : kg.toFixed(1)
+}
+
+/** Parse a user-entered string in the chosen unit and return kg for storage. */
+function displayToKg(value: string, unit: "kg" | "lbs"): number {
+  const n = parseFloat(value)
+  if (!isFinite(n) || n <= 0) return 0
+  return unit === "lbs" ? n * LBS_TO_KG : n
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Partner banner – compact strip pinned to the very top of the screen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -294,6 +313,9 @@ export default function WorkoutScreen(): React.JSX.Element {
     getTotalSessionTime,
     getCurrentRestTime,
     getSessionStats,
+    // ── weight unit ──
+    weightUnit,
+    saveWeightUnit,
     // ── joint session ──
     isInJointSession,
     jointSession,
@@ -364,7 +386,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     muscleGroup: "",
     sets: "",
   })
-  // FIX: explicit type so suggestions are never inferred as never[]
   const [newExerciseSuggestions, setNewExerciseSuggestions] = useState<
     SimilarityMatch[]
   >([])
@@ -373,7 +394,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     setNewExerciseMuscleGroupSuggestions,
   ] = useState<SimilarityMatch[]>([])
   const [currentRestTimer, setCurrentRestTimer] = useState<number>(0)
-  // FIX: sessionStats typed as Record<string,unknown>|null so it's usable as a truthy check
   const [sessionStats, setSessionStats] = useState<Record<
     string,
     unknown
@@ -402,7 +422,6 @@ export default function WorkoutScreen(): React.JSX.Element {
   useEffect(() => {
     if (!workoutStartTime || isCurrentDayLocked) return
     const interval = setInterval(() => {
-      // FIX: cast getSessionStats result to Record<string,unknown>|null
       setSessionStats(
         getSessionStats(currentDay) as Record<string, unknown> | null,
       )
@@ -565,9 +584,8 @@ export default function WorkoutScreen(): React.JSX.Element {
       prev.sort((a, b) => b.date.getTime() - a.date.getTime())
       const last = prev[0]
       const best = prev.reduce((b, c) => (c.volume > b.volume ? c : b), prev[0])
-      if (isMountedRef.current) {
+      if (isMountedRef.current)
         setPerformanceHistory({ last, best, totalAttempts: prev.length })
-      }
     } catch {
       if (isMountedRef.current) setPerformanceHistory(null)
     } finally {
@@ -593,14 +611,17 @@ export default function WorkoutScreen(): React.JSX.Element {
       )
       return
     }
-    // FIX: cast getSetDetails result to SetDetails so properties are accessible
     const existing = getSetDetails(
       currentDay,
       exerciseIndex,
       setIndex,
     ) as SetDetails | null
     if (existing) {
-      let msg = `Weight: ${existing.weight || 0} kg\nReps: ${existing.reps || 0}`
+      // Display weight in the user's preferred unit
+      const displayWeight = existing.weight
+        ? kgToDisplay(existing.weight, weightUnit)
+        : "0"
+      let msg = `Weight: ${displayWeight} ${weightUnit}\nReps: ${existing.reps || 0}`
       if (existing.isWarmup) msg = `🔥 WARM-UP SET\n${msg}`
       if (existing.note) msg += `\n\nNote: ${existing.note}`
       alert(
@@ -612,7 +633,10 @@ export default function WorkoutScreen(): React.JSX.Element {
             text: "Edit",
             onPress: () => {
               setSelectedSet({ exerciseIndex, setIndex })
-              setWeight(existing.weight?.toString() || "")
+              // Pre-fill weight field in the user's current unit
+              setWeight(
+                existing.weight ? kgToDisplay(existing.weight, weightUnit) : "",
+              )
               setReps(existing.reps?.toString() || "")
               setSetNote(existing.note || "")
               setIsWarmupSet(existing.isWarmup || false)
@@ -641,10 +665,12 @@ export default function WorkoutScreen(): React.JSX.Element {
   // ── save set ─────────────────────────────────────────────────────────
   const handleSaveSetDetails = useCallback(async () => {
     if (!selectedSet) return
-    const w = parseFloat(weight) || 0,
-      r = parseInt(reps) || 0
 
-    if (w === 0 || r === 0) {
+    // Convert entered value to kg for storage/server
+    const weightInKg = displayToKg(weight, weightUnit)
+    const r = parseInt(reps) || 0
+
+    if (weightInKg === 0 || r === 0) {
       alert(
         "Invalid Set",
         "Please enter a weight and reps greater than 0.",
@@ -654,11 +680,12 @@ export default function WorkoutScreen(): React.JSX.Element {
       return
     }
 
+    // Always save in kg — server only receives kg
     await saveSetDetailsCtx(
       currentDay,
       selectedSet.exerciseIndex,
       selectedSet.setIndex,
-      w,
+      weightInKg,
       r,
       setNote.trim(),
       isWarmupSet,
@@ -697,6 +724,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     dayWorkout,
     pushJointProgress,
     alert,
+    weightUnit,
   ])
 
   // ── exercise editing ─────────────────────────────────────────────────
@@ -1042,6 +1070,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     if (m > 0) return `${m}m ${s}s`
     return `${s}s`
   }, [])
+
   const formatEndTime = useCallback(
     (d: Date | null): string =>
       d
@@ -1049,6 +1078,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         : "",
     [],
   )
+
   const formatDate = useCallback(
     (d: Date): string =>
       d.toLocaleDateString("en-US", {
@@ -1058,10 +1088,28 @@ export default function WorkoutScreen(): React.JSX.Element {
       }),
     [],
   )
+
   const isAssistedExercise = useCallback(
     (name: string): boolean => name.toLowerCase().includes("assisted"),
     [],
   )
+
+  const partnerNameSet = useMemo(() => {
+    if (!isInJointSession) return new Set<string>()
+    const partnerExerciseNames = jointSession?.participants?.find(
+      (p) => p.userId !== user?.id,
+    )?.exerciseNames
+    if (!partnerExerciseNames?.length) return new Set<string>()
+    const partnerSet = new Set<string>(
+      partnerExerciseNames.map((e) =>
+        (typeof e === "string" ? e : e.name).trim().toLowerCase(),
+      ),
+    )
+    const myExerciseNames = ((dayWorkout?.exercises ?? []) as any[])
+      .map((ex: any) => ex.name?.trim().toLowerCase())
+      .filter(Boolean) as string[]
+    return new Set<string>(myExerciseNames.filter((n) => partnerSet.has(n)))
+  }, [isInJointSession, jointSession?.participants, dayWorkout])
 
   // ── empty states ─────────────────────────────────────────────────────
   if (!workoutData)
@@ -1102,38 +1150,14 @@ export default function WorkoutScreen(): React.JSX.Element {
   const allSetsComplete = areAllSetsComplete && !isCurrentDayLocked
   const totalSessionTime = getTotalSessionTime()
   const sessionAvgRest = getSessionAverageRestTime(currentDay)
-  // FIX: cast estimatedRemaining to number|null
   const estimatedRemaining = getEstimatedTimeRemaining(currentDay) as
     | number
     | null
   const estimatedEnd = getEstimatedEndTime(currentDay)
 
-  // ── Build a fast lookup Set of partner exercise names (lowercase) ──────────
   const partnerParticipant = isInJointSession
     ? jointSession?.participants?.find((p) => p.userId !== user?.id)
     : null
-
-  const partnerNameSet = useMemo(() => {
-    if (!isInJointSession) return new Set<string>()
-
-    const partnerExerciseNames = jointSession?.participants?.find(
-      (p) => p.userId !== user?.id,
-    )?.exerciseNames
-
-    if (!partnerExerciseNames?.length) return new Set<string>()
-
-    const partnerSet = new Set<string>(
-      partnerExerciseNames.map((e) =>
-        (typeof e === "string" ? e : e.name).trim().toLowerCase(),
-      ),
-    )
-
-    const myExerciseNames = ((dayWorkout?.exercises ?? []) as any[])
-      .map((ex: any) => ex.name?.trim().toLowerCase())
-      .filter(Boolean) as string[]
-
-    return new Set<string>(myExerciseNames.filter((n) => partnerSet.has(n)))
-  }, [isInJointSession, jointSession?.participants, dayWorkout])
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -1162,7 +1186,7 @@ export default function WorkoutScreen(): React.JSX.Element {
           </View>
         )}
 
-        {/* ── Header card – stats only, NO button inside ── */}
+        {/* ── Header card ── */}
         <View
           style={[
             styles.headerCard,
@@ -1277,19 +1301,16 @@ export default function WorkoutScreen(): React.JSX.Element {
         >
           {((dayWorkout as any)?.exercises as any[]).map(
             (exercise: any, exerciseIndex: number) => {
-              // FIX: cast getExerciseCompletedSets to number
               const completedSets = getExerciseCompletedSets(
                 currentDay,
                 exerciseIndex,
               ) as number
               const allDone = completedSets === exercise.sets
               const isAssisted = isAssistedExercise(exercise.name)
-
               const exerciseNameLower =
                 exercise.name?.trim().toLowerCase() ?? ""
               const partnerMatchesByName =
                 isInJointSession && partnerNameSet.has(exerciseNameLower)
-
               const partnerActiveNameLower = (
                 partnerProgress?.exerciseName as string | undefined
               )
@@ -1300,7 +1321,6 @@ export default function WorkoutScreen(): React.JSX.Element {
                 !!partnerActiveNameLower &&
                 partnerMatchesByName &&
                 partnerActiveNameLower === exerciseNameLower
-
               const partnerSetCount = partnerMatchesByName
                 ? (() => {
                     const entry = (
@@ -1384,7 +1404,6 @@ export default function WorkoutScreen(): React.JSX.Element {
                         setIndex,
                       )
                       if (isCurrentDayLocked && !done) return null
-                      // FIX: cast to SetDetails so .weight/.reps/.note/.isWarmup are accessible
                       const setDetails = getSetDetails(
                         currentDay,
                         exerciseIndex,
@@ -1438,6 +1457,7 @@ export default function WorkoutScreen(): React.JSX.Element {
                           </Text>
                           {done && setDetails && (
                             <View style={styles.setDetailsPreview}>
+                              {/* Display stored kg value in user's preferred unit */}
                               <Text
                                 style={[
                                   styles.setDetailsText,
@@ -1446,7 +1466,10 @@ export default function WorkoutScreen(): React.JSX.Element {
                                   },
                                 ]}
                               >
-                                {setDetails.weight || 0}kg
+                                {setDetails.weight
+                                  ? kgToDisplay(setDetails.weight, weightUnit)
+                                  : "0"}
+                                {weightUnit}
                               </Text>
                               <Text
                                 style={[
@@ -1505,7 +1528,7 @@ export default function WorkoutScreen(): React.JSX.Element {
           )}
         </ScrollView>
 
-        {/* ── Complete Session button – floats above the tab bar ── */}
+        {/* ── Complete Session button ── */}
         {workoutStartTime && !isCurrentDayLocked && (
           <Animated.View
             style={[
@@ -1555,6 +1578,7 @@ export default function WorkoutScreen(): React.JSX.Element {
           showCancelButton={false}
           showConfirmButton={false}
         >
+          {/* ── Warmup toggle ── */}
           <TouchableOpacity
             style={[
               styles.warmupToggle,
@@ -1571,6 +1595,65 @@ export default function WorkoutScreen(): React.JSX.Element {
               {isWarmupSet ? "🔥 Warm-up Set" : "Tap to mark as warm-up"}
             </Text>
           </TouchableOpacity>
+
+          {/* ── Unit selector ── */}
+          <View style={styles.unitSelectorContainer}>
+            <Text style={styles.unitSelectorLabel}>Weight unit</Text>
+            <View style={styles.unitSelectorRow}>
+              <TouchableOpacity
+                style={[
+                  styles.unitButton,
+                  weightUnit === "kg" && styles.unitButtonActive,
+                ]}
+                onPress={() => {
+                  if (weightUnit !== "kg") {
+                    // Convert currently entered value from lbs → kg display
+                    const currentLbs = parseFloat(weight)
+                    if (isFinite(currentLbs) && currentLbs > 0) {
+                      setWeight((currentLbs * LBS_TO_KG).toFixed(1))
+                    }
+                    saveWeightUnit("kg")
+                  }
+                }}
+              >
+                <Text
+                  style={[
+                    styles.unitButtonText,
+                    weightUnit === "kg" && styles.unitButtonTextActive,
+                  ]}
+                >
+                  kg
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.unitButton,
+                  weightUnit === "lbs" && styles.unitButtonActive,
+                ]}
+                onPress={() => {
+                  if (weightUnit !== "lbs") {
+                    // Convert currently entered value from kg → lbs display
+                    const currentKg = parseFloat(weight)
+                    if (isFinite(currentKg) && currentKg > 0) {
+                      setWeight((currentKg * KG_TO_LBS).toFixed(1))
+                    }
+                    saveWeightUnit("lbs")
+                  }
+                }}
+              >
+                <Text
+                  style={[
+                    styles.unitButtonText,
+                    weightUnit === "lbs" && styles.unitButtonTextActive,
+                  ]}
+                >
+                  lbs
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── Performance history ── */}
           {loadingHistory ? (
             <View style={styles.historyLoading}>
               <Text style={styles.historyLoadingText}>Loading history...</Text>
@@ -1589,8 +1672,10 @@ export default function WorkoutScreen(): React.JSX.Element {
                 </View>
                 <View style={styles.performanceStats}>
                   <View style={styles.performanceStat}>
+                    {/* History is stored in kg — display in chosen unit */}
                     <Text style={styles.performanceStatValue}>
-                      {performanceHistory.last.weight}kg
+                      {kgToDisplay(performanceHistory.last.weight, weightUnit)}
+                      {weightUnit}
                     </Text>
                     <Text style={styles.performanceStatLabel}>Weight</Text>
                   </View>
@@ -1602,7 +1687,8 @@ export default function WorkoutScreen(): React.JSX.Element {
                   </View>
                   <View style={styles.performanceStat}>
                     <Text style={styles.performanceStatValue}>
-                      {performanceHistory.last.volume}kg
+                      {kgToDisplay(performanceHistory.last.volume, weightUnit)}
+                      {weightUnit}
                     </Text>
                     <Text style={styles.performanceStatLabel}>Volume</Text>
                   </View>
@@ -1627,7 +1713,8 @@ export default function WorkoutScreen(): React.JSX.Element {
                         styles.bestStatValue,
                       ]}
                     >
-                      {performanceHistory.best.weight}kg
+                      {kgToDisplay(performanceHistory.best.weight, weightUnit)}
+                      {weightUnit}
                     </Text>
                     <Text style={styles.performanceStatLabel}>Weight</Text>
                   </View>
@@ -1649,7 +1736,8 @@ export default function WorkoutScreen(): React.JSX.Element {
                         styles.bestStatValue,
                       ]}
                     >
-                      {performanceHistory.best.volume}kg
+                      {kgToDisplay(performanceHistory.best.volume, weightUnit)}
+                      {weightUnit}
                     </Text>
                     <Text style={styles.performanceStatLabel}>Volume</Text>
                   </View>
@@ -1666,8 +1754,9 @@ export default function WorkoutScreen(): React.JSX.Element {
               </Text>
             </View>
           )}
+
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Weight (kg)</Text>
+            <Text style={styles.inputLabel}>Weight ({weightUnit})</Text>
             <TextInput
               style={styles.input}
               value={weight}
@@ -2159,10 +2248,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderWidth: 3,
       backgroundColor: colors.infoLight,
     },
-    setButtonPartnerDone: {
-      borderColor: colors.info,
-      borderWidth: 2,
-    },
+    setButtonPartnerDone: { borderColor: colors.info, borderWidth: 2 },
     partnerSetDot: {
       position: "absolute",
       top: -4,
@@ -2294,6 +2380,36 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: "500",
     },
     warmupToggleTextActive: { color: "#ea580c", fontWeight: "600" },
+
+    // ── Unit selector ──────────────────────────────────────────────────
+    unitSelectorContainer: { marginBottom: 16 },
+    unitSelectorLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    unitSelectorRow: { flexDirection: "row", gap: 10 },
+    unitButton: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: colors.inputBorder,
+      backgroundColor: colors.inputBackground,
+      alignItems: "center",
+    },
+    unitButtonActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentLight,
+    },
+    unitButtonText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    unitButtonTextActive: { color: colors.accent },
+
     performanceSection: { marginBottom: 20 },
     performanceSectionTitle: {
       fontSize: 16,
