@@ -2,7 +2,8 @@ import { LogBox } from "react-native"
 import * as Updates from "expo-updates"
 
 LogBox.ignoreLogs([
-  "expo-notifications: Android Push notifications",
+  // Exact substrings that appear in the runtime warnings
+  "expo-notifications: Android Push notifications (remote notifications) functionality",
   "`expo-notifications` functionality is not fully supported in Expo Go",
   "expo-notifications",
 ])
@@ -30,6 +31,7 @@ import Constants from "expo-constants"
 import * as Linking from "expo-linking"
 import { LinearGradient } from "expo-linear-gradient"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
+import { SafeAreaProvider } from "react-native-safe-area-context"
 import { AuthProvider, useAuth } from "./src/context/AuthContext"
 import { WorkoutProvider } from "./src/context/WorkoutContext"
 import * as NavigationBar from "expo-navigation-bar"
@@ -585,21 +587,23 @@ function AppNavigator() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <AuthProvider>
-          <TabBarProvider>
-            <WorkoutProvider>
-              <NavigationContainer>
-                <StatusBar style='auto' />
-                {/* <VersionGuard>
-                  <UpdateChecker />
-                  <AppNavigator />
-                </VersionGuard> */}
-              </NavigationContainer>
-            </WorkoutProvider>
-          </TabBarProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <TabBarProvider>
+              <WorkoutProvider>
+                <NavigationContainer>
+                  <StatusBar style='auto' />
+                  <VersionGuard>
+                    <UpdateChecker />
+                    <AppNavigator />
+                  </VersionGuard>
+                </NavigationContainer>
+              </WorkoutProvider>
+            </TabBarProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   )
 }

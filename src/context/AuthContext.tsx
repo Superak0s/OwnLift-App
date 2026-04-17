@@ -244,6 +244,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user?: User
         token?: string
         error?: string
+        message?: string // ← add thi
       }
       if (data.success && data.user) {
         const token = data.token ?? (await readStoredToken())
@@ -252,9 +253,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(true)
         return { success: true }
       }
-      return { success: false, error: data.error ?? "Login failed" }
+      return {
+        success: false,
+        error: data.error ?? data.message ?? "Invalid username or password", // ← fallback chain
+      }
     } catch (error) {
-      console.error("Signin error:", error)
       return {
         success: false,
         error: error instanceof Error ? error.message : "Network error",
