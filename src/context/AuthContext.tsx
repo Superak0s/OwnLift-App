@@ -27,7 +27,7 @@ interface AuthResult {
 
 interface AuthContextValue {
   user: User | null
-  /** Raw JWT string, always up-to-date – no extra AsyncStorage read needed */
+  /** Raw JWT string, always up-to-date */
   authToken: string
   isAuthenticated: boolean
   isLoading: boolean
@@ -41,6 +41,8 @@ interface AuthContextValue {
   logout: () => Promise<void>
   updateProfile: (name: string, email: string) => Promise<AuthResult>
   refreshUser: () => Promise<AuthResult>
+  /** Call this to attempt a silent token refresh. Returns true on success. */
+  refreshToken: () => Promise<boolean>
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -66,6 +68,10 @@ const readStoredToken = async (): Promise<string> => {
   }
 }
 
+// How often to proactively refresh the token (ms).
+// Set to 55 minutes so a 1-hour expiry is covered with headroom.
+const TOKEN_REFRESH_INTERVAL_MS = 55 * 60 * 1000
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -74,7 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [authToken, setAuthToken] = useState("")
 
-  // ── logout is defined early so the server-URL effect can reference it ──────
+  // ── logout ────────────────────────────────────────────────────────────────
   const logout = useCallback(async (): Promise<void> => {
     try {
       await authService.logout()
@@ -87,13 +93,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [])
 
+  // ── Token refresh ─────────────────────────────────────────────────────────
+  /**
+   * Attempts a silent token refresh via the auth service.
+   * Falls back to logout if the server rejects the refresh.
+   * Returns true when a new token was obtained.
+   */
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    try {
+      // authService.refreshToken() should POST to your /auth/refresh endpoint
+      // and persist the new JWT in AsyncStorage.
+      const newToken = await (
+        authService as unknown as {
+          refreshToken: () => Promise<string | null>
+        }
+      ).refreshToken()
+      if (newToken) {
+        setAuthToken(newToken)
+        console.log("✅ Token refreshed silently")
+        return true
+      }
+      // Refresh returned nothing — token is gone, force logout
+      console.warn("⚠️ Token refresh returned empty — logging out")
+      await logout()
+      return false
+    } catch (error) {
+      console.warn("⚠️ Token refresh failed, logging out:", error)
+      await logout()
+      return false
+    }
+  }, [logout])
+
+  // Proactive refresh interval — keeps the session alive without the user
+  // noticing. If the server doesn't support /auth/refresh yet, this is a
+  // no-op until that endpoint is added.
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const interval = setInterval(() => {
+      void refreshToken()
+    }, TOKEN_REFRESH_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [isAuthenticated, refreshToken])
+
   useEffect(() => {
     void checkAuthStatus()
   }, [])
 
-  // Listen for server URL changes and logout if it happens.
-  // `logout` is stable (useCallback with no deps) so this effect won't
-  // re-register unnecessarily.
   useEffect(() => {
     const unsubscribe = onServerUrlChange(() => {
       if (isAuthenticated) {
@@ -108,7 +153,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return unsubscribe
   }, [isAuthenticated, logout])
 
-  const checkAuthStatus = async (): Promise<void> => {
+  // ── checkAuthStatus ───────────────────────────────────────────────────────
+  const checkAuthStatus = useCallback(async (): Promise<void> => {
     try {
       const isAuth = await authService.isAuthenticated()
       if (isAuth) {
@@ -121,12 +167,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.log("✅ Valid session restored for:", currentUser.username)
         } catch {
           console.warn(
-            "⚠️ Stored token is expired or invalid, clearing session",
+            "⚠️ Stored token is expired or invalid — attempting refresh",
           )
-          await authService.logout()
-          setAuthToken("")
-          setUser(null)
-          setIsAuthenticated(false)
+          // Try a refresh before giving up and clearing the session
+          const refreshed = await refreshToken()
+          if (!refreshed) {
+            await authService.logout()
+            setAuthToken("")
+            setUser(null)
+            setIsAuthenticated(false)
+          } else {
+            // Retry loading the user after a successful refresh
+            try {
+              const currentUser = (await authService.getCurrentUser()) as User
+              setUser(currentUser)
+              setIsAuthenticated(true)
+            } catch {
+              await logout()
+            }
+          }
         }
       } else {
         setAuthToken("")
@@ -141,8 +200,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [logout, refreshToken])
 
+  // ── signup ────────────────────────────────────────────────────────────────
   const signup = async (
     username: string,
     email: string,
@@ -157,7 +217,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         name,
       )) as { success: boolean; user?: User; token?: string; error?: string }
       if (data.success && data.user) {
-        // Prefer token returned by the service; fall back to AsyncStorage read
         const token = data.token ?? (await readStoredToken())
         setAuthToken(token)
         setUser(data.user)
@@ -174,6 +233,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  // ── signin ────────────────────────────────────────────────────────────────
   const signin = async (
     username: string,
     password: string,
@@ -202,15 +262,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  // ── updateProfile ─────────────────────────────────────────────────────────
   const updateProfile = async (
     name: string,
     email: string,
   ): Promise<AuthResult> => {
     try {
-      const updatedUser = (await authService.updateProfile(
-        name,
-        email,
-      )) as User
+      const updatedUser = (await authService.updateProfile(name, email)) as User
       setUser(updatedUser)
       return { success: true }
     } catch (error) {
@@ -222,6 +280,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }
 
+  // ── refreshUser ───────────────────────────────────────────────────────────
   const refreshUser = async (): Promise<AuthResult> => {
     try {
       const currentUser = (await authService.getCurrentUser()) as User
@@ -246,6 +305,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     logout,
     updateProfile,
     refreshUser,
+    refreshToken,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

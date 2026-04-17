@@ -5,7 +5,7 @@
  * instance). This screen no longer instantiates useJointSession directly.
  */
 
-import React, { useState, useEffect, useRef, useMemo } from "react"
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import type { WorkoutData, CompletedDays } from "../types/index"
 import {
   View,
@@ -32,6 +32,7 @@ import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
 import { LinearGradient } from "expo-linear-gradient"
 import { useTheme } from "../context/ThemeContext"
+import type { ThemeColors } from "../context/ThemeContext"
 
 // ─── Set details shape (returned by getSetDetails) ───────────────────────────
 interface SetDetails {
@@ -134,47 +135,48 @@ function PartnerBanner({
   )
 }
 
-const makeBannerStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    gap: 8,
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.success,
-  },
-  avatarRing: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.accentDark,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: colors.info,
-  },
-  avatarText: { color: colors.surface, fontWeight: "700", fontSize: 12 },
-  label: { flex: 1, fontSize: 12 },
-  name: { color: colors.surface, fontWeight: "700" },
-  status: { color: "rgba(255,255,255,0.6)" },
-  leaveBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: "rgba(255,255,255,0.1)",
-  },
-  leaveBtnText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-})
+const makeBannerStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.background,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      gap: 8,
+    },
+    liveDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 3.5,
+      backgroundColor: colors.success,
+    },
+    avatarRing: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: colors.accentDark,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1.5,
+      borderColor: colors.info,
+    },
+    avatarText: { color: colors.surface, fontWeight: "700", fontSize: 12 },
+    label: { flex: 1, fontSize: 12 },
+    name: { color: colors.surface, fontWeight: "700" },
+    status: { color: "rgba(255,255,255,0.6)" },
+    leaveBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+      backgroundColor: "rgba(255,255,255,0.1)",
+    },
+    leaveBtnText: {
+      color: "rgba(255,255,255,0.7)",
+      fontSize: 11,
+      fontWeight: "600",
+    },
+  })
 
 // ─────────────────────────────────────────────────────────────────────────────
 // "Partner is here" pill
@@ -197,8 +199,8 @@ function PartnerExerciseMatchBadge({
   partnerSets,
   mySets,
 }: {
-  partnerSets: any
-  mySets: any
+  partnerSets: number | null
+  mySets: number
 }) {
   const { colors } = useTheme()
   const diff = (partnerSets ?? 0) - mySets
@@ -209,7 +211,8 @@ function PartnerExerciseMatchBadge({
         ? `+${diff} partner sets`
         : `${diff} partner sets`
   const diffColor = diff === 0 ? "#78350f" : diff > 0 ? "#92400e" : "#78350f"
-  const bgColor = diff === 0 ? "#fef9c3" : diff > 0 ? colors.warningLight : "#fef9c3"
+  const bgColor =
+    diff === 0 ? "#fef9c3" : diff > 0 ? colors.warningLight : "#fef9c3"
   const borderColor = diff === 0 ? "#fde68a" : diff > 0 ? "#fcd34d" : "#fde68a"
   return (
     <View
@@ -222,21 +225,27 @@ function PartnerExerciseMatchBadge({
   )
 }
 
-const makePillStyles = (colors: any) => StyleSheet.create({
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: colors.infoLight,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    alignSelf: "flex-start",
-    marginBottom: 8,
-  },
-  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.accentDark },
-  text: { fontSize: 11, fontWeight: "700", color: colors.accentDark },
-})
+const makePillStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    pill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      backgroundColor: colors.infoLight,
+      borderRadius: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      alignSelf: "flex-start",
+      marginBottom: 8,
+    },
+    dot: {
+      width: 7,
+      height: 7,
+      borderRadius: 3.5,
+      backgroundColor: colors.accentDark,
+    },
+    text: { fontSize: 11, fontWeight: "700", color: colors.accentDark },
+  })
 
 const matchStyles = StyleSheet.create({
   badge: {
@@ -299,6 +308,13 @@ export default function WorkoutScreen(): React.JSX.Element {
 
   const { alert, AlertComponent } = useAlert()
 
+  const isMountedRef = useRef<boolean>(true)
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const partnerUsername =
     jointSession?.participants?.find((p) => p.userId !== user?.id)?.username ??
     "Partner"
@@ -323,7 +339,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   const [showEditNameModal, setShowEditNameModal] = useState<boolean>(false)
   const [editingExercise, setEditingExercise] = useState<{
     index: number
-    exercise: any
+    exercise: { name: string; muscleGroup?: string; sets: number }
   } | null>(null)
   const [newExerciseName, setNewExerciseName] = useState<string>("")
   const [newMuscleGroup, setNewMuscleGroup] = useState<string>("")
@@ -472,14 +488,22 @@ export default function WorkoutScreen(): React.JSX.Element {
     }).start()
   }, [isTabBarCollapsed])
 
-  // ── performance history ──────────────────────────────────────────────
-  const loadPerformanceHistory = async () => {
+  const loadPerformanceHistory = useCallback(async () => {
     if (!selectedSet || !dayWorkout) return
     setLoadingHistory(true)
     try {
-      const exercise = (dayWorkout as any)?.exercises[selectedSet.exerciseIndex]
+      const exercises = (dayWorkout as Record<string, unknown>)
+        ?.exercises as Array<{ name: string }>
+      const exercise = exercises[selectedSet.exerciseIndex]
       const canonicalName = getCanonicalName(exercise.name, allExerciseNames)
-      const history: any[] = []
+      const history: Array<{
+        date: Date
+        weight: number
+        reps: number
+        volume: number
+        note: string
+        isWarmup: boolean
+      }> = []
       Object.keys(completedDays).forEach((dayNumber) => {
         const day = workoutData?.days.find(
           (d) => d.dayNumber === parseInt(dayNumber),
@@ -493,14 +517,31 @@ export default function WorkoutScreen(): React.JSX.Element {
             canonicalName.toLowerCase()
           )
             return
-          const sets = (completedDays as any)[dayNumber]?.[exerciseIndex]
+          const sets = (
+            completedDays as Record<
+              string,
+              Record<
+                number,
+                Record<
+                  string,
+                  {
+                    weight?: number
+                    reps?: number
+                    completedAt?: string
+                    note?: string
+                    isWarmup?: boolean
+                  }
+                >
+              >
+            >
+          )[dayNumber]?.[exerciseIndex]
           if (!sets) return
           Object.keys(sets).forEach((si) => {
             const s = sets[si]
             const w = s.weight ?? 0,
               r = s.reps ?? 0
             history.push({
-              date: new Date(s.completedAt),
+              date: new Date(s.completedAt ?? Date.now()),
               weight: isFinite(w) ? w : 0,
               reps: isFinite(r) ? r : 0,
               volume: isFinite(w * r) ? w * r : 0,
@@ -511,27 +552,35 @@ export default function WorkoutScreen(): React.JSX.Element {
         })
       })
       if (!history.length) {
-        setPerformanceHistory(null)
+        if (isMountedRef.current) setPerformanceHistory(null)
         return
       }
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const prev = history.filter((e) => e.date < today && !e.isWarmup)
       if (!prev.length) {
-        setPerformanceHistory(null)
+        if (isMountedRef.current) setPerformanceHistory(null)
         return
       }
-      prev.sort((a, b) => b.date - a.date)
+      prev.sort((a, b) => b.date.getTime() - a.date.getTime())
       const last = prev[0]
       const best = prev.reduce((b, c) => (c.volume > b.volume ? c : b), prev[0])
-      setPerformanceHistory({ last, best, totalAttempts: prev.length })
-    } catch (e) {
-      console.error("Error loading performance history:", e)
-      setPerformanceHistory(null)
+      if (isMountedRef.current) {
+        setPerformanceHistory({ last, best, totalAttempts: prev.length })
+      }
+    } catch {
+      if (isMountedRef.current) setPerformanceHistory(null)
     } finally {
-      setLoadingHistory(false)
+      if (isMountedRef.current) setLoadingHistory(false)
     }
-  }
+  }, [
+    selectedSet,
+    dayWorkout,
+    completedDays,
+    workoutData,
+    selectedPerson,
+    allExerciseNames,
+  ])
 
   // ── set press ────────────────────────────────────────────────────────
   const handleSetPress = (exerciseIndex: number, setIndex: number) => {
@@ -590,14 +639,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   }
 
   // ── save set ─────────────────────────────────────────────────────────
-  const handleSaveSetDetails = async () => {
-    console.log("[SAVE_SET_START]", {
-      selectedSet,
-      weight,
-      reps,
-      isInJointSession,
-    })
-
+  const handleSaveSetDetails = useCallback(async () => {
     if (!selectedSet) return
     const w = parseFloat(weight) || 0,
       r = parseInt(reps) || 0
@@ -622,53 +664,67 @@ export default function WorkoutScreen(): React.JSX.Element {
       isWarmupSet,
     )
 
-    console.log("[SAVE_SET_SAVED_TO_STORAGE]")
-
     if (isInJointSession) {
-      const exercise = (dayWorkout as any)?.exercises[selectedSet.exerciseIndex]
-      console.log("[PUSH_JOINT_PROGRESS_START]", {
-        exerciseName: exercise.name,
-        setIndex: selectedSet.setIndex,
-      })
-
+      const exercises = (dayWorkout as Record<string, unknown>)
+        ?.exercises as Array<{ name: string }>
+      const exercise = exercises[selectedSet.exerciseIndex]
       await pushJointProgress({
         exerciseIndex: selectedSet.exerciseIndex,
         setIndex: selectedSet.setIndex,
         exerciseName: exercise.name,
         readyForNext: false,
       })
-
-      console.log("[PUSH_JOINT_PROGRESS_DONE]")
     }
 
-    console.log("[SAVE_SET_CLOSING_MODAL]")
-
-    setShowSetModal(false)
-    setSelectedSet(null)
-    setWeight("")
-    setReps("")
-    setSetNote("")
-    setIsWarmupSet(false)
-    setPerformanceHistory(null)
-  }
+    if (isMountedRef.current) {
+      setShowSetModal(false)
+      setSelectedSet(null)
+      setWeight("")
+      setReps("")
+      setSetNote("")
+      setIsWarmupSet(false)
+      setPerformanceHistory(null)
+    }
+  }, [
+    selectedSet,
+    weight,
+    reps,
+    setNote,
+    isWarmupSet,
+    currentDay,
+    saveSetDetailsCtx,
+    isInJointSession,
+    dayWorkout,
+    pushJointProgress,
+    alert,
+  ])
 
   // ── exercise editing ─────────────────────────────────────────────────
-  const handleEditExerciseName = (exerciseIndex: number) => {
-    if (isCurrentDayLocked) {
-      alert(
-        "Day Locked",
-        "Cannot edit exercises on a locked day.",
-        [{ text: "OK" }],
-        "lock",
-      )
-      return
-    }
-    const exercise = (dayWorkout as any)?.exercises[exerciseIndex]
-    setEditingExercise({ index: exerciseIndex, exercise })
-    setNewExerciseName(exercise.name)
-    setNewMuscleGroup(exercise.muscleGroup || "")
-    setShowEditNameModal(true)
-  }
+  const handleEditExerciseName = useCallback(
+    (exerciseIndex: number) => {
+      if (isCurrentDayLocked) {
+        alert(
+          "Day Locked",
+          "Cannot edit exercises on a locked day.",
+          [{ text: "OK" }],
+          "lock",
+        )
+        return
+      }
+      const exercises = (dayWorkout as Record<string, unknown>)
+        ?.exercises as Array<{
+        name: string
+        muscleGroup?: string
+        sets: number
+      }>
+      const exercise = exercises[exerciseIndex]
+      setEditingExercise({ index: exerciseIndex, exercise })
+      setNewExerciseName(exercise.name)
+      setNewMuscleGroup(exercise.muscleGroup || "")
+      setShowEditNameModal(true)
+    },
+    [isCurrentDayLocked, dayWorkout, alert],
+  )
 
   const closeEditModal = () => {
     setShowEditNameModal(false)
@@ -763,23 +819,32 @@ export default function WorkoutScreen(): React.JSX.Element {
     addExtraSetsToExercise(currentDay, selectedPerson!, exerciseIndex, 1)
   }
 
-  const handleAddMultipleSets = (exerciseIndex: number) => {
-    if (isCurrentDayLocked) {
-      alert(
-        "Day Locked",
-        "Cannot add sets to a locked day.",
-        [{ text: "OK" }],
-        "lock",
-      )
-      return
-    }
-    setAddingSetsExercise({
-      index: exerciseIndex,
-      exercise: (dayWorkout as any)?.exercises[exerciseIndex],
-    })
-    setAdditionalSets("")
-    setShowAddSetsModal(true)
-  }
+  const handleAddMultipleSets = useCallback(
+    (exerciseIndex: number) => {
+      if (isCurrentDayLocked) {
+        alert(
+          "Day Locked",
+          "Cannot add sets to a locked day.",
+          [{ text: "OK" }],
+          "lock",
+        )
+        return
+      }
+      const exercises = (dayWorkout as Record<string, unknown>)
+        ?.exercises as Array<{
+        name: string
+        muscleGroup?: string
+        sets: number
+      }>
+      setAddingSetsExercise({
+        index: exerciseIndex,
+        exercise: exercises[exerciseIndex],
+      })
+      setAdditionalSets("")
+      setShowAddSetsModal(true)
+    },
+    [isCurrentDayLocked, dayWorkout, alert],
+  )
 
   const handleSaveAdditionalSets = () => {
     if (!addingSetsExercise) return
@@ -958,36 +1023,45 @@ export default function WorkoutScreen(): React.JSX.Element {
     )
   }
 
-  const getCompletedSetsCount = (): number => {
+  const getCompletedSetsCount = useCallback((): number => {
     if (!dayWorkout) return 0
-    // FIX: cast getExerciseCompletedSets result to number
-    return ((dayWorkout as any)?.exercises as any[]).reduce(
-      (n: number, _: any, i: number) =>
+    const exercises = (dayWorkout as Record<string, unknown>)
+      ?.exercises as Array<unknown>
+    return exercises.reduce(
+      (n: number, _: unknown, i: number) =>
         n + (getExerciseCompletedSets(currentDay, i) as number),
       0,
     )
-  }
+  }, [dayWorkout, getExerciseCompletedSets, currentDay])
 
-  const formatTime = (seconds: any) => {
+  const formatTime = useCallback((seconds: number): string => {
     const h = Math.floor(seconds / 3600),
       m = Math.floor((seconds % 3600) / 60),
       s = seconds % 60
     if (h > 0) return `${h}h ${m}m`
     if (m > 0) return `${m}m ${s}s`
     return `${s}s`
-  }
-  const formatEndTime = (d: any) =>
-    d
-      ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
-      : ""
-  const formatDate = (d: any) =>
-    d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
-  const isAssistedExercise = (name: any) =>
-    name.toLowerCase().includes("assisted")
+  }, [])
+  const formatEndTime = useCallback(
+    (d: Date | null): string =>
+      d
+        ? `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+        : "",
+    [],
+  )
+  const formatDate = useCallback(
+    (d: Date): string =>
+      d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    [],
+  )
+  const isAssistedExercise = useCallback(
+    (name: string): boolean => name.toLowerCase().includes("assisted"),
+    [],
+  )
 
   // ── empty states ─────────────────────────────────────────────────────
   if (!workoutData)
@@ -1353,7 +1427,8 @@ export default function WorkoutScreen(): React.JSX.Element {
                             style={[
                               styles.setButtonNumber,
                               done && styles.setButtonNumberComplete,
-                              isCurrentDayLocked && done && { color: colors.textPrimary },
+                              isCurrentDayLocked &&
+                                done && { color: colors.textPrimary },
                               setDetails?.isWarmup && styles.warmupText,
                               partnerDoneThisSet &&
                                 done && { color: colors.accentDark },
@@ -1366,7 +1441,9 @@ export default function WorkoutScreen(): React.JSX.Element {
                               <Text
                                 style={[
                                   styles.setDetailsText,
-                                  isCurrentDayLocked && { color: colors.textPrimary },
+                                  isCurrentDayLocked && {
+                                    color: colors.textPrimary,
+                                  },
                                 ]}
                               >
                                 {setDetails.weight || 0}kg
@@ -1374,7 +1451,9 @@ export default function WorkoutScreen(): React.JSX.Element {
                               <Text
                                 style={[
                                   styles.setDetailsText,
-                                  isCurrentDayLocked && { color: colors.textPrimary },
+                                  isCurrentDayLocked && {
+                                    color: colors.textPrimary,
+                                  },
                                 ]}
                               >
                                 ×{setDetails.reps || 0}
@@ -1724,7 +1803,7 @@ export default function WorkoutScreen(): React.JSX.Element {
           title='Add Multiple Sets'
           subtitle={
             addingSetsExercise
-              ? `Adding sets to: ${(addingSetsExercise as any).exercise.name}`
+              ? `Adding sets to: ${(addingSetsExercise.exercise as { name: string }).name}`
               : undefined
           }
           showCancelButton={false}
@@ -1841,431 +1920,505 @@ export default function WorkoutScreen(): React.JSX.Element {
   )
 }
 
-const makeStyles = (colors: any) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 40,
-    backgroundColor: colors.background,
-  },
-  emptyIcon: { fontSize: 64, marginBottom: 20 },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  emptyText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  lockedBanner: {
-    backgroundColor: "#ff9800",
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 15,
-    paddingHorizontal: 20,
-  },
-  lockedBannerIcon: { fontSize: 24, marginRight: 12 },
-  lockedBannerTextContainer: { flex: 1 },
-  lockedBannerTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: colors.surface,
-    marginBottom: 2,
-  },
-  lockedBannerText: { fontSize: 13, color: colors.surface, opacity: 0.95 },
-  headerCard: {
-    backgroundColor: colors.accent,
-    padding: 20,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    paddingBottom: 10,
-    paddingTop: 10,
-  },
-  headerCardComplete: { backgroundColor: colors.success },
-  headerCardLocked: { backgroundColor: colors.textSecondary },
-  headerTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 15,
-  },
-  dayNumber: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: colors.surface,
-    marginBottom: 4,
-  },
-  setsInfo: { alignItems: "flex-end" },
-  setsLabel: { fontSize: 12, color: colors.surface, opacity: 0.8, marginBottom: 2 },
-  setsValue: { fontSize: 32, fontWeight: "bold", color: colors.surface },
-  progressContainer: { marginTop: 10 },
-  progressBar: {
-    height: 8,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  progressFill: { height: "100%", backgroundColor: colors.surface, borderRadius: 4 },
-  progressTextRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  progressText: { fontSize: 14, color: colors.surface, opacity: 0.9 },
-  endTimeText: { fontSize: 12, color: colors.surface, opacity: 0.8, marginTop: 4 },
-  sessionStatsContainer: {
-    marginTop: 15,
-    padding: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 8,
-  },
-  sessionStatRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 10,
-  },
-  sessionStat: { alignItems: "center" },
-  sessionStatLabel: {
-    fontSize: 12,
-    color: colors.surface,
-    opacity: 0.9,
-    marginBottom: 4,
-  },
-  sessionStatValue: { fontSize: 18, fontWeight: "bold", color: colors.surface },
-  currentRestContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.2)",
-  },
-  currentRestLabel: {
-    fontSize: 14,
-    color: colors.surface,
-    opacity: 0.9,
-    marginRight: 8,
-  },
-  currentRestValue: { fontSize: 16, fontWeight: "bold", color: colors.surface },
-  currentRestOvertime: { color: colors.warning },
-  overtimeText: { fontSize: 14, color: colors.warning },
-  completeMessage: {
-    marginTop: 15,
-    padding: 12,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 8,
-  },
-  completeMessageText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  exerciseList: { flex: 1 },
-  exerciseListContent: { padding: 15, paddingBottom: 140 },
-  exerciseCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  exerciseCardComplete: { backgroundColor: "#f0fff4", borderColor: colors.success },
-  exerciseCardLocked: { backgroundColor: colors.inputBackground, borderColor: colors.surfaceBorder },
-  exerciseCardShared: { borderColor: colors.warning, backgroundColor: "#fffbeb" },
-  exerciseCardPartner: { borderColor: colors.accentDark, backgroundColor: "#faf5ff" },
-  exerciseHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  exerciseInfo: { flex: 1 },
-  exerciseNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  exerciseName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: colors.textPrimary,
-    marginBottom: 4,
-    flex: 1,
-  },
-  exerciseNameComplete: { color: colors.success },
-  editButton: { padding: 4 },
-  editButtonText: { fontSize: 16 },
-  muscleGroup: { fontSize: 14, color: colors.textSecondary },
-  exerciseProgress: {
-    backgroundColor: colors.separator,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  exerciseProgressText: { fontSize: 14, fontWeight: "600", color: colors.accent },
-  setsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  setButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 12,
-    backgroundColor: colors.separator,
-    borderWidth: 2,
-    borderColor: "#ddd",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-    padding: 4,
-  },
-  setButtonComplete: { backgroundColor: colors.accent, borderColor: colors.accent },
-  setButtonLocked: { backgroundColor: "#ff9800", borderColor: "#d97706" },
-  setButtonWarmup: { backgroundColor: "#fb923c", borderColor: "#ea580c" },
-  setButtonPartner: {
-    borderColor: colors.accentDark,
-    borderWidth: 3,
-    backgroundColor: colors.infoLight,
-  },
-  setButtonPartnerDone: {
-    borderColor: colors.info,
-    borderWidth: 2,
-  },
-  partnerSetDot: {
-    position: "absolute",
-    top: -4,
-    left: -4,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.accentDark,
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  setButtonNumber: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  setButtonNumberComplete: { color: colors.surface },
-  warmupText: { fontSize: 14 },
-  setDetailsPreview: { alignItems: "center" },
-  setDetailsText: { fontSize: 10, color: colors.surface, fontWeight: "500" },
-  setNoteIndicator: { fontSize: 10, marginTop: 2 },
-  setCheckmark: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.success,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  setCheckmarkText: { color: colors.surface, fontSize: 12, fontWeight: "bold" },
-  addSetButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 12,
-    backgroundColor: colors.accentLight,
-    borderWidth: 2,
-    borderColor: colors.accent,
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addSetButtonIcon: { fontSize: 32, fontWeight: "bold", color: colors.accent },
-  exerciseHint: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-    alignItems: "center",
-  },
-  exerciseHintText: { fontSize: 12, color: colors.textMuted, fontStyle: "italic" },
-  addExerciseButton: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: colors.accent,
-    borderStyle: "dashed",
-  },
-  addExerciseButtonIcon: { fontSize: 32, marginBottom: 8 },
-  addExerciseButtonText: { fontSize: 16, fontWeight: "600", color: colors.accent },
-  bottomActions: {
-    position: "absolute",
-    right: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: "transparent",
-  },
-  completeWorkoutButton: {
-    borderRadius: 28,
-    overflow: "hidden",
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  completeWorkoutGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 17,
-    paddingHorizontal: 32,
-    borderRadius: 28,
-    gap: 10,
-  },
-  completeWorkoutIcon: { fontSize: 20 },
-  completeWorkoutButtonText: {
-    color: colors.surface,
-    fontSize: 17,
-    fontWeight: "800",
-    letterSpacing: 0.4,
-  },
-  warmupToggle: {
-    backgroundColor: colors.separator,
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: colors.inputBorder,
-  },
-  warmupToggleActive: { backgroundColor: "#fff7ed", borderColor: "#fb923c" },
-  warmupToggleText: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: "center",
-    fontWeight: "500",
-  },
-  warmupToggleTextActive: { color: "#ea580c", fontWeight: "600" },
-  performanceSection: { marginBottom: 20 },
-  performanceSectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-  performanceCard: {
-    backgroundColor: colors.accentLight,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  bestPerformanceCard: { backgroundColor: "#fff7ed", borderColor: colors.warning },
-  performanceCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  performanceCardTitle: { fontSize: 14, fontWeight: "600", color: colors.textPrimary },
-  performanceCardDate: { fontSize: 12, color: colors.textSecondary },
-  performanceStats: { flexDirection: "row", justifyContent: "space-around" },
-  performanceStat: { alignItems: "center" },
-  performanceStatValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: colors.accent,
-    marginBottom: 4,
-  },
-  bestStatValue: { color: colors.warning },
-  performanceStatLabel: { fontSize: 12, color: colors.textSecondary },
-  performanceTotalAttempts: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: "center",
-    marginTop: 4,
-  },
-  historyLoading: { padding: 20, alignItems: "center" },
-  historyLoadingText: { fontSize: 14, color: colors.textMuted },
-  noHistoryContainer: {
-    padding: 20,
-    alignItems: "center",
-    backgroundColor: colors.inputBackground,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  noHistoryText: { fontSize: 14, color: colors.textMuted, fontStyle: "italic" },
-  inputGroup: { marginBottom: 20 },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 18,
-    color: colors.textPrimary,
-    borderWidth: 2,
-    borderColor: colors.surfaceBorder,
-  },
-  notesInput: { minHeight: 80, textAlignVertical: "top" },
-  assistedInfoBox: {
-    backgroundColor: "#dbeafe",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#3b82f6",
-  },
-  assistedInfoText: { fontSize: 14, color: colors.info, textAlign: "center" },
-  saveButton: {
-    backgroundColor: colors.accent,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  saveButtonText: { color: colors.surface, fontSize: 18, fontWeight: "bold" },
-  suggestionsContainer: {
-    backgroundColor: "#fffbeb",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.warning,
-  },
-  suggestionsTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#92400e",
-    marginBottom: 12,
-  },
-  suggestionButton: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.warning,
-  },
-  suggestionText: { fontSize: 16, fontWeight: "500", color: colors.textPrimary, flex: 1 },
-  suggestionMatch: { fontSize: 12, color: "#92400e", fontWeight: "600" },
-})
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 40,
+      backgroundColor: colors.background,
+    },
+    emptyIcon: { fontSize: 64, marginBottom: 20 },
+    emptyTitle: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 10,
+      textAlign: "center",
+    },
+    emptyText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 24,
+    },
+    lockedBanner: {
+      backgroundColor: "#ff9800",
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 15,
+      paddingHorizontal: 20,
+    },
+    lockedBannerIcon: { fontSize: 24, marginRight: 12 },
+    lockedBannerTextContainer: { flex: 1 },
+    lockedBannerTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: colors.surface,
+      marginBottom: 2,
+    },
+    lockedBannerText: { fontSize: 13, color: colors.surface, opacity: 0.95 },
+    headerCard: {
+      backgroundColor: colors.accent,
+      padding: 20,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+      paddingBottom: 10,
+      paddingTop: 10,
+    },
+    headerCardComplete: { backgroundColor: colors.success },
+    headerCardLocked: { backgroundColor: colors.textSecondary },
+    headerTop: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 15,
+    },
+    dayNumber: {
+      fontSize: 28,
+      fontWeight: "bold",
+      color: colors.surface,
+      marginBottom: 4,
+    },
+    setsInfo: { alignItems: "flex-end" },
+    setsLabel: {
+      fontSize: 12,
+      color: colors.surface,
+      opacity: 0.8,
+      marginBottom: 2,
+    },
+    setsValue: { fontSize: 32, fontWeight: "bold", color: colors.surface },
+    progressContainer: { marginTop: 10 },
+    progressBar: {
+      height: 8,
+      backgroundColor: "rgba(255,255,255,0.3)",
+      borderRadius: 4,
+      overflow: "hidden",
+      marginBottom: 8,
+    },
+    progressFill: {
+      height: "100%",
+      backgroundColor: colors.surface,
+      borderRadius: 4,
+    },
+    progressTextRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    progressText: { fontSize: 14, color: colors.surface, opacity: 0.9 },
+    endTimeText: {
+      fontSize: 12,
+      color: colors.surface,
+      opacity: 0.8,
+      marginTop: 4,
+    },
+    sessionStatsContainer: {
+      marginTop: 15,
+      padding: 12,
+      backgroundColor: "rgba(255,255,255,0.15)",
+      borderRadius: 8,
+    },
+    sessionStatRow: {
+      flexDirection: "row",
+      justifyContent: "space-around",
+      marginBottom: 10,
+    },
+    sessionStat: { alignItems: "center" },
+    sessionStatLabel: {
+      fontSize: 12,
+      color: colors.surface,
+      opacity: 0.9,
+      marginBottom: 4,
+    },
+    sessionStatValue: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.surface,
+    },
+    currentRestContainer: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255,255,255,0.2)",
+    },
+    currentRestLabel: {
+      fontSize: 14,
+      color: colors.surface,
+      opacity: 0.9,
+      marginRight: 8,
+    },
+    currentRestValue: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: colors.surface,
+    },
+    currentRestOvertime: { color: colors.warning },
+    overtimeText: { fontSize: 14, color: colors.warning },
+    completeMessage: {
+      marginTop: 15,
+      padding: 12,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      borderRadius: 8,
+    },
+    completeMessageText: {
+      color: colors.surface,
+      fontSize: 16,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    exerciseList: { flex: 1 },
+    exerciseListContent: { padding: 15, paddingBottom: 140 },
+    exerciseCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+      borderWidth: 2,
+      borderColor: "transparent",
+    },
+    exerciseCardComplete: {
+      backgroundColor: "#f0fff4",
+      borderColor: colors.success,
+    },
+    exerciseCardLocked: {
+      backgroundColor: colors.inputBackground,
+      borderColor: colors.surfaceBorder,
+    },
+    exerciseCardShared: {
+      borderColor: colors.warning,
+      backgroundColor: "#fffbeb",
+    },
+    exerciseCardPartner: {
+      borderColor: colors.accentDark,
+      backgroundColor: "#faf5ff",
+    },
+    exerciseHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 12,
+    },
+    exerciseInfo: { flex: 1 },
+    exerciseNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    exerciseName: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 4,
+      flex: 1,
+    },
+    exerciseNameComplete: { color: colors.success },
+    editButton: { padding: 4 },
+    editButtonText: { fontSize: 16 },
+    muscleGroup: { fontSize: 14, color: colors.textSecondary },
+    exerciseProgress: {
+      backgroundColor: colors.separator,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    exerciseProgressText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.accent,
+    },
+    setsContainer: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    setButton: {
+      width: 70,
+      height: 70,
+      borderRadius: 12,
+      backgroundColor: colors.separator,
+      borderWidth: 2,
+      borderColor: "#ddd",
+      alignItems: "center",
+      justifyContent: "center",
+      position: "relative",
+      padding: 4,
+    },
+    setButtonComplete: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    setButtonLocked: { backgroundColor: "#ff9800", borderColor: "#d97706" },
+    setButtonWarmup: { backgroundColor: "#fb923c", borderColor: "#ea580c" },
+    setButtonPartner: {
+      borderColor: colors.accentDark,
+      borderWidth: 3,
+      backgroundColor: colors.infoLight,
+    },
+    setButtonPartnerDone: {
+      borderColor: colors.info,
+      borderWidth: 2,
+    },
+    partnerSetDot: {
+      position: "absolute",
+      top: -4,
+      left: -4,
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: colors.accentDark,
+      borderWidth: 2,
+      borderColor: colors.surface,
+    },
+    setButtonNumber: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textSecondary,
+      marginBottom: 2,
+    },
+    setButtonNumberComplete: { color: colors.surface },
+    warmupText: { fontSize: 14 },
+    setDetailsPreview: { alignItems: "center" },
+    setDetailsText: { fontSize: 10, color: colors.surface, fontWeight: "500" },
+    setNoteIndicator: { fontSize: 10, marginTop: 2 },
+    setCheckmark: {
+      position: "absolute",
+      top: -4,
+      right: -4,
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: colors.success,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    setCheckmarkText: {
+      color: colors.surface,
+      fontSize: 12,
+      fontWeight: "bold",
+    },
+    addSetButton: {
+      width: 70,
+      height: 70,
+      borderRadius: 12,
+      backgroundColor: colors.accentLight,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      borderStyle: "dashed",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    addSetButtonIcon: {
+      fontSize: 32,
+      fontWeight: "bold",
+      color: colors.accent,
+    },
+    exerciseHint: {
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceBorder,
+      alignItems: "center",
+    },
+    exerciseHintText: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontStyle: "italic",
+    },
+    addExerciseButton: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 12,
+      borderWidth: 2,
+      borderColor: colors.accent,
+      borderStyle: "dashed",
+    },
+    addExerciseButtonIcon: { fontSize: 32, marginBottom: 8 },
+    addExerciseButtonText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.accent,
+    },
+    bottomActions: {
+      position: "absolute",
+      right: 0,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      backgroundColor: "transparent",
+    },
+    completeWorkoutButton: {
+      borderRadius: 28,
+      overflow: "hidden",
+      shadowColor: colors.accent,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.45,
+      shadowRadius: 16,
+      elevation: 12,
+    },
+    completeWorkoutGradient: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 17,
+      paddingHorizontal: 32,
+      borderRadius: 28,
+      gap: 10,
+    },
+    completeWorkoutIcon: { fontSize: 20 },
+    completeWorkoutButtonText: {
+      color: colors.surface,
+      fontSize: 17,
+      fontWeight: "800",
+      letterSpacing: 0.4,
+    },
+    warmupToggle: {
+      backgroundColor: colors.separator,
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 16,
+      borderWidth: 2,
+      borderColor: colors.inputBorder,
+    },
+    warmupToggleActive: { backgroundColor: "#fff7ed", borderColor: "#fb923c" },
+    warmupToggleText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+      fontWeight: "500",
+    },
+    warmupToggleTextActive: { color: "#ea580c", fontWeight: "600" },
+    performanceSection: { marginBottom: 20 },
+    performanceSectionTitle: {
+      fontSize: 16,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    performanceCard: {
+      backgroundColor: colors.accentLight,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.accent,
+    },
+    bestPerformanceCard: {
+      backgroundColor: "#fff7ed",
+      borderColor: colors.warning,
+    },
+    performanceCardHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    performanceCardTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    performanceCardDate: { fontSize: 12, color: colors.textSecondary },
+    performanceStats: { flexDirection: "row", justifyContent: "space-around" },
+    performanceStat: { alignItems: "center" },
+    performanceStatValue: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.accent,
+      marginBottom: 4,
+    },
+    bestStatValue: { color: colors.warning },
+    performanceStatLabel: { fontSize: 12, color: colors.textSecondary },
+    performanceTotalAttempts: {
+      fontSize: 12,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginTop: 4,
+    },
+    historyLoading: { padding: 20, alignItems: "center" },
+    historyLoadingText: { fontSize: 14, color: colors.textMuted },
+    noHistoryContainer: {
+      padding: 20,
+      alignItems: "center",
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      marginBottom: 20,
+    },
+    noHistoryText: {
+      fontSize: 14,
+      color: colors.textMuted,
+      fontStyle: "italic",
+    },
+    inputGroup: { marginBottom: 20 },
+    inputLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    input: {
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      padding: 16,
+      fontSize: 18,
+      color: colors.textPrimary,
+      borderWidth: 2,
+      borderColor: colors.surfaceBorder,
+    },
+    notesInput: { minHeight: 80, textAlignVertical: "top" },
+    assistedInfoBox: {
+      backgroundColor: "#dbeafe",
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: "#3b82f6",
+    },
+    assistedInfoText: { fontSize: 14, color: colors.info, textAlign: "center" },
+    saveButton: {
+      backgroundColor: colors.accent,
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: "center",
+      marginTop: 10,
+    },
+    saveButtonText: { color: colors.surface, fontSize: 18, fontWeight: "bold" },
+    suggestionsContainer: {
+      backgroundColor: "#fffbeb",
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: colors.warning,
+    },
+    suggestionsTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: "#92400e",
+      marginBottom: 12,
+    },
+    suggestionButton: {
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 8,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: colors.warning,
+    },
+    suggestionText: {
+      fontSize: 16,
+      fontWeight: "500",
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    suggestionMatch: { fontSize: 12, color: "#92400e", fontWeight: "600" },
+  })

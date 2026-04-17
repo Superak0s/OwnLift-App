@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { startSession, recordSet, endSession } from "../../services/api"
 import type { PendingSync } from "../../types/index"
 
 /**
@@ -70,17 +71,23 @@ export const useSyncManager = ({
       `Attempting to sync ${pendingSyncs.length} pending operations...`,
     )
 
-    const failedSyncs: PendingSync[] = []
-    const {
-      startSession,
-      recordSet,
-      endSession,
-    } = require("../../services/api")
+    // FIX 3: Spreading `{ ...s, data: { ...s.data } }` collapses the discriminated
+    // union — TypeScript widens `data` to the union of all three data shapes and
+    // the resulting object no longer satisfies any single PendingSync variant.
+    // Use structuredClone to deep-copy while preserving the original type, then
+    // assert back to PendingSync[] so the compiler trusts the invariant.
+    let workingSyncs: PendingSync[] = structuredClone(
+      pendingSyncs,
+    ) as PendingSync[]
 
-    for (const sync of pendingSyncs) {
+    const failedSyncs: PendingSync[] = []
+
+    for (let i = 0; i < workingSyncs.length; i++) {
+      const sync = workingSyncs[i]
       try {
         switch (sync.type) {
           case "startSession": {
+            // sync.data is StartSessionSyncData — fully typed, no casts needed
             const sessionId = await startSession(
               sync.data.person,
               sync.data.dayNumber,
@@ -88,22 +95,28 @@ export const useSyncManager = ({
               sync.data.muscleGroups,
               sync.data.isDemo,
             )
+
             if (sync.localSessionId && sessionId) {
-              pendingSyncs.forEach((ps) => {
+              const serverIdStr = String(sessionId)
+              // Remap all subsequent syncs that reference this local ID.
+              // structuredClone gave us independent objects so we can mutate
+              // data in-place safely without touching the original state.
+              for (let j = i + 1; j < workingSyncs.length; j++) {
+                const ps = workingSyncs[j]
                 if (
                   ps.type === "recordSet" &&
                   ps.data.sessionId === sync.localSessionId
                 ) {
-                  ps.data.sessionId = String(sessionId)
+                  ps.data.sessionId = serverIdStr
                 }
-              })
+              }
               if (currentSessionId === sync.localSessionId) {
                 await saveToStorage(
                   STORAGE_KEYS.CURRENT_SESSION_ID,
-                  String(sessionId),
+                  serverIdStr,
                   userId,
                 )
-                setCurrentSessionId(String(sessionId))
+                setCurrentSessionId(serverIdStr)
               }
             }
             console.log("✓ Synced session start")
@@ -111,14 +124,14 @@ export const useSyncManager = ({
           }
 
           case "recordSet": {
-            if ((sync.data.sessionId as string)?.startsWith("local_")) {
+            // sync.data is RecordSetSyncData — fully typed
+            if (String(sync.data.sessionId).startsWith("local_")) {
               console.log("⚠ Skipping recordSet sync for local session ID")
               failedSyncs.push(sync)
               break
             }
 
-            const weight = sync.data.weight as number
-            const reps = sync.data.reps as number
+            const { weight, reps } = sync.data
 
             if (!weight || weight <= 0 || !reps || reps < 1) {
               console.log(
@@ -128,7 +141,7 @@ export const useSyncManager = ({
             }
 
             const exerciseName =
-              (sync.data.exerciseName as string) ??
+              sync.data.exerciseName ??
               (sync.data.exerciseIndex !== undefined
                 ? `Exercise ${sync.data.exerciseIndex}`
                 : "Unknown Exercise")
@@ -143,14 +156,15 @@ export const useSyncManager = ({
               reps,
               sync.data.note,
               sync.data.isWarmup,
-              (sync.data.muscleGroup as string) ?? null,
+              sync.data.muscleGroup ?? null,
             )
             console.log("✓ Synced set record")
             break
           }
 
           case "endSession": {
-            if ((sync.data.sessionId as string)?.startsWith("local_")) {
+            // sync.data is EndSessionSyncData — fully typed
+            if (String(sync.data.sessionId).startsWith("local_")) {
               console.log("⚠ Skipping endSession sync for local session ID")
               break
             }
@@ -172,7 +186,7 @@ export const useSyncManager = ({
           }
 
           default:
-            console.warn("Unknown sync type:", sync.type)
+            console.warn("Unknown sync type:", (sync as PendingSync).type)
         }
       } catch (error) {
         console.error(`Failed to sync ${sync.type}:`, (error as Error).message)
@@ -214,7 +228,7 @@ export const useSyncManager = ({
     const validSyncs = pendingSyncs.filter((sync) => {
       if (
         sync.type === "endSession" &&
-        (sync.data.sessionId as string)?.startsWith("local_")
+        String(sync.data.sessionId).startsWith("local_")
       ) {
         console.log(
           "🧹 Removing invalid endSession sync for local session:",
@@ -225,7 +239,7 @@ export const useSyncManager = ({
 
       if (
         sync.type === "recordSet" &&
-        (sync.data.sessionId as string)?.startsWith("local_")
+        String(sync.data.sessionId).startsWith("local_")
       ) {
         console.log(
           "🧹 Removing invalid recordSet sync for local session:",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback, useRef } from "react"
 import type {
   WorkoutData,
   CompletedDays,
@@ -57,6 +57,13 @@ export default function SettingsScreen(): React.JSX.Element {
   const styles = makeStyles(colors)
   const { user, logout } = useAuth()
   const { alert, AlertComponent } = useAlert()
+
+  const isMountedRef = useRef<boolean>(true)
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const {
     workoutData,
@@ -138,18 +145,12 @@ export default function SettingsScreen(): React.JSX.Element {
     const checkTaskStatus = async () => {
       try {
         const isRegistered = await isLocationTaskRegistered()
-        console.log("🔍 Location task registered:", isRegistered)
-
         if (isRegistered && user?.id) {
-          const settingsKey = `creatineSettings_user_${(user as any)?.id}`
-          const settingsStr = await AsyncStorage.getItem(settingsKey)
-          if (settingsStr) {
-            const settings = JSON.parse(settingsStr)
-            console.log("📋 Loaded settings from AsyncStorage:", settings)
-          }
+          const settingsKey = `creatineSettings_user_${user.id}`
+          await AsyncStorage.getItem(settingsKey)
         }
-      } catch (error: any) {
-        console.error("Error checking task status:", error)
+      } catch {
+        // non-critical — silently ignore
       }
     }
 

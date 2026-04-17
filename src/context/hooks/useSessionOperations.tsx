@@ -231,6 +231,7 @@ export const useSessionOperations = ({
               newSessionId,
               userId,
             )
+            // FIX 1: setCurrentSessionId expects string | null — pass the value directly
             setCurrentSessionId(newSessionId)
             console.log("✓ Session started on server with ID:", newSessionId)
           }
@@ -248,7 +249,9 @@ export const useSessionOperations = ({
             type: "startSession",
             localSessionId,
             data: {
-              person: selectedPerson,
+              // FIX 2: selectedPerson is string | null but StartSessionSyncData.person
+              // is string — coerce null to empty string with nullish coalescing.
+              person: selectedPerson ?? "",
               dayNumber: currentDay,
               dayTitle: day.dayTitle,
               muscleGroups: day.muscleGroups,
@@ -449,7 +452,7 @@ export const useSessionOperations = ({
               data: {
                 sessionId,
                 exerciseName,
-                muscleGroup,
+                muscleGroup: muscleGroup ?? undefined,
                 setIndex,
                 startTime: setStartTime,
                 endTime: setEndTime,

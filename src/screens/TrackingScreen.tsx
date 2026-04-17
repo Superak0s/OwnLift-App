@@ -34,10 +34,19 @@ import CreatineLocationPicker from "../components/CreatineLocationPicker"
 import QuickLogCreatine from "../components/QuickLogCreatine"
 import ProgressChart from "../components/ProgressChart"
 import ModalSheet from "../components/ModalSheet"
+import ScrollTabBar from "../components/ScrollTabBar"
 import { useAlert } from "../components/CustomAlert"
 import { useTheme } from "../context/ThemeContext"
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window")
+
+const TRACKING_TABS = [
+  { key: "weight", icon: "⚖️", label: "Weight" },
+  { key: "photos", icon: "📸", label: "Photos" },
+  { key: "creatine", icon: "💊", label: "Creatine" },
+  { key: "macros", icon: "🥗", label: "Macros" },
+  { key: "bodyfat", icon: "📐", label: "Body Fat" },
+]
 
 export async function getCurrentBodyWeight(
   userId: string | number,
@@ -1680,36 +1689,12 @@ export default function TrackingScreen(): React.JSX.Element {
           </View>
 
           {/* TAB SELECTOR */}
-          <View style={styles.tabContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {[
-                { key: "weight", icon: "⚖️", label: "Weight" },
-                { key: "photos", icon: "📸", label: "Photos" },
-                { key: "creatine", icon: "💊", label: "Creatine" },
-                { key: "macros", icon: "🥗", label: "Macros" },
-                { key: "bodyfat", icon: "📐", label: "Body Fat" },
-              ].map((tab: any) => (
-                <TouchableOpacity
-                  key={tab.key}
-                  style={[
-                    styles.tab,
-                    activeTab === tab.key && styles.tabActive,
-                  ]}
-                  onPress={() => setActiveTab(tab.key)}
-                >
-                  <Text style={styles.tabIcon}>{tab.icon}</Text>
-                  <Text
-                    style={[
-                      styles.tabLabel,
-                      activeTab === tab.key && styles.tabLabelActive,
-                    ]}
-                  >
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+          <ScrollTabBar
+            tabs={TRACKING_TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            storageKey='trackingScreen_tabConfig'
+          />
 
           {/* ── WEIGHT TAB ── */}
           {activeTab === "weight" && (
@@ -2889,21 +2874,6 @@ const makeStyles = (colors: any) =>
       color: colors.textSecondary,
     },
     trendOptionTextActive: { color: colors.surface },
-
-    tabContainer: { marginBottom: 20 },
-    tab: {
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      marginRight: 10,
-      borderRadius: 12,
-      backgroundColor: colors.surface,
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    tabActive: { backgroundColor: colors.accent },
-    tabIcon: { fontSize: 20, marginRight: 8 },
-    tabLabel: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
-    tabLabelActive: { color: colors.surface },
 
     section: { marginBottom: 25 },
     sectionHeader: {

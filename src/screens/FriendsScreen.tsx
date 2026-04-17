@@ -38,6 +38,7 @@ import ModalSheet from "../components/ModalSheet"
 import UniversalCalendar from "../components/UniversalCalendar"
 import ExerciseAnalytics from "../components/ExerciseAnalytics"
 import LiveSessionTab from "../components/LiveSessionTab"
+import ScrollTabBar from "../components/ScrollTabBar"
 import { useAlert } from "../components/CustomAlert"
 import type { PendingFriendRequest, SentFriendRequest } from "../services/api"
 import { useTheme } from "../context/ThemeContext"
@@ -109,6 +110,15 @@ interface UserSearchResult {
   username: string
   email?: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab definitions
+// ─────────────────────────────────────────────────────────────────────────────
+const FRIENDS_TABS = [
+  { key: "friends", icon: "👥", label: "Friends" },
+  { key: "requests", icon: "📬", label: "Requests" },
+  { key: "search", icon: "🔍", label: "Search" },
+]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Friend active-session status polling
@@ -510,7 +520,6 @@ export default function FriendsScreen(): React.JSX.Element {
   >([])
   const [loadingAnalytics, setLoadingAnalytics] = useState<boolean>(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  // selectedProgram holds a person name string (or null for "All")
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null)
 
   const [checkingActiveSession, setCheckingActiveSession] =
@@ -519,7 +528,6 @@ export default function FriendsScreen(): React.JSX.Element {
   const hasOwnActiveSession = !!workoutStartTime && !!currentSessionId
 
   // ── Data loading ──────────────────────────────────────────────────────────
-  // Declare loadFriends first so it can be referenced in useFriendSessionStatuses
   const loadFriends = useCallback(async () => {
     const [friendsData, pendingData, sentData] = await Promise.all([
       friendsApi.getFriends(),
@@ -621,9 +629,6 @@ export default function FriendsScreen(): React.JSX.Element {
     }
   }
 
-  /**
-   * Granting 'program' bundles the current workoutData into the payload.
-   */
   const handleGrantProgramPermission = async (friend: Friend) => {
     if (!workoutData) {
       alert(
@@ -634,7 +639,6 @@ export default function FriendsScreen(): React.JSX.Element {
       )
       return
     }
-    // Cast to access extra fields that may exist at runtime
     const wd = workoutData as unknown as {
       people?: string[]
       totalDays?: number
@@ -1095,7 +1099,6 @@ export default function FriendsScreen(): React.JSX.Element {
     return p.length > 1 ? p[1].trim() : s.day_title
   }
 
-  // Extract pendingJointInvite as a typed invite banner prop
   const inviteForBanner: { fromUsername: string } | null = pendingJointInvite
     ? {
         fromUsername:
@@ -1162,42 +1165,14 @@ export default function FriendsScreen(): React.JSX.Element {
             </Text>
           </View>
 
-          {/* Tabs */}
-          <View style={styles.tabContainer}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {[
-                { key: "friends", icon: "👥", label: "Friends" },
-                { key: "requests", icon: "📬", label: "Requests" },
-                { key: "search", icon: "🔍", label: "Search" },
-              ].map((tab) => (
-                <TouchableOpacity
-                  key={tab.key}
-                  style={[
-                    styles.tab,
-                    activeTab === tab.key && styles.tabActive,
-                  ]}
-                  onPress={() => setActiveTab(tab.key)}
-                >
-                  <Text style={styles.tabIcon}>{tab.icon}</Text>
-                  <Text
-                    style={[
-                      styles.tabLabel,
-                      activeTab === tab.key && styles.tabLabelActive,
-                    ]}
-                  >
-                    {tab.label}
-                  </Text>
-                  {tab.key === "requests" && pendingRequests.length > 0 && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>
-                        {pendingRequests.length}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+          {/* ── Tab bar ── */}
+          <ScrollTabBar
+            tabs={FRIENDS_TABS}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            badges={{ requests: pendingRequests.length }}
+            storageKey='friendsScreen_tabConfig'
+          />
 
           {/* ── Friends tab ── */}
           {activeTab === "friends" && (
@@ -2586,34 +2561,6 @@ const makeStyles = (colors: any) =>
       color: colors.textSecondary,
       textAlign: "center",
     },
-    tabContainer: { marginBottom: 20 },
-    tab: {
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      marginRight: 10,
-      borderRadius: 12,
-      backgroundColor: colors.surface,
-      flexDirection: "row",
-      alignItems: "center",
-      position: "relative",
-    },
-    tabActive: { backgroundColor: colors.accent },
-    tabIcon: { fontSize: 20, marginRight: 8 },
-    tabLabel: { fontSize: 14, fontWeight: "600", color: colors.textSecondary },
-    tabLabelActive: { color: colors.surface },
-    badge: {
-      position: "absolute",
-      top: -4,
-      right: -4,
-      backgroundColor: colors.error,
-      borderRadius: 10,
-      minWidth: 20,
-      height: 20,
-      justifyContent: "center",
-      alignItems: "center",
-      paddingHorizontal: 6,
-    },
-    badgeText: { color: colors.surface, fontSize: 11, fontWeight: "bold" },
     section: { marginBottom: 25 },
     sectionHeader: {
       flexDirection: "row",

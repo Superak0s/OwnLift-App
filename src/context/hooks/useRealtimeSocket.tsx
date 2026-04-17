@@ -1,6 +1,8 @@
 // hooks/useRealtimeSocket.ts
 //
 // Single persistent WebSocket connection for the whole app.
+// Security fix: JWT is sent as the first message after connection opens,
+// NOT as a URL query parameter (which would appear in server/proxy logs).
 
 import { useEffect, useRef, useCallback, useState } from "react"
 import { AppState } from "react-native"
@@ -26,9 +28,9 @@ export interface UseRealtimeSocketOptions {
   onMessage?: (msg: WebSocketMessage) => void
 }
 
-function wsUrl(token: string): string {
+function wsUrl(): string {
   const base = getServerUrl().replace(/^http/, "ws")
-  return `${base}/ws?token=${encodeURIComponent(token)}`
+  return `${base}/ws`
 }
 
 export function useRealtimeSocket({
@@ -42,16 +44,23 @@ export function useRealtimeSocket({
   const onMessageRef = useRef<((msg: WebSocketMessage) => void) | undefined>(
     onMessage,
   )
+  // Keep a ref to the latest token so the auth message always uses a fresh value
+  const tokenRef = useRef<string | null>(token)
   const [connected, setConnected] = useState(false)
+  const [authError, setAuthError] = useState(false) // Add this
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
 
   useEffect(() => {
     onMessageRef.current = onMessage
   }, [onMessage])
 
+  useEffect(() => {
+    tokenRef.current = token
+  }, [token])
+
   const connect = useCallback(() => {
-    if (!token || !enabled) {
-      console.log("[WS_CONNECT_SKIP]", { token: !!token, enabled })
+    if (!tokenRef.current || !enabled) {
+      console.log("[WS_CONNECT_SKIP]", { token: !!tokenRef.current, enabled })
       return
     }
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -59,12 +68,17 @@ export function useRealtimeSocket({
       return
     }
 
-    console.log("[WS_CONNECTING]", wsUrl(token))
-    const ws = new WebSocket(wsUrl(token))
+    // Connect without the token in the URL — send it as the first message
+    // after the handshake completes so it never appears in access logs.
+    console.log("[WS_CONNECTING]", wsUrl())
+    const ws = new WebSocket(wsUrl())
     wsRef.current = ws
 
     ws.onopen = () => {
-      console.log("[WS_CONNECTED]")
+      console.log("[WS_CONNECTED] Sending auth message")
+      // Authenticate immediately — server should enforce a short timeout
+      // and close the connection if this message is not received.
+      ws.send(JSON.stringify({ type: "auth", token: tokenRef.current }))
       setConnected(true)
       retryRef.current = BASE_RETRY_MS
     }
@@ -89,12 +103,20 @@ export function useRealtimeSocket({
       setConnected(false)
       wsRef.current = null
       if (!enabled) return
+
+      // Don't retry on auth failures or other client errors
+      if (e.code && e.code >= 4000 && e.code < 4100) {
+        setAuthError(true) // Signal to UI
+        console.warn("[WS_AUTH_FAILED]", e.code, e.reason)
+        return
+      }
+
       const delay = retryRef.current
       retryRef.current = Math.min(delay * 2, MAX_RETRY_MS)
       console.log("[WS_RECONNECTING_IN]", delay, "ms")
       retryTimerRef.current = setTimeout(connect, delay)
     }
-  }, [token, enabled])
+  }, [enabled])
 
   const disconnect = useCallback(() => {
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current)

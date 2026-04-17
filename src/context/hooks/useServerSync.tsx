@@ -1,6 +1,13 @@
 import { useCallback } from "react"
-import type { WorkoutData } from "../../types/index"
-import type { CompletedDays, LockedDays } from "../../utils/dayCompletion"
+import { getSessionHistory, getSession, programApi } from "../../services/api"
+import type {
+  WorkoutData,
+  CompletedDays,
+  LockedDays,
+  WorkoutSession,
+  FullSession,
+  SavedProgram,
+} from "../../types/index"
 
 /**
  * Server Sync Hook
@@ -35,8 +42,21 @@ export interface UseServerSyncReturn {
   fetchSessionHistory: (
     limit?: number,
     includeTimings?: boolean,
-  ) => Promise<unknown[]>
+  ) => Promise<WorkoutSession[]>
   syncFromServer: () => Promise<CompletedDays | undefined>
+}
+
+/**
+ * Returns the most recent Monday at 00:00:00 local time as a Date.
+ */
+function getCurrentWeekMonday(): Date {
+  const now = new Date()
+  const day = now.getDay()
+  const daysFromMonday = day === 0 ? 6 : day - 1
+  const monday = new Date(now)
+  monday.setDate(now.getDate() - daysFromMonday)
+  monday.setHours(0, 0, 0, 0)
+  return monday
 }
 
 export const useServerSync = ({
@@ -61,16 +81,15 @@ export const useServerSync = ({
     async (
       limit: number = 30,
       includeTimings: boolean = false,
-    ): Promise<unknown[]> => {
+    ): Promise<WorkoutSession[]> => {
       try {
-        const { getSessionHistory } = require("../../services/api")
         const sessions = await getSessionHistory(
           selectedPerson,
           null,
           limit,
           includeTimings,
         )
-        return sessions || []
+        return (sessions as WorkoutSession[]) || []
       } catch (error) {
         console.error("Error fetching session history:", error)
         return []
@@ -90,15 +109,13 @@ export const useServerSync = ({
     console.log("🔄 Syncing completedDays from server...")
 
     try {
-      const {
-        getSessionHistory,
-        getSession,
-        programApi,
-      } = require("../../services/api")
-
       let currentWorkoutData = workoutData
+
+      // ── Refresh program from server ──────────────────────────────────────
       try {
-        const savedProgram = await programApi.fetchSavedProgram()
+        const savedProgram =
+          (await programApi.fetchSavedProgram()) as SavedProgram | null
+
         if (savedProgram?.days) {
           const serverDayCount = savedProgram.days.length
           const localDayCount = currentWorkoutData.days.length
@@ -108,33 +125,30 @@ export const useServerSync = ({
               ...currentWorkoutData,
               days: currentWorkoutData.days.map((localDay) => {
                 const serverDay = savedProgram.days.find(
-                  (d: { dayNumber: number }) =>
-                    d.dayNumber === localDay.dayNumber,
+                  (d) => d.dayNumber === localDay.dayNumber,
                 )
                 if (!serverDay) return localDay
 
                 const mergedPeople = { ...localDay.people }
-                Object.keys(serverDay.people || {}).forEach(
-                  (person: string) => {
-                    const serverPersonWorkout = serverDay.people[person]
-                    const localPersonWorkout = localDay.people[person]
+                Object.keys(serverDay.people || {}).forEach((person) => {
+                  const serverPersonWorkout = serverDay.people[person]
+                  const localPersonWorkout = localDay.people[person]
 
-                    if (!localPersonWorkout) {
-                      mergedPeople[person] = serverPersonWorkout
-                      return
-                    }
+                  if (!localPersonWorkout) {
+                    mergedPeople[person] = serverPersonWorkout
+                    return
+                  }
 
-                    const serverExCount =
-                      serverPersonWorkout?.exercises?.length || 0
-                    const localExCount =
-                      localPersonWorkout?.exercises?.length || 0
+                  const serverExCount =
+                    serverPersonWorkout?.exercises?.length ?? 0
+                  const localExCount =
+                    localPersonWorkout?.exercises?.length ?? 0
 
-                    mergedPeople[person] =
-                      serverExCount >= localExCount
-                        ? serverPersonWorkout
-                        : localPersonWorkout
-                  },
-                )
+                  mergedPeople[person] =
+                    serverExCount >= localExCount
+                      ? serverPersonWorkout
+                      : localPersonWorkout
+                })
 
                 return { ...localDay, people: mergedPeople }
               }),
@@ -153,40 +167,55 @@ export const useServerSync = ({
         )
       }
 
-      const sessions = await getSessionHistory(selectedPerson, null, 100)
+      // ── Fetch session list ───────────────────────────────────────────────
+      const allSessions = (await getSessionHistory(
+        selectedPerson,
+        null,
+        100,
+      )) as WorkoutSession[]
 
-      if (!sessions || sessions.length === 0) {
+      if (!allSessions || allSessions.length === 0) {
         console.log("No server sessions found")
         return
       }
 
+      // Only consider sessions from the current week (Monday 00:00 onwards).
+      const weekStart = getCurrentWeekMonday()
+      const sessions = allSessions.filter((s) => {
+        const raw = s.start_time ?? s.created_at
+        if (!raw) return false
+        return new Date(raw) >= weekStart
+      })
+
+      if (sessions.length === 0) {
+        console.log(
+          "No server sessions found for the current week — skipping lock/completion sync",
+        )
+        return
+      }
+
+      // ── Fetch full session details in parallel ───────────────────────────
+      const sessionResults = await Promise.all(
+        sessions.map(async (session) => {
+          try {
+            const full = await getSession(String(session.id))
+            return full as FullSession
+          } catch (err) {
+            console.warn(
+              `Failed to fetch session ${session.id}:`,
+              (err as Error).message,
+            )
+            return null
+          }
+        }),
+      )
+
+      // ── Build completed/locked maps ──────────────────────────────────────
       const newCompletedDays: CompletedDays = {}
       const newLockedDays: LockedDays = { ...lockedDays }
 
-      for (const session of sessions) {
-        let fullSession: {
-          day_number: number
-          end_time?: string
-          set_timings?: Array<{
-            exercise_name?: string
-            set_index: number
-            end_time: string
-            weight?: number
-            reps?: number
-            note?: string
-            is_warmup?: boolean
-          }>
-        }
-
-        try {
-          fullSession = await getSession(session.id)
-        } catch (err) {
-          console.warn(
-            `Failed to fetch session ${session.id}:`,
-            (err as Error).message,
-          )
-          continue
-        }
+      for (const fullSession of sessionResults) {
+        if (!fullSession) continue
 
         const dayNumber = fullSession.day_number
 
@@ -240,17 +269,18 @@ export const useServerSync = ({
 
           if (!existing || serverTime > existingTime) {
             newCompletedDays[dayNumber][exerciseIndex][setIndex] = {
-              weight: timing.weight || 0,
-              reps: timing.reps || 0,
+              weight: timing.weight ?? 0,
+              reps: timing.reps ?? 0,
               completedAt: timing.end_time,
-              note: timing.note || "",
-              isWarmup: timing.is_warmup || false,
+              note: timing.note ?? "",
+              isWarmup: timing.is_warmup ?? false,
               source: "server",
             }
           }
         })
       }
 
+      // ── Preserve in-progress local sets from current session ─────────────
       if (currentSessionId && !currentSessionId.startsWith("local_")) {
         Object.keys(completedDays).forEach((dayNumberStr) => {
           const dayNumber = Number(dayNumberStr)
