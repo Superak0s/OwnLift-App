@@ -55,10 +55,15 @@ echo ""
 echo "[1/5] Pushing source code to GitHub..."
 cd "$PROJECT"
 git add .
-read -rp "Enter commit message (or press Enter for default): " COMMIT_MSG
-COMMIT_MSG="${COMMIT_MSG:-Release update}"
-git commit -m "$COMMIT_MSG"
-git push origin main
+
+if git diff --quiet && git diff --cached --quiet; then
+    echo "Nothing to commit, skipping push."
+else
+    read -rp "Enter commit message (or press Enter for default): " COMMIT_MSG
+    COMMIT_MSG="${COMMIT_MSG:-Release update}"
+    git commit -m "$COMMIT_MSG"
+    git push origin main
+fi
 
 # ─── [2/5] Clear Metro cache ──────────────────────────────────────────────────
 echo ""
