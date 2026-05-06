@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-PROJECT="$HOME/Documents/Coding/SuperGym/SuperGym-App"
+PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=== SuperGym App Release Script (Linux Native Build) ==="
 
