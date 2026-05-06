@@ -4,6 +4,10 @@ import type {
   CompletedDays,
   LockedDays,
   PendingSync,
+  WorkoutSession,
+  ReminderLocation,
+  CreatineStatus,
+  CreatineLocationResponse,
 } from "../types/index"
 import type { User } from "../context/AuthContext"
 import {
@@ -32,6 +36,7 @@ import {
   bodyTrackingApi,
   creatineApi,
   getSessionHistory,
+  deleteAllSessionsForPerson,
 } from "../services/api"
 import {
   scheduleDailyTimeReminder,
@@ -51,6 +56,7 @@ import ThemeEditorModal from "../components/ThemeEditorModal"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
 import { useTheme } from "../context/ThemeContext"
+import type { ThemeColors } from "../context/ThemeContext"
 
 export default function SettingsScreen(): React.JSX.Element {
   const { colors } = useTheme()
@@ -117,7 +123,8 @@ export default function SettingsScreen(): React.JSX.Element {
   const [creatineDefaultGrams, setCreatineDefaultGrams] = useState<string>("5")
   const [creatineNotificationType, setCreatineNotificationType] =
     useState<string>("notification")
-  const [reminderLocation, setReminderLocation] = useState<any>(null)
+  const [reminderLocation, setReminderLocation] =
+    useState<ReminderLocation | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState<boolean>(false)
   const [showCreatineSettings, setShowCreatineSettings] =
     useState<boolean>(false)
@@ -186,7 +193,7 @@ export default function SettingsScreen(): React.JSX.Element {
         if (session.end_time) {
           lockedDaysSeen.add(session.day_number)
         }
-        totalSets += (session as any).set_count || 0
+        totalSets += session.set_count ?? 0
       }
 
       setServerProgress({
@@ -194,8 +201,11 @@ export default function SettingsScreen(): React.JSX.Element {
         setsCount: totalSets,
         lockedCount: lockedDaysSeen.size,
       })
-    } catch (error: any) {
-      console.error("Error loading server progress:", error)
+    } catch (error) {
+      console.error(
+        "Error loading server progress:",
+        error instanceof Error ? error.message : error,
+      )
     } finally {
       setLoadingProgress(false)
     }
@@ -210,7 +220,7 @@ export default function SettingsScreen(): React.JSX.Element {
         return
       }
 
-      const settingsKey = `creatineSettings_user_${(user as any)?.id}`
+      const settingsKey = `creatineSettings_user_${user.id}`
       const settingsStr = await AsyncStorage.getItem(settingsKey)
 
       let hasValidLocalSettings = false
@@ -251,7 +261,8 @@ export default function SettingsScreen(): React.JSX.Element {
       }
 
       try {
-        const status: any = await bodyTrackingApi.getCreatineStatus()
+        const status =
+          (await bodyTrackingApi.getCreatineStatus()) as CreatineStatus
         console.log("🔍 Server status:", status)
 
         if (status.settings) {
@@ -293,7 +304,8 @@ export default function SettingsScreen(): React.JSX.Element {
           }
         }
 
-        const locationData: any = await creatineApi.getReminderLocation()
+        const locationData =
+          (await creatineApi.getReminderLocation()) as CreatineLocationResponse
 
         if (locationData.location) {
           const location = {
@@ -326,13 +338,13 @@ export default function SettingsScreen(): React.JSX.Element {
             )
           }
         }
-      } catch (serverError: any) {
+      } catch (serverError) {
         console.log(
           "⚠️ Server sync failed, using local data:",
-          serverError.message,
+          serverError instanceof Error ? serverError.message : serverError,
         )
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("❌ Error loading creatine settings:", error)
     }
   }
@@ -436,12 +448,12 @@ export default function SettingsScreen(): React.JSX.Element {
           notificationType: creatineNotificationType,
         }
 
-        const settingsKey = `creatineSettings_user_${(user as any)?.id}`
+        const settingsKey = `creatineSettings_user_${user.id}`
         await AsyncStorage.setItem(
           settingsKey,
           JSON.stringify(creatineSettings),
         )
-        await clearAllReminderKeys((user as any)?.id)
+        await clearAllReminderKeys(user.id)
       }
 
       if (creatineTimeBasedEnabled && !creatineLocationBasedEnabled) {
@@ -453,7 +465,7 @@ export default function SettingsScreen(): React.JSX.Element {
         }
 
         const identifier = await scheduleDailyTimeReminder(
-          (user as any)?.id,
+          user!.id,
           reminderTimeStr,
           grams,
         )
@@ -494,18 +506,19 @@ export default function SettingsScreen(): React.JSX.Element {
       }
 
       alert("✅ Success", successMessage, [{ text: "OK" }], "success")
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error saving creatine settings:", error)
       alert(
         "Error",
-        error.message || "Failed to save settings",
+        (error instanceof Error ? error.message : null) ||
+          "Failed to save settings",
         [{ text: "OK" }],
         "error",
       )
     }
   }
 
-  const handleTimeChange = (event: any, selectedDate: any) => {
+  const handleTimeChange = (_event: unknown, selectedDate?: Date) => {
     setShowCreatineTimePicker(Platform.OS === "ios")
     if (selectedDate) {
       setCreatineReminderTime(selectedDate)
@@ -524,12 +537,10 @@ export default function SettingsScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               if (selectedPerson) {
-                const {
-                  deleteAllSessionsForPerson,
-                } = require("../services/api")
+                // deleteAllSessionsForPerson is imported at the top of the file
                 try {
                   await deleteAllSessionsForPerson(selectedPerson)
-                } catch (error: any) {
+                } catch (error) {
                   console.error("Failed to clear server data:", error)
                 }
               }
@@ -541,7 +552,7 @@ export default function SettingsScreen(): React.JSX.Element {
                 [{ text: "OK" }],
                 "success",
               )
-            } catch (error: any) {
+            } catch (error) {
               console.error("Error clearing data:", error)
               alert(
                 "Error",
@@ -577,12 +588,10 @@ export default function SettingsScreen(): React.JSX.Element {
               }
 
               if (selectedPerson) {
-                const {
-                  deleteAllSessionsForPerson,
-                } = require("../services/api")
+                // deleteAllSessionsForPerson is imported at the top of the file
                 try {
                   await deleteAllSessionsForPerson(selectedPerson)
-                } catch (error: any) {
+                } catch (error) {
                   console.error("Failed to delete server data:", error)
                 }
               }
@@ -596,7 +605,7 @@ export default function SettingsScreen(): React.JSX.Element {
                 [{ text: "OK" }],
                 "success",
               )
-            } catch (error: any) {
+            } catch (error) {
               console.error("Error resetting progress:", error)
               alert(
                 "Error",
@@ -666,7 +675,7 @@ export default function SettingsScreen(): React.JSX.Element {
                 [{ text: "OK" }],
                 "success",
               )
-            } catch (error: any) {
+            } catch (error) {
               console.error("Error unlocking days:", error)
               alert("Error", "Failed to unlock days", [{ text: "OK" }], "error")
             }
@@ -677,9 +686,11 @@ export default function SettingsScreen(): React.JSX.Element {
     )
   }
 
-  const handleResetSingleDay = (dayNumber: any) => {
+  const handleResetSingleDay = (dayNumber: number) => {
     const day = workoutData?.days.find((d) => d.dayNumber === dayNumber)
-    const dayTitle = day ? (day as any).title : `Day ${dayNumber}`
+    const dayTitle = day
+      ? (day.dayTitle ?? day.muscleGroups?.join("/") ?? `Day ${dayNumber}`)
+      : `Day ${dayNumber}`
     const hasActiveSession = !!workoutStartTime
     const isCurrentDay = dayNumber === currentDay
     const willAffectActiveSession = hasActiveSession && isCurrentDay
@@ -718,7 +729,7 @@ export default function SettingsScreen(): React.JSX.Element {
                 [{ text: "OK" }],
                 "success",
               )
-            } catch (error: any) {
+            } catch (error) {
               console.error("Error resetting day:", error)
               alert("Error", "Failed to reset day", [{ text: "OK" }], "error")
             }
@@ -729,7 +740,7 @@ export default function SettingsScreen(): React.JSX.Element {
     )
   }
 
-  const lockDay = async (dayNumber: any) => {
+  const lockDay = async (dayNumber: number) => {
     try {
       const newLockedDays = { ...lockedDays, [dayNumber]: true }
       await saveLockedDays(newLockedDays)
@@ -739,7 +750,7 @@ export default function SettingsScreen(): React.JSX.Element {
         delete newOverrides[dayNumber]
         await saveUnlockedOverrides(newOverrides)
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error locking day:", error)
     }
   }
@@ -847,7 +858,7 @@ export default function SettingsScreen(): React.JSX.Element {
     )
   }
 
-  const handleToggleDemoMode = (value: any) => {
+  const handleToggleDemoMode = (value: boolean) => {
     if (!value) {
       alert(
         "Turn Off Demo Mode?",
@@ -866,7 +877,7 @@ export default function SettingsScreen(): React.JSX.Element {
     }
   }
 
-  const handleToggleManualTime = (value: any) => {
+  const handleToggleManualTime = (value: boolean) => {
     if (value) {
       alert(
         "Use Manual Time?",
@@ -933,7 +944,7 @@ export default function SettingsScreen(): React.JSX.Element {
   }
 
   const getLockedDaysCount = () =>
-    Object.keys(lockedDays).filter((day) => (lockedDays as any)[day]).length
+    Object.keys(lockedDays).filter((day) => lockedDays[Number(day)]).length
 
   const getDaysWithActivity = () => {
     if (!workoutData?.days) return []
@@ -942,7 +953,7 @@ export default function SettingsScreen(): React.JSX.Element {
     )
   }
 
-  const formatTime = (seconds: any) => {
+  const formatTime = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`
     const minutes = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -1027,11 +1038,13 @@ export default function SettingsScreen(): React.JSX.Element {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.settingLabel}>Battery Impact</Text>
                         <Text style={styles.settingDescription}>
-                          {(BATTERY_PRESETS as any)[batteryPreset]?.label ||
-                            "Medium Impact"}
+                          {BATTERY_PRESETS[
+                            batteryPreset as keyof typeof BATTERY_PRESETS
+                          ]?.label || "Medium Impact"}
                           {" - "}
-                          {(BATTERY_PRESETS as any)[batteryPreset]
-                            ?.description || "Checks every 10 min"}
+                          {BATTERY_PRESETS[
+                            batteryPreset as keyof typeof BATTERY_PRESETS
+                          ]?.description || "Checks every 10 min"}
                         </Text>
                       </View>
                       <Text style={styles.settingValue}>⚙️</Text>
@@ -1068,7 +1081,10 @@ export default function SettingsScreen(): React.JSX.Element {
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>App Version</Text>
                 <Text style={styles.infoValue}>
-                  {require("../../app.json").expo.version}
+                  {
+                    (require("../../app.json") as { expo: { version: string } })
+                      .expo.version
+                  }
                 </Text>
               </View>
               <View style={styles.divider} />
@@ -1084,7 +1100,7 @@ export default function SettingsScreen(): React.JSX.Element {
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Total Days</Text>
                     <Text style={styles.infoValue}>
-                      {(workoutData as any).totalDays}
+                      {workoutData?.totalDays ?? workoutData?.days?.length}
                     </Text>
                   </View>
                 </>
@@ -1492,7 +1508,7 @@ export default function SettingsScreen(): React.JSX.Element {
                     Day {day.dayNumber}
                   </Text>
                   <Text style={styles.dayListItemSubtitle}>
-                    {day as any as any}
+                    {day.muscleGroups?.join(", ") ?? day.dayTitle ?? ""}
                   </Text>
                 </View>
                 <View style={styles.dayListItemBadges}>
@@ -1795,7 +1811,7 @@ export default function SettingsScreen(): React.JSX.Element {
                 [{ text: "OK" }],
                 "success",
               )
-            } catch (error: any) {
+            } catch (error) {
               console.error("Error saving location:", error)
               alert(
                 "Error",
@@ -1813,7 +1829,7 @@ export default function SettingsScreen(): React.JSX.Element {
   )
 }
 
-const makeStyles = (colors: any) =>
+const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     contentContainer: { paddingBottom: 120 },

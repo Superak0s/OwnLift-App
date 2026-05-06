@@ -42,6 +42,7 @@ import ScrollTabBar from "../components/ScrollTabBar"
 import { useAlert } from "../components/CustomAlert"
 import type { PendingFriendRequest, SentFriendRequest } from "../services/api"
 import { useTheme } from "../context/ThemeContext"
+import type { ThemeColors } from "../context/ThemeContext"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Local interfaces
@@ -226,7 +227,7 @@ function InviteBanner({
   )
 }
 
-const makeBannerStyles = (colors: any) =>
+const makeBannerStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: {
       backgroundColor: colors.background,
@@ -326,7 +327,7 @@ function LiftTogetherButton({
   )
 }
 
-const makeLiftStyles = (colors: any) =>
+const makeLiftStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     button: {
       flexDirection: "row",
@@ -390,7 +391,7 @@ function PermissionRow({
   )
 }
 
-const makePermStyles = (colors: any) =>
+const makePermStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     row: {
       flexDirection: "row",
@@ -2468,7 +2469,7 @@ export default function FriendsScreen(): React.JSX.Element {
 // ─────────────────────────────────────────────────────────────────────────────
 // Watch session styles
 // ─────────────────────────────────────────────────────────────────────────────
-const makeWatchStyles = (colors: any) =>
+const makeWatchStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     pill: {
       backgroundColor: colors.infoLight,
@@ -2503,7 +2504,7 @@ const makeWatchStyles = (colors: any) =>
 // ─────────────────────────────────────────────────────────────────────────────
 // Joint session styles
 // ─────────────────────────────────────────────────────────────────────────────
-const makeJointStyles = (colors: any) =>
+const makeJointStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     activeRow: {
       backgroundColor: "#ecfdf5",
@@ -2539,7 +2540,7 @@ const makeJointStyles = (colors: any) =>
 // ─────────────────────────────────────────────────────────────────────────────
 // Base styles
 // ─────────────────────────────────────────────────────────────────────────────
-const makeStyles = (colors: any) =>
+const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 20, paddingTop: 60, paddingBottom: 120 },

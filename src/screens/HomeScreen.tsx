@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
-import type { WorkoutData } from "../types/index"
+import type {
+  WorkoutData,
+  WorkoutSession,
+  FullSessionWithGroups,
+  GroupedExercise,
+  SetTiming,
+} from "../types/index"
 import {
   View,
   Text,
@@ -19,6 +25,7 @@ import UniversalCalendar from "../components/UniversalCalendar"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
 import { useTheme } from "../context/ThemeContext"
+import type { ThemeColors } from "../context/ThemeContext"
 
 type RootStackParamList = {
   Home: undefined
@@ -49,9 +56,10 @@ export default function HomeScreen({
   const { alert, AlertComponent } = useAlert()
   const [isUploading, setIsUploading] = useState<boolean>(false)
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false)
-  const [sessionHistory, setSessionHistory] = useState<any[]>([])
+  const [sessionHistory, setSessionHistory] = useState<WorkoutSession[]>([])
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false)
-  const [selectedSession, setSelectedSession] = useState<any>(null)
+  const [selectedSession, setSelectedSession] =
+    useState<FullSessionWithGroups | null>(null)
   const [showSessionDetails, setShowSessionDetails] = useState<boolean>(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState<boolean>(false)
@@ -65,7 +73,7 @@ export default function HomeScreen({
   useEffect(() => {
     if (selectedPerson) {
       loadSessionHistory().catch((error) => {
-        if (error.message === "SESSION_EXPIRED") {
+        if ((error as Error)?.message === "SESSION_EXPIRED") {
           alert(
             "Session Expired",
             "Your session has expired. Please log in again.",
@@ -93,11 +101,11 @@ export default function HomeScreen({
 
       try {
         const saved = await programApi.fetchSavedProgram()
-        if (saved && saved.success) {
-          await saveWorkoutData(saved as any)
+        if (saved && (saved as unknown as { success?: boolean }).success) {
+          await saveWorkoutData(saved as unknown as WorkoutData)
         }
-      } catch (error: any) {
-        if (error.message === "SESSION_EXPIRED") {
+      } catch (error) {
+        if ((error as Error)?.message === "SESSION_EXPIRED") {
           navigation.reset({ index: 0, routes: [{ name: "Login" }] })
         }
       }
@@ -111,9 +119,9 @@ export default function HomeScreen({
     try {
       const limit = 60
       const sessions = await fetchSessionHistory(limit)
-      setSessionHistory(sessions)
-    } catch (error: any) {
-      if (error.message === "SESSION_EXPIRED") {
+      setSessionHistory(sessions as WorkoutSession[])
+    } catch (error) {
+      if ((error as Error)?.message === "SESSION_EXPIRED") {
         throw error
       }
     } finally {
@@ -125,8 +133,8 @@ export default function HomeScreen({
     setRefreshing(true)
     try {
       await loadSessionHistory()
-    } catch (error: any) {
-      if (error.message === "SESSION_EXPIRED") {
+    } catch (error) {
+      if ((error as Error)?.message === "SESSION_EXPIRED") {
         throw error
       } else {
         alert("Error", "Failed to refresh session history", [{ text: "OK" }])
@@ -146,21 +154,26 @@ export default function HomeScreen({
         return
       }
 
-      const data = (await programApi.uploadAndSave(fileUri)) as any
+      const data = (await programApi.uploadAndSave(fileUri)) as WorkoutData & {
+        success?: boolean
+        totalDays?: number
+        people?: string[]
+      }
 
       if (data.success) {
         await saveWorkoutData(data)
         alert(
           "Success!",
-          `Loaded ${(data as any)?.totalDays} workout days for ${(data as any).people?.join(", ")}`,
+          `Loaded ${data?.totalDays ?? 0} workout days for ${data.people?.join(", ") ?? ""}`,
           [{ text: "OK" }],
           "success",
         )
       }
-    } catch (error: any) {
+    } catch (error) {
       alert(
         "Error",
-        (error as any)?.message || "Failed to upload workout file",
+        (error instanceof Error ? error.message : null) ??
+          "Failed to upload workout file",
         [{ text: "OK" }],
       )
     } finally {
@@ -219,16 +232,18 @@ export default function HomeScreen({
     }
   }
 
-  const handleSessionPress = async (session: any): Promise<void> => {
+  const handleSessionPress = async (session: WorkoutSession): Promise<void> => {
     try {
-      const details = (await workoutApi.getSession(session.id)) as any
+      const details = (await workoutApi.getSession(
+        session.id,
+      )) as FullSessionWithGroups
 
       if (details.set_timings && details.set_timings.length > 0) {
         // Group by exercise_name (stable string) instead of the old
         // exercise_index (positional integer that no longer exists).
         const exerciseMap = new Map()
 
-        details.set_timings.forEach((timing: any) => {
+        details.set_timings.forEach((timing) => {
           const key =
             timing.exercise_name || `Exercise ${timing.exercise_id ?? "?"}`
           if (!exerciseMap.has(key)) {
@@ -241,7 +256,9 @@ export default function HomeScreen({
         })
 
         exerciseMap.forEach((exercise) => {
-          exercise.sets.sort((a: any, b: any) => a.set_index - b.set_index)
+          exercise.sets.sort(
+            (a: SetTiming, b: SetTiming) => a.set_index - b.set_index,
+          )
         })
 
         // Preserve insertion order (server already orders by name, set_index)
@@ -250,10 +267,10 @@ export default function HomeScreen({
         details.groupedExercises = []
       }
 
-      setSelectedSession(details as any)
+      setSelectedSession(details)
       setShowSessionDetails(true)
       setSelectedDate(null)
-    } catch (error: any) {
+    } catch (error) {
       alert("Error", "Failed to load session details")
     }
   }
@@ -281,13 +298,13 @@ export default function HomeScreen({
     return day?.muscleGroups?.join("/") || `Day ${dayNumber}`
   }
 
-  const getSessionTitle = (session: any): string => {
+  const getSessionTitle = (session: WorkoutSession): string => {
     if (!session?.day_title) return `Day ${session?.day_number ?? ""}`
     const parts = session.day_title.split("—")
     return parts.length > 1 ? parts[1].trim() : session.day_title
   }
 
-  const getSessionsForDate = (date: Date): unknown[] => {
+  const getSessionsForDate = (date: Date): WorkoutSession[] => {
     const targetStr = toLocalDateStr(date) // reuse the helper from UniversalCalendar logic
 
     return sessionHistory.filter((session) => {
@@ -386,22 +403,22 @@ export default function HomeScreen({
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Days:</Text>
                 <Text style={styles.summaryValue}>
-                  {(workoutData as any)?.totalDays}
+                  {workoutData?.totalDays ?? workoutData?.days?.length}
                 </Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>People:</Text>
                 <Text style={styles.summaryValue}>
-                  {(workoutData as any).people.join(", ")}
+                  {workoutData.people?.join(", ")}
                 </Text>
               </View>
             </View>
           )}
 
-          {workoutData && (workoutData as any).people && (
+          {workoutData && workoutData.people && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Select Your Profile</Text>
-              {(workoutData as any).people.map((person: any) => {
+              {workoutData.people.map((person: string) => {
                 const summary = getPersonWorkoutSummary(person)
                 const isSelected = selectedPerson === person
 
@@ -623,7 +640,7 @@ export default function HomeScreen({
           showConfirmButton={false}
         >
           {selectedDate &&
-            getSessionsForDate(selectedDate).map((session: any) => (
+            getSessionsForDate(selectedDate).map((session) => (
               <TouchableOpacity
                 key={session.id}
                 style={styles.sessionListItem}
@@ -690,15 +707,17 @@ export default function HomeScreen({
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Date</Text>
                   <Text style={styles.detailValue}>
-                    {new Date(selectedSession.start_time).toLocaleDateString(
-                      "en-US",
-                      {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      },
-                    )}
+                    {selectedSession.start_time
+                      ? new Date(selectedSession.start_time).toLocaleDateString(
+                          "en-US",
+                          {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          },
+                        )
+                      : "—"}
                   </Text>
                 </View>
                 <View style={styles.detailRow}>
@@ -734,7 +753,7 @@ export default function HomeScreen({
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Exercises</Text>
                     {selectedSession.groupedExercises.map(
-                      (exercise: any, exerciseIdx: any) => (
+                      (exercise: GroupedExercise, exerciseIdx: number) => (
                         <View key={exerciseIdx} style={styles.exerciseCard}>
                           <View style={styles.exerciseHeader}>
                             {/* exercise_name comes directly from the server JOIN */}
@@ -746,39 +765,43 @@ export default function HomeScreen({
                             </Text>
                           </View>
 
-                          {exercise.sets.map((set: any, setIdx: any) => (
-                            <View key={setIdx} style={styles.setTimingCard}>
-                              <View style={styles.setTimingHeader}>
-                                <Text style={styles.setTimingTitle}>
-                                  {`Set ${set.set_index + 1}`}
-                                </Text>
-                              </View>
-                              <View style={styles.setTimingDetails}>
-                                <Text style={styles.setTimingDetail}>
-                                  {(() => {
-                                    const w = parseFloat(set.weight ?? 0)
-                                    const r = parseInt(set.reps ?? 0)
-                                    const volume = w * r
-                                    const displayVolume = Number.isInteger(
-                                      volume,
-                                    )
-                                      ? `${volume}`
-                                      : `${volume.toFixed(1)}`
-                                    return `${w}kg × ${r} = ${displayVolume}kg`
-                                  })()}
-                                </Text>
-                                {!!set.set_duration && (
-                                  <Text style={styles.setTimingDetail}>
-                                    {`Duration: ${
-                                      set.set_duration >= 60
-                                        ? `${Math.floor(set.set_duration / 60)}m${set.set_duration % 60 > 0 ? ` ${set.set_duration % 60}s` : ""}`
-                                        : `${set.set_duration}s`
-                                    }`}
+                          {exercise.sets.map(
+                            (set: SetTiming, setIdx: number) => (
+                              <View key={setIdx} style={styles.setTimingCard}>
+                                <View style={styles.setTimingHeader}>
+                                  <Text style={styles.setTimingTitle}>
+                                    {`Set ${set.set_index + 1}`}
                                   </Text>
-                                )}
+                                </View>
+                                <View style={styles.setTimingDetails}>
+                                  <Text style={styles.setTimingDetail}>
+                                    {(() => {
+                                      const w = parseFloat(
+                                        String(set.weight ?? 0),
+                                      )
+                                      const r = parseInt(String(set.reps ?? 0))
+                                      const volume = w * r
+                                      const displayVolume = Number.isInteger(
+                                        volume,
+                                      )
+                                        ? `${volume}`
+                                        : `${volume.toFixed(1)}`
+                                      return `${w}kg × ${r} = ${displayVolume}kg`
+                                    })()}
+                                  </Text>
+                                  {!!set.set_duration && (
+                                    <Text style={styles.setTimingDetail}>
+                                      {`Duration: ${
+                                        set.set_duration >= 60
+                                          ? `${Math.floor(set.set_duration / 60)}m${set.set_duration % 60 > 0 ? ` ${set.set_duration % 60}s` : ""}`
+                                          : `${set.set_duration}s`
+                                      }`}
+                                    </Text>
+                                  )}
+                                </View>
                               </View>
-                            </View>
-                          ))}
+                            ),
+                          )}
                         </View>
                       ),
                     )}
@@ -793,523 +816,524 @@ export default function HomeScreen({
   )
 }
 
-const makeStyles = (colors: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    padding: 20,
-    paddingTop: 60,
-    paddingBottom: 120,
-  },
-  header: {
-    marginBottom: 30,
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  uploadButton: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    padding: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  uploadButtonIcon: {
-    fontSize: 24,
-    marginRight: 10,
-  },
-  uploadButtonText: {
-    color: colors.surface,
-    fontSize: 18,
-    fontWeight: "600",
-  },
-  summaryCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 15,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  summaryLabel: {
-    fontSize: 16,
-    color: colors.textSecondary,
-  },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 15,
-  },
-  personCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: colors.surfaceBorder,
-  },
-  personCardSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentLight,
-  },
-  personCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  personName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-  },
-  personNameSelected: {
-    color: colors.accent,
-  },
-  checkmark: {
-    fontSize: 24,
-    color: colors.accent,
-  },
-  personStats: {
-    flexDirection: "row",
-    justifyContent: "flex-start",
-  },
-  personStat: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  currentDayCard: {
-    backgroundColor: colors.accent,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  currentDayCardLocked: {
-    backgroundColor: colors.textSecondary,
-  },
-  currentDayTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.surface,
-    marginBottom: 8,
-  },
-  currentDayText: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: colors.surface,
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  completeBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 15,
-  },
-  completeBadgeText: {
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  lockedBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 15,
-  },
-  lockedBadgeText: {
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  dayActions: {
-    flexDirection: "row",
-    gap: 10,
-    width: "100%",
-  },
-  changeDayButton: {
-    flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.surface,
-  },
-  changeDayButtonText: {
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  goToWorkoutButton: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  goToWorkoutButtonLocked: {
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-  },
-  goToWorkoutButtonText: {
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  goToWorkoutButtonTextLocked: {
-    color: colors.textSecondary,
-  },
-  lockedHintText: {
-    marginTop: 12,
-    fontSize: 13,
-    color: colors.surface,
-    opacity: 0.9,
-    textAlign: "center",
-  },
-  calendarLoading: {
-    paddingVertical: 40,
-    alignItems: "center",
-  },
-  instructionsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.accent,
-  },
-  instructionsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 15,
-  },
-  instructionStep: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 10,
-    lineHeight: 24,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-  },
-  modalClose: {
-    fontSize: 28,
-    color: colors.textSecondary,
-    paddingHorizontal: 10,
-  },
-  dayList: {
-    padding: 15,
-  },
-  dayOption: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: colors.surfaceBorder,
-  },
-  dayOptionCurrent: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accentLight,
-  },
-  dayOptionComplete: {
-    backgroundColor: colors.background,
-    borderColor: colors.surfaceBorder,
-  },
-  dayOptionLeft: {
-    flex: 1,
-  },
-  dayOptionNumber: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  dayOptionTextCurrent: {
-    color: colors.accent,
-  },
-  dayOptionTextComplete: {
-    color: colors.textMuted,
-  },
-  dayOptionMuscles: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  lockedText: {
-    fontSize: 12,
-    color: colors.success,
-    fontWeight: "600",
-    fontStyle: "italic",
-  },
-  dayOptionRight: {
-    marginLeft: 10,
-  },
-  completeIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.success,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  completeIconText: {
-    color: colors.surface,
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  currentBadge: {
-    backgroundColor: colors.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  currentBadgeText: {
-    color: colors.surface,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  modalFooter: {
-    padding: 15,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-    alignItems: "center",
-  },
-  modalFooterText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-    textAlign: "center",
-  },
-  sessionsList: {
-    padding: 15,
-  },
-  sessionListItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.separator,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  sessionListLeft: {
-    flex: 1,
-  },
-  sessionListTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textPrimary,
-    marginBottom: 6,
-  },
-  sessionListMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  sessionListTime: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  sessionListDuration: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  sessionListSets: {
-    fontSize: 13,
-    color: colors.textSecondary,
-  },
-  sessionListArrow: {
-    fontSize: 24,
-    color: colors.surfaceBorder,
-    marginLeft: 10,
-  },
-  sessionDetailsContent: {
-    padding: 20,
-  },
-  detailSection: {
-    marginBottom: 25,
-  },
-  detailTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  detailSubtitle: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: 12,
-  },
-  muscleGroupsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginRight: -8,
-    marginBottom: -8,
-  },
-  muscleTag: {
-    backgroundColor: colors.accentLight,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  muscleTagText: {
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  detailRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.separator,
-  },
-  detailLabel: {
-    fontSize: 15,
-    color: colors.textSecondary,
-  },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-  detailSectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-  exerciseCard: {
-    backgroundColor: colors.inputBackground,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-  },
-  exerciseHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.inputBorder,
-  },
-  exerciseName: {
-    fontSize: 17,
-    fontWeight: "bold",
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  exerciseSetsCount: {
-    fontSize: 14,
-    color: colors.accent,
-    fontWeight: "600",
-  },
-  setTimingCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  setTimingHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  setTimingTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.textPrimary,
-  },
-  setTimingDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  setTimingDetail: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  changeDayButtonDisabled: {
-    opacity: 0.5,
-  },
-})
+const makeStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      padding: 20,
+      paddingTop: 60,
+      paddingBottom: 120,
+    },
+    header: {
+      marginBottom: 30,
+      alignItems: "center",
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      textAlign: "center",
+    },
+    uploadButton: {
+      backgroundColor: colors.accent,
+      borderRadius: 12,
+      padding: 18,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 20,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    uploadButtonIcon: {
+      fontSize: 24,
+      marginRight: 10,
+    },
+    uploadButtonText: {
+      color: colors.surface,
+      fontSize: 18,
+      fontWeight: "600",
+    },
+    summaryCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 20,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    summaryTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 15,
+    },
+    summaryRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
+    summaryLabel: {
+      fontSize: 16,
+      color: colors.textSecondary,
+    },
+    summaryValue: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    section: {
+      marginBottom: 20,
+    },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 15,
+    },
+    personCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 18,
+      marginBottom: 12,
+      borderWidth: 2,
+      borderColor: colors.surfaceBorder,
+    },
+    personCardSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentLight,
+    },
+    personCardHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    personName: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+    },
+    personNameSelected: {
+      color: colors.accent,
+    },
+    checkmark: {
+      fontSize: 24,
+      color: colors.accent,
+    },
+    personStats: {
+      flexDirection: "row",
+      justifyContent: "flex-start",
+    },
+    personStat: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    currentDayCard: {
+      backgroundColor: colors.accent,
+      borderRadius: 12,
+      padding: 20,
+      alignItems: "center",
+      marginBottom: 20,
+    },
+    currentDayCardLocked: {
+      backgroundColor: colors.textSecondary,
+    },
+    currentDayTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.surface,
+      marginBottom: 8,
+    },
+    currentDayText: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.surface,
+      marginBottom: 10,
+      textAlign: "center",
+    },
+    completeBadge: {
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      marginBottom: 15,
+    },
+    completeBadgeText: {
+      color: colors.surface,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    lockedBadge: {
+      backgroundColor: "rgba(255, 255, 255, 0.3)",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      marginBottom: 15,
+    },
+    lockedBadgeText: {
+      color: colors.surface,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    dayActions: {
+      flexDirection: "row",
+      gap: 10,
+      width: "100%",
+    },
+    changeDayButton: {
+      flex: 1,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.surface,
+    },
+    changeDayButtonText: {
+      color: colors.surface,
+      fontSize: 14,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    goToWorkoutButton: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
+    },
+    goToWorkoutButtonLocked: {
+      backgroundColor: "rgba(255, 255, 255, 0.9)",
+    },
+    goToWorkoutButtonText: {
+      color: colors.accent,
+      fontSize: 14,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    goToWorkoutButtonTextLocked: {
+      color: colors.textSecondary,
+    },
+    lockedHintText: {
+      marginTop: 12,
+      fontSize: 13,
+      color: colors.surface,
+      opacity: 0.9,
+      textAlign: "center",
+    },
+    calendarLoading: {
+      paddingVertical: 40,
+      alignItems: "center",
+    },
+    instructionsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 20,
+      borderLeftWidth: 4,
+      borderLeftColor: colors.accent,
+    },
+    instructionsTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 15,
+    },
+    instructionStep: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginBottom: 10,
+      lineHeight: 24,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "flex-end",
+    },
+    modalContent: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      maxHeight: "80%",
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.surfaceBorder,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+    },
+    modalClose: {
+      fontSize: 28,
+      color: colors.textSecondary,
+      paddingHorizontal: 10,
+    },
+    dayList: {
+      padding: 15,
+    },
+    dayOption: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 10,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: colors.surfaceBorder,
+    },
+    dayOptionCurrent: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentLight,
+    },
+    dayOptionComplete: {
+      backgroundColor: colors.background,
+      borderColor: colors.surfaceBorder,
+    },
+    dayOptionLeft: {
+      flex: 1,
+    },
+    dayOptionNumber: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    dayOptionTextCurrent: {
+      color: colors.accent,
+    },
+    dayOptionTextComplete: {
+      color: colors.textMuted,
+    },
+    dayOptionMuscles: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 4,
+    },
+    lockedText: {
+      fontSize: 12,
+      color: colors.success,
+      fontWeight: "600",
+      fontStyle: "italic",
+    },
+    dayOptionRight: {
+      marginLeft: 10,
+    },
+    completeIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.success,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    completeIconText: {
+      color: colors.surface,
+      fontSize: 18,
+      fontWeight: "bold",
+    },
+    currentBadge: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    currentBadgeText: {
+      color: colors.surface,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    modalFooter: {
+      padding: 15,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.surfaceBorder,
+      alignItems: "center",
+    },
+    modalFooterText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontStyle: "italic",
+      textAlign: "center",
+    },
+    sessionsList: {
+      padding: 15,
+    },
+    sessionListItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 16,
+      paddingHorizontal: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+    },
+    sessionListLeft: {
+      flex: 1,
+    },
+    sessionListTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 6,
+    },
+    sessionListMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+    },
+    sessionListTime: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    sessionListDuration: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    sessionListSets: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    sessionListArrow: {
+      fontSize: 24,
+      color: colors.surfaceBorder,
+      marginLeft: 10,
+    },
+    sessionDetailsContent: {
+      padding: 20,
+    },
+    detailSection: {
+      marginBottom: 25,
+    },
+    detailTitle: {
+      fontSize: 24,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    detailSubtitle: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginBottom: 12,
+    },
+    muscleGroupsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      marginRight: -8,
+      marginBottom: -8,
+    },
+    muscleTag: {
+      backgroundColor: colors.accentLight,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      marginRight: 8,
+      marginBottom: 8,
+    },
+    muscleTagText: {
+      color: colors.accent,
+      fontSize: 13,
+      fontWeight: "500",
+    },
+    detailRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+    },
+    detailLabel: {
+      fontSize: 15,
+      color: colors.textSecondary,
+    },
+    detailValue: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    detailSectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    exerciseCard: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    exerciseHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.inputBorder,
+    },
+    exerciseName: {
+      fontSize: 17,
+      fontWeight: "bold",
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    exerciseSetsCount: {
+      fontSize: 14,
+      color: colors.accent,
+      fontWeight: "600",
+    },
+    setTimingCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 8,
+    },
+    setTimingHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 6,
+    },
+    setTimingTitle: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    setTimingDetails: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    setTimingDetail: {
+      fontSize: 14,
+      color: colors.textSecondary,
+    },
+    changeDayButtonDisabled: {
+      opacity: 0.5,
+    },
+  })

@@ -24,6 +24,10 @@ export interface WorkoutDay {
 
 export interface WorkoutData {
   days: WorkoutDay[]
+  /** Total number of days — may be present on the object returned by uploadAndSave */
+  totalDays?: number
+  /** People listed in the program — may be present on the object returned by uploadAndSave */
+  people?: string[]
 }
 
 // ─── Session completion tracking ──────────────────────────────────────────────
@@ -67,6 +71,12 @@ export interface WorkoutSession {
   start_time?: string
   created_at?: string
   end_time?: string
+  /** May be present on summary rows */
+  set_count?: number // already there — check your import, might be using a stale type
+  total_duration?: number
+  completed_sets?: number
+  day_title?: string
+  muscle_groups?: string[]
 }
 
 /** Full session detail returned by getSession */
@@ -78,6 +88,9 @@ export interface SetTiming {
   reps?: number
   note?: string
   is_warmup?: boolean
+  /** Duration in seconds for the set */
+  set_duration?: number
+  exercise_id?: string | number
 }
 
 export interface FullSession {
@@ -85,6 +98,21 @@ export interface FullSession {
   day_number: number
   end_time?: string
   set_timings?: SetTiming[]
+}
+
+/** Enriched session detail with grouped exercises — built client-side */
+export interface GroupedExercise {
+  exerciseName: string
+  sets: SetTiming[]
+}
+
+export interface FullSessionWithGroups extends FullSession {
+  groupedExercises?: GroupedExercise[]
+  start_time?: string
+  total_duration?: number
+  completed_sets?: number
+  day_title?: string
+  muscle_groups?: string[]
 }
 
 /** Server-side workout day shape returned by programApi.fetchSavedProgram */
@@ -95,12 +123,115 @@ export interface ServerDay {
 
 export interface SavedProgram {
   days: ServerDay[]
+  success?: boolean
+}
+
+// ─── Creatine / location ──────────────────────────────────────────────────────
+
+export interface ReminderLocation {
+  lat: number
+  lng: number
+  address: string
+  radius: number
+}
+
+// ─── Body tracking ────────────────────────────────────────────────────────────
+
+export interface WeightEntry {
+  id: string | number
+  weight_kg: string | number
+  recorded_at: string
+  unit?: string
+}
+
+export interface WeightHistoryResponse {
+  entries: WeightEntry[]
+}
+
+export interface HeightData {
+  height_cm: number
+  unit?: string
+}
+
+export interface CreatineStatus {
+  taken_today?: boolean
+  streak?: number
+  settings?: {
+    timeBasedEnabled?: boolean
+    locationBasedEnabled?: boolean
+    reminderTime?: string
+    defaultGrams?: number
+    notificationType?: string
+  }
+}
+
+export interface CreatineEntry {
+  id: string | number
+  grams?: number
+  taken_at?: string
+  date?: string
+  time?: string
+}
+
+export interface MacrosEntry {
+  id: string | number
+  protein?: number | null
+  carbs?: number | null
+  fat?: number | null
+  calories?: number | null
+  logged_at?: string
+  name?: string
+  meal_error_margin?: number | null
+}
+
+export interface MacrosGoals {
+  protein: number
+  carbs: number
+  fat: number
+  calories: number
+}
+
+export interface MacrosStat {
+  value: number | null
+  goal: number | null
+  percent: number | null
+}
+
+export interface DailyMacrosStats {
+  protein: MacrosStat
+  carbs: MacrosStat
+  fat: MacrosStat
+  calories: MacrosStat
+}
+
+export interface BodyFatEntry {
+  id: string | number
+  body_fat_percentage?: number
+  date?: string
+  waist_cm?: number
+  neck_cm?: number
+  hip_cm?: number
+  measurement_unit?: string
+  gender?: string
+}
+
+export interface ProgressPhoto {
+  id: string | number
+  takenAt?: string
+  taken_at?: string
+  uri?: string
+}
+
+export interface CreatineLocationResponse {
+  location?: {
+    latitude: number
+    longitude: number
+    address: string
+    radius: number
+  }
 }
 
 // ─── Pending sync — discriminated union ───────────────────────────────────────
-//
-// Each variant carries only the fields that its sync type actually needs.
-// This eliminates all `unknown` casts in useSyncManager and useSessionOperations.
 
 export interface StartSessionSyncData {
   person: string

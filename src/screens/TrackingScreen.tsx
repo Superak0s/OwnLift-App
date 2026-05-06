@@ -1,5 +1,20 @@
 import React, { useState, useEffect, useCallback } from "react"
 import type { User } from "../context/AuthContext"
+import type {
+  WeightEntry,
+  WeightHistoryResponse,
+  HeightData,
+  CreatineStatus,
+  CreatineEntry,
+  MacrosEntry,
+  MacrosGoals,
+  MacrosStat,
+  DailyMacrosStats,
+  BodyFatEntry,
+  ProgressPhoto,
+  ReminderLocation,
+  CreatineLocationResponse,
+} from "../types/index"
 import {
   View,
   Text,
@@ -37,7 +52,56 @@ import ModalSheet from "../components/ModalSheet"
 import ScrollTabBar from "../components/ScrollTabBar"
 import { useAlert } from "../components/CustomAlert"
 import { useTheme } from "../context/ThemeContext"
+import type { ThemeColors } from "../context/ThemeContext"
 
+// ─── Local view-model types ───────────────────────────────────────────────────
+
+// Augment imported types to match actual server shapes
+type BodyFatEntryWithFields = BodyFatEntry & {
+  date?: string
+  recorded_at?: string
+  percentage?: number
+  body_fat_percentage?: number
+}
+type MacrosEntryWithFields = MacrosEntry & {
+  date?: string
+  logged_at?: string
+  errorMargin?: number
+  error_margin?: number
+  protein?: string | number
+  carbs?: string | number
+  fat?: string | number
+  calories?: string | number
+}
+
+interface DayModalState {
+  date: Date
+  tab: string
+  existingEntries: unknown[] | null
+  isToday: boolean
+  weightEntries?: WeightEntry[]
+  creatineEntries?: CreatineEntry[]
+  macrosEntries?: MacrosEntry[]
+  photos?: ProgressPhoto[]
+  bodyFatEntries?: BodyFatEntry[]
+}
+
+interface ExpandedPhoto {
+  uri: string
+  photo: ProgressPhoto
+}
+
+interface SelectedDatePhotos {
+  date: Date
+  photos: ProgressPhoto[]
+}
+
+interface SelectedDateMacros {
+  date: Date
+  entries: MacrosEntry[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window")
 
 const TRACKING_TABS = [
@@ -52,15 +116,23 @@ export async function getCurrentBodyWeight(
   userId: string | number,
 ): Promise<number | null> {
   try {
-    const weightData: any = await bodyTrackingApi.getWeightHistory()
+    const weightData =
+      (await bodyTrackingApi.getWeightHistory()) as WeightHistoryResponse
     const weightEntries = weightData.entries || []
     if (weightEntries.length > 0) {
       const validWeightEntries = weightEntries
-        .map((e: any) => ({ ...e, weight_kg: parseFloat(e.weight_kg) }))
-        .filter((e: any) => !isNaN(e.weight_kg) && e.weight_kg > 0)
+        .map((e: WeightEntry) => ({
+          ...e,
+          weight_kg: parseFloat(String(e.weight_kg)),
+        }))
+        .filter(
+          (e: WeightEntry & { weight_kg: number }) =>
+            !isNaN(e.weight_kg) && e.weight_kg > 0,
+        )
         .sort(
-          (a: any, b: any) =>
-            (new Date(b.recorded_at) as any) - (new Date(a.recorded_at) as any),
+          (a, b) =>
+            new Date(b.recorded_at).getTime() -
+            new Date(a.recorded_at).getTime(),
         )
       if (validWeightEntries.length > 0) return validWeightEntries[0].weight_kg
     }
@@ -86,7 +158,7 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // WEIGHT TRACKING
   // ─────────────────────────────────────────────────────────────
-  const [weightHistory, setWeightHistory] = useState<any[]>([])
+  const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([])
   const [weightUnit, setWeightUnit] = useState<string>("kg")
   const [showWeightModal, setShowWeightModal] = useState<boolean>(false)
   const [newWeight, setNewWeight] = useState<string>("")
@@ -99,7 +171,7 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // UNIFIED DAY MODAL
   // ─────────────────────────────────────────────────────────────
-  const [dayModal, setDayModal] = useState<any>(null)
+  const [dayModal, setDayModal] = useState<DayModalState | null>(null)
 
   // Past-day weight
   const [pastWeight, setPastWeight] = useState<string>("")
@@ -125,7 +197,7 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // HEIGHT
   // ─────────────────────────────────────────────────────────────
-  const [height, setHeight] = useState<any>(null)
+  const [height, setHeight] = useState<HeightData | null>(null)
   const [heightUnit, setHeightUnit] = useState<string>("cm")
   const [showHeightModal, setShowHeightModal] = useState<boolean>(false)
   const [newHeightCm, setNewHeightCm] = useState<string>("")
@@ -139,33 +211,37 @@ export default function TrackingScreen(): React.JSX.Element {
   const [creatineTime, setCreatineTime] = useState<string>("09:00")
   const [creatineTakenToday, setCreatineTakenToday] = useState<boolean>(false)
   const [creatineStreak, setCreatineStreak] = useState<number>(0)
-  const [creatineHistory, setCreatineHistory] = useState<any[]>([])
+  const [creatineHistory, setCreatineHistory] = useState<CreatineEntry[]>([])
   const [showCreatineModal, setShowCreatineModal] = useState<boolean>(false)
   const [creatineGrams, setCreatineGrams] = useState<string>("5")
   const [defaultCreatineGrams, setDefaultCreatineGrams] = useState<number>(5)
   const [locationBasedReminder, setLocationBasedReminder] =
     useState<boolean>(false)
-  const [reminderLocation, setReminderLocation] = useState<any>(null)
+  const [reminderLocation, setReminderLocation] =
+    useState<ReminderLocation | null>(null)
   const [showLocationPicker, setShowLocationPicker] = useState<boolean>(false)
 
   // ─────────────────────────────────────────────────────────────
   // PROGRESS PHOTOS
   // ─────────────────────────────────────────────────────────────
-  const [progressPhotos, setProgressPhotos] = useState<any[]>([])
-  const [selectedPhoto, setSelectedPhoto] = useState<any>(null)
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([])
+  const [selectedPhoto, setSelectedPhoto] = useState<ProgressPhoto | null>(null)
   const [showPhotoModal, setShowPhotoModal] = useState<boolean>(false)
   const [photoUriCache, setPhotoUriCache] = useState<Record<string, string>>({})
   const [photoUriLoading, setPhotoUriLoading] = useState<
     Record<string, boolean>
   >({})
-  const [selectedDatePhotos, setSelectedDatePhotos] = useState<any>(null)
+  const [selectedDatePhotos, setSelectedDatePhotos] =
+    useState<SelectedDatePhotos | null>(null)
   const [showDatePhotosModal, setShowDatePhotosModal] = useState<boolean>(false)
-  const [expandedPhoto, setExpandedPhoto] = useState<any>(null)
+  const [expandedPhoto, setExpandedPhoto] = useState<ExpandedPhoto | null>(null)
 
   // ─────────────────────────────────────────────────────────────
   // MACROS TRACKING
   // ─────────────────────────────────────────────────────────────
-  const [macrosEntries, setMacrosEntries] = useState<any[]>([])
+  const [macrosEntries, setMacrosEntries] = useState<MacrosEntryWithFields[]>(
+    [],
+  )
   const [dailyMacrosGoals, setDailyMacrosGoals] = useState({
     protein: 150,
     carbs: 250,
@@ -188,13 +264,16 @@ export default function TrackingScreen(): React.JSX.Element {
     fat: "",
     calories: "",
   })
-  const [selectedDateMacros, setSelectedDateMacros] = useState(null)
+  const [selectedDateMacros, setSelectedDateMacros] =
+    useState<SelectedDateMacros | null>(null)
   const [showDateMacrosModal, setShowDateMacrosModal] = useState(false)
 
   // ─────────────────────────────────────────────────────────────
   // BODY FAT
   // ─────────────────────────────────────────────────────────────
-  const [bodyFatHistory, setBodyFatHistory] = useState<any[]>([])
+  const [bodyFatHistory, setBodyFatHistory] = useState<
+    BodyFatEntryWithFields[]
+  >([])
   const [showBodyFatModal, setShowBodyFatModal] = useState<boolean>(false)
   const [gender, setGender] = useState("male")
   const [waist, setWaist] = useState("")
@@ -209,21 +288,22 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // SELECTED LOG DATE
   // ─────────────────────────────────────────────────────────────
-  const [selectedLogDate, setSelectedLogDate] = useState(null)
+  const [selectedLogDate, setSelectedLogDate] = useState<Date | null>(null)
 
-  const getUserKey = (key: any) => (user?.id ? `${key}_user_${user.id}` : key)
+  const getUserKey = (key: string) =>
+    user?.id ? `${key}_user_${user.id}` : key
 
   // ─────────────────────────────────────────────────────────────
   // DATE HELPERS
   // ─────────────────────────────────────────────────────────────
-  const toLocalDateStr = (date: any) => {
+  const toLocalDateStr = (date: Date) => {
     const y = date.getFullYear()
     const m = String(date.getMonth() + 1).padStart(2, "0")
     const d = String(date.getDate()).padStart(2, "0")
     return `${y}-${m}-${d}`
   }
 
-  const isoToLocalDateStr = (isoStr: any) => {
+  const isoToLocalDateStr = (isoStr: string | null | undefined) => {
     if (!isoStr) return ""
     if (/^\d{4}-\d{2}-\d{2}$/.test(isoStr)) return isoStr
     const d = new Date(isoStr)
@@ -231,7 +311,7 @@ export default function TrackingScreen(): React.JSX.Element {
     return toLocalDateStr(d)
   }
 
-  const buildLocalISOForDate = (date: any, timeStr = "09:00") => {
+  const buildLocalISOForDate = (date: Date, timeStr = "09:00") => {
     const dateStr = toLocalDateStr(date)
     return `${dateStr}T${timeStr}:00`
   }
@@ -261,7 +341,7 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // UNIFIED CALENDAR DATE PRESS
   // ─────────────────────────────────────────────────────────────
-  const handleCalendarDatePress = (date: any, tab: any) => {
+  const handleCalendarDatePress = (date: Date, tab: string) => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const pressedDate = new Date(date)
@@ -282,7 +362,7 @@ export default function TrackingScreen(): React.JSX.Element {
     }
 
     if (tab === "creatine") {
-      const entries = creatineHistory.filter((c: any) => {
+      const entries = creatineHistory.filter((c) => {
         const d = c?.taken_at || c?.date
         return isoToLocalDateStr(d) === dateStr
       })
@@ -304,7 +384,7 @@ export default function TrackingScreen(): React.JSX.Element {
 
     if (tab === "bodyfat") {
       const entry = bodyFatHistory.find(
-        (b: any) => isoToLocalDateStr(b?.date) === dateStr,
+        (b) => isoToLocalDateStr(b?.date) === dateStr,
       )
       if (entry) existingEntries = [entry]
     }
@@ -316,7 +396,7 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // OPEN LOG MODAL FOR TAB
   // ─────────────────────────────────────────────────────────────
-  const openLogModalForTab = (tab: any) => {
+  const openLogModalForTab = (tab: string) => {
     setDayModal(null)
     switch (tab) {
       case "weight":
@@ -360,11 +440,11 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // DELETE HANDLERS
   // ─────────────────────────────────────────────────────────────
-  const deleteWeightEntry = (entry: any) => {
+  const deleteWeightEntry = (entry: WeightEntry) => {
     const label =
       weightUnit === "kg"
-        ? `${entry.weight_kg.toFixed(1)} kg`
-        : `${(entry.weight_kg * 2.20462).toFixed(1)} lbs`
+        ? `${Number(entry.weight_kg).toFixed(1)} kg`
+        : `${(Number(entry.weight_kg) * 2.20462).toFixed(1)} lbs`
     alert(
       "Delete Entry",
       `Remove ${label}?`,
@@ -376,21 +456,24 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await bodyTrackingApi.deleteWeightEntry(entry.id)
-              setWeightHistory((prev: any) =>
-                prev.filter((e: any) => e.id !== entry.id),
-              )
-              setDayModal((prev: any) => {
+              setWeightHistory((prev) => prev.filter((e) => e.id !== entry.id))
+              setDayModal((prev) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
-                  (e: any) => e.id !== entry.id,
+                  (e) => (e as WeightEntry).id !== entry.id,
                 )
                 return {
                   ...prev,
                   existingEntries: remaining.length > 0 ? remaining : null,
                 }
               })
-            } catch (err: any) {
-              alert("Error", err.message, [{ text: "OK" }], "error")
+            } catch (err) {
+              alert(
+                "Error",
+                err instanceof Error ? err.message : String(err),
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
@@ -399,7 +482,7 @@ export default function TrackingScreen(): React.JSX.Element {
     )
   }
 
-  const deleteCreatineEntry = (entry: any) => {
+  const deleteCreatineEntry = (entry: CreatineEntry) => {
     alert(
       "Delete Entry",
       "Remove this creatine log?",
@@ -411,13 +494,13 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await bodyTrackingApi.deleteCreatineEntry(entry.id)
-              setCreatineHistory((prev: any) =>
-                prev.filter((c: any) => c.id !== entry.id),
+              setCreatineHistory((prev) =>
+                prev.filter((c) => c.id !== entry.id),
               )
-              setDayModal((prev: any) => {
+              setDayModal((prev) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
-                  (e: any) => e.id !== entry.id,
+                  (e) => (e as CreatineEntry).id !== entry.id,
                 )
                 return {
                   ...prev,
@@ -428,8 +511,13 @@ export default function TrackingScreen(): React.JSX.Element {
               if (entryDate === toLocalDateStr(new Date()))
                 setCreatineTakenToday(false)
               loadData()
-            } catch (err: any) {
-              alert("Error", err.message, [{ text: "OK" }], "error")
+            } catch (err) {
+              alert(
+                "Error",
+                err instanceof Error ? err.message : String(err),
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
@@ -438,7 +526,7 @@ export default function TrackingScreen(): React.JSX.Element {
     )
   }
 
-  const deleteMacroEntry = (entry: any) => {
+  const deleteMacroEntry = (entry: MacrosEntry) => {
     alert(
       "Delete Entry",
       entry.name ? `Remove "${entry.name}"?` : "Remove this entry?",
@@ -450,13 +538,11 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await macrosTrackingApi.deleteMacrosEntry(entry.id)
-              setMacrosEntries((prev: any) =>
-                prev.filter((e: any) => e.id !== entry.id),
-              )
-              setDayModal((prev: any) => {
+              setMacrosEntries((prev) => prev.filter((e) => e.id !== entry.id))
+              setDayModal((prev) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
-                  (e: any) => e.id !== entry.id,
+                  (e) => (e as MacrosEntry).id !== entry.id,
                 )
                 return {
                   ...prev,
@@ -464,8 +550,13 @@ export default function TrackingScreen(): React.JSX.Element {
                 }
               })
               loadData()
-            } catch (err: any) {
-              alert("Error", err.message, [{ text: "OK" }], "error")
+            } catch (err) {
+              alert(
+                "Error",
+                err instanceof Error ? err.message : String(err),
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
@@ -474,7 +565,7 @@ export default function TrackingScreen(): React.JSX.Element {
     )
   }
 
-  const deletePhoto = (photo: any) => {
+  const deletePhoto = (photo: ProgressPhoto) => {
     alert(
       "Delete Photo",
       "Permanently delete this progress photo?",
@@ -486,42 +577,43 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await bodyTrackingApi.deleteProgressPhoto(photo.id)
-              setProgressPhotos((prev: any) =>
-                prev.filter((p: any) => p.id !== photo.id),
-              )
-              setPhotoUriCache((prev: any) => {
+              setProgressPhotos((prev) => prev.filter((p) => p.id !== photo.id))
+              setPhotoUriCache((prev) => {
                 const next = { ...prev }
                 delete next[photo.id]
                 return next
               })
-              setDayModal((prev: any) => {
+              setDayModal((prev) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
-                  (p: any) => p.id !== photo.id,
+                  (p) => (p as ProgressPhoto).id !== photo.id,
                 )
                 return {
                   ...prev,
                   existingEntries: remaining.length > 0 ? remaining : null,
                 }
               })
-              setSelectedDatePhotos((prev: any) => {
+              setSelectedDatePhotos((prev) => {
                 if (!prev) return null
-                const remaining = prev.photos.filter(
-                  (p: any) => p.id !== photo.id,
-                )
+                const remaining = prev.photos.filter((p) => p.id !== photo.id)
                 return remaining.length > 0
                   ? { ...prev, photos: remaining }
                   : null
               })
               if (
                 !selectedDatePhotos ||
-                selectedDatePhotos.photos.filter((p: any) => p.id !== photo.id)
+                selectedDatePhotos.photos.filter((p) => p.id !== photo.id)
                   .length === 0
               ) {
                 setShowDatePhotosModal(false)
               }
-            } catch (err: any) {
-              alert("Error", err.message, [{ text: "OK" }], "error")
+            } catch (err) {
+              alert(
+                "Error",
+                err instanceof Error ? err.message : String(err),
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
@@ -530,10 +622,14 @@ export default function TrackingScreen(): React.JSX.Element {
     )
   }
 
-  const deleteBodyFatEntry = (entry: any) => {
+  const deleteBodyFatEntry = (entry: BodyFatEntryWithFields) => {
+    const pct =
+      entry.percentage ??
+      (entry as { body_fat_percentage?: number }).body_fat_percentage ??
+      0
     alert(
       "Delete Entry",
-      `Remove ${entry.percentage}% reading?`,
+      `Remove ${pct}% reading?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -542,21 +638,24 @@ export default function TrackingScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               await bodyFatApi.deleteBodyFatEntry(entry.id)
-              setBodyFatHistory((prev: any) =>
-                prev.filter((b: any) => b.id !== entry.id),
-              )
-              setDayModal((prev: any) => {
+              setBodyFatHistory((prev) => prev.filter((b) => b.id !== entry.id))
+              setDayModal((prev) => {
                 if (!prev) return null
                 const remaining = (prev.existingEntries || []).filter(
-                  (b: any) => b.id !== entry.id,
+                  (b) => (b as BodyFatEntryWithFields).id !== entry.id,
                 )
                 return {
                   ...prev,
                   existingEntries: remaining.length > 0 ? remaining : null,
                 }
               })
-            } catch (err: any) {
-              alert("Error", err.message, [{ text: "OK" }], "error")
+            } catch (err) {
+              alert(
+                "Error",
+                err instanceof Error ? err.message : String(err),
+                [{ text: "OK" }],
+                "error",
+              )
             }
           },
         },
@@ -585,7 +684,7 @@ export default function TrackingScreen(): React.JSX.Element {
         const recordedAt = buildLocalISOForDate(date, "08:00")
         await bodyTrackingApi.logWeight(
           value,
-          weightUnit as any,
+          weightUnit as "kg" | "lbs",
           null,
           recordedAt,
         )
@@ -652,7 +751,7 @@ export default function TrackingScreen(): React.JSX.Element {
             "error",
           )
         let heightCm = height?.height_cm
-          ? parseFloat((height as any).height_cm)
+          ? parseFloat(String(height.height_cm))
           : null
         if (!heightCm) {
           return alert(
@@ -690,7 +789,7 @@ export default function TrackingScreen(): React.JSX.Element {
         await bodyFatApi.logBodyFat(
           parseFloat(pct.toFixed(1)),
           { waist: waistCm, neck: neckCm, hip: hipCm, unit: "cm" },
-          pastGender as any,
+          pastGender as "male" | "female",
           dateIso,
         )
         alert(
@@ -703,10 +802,10 @@ export default function TrackingScreen(): React.JSX.Element {
 
       setDayModal(null)
       loadData()
-    } catch (err: any) {
+    } catch (err) {
       alert(
         "Error",
-        err.message || "Failed to save entry",
+        err instanceof Error ? err.message : "Failed to save entry",
         [{ text: "OK" }],
         "error",
       )
@@ -731,8 +830,10 @@ export default function TrackingScreen(): React.JSX.Element {
       }
       return ""
     })
-    const data = recentEntries.map((entry: any) =>
-      weightUnit === "kg" ? entry.weight_kg : entry.weight_kg * 2.20462,
+    const data: number[] = recentEntries.map((entry) =>
+      weightUnit === "kg"
+        ? Number(entry.weight_kg)
+        : Number(entry.weight_kg) * 2.20462,
     )
     return { labels, datasets: [{ data }] }
   }
@@ -745,8 +846,11 @@ export default function TrackingScreen(): React.JSX.Element {
     setLoading(true)
     try {
       await loadFromServer()
-    } catch (err: any) {
-      console.warn("Server load failed:", err.message)
+    } catch (err) {
+      console.warn(
+        "Server load failed:",
+        err instanceof Error ? err.message : String(err),
+      )
     } finally {
       setLoading(false)
     }
@@ -756,75 +860,140 @@ export default function TrackingScreen(): React.JSX.Element {
     setRefreshing(true)
     try {
       await loadFromServer()
-    } catch (err: any) {
-      console.warn("Refresh failed:", err.message)
+    } catch (err) {
+      console.warn(
+        "Refresh failed:",
+        err instanceof Error ? err.message : String(err),
+      )
     } finally {
       setRefreshing(false)
     }
   }
 
   const loadFromServer = async () => {
-    const weightData: any = await bodyTrackingApi.getWeightHistory()
+    const weightData =
+      (await bodyTrackingApi.getWeightHistory()) as WeightHistoryResponse
     const weightEntries = weightData.entries || []
     const validWeightEntries = weightEntries
-      .map((e: any) => ({ ...e, weight_kg: parseFloat(e.weight_kg) }))
-      .filter((e: any) => !isNaN(e.weight_kg) && e.weight_kg > 0)
+      .map((e: WeightEntry) => ({
+        ...e,
+        weight_kg: parseFloat(String(e.weight_kg)),
+      }))
+      .filter(
+        (e: WeightEntry & { weight_kg: number }) =>
+          !isNaN(e.weight_kg) && e.weight_kg > 0,
+      )
       .sort(
-        (a: any, b: any) =>
-          (new Date(b.recorded_at) as any) - (new Date(a.recorded_at) as any),
+        (a, b) =>
+          new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime(),
       )
     setWeightHistory(validWeightEntries)
-    setWeightUnit(weightData.unit || "kg")
+    setWeightUnit((weightData as unknown as { unit?: string }).unit || "kg")
 
     try {
-      const heightData = (await bodyTrackingApi.getHeightAndUnits()) as any
+      const heightData =
+        (await bodyTrackingApi.getHeightAndUnits()) as unknown as {
+          height?: HeightData & { height_unit?: string }
+        }
       if (heightData?.height) {
-        setHeight(heightData.height)
+        setHeight(heightData.height as unknown as HeightData)
         setHeightUnit(heightData.height.height_unit || "cm")
       }
     } catch {}
 
-    const creatineData: any = await bodyTrackingApi.getCreatineStatus()
+    const creatineData =
+      (await bodyTrackingApi.getCreatineStatus()) as unknown as {
+        settings?: {
+          enabled?: boolean
+          reminderTime?: string
+          defaultGrams?: number
+          timeBasedEnabled?: boolean
+          locationBasedEnabled?: boolean
+          notificationType?: string
+        }
+        taken_today?: boolean
+        takenToday?: boolean
+        streak?: number
+      }
     if (creatineData.settings) {
-      setCreatineEnabled(creatineData.settings.enabled)
-      setCreatineTime(creatineData.settings.reminderTime)
+      setCreatineEnabled(
+        creatineData.settings.enabled ??
+          creatineData.settings.timeBasedEnabled ??
+          false,
+      )
+      setCreatineTime(creatineData.settings.reminderTime ?? "09:00")
       setDefaultCreatineGrams(creatineData.settings.defaultGrams || 5)
       setCreatineGrams(String(creatineData.settings.defaultGrams || 5))
     }
-    setCreatineTakenToday(creatineData.takenToday || false)
+    setCreatineTakenToday(
+      creatineData.taken_today ?? creatineData.takenToday ?? false,
+    )
     setCreatineStreak(creatineData.streak || 0)
 
-    const creatineHistoryData: any =
-      await bodyTrackingApi.getCreatineHistory(90)
+    const creatineHistoryData = (await bodyTrackingApi.getCreatineHistory(
+      90,
+    )) as unknown as { entries?: CreatineEntry[] }
     setCreatineHistory(creatineHistoryData.entries || [])
 
     try {
-      const locationData = (await creatineApi.getReminderLocation()) as any
+      const locationData =
+        (await creatineApi.getReminderLocation()) as unknown as {
+          location?: {
+            lat?: number
+            lng?: number
+            latitude?: number
+            longitude?: number
+            address?: string
+            radius?: number
+          }
+          enabled?: boolean
+          location_based_enabled?: boolean
+        }
       if (locationData.location) {
-        setReminderLocation(locationData.location)
-        setLocationBasedReminder(locationData.enabled || false)
+        const loc = locationData.location
+        setReminderLocation({
+          lat: loc.lat ?? loc.latitude ?? 0,
+          lng: loc.lng ?? loc.longitude ?? 0,
+          address: loc.address ?? "",
+          radius: loc.radius ?? 100,
+        } as unknown as ReminderLocation)
+        setLocationBasedReminder(
+          locationData.enabled ?? locationData.location_based_enabled ?? false,
+        )
       }
     } catch {}
 
-    const photoData: any = await bodyTrackingApi.getPhotoList()
+    const photoData = (await bodyTrackingApi.getPhotoList()) as {
+      photos?: ProgressPhoto[]
+    }
     setProgressPhotos(photoData.photos || [])
 
-    const macrosData = (await macrosTrackingApi.getMacrosHistory(30)) as any
-    setMacrosEntries(macrosData.entries || [])
-    const macrosGoals: any = await macrosTrackingApi.getMacrosGoals()
+    const macrosData = (await macrosTrackingApi.getMacrosHistory(30)) as {
+      entries?: MacrosEntry[]
+    }
+    setMacrosEntries((macrosData.entries || []) as MacrosEntryWithFields[])
+    const macrosGoals =
+      (await macrosTrackingApi.getMacrosGoals()) as unknown as {
+        goals?: typeof dailyMacrosGoals
+      } & typeof dailyMacrosGoals
     setDailyMacrosGoals(
-      macrosGoals.goals || {
-        protein: 150,
-        carbs: 250,
-        fat: 65,
-        calories: 2000,
+      macrosGoals.goals ?? {
+        protein: (macrosGoals as { protein?: number }).protein ?? 150,
+        carbs: (macrosGoals as { carbs?: number }).carbs ?? 250,
+        fat: (macrosGoals as { fat?: number }).fat ?? 65,
+        calories: (macrosGoals as { calories?: number }).calories ?? 2000,
       },
     )
 
-    const bodyFatData: any = await bodyFatApi.getBodyFatHistory()
-    const sortedBodyFat = (bodyFatData.entries || []).sort(
-      (a: any, b: any) =>
-        new Date(b.date).getTime() - new Date(a.date).getTime(),
+    const bodyFatData = (await bodyFatApi.getBodyFatHistory()) as {
+      entries?: BodyFatEntry[]
+    }
+    const sortedBodyFat = (
+      (bodyFatData.entries || []) as BodyFatEntryWithFields[]
+    ).sort(
+      (a, b) =>
+        new Date(b.date ?? b.recorded_at ?? "").getTime() -
+        new Date(a.date ?? a.recorded_at ?? "").getTime(),
     )
     setBodyFatHistory(sortedBodyFat)
 
@@ -837,7 +1006,7 @@ export default function TrackingScreen(): React.JSX.Element {
 
   useEffect(() => {
     if (activeTab === "photos" && progressPhotos.length > 0) {
-      progressPhotos.slice(0, 20).forEach((p: any) => fetchPhotoUri(p.id))
+      progressPhotos.slice(0, 20).forEach((p) => fetchPhotoUri(p.id))
     }
   }, [activeTab, progressPhotos])
 
@@ -846,11 +1015,11 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   const getWeightTrend = () => {
     if (weightHistory.length < 2) return null
-    const currentWeight = weightHistory[0].weight_kg
+    const currentWeight = Number(weightHistory[0].weight_kg)
     const compareEntries = weightHistory.slice(1, trendAverageDays + 1)
     if (compareEntries.length === 0) return null
     const avgWeight =
-      compareEntries.reduce((sum, e) => sum + e.weight_kg, 0) /
+      compareEntries.reduce((sum, e) => sum + Number(e.weight_kg), 0) /
       compareEntries.length
     const diff = currentWeight - avgWeight
     const percentChange = (diff / avgWeight) * 100
@@ -909,30 +1078,43 @@ export default function TrackingScreen(): React.JSX.Element {
       alert("Logged", "Macros logged!", [{ text: "OK" }], "success")
       loadData()
     } catch (error) {
-      alert("Error", (error as any)?.message, [{ text: "OK" }], "error")
+      alert(
+        "Error",
+        error instanceof Error ? error.message : "An error occurred",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
-  const getDailyMacrosStats = (date: any) => {
+  const getDailyMacrosStats = (date: Date) => {
     const dateStr = toLocalDateStr(date)
     const entries = macrosEntries.filter(
-      (e) => isoToLocalDateStr(e.date) === dateStr,
+      (e) => isoToLocalDateStr(e.date ?? e.logged_at) === dateStr,
     )
     if (entries.length === 0) return null
-    const normed = entries.map((e: any) => ({
-      ...e,
-      protein: e.protein != null ? parseFloat(e.protein) : null,
-      carbs: e.carbs != null ? parseFloat(e.carbs) : null,
-      fat: e.fat != null ? parseFloat(e.fat) : null,
-      calories: e.calories != null ? parseFloat(e.calories) : null,
-      errorMargin: parseFloat(e.errorMargin) || 0,
+    const normed = entries.map((e: MacrosEntryWithFields) => ({
+      id: e.id,
+      name: e.name,
+      date: e.date ?? e.logged_at,
+      protein: e.protein != null ? parseFloat(String(e.protein)) : null,
+      carbs: e.carbs != null ? parseFloat(String(e.carbs)) : null,
+      fat: e.fat != null ? parseFloat(String(e.fat)) : null,
+      calories: e.calories != null ? parseFloat(String(e.calories)) : null,
+      errorMargin:
+        parseFloat(String(e.errorMargin ?? e.error_margin ?? 0)) || 0,
     }))
-    const sumField = (field: any) =>
-      normed.reduce((s, e) => (e[field] != null ? s + e[field] : s), 0)
-    const hasAny = (field: any) => normed.some((e) => e[field] != null)
+    type NormedEntry = (typeof normed)[0]
+    const sumField = (field: keyof NormedEntry) =>
+      normed.reduce((s, e) => {
+        const v = e[field]
+        return v != null && typeof v === "number" ? s + v : s
+      }, 0)
+    const hasAny = (field: keyof NormedEntry) =>
+      normed.some((e) => e[field] != null)
     const avgError =
       normed.reduce((s, e) => s + e.errorMargin, 0) / normed.length
-    const makeStat = (field: any, goal: any) => {
+    const makeStat = (field: keyof NormedEntry, goal: number | null) => {
       if (!hasAny(field)) return null
       const total = sumField(field)
       return {
@@ -940,7 +1122,7 @@ export default function TrackingScreen(): React.JSX.Element {
         min: total * (1 - avgError / 100),
         max: total * (1 + avgError / 100),
         goal,
-        percentage: (total / goal) * 100,
+        percentage: goal != null && goal > 0 ? (total / goal) * 100 : 0,
       }
     }
     return {
@@ -980,7 +1162,12 @@ export default function TrackingScreen(): React.JSX.Element {
       setDailyMacrosGoals({ protein, carbs, fat, calories })
       setShowMacrosGoalModal(false)
     } catch (error) {
-      alert("Error", (error as any)?.message, [{ text: "OK" }], "error")
+      alert(
+        "Error",
+        error instanceof Error ? error.message : "An error occurred",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -997,7 +1184,7 @@ export default function TrackingScreen(): React.JSX.Element {
       )
     }
     let heightCm = height?.height_cm
-      ? parseFloat((height as any).height_cm)
+      ? parseFloat(String(height.height_cm))
       : null
     if (!heightCm) {
       return alert(
@@ -1045,7 +1232,7 @@ export default function TrackingScreen(): React.JSX.Element {
       await bodyFatApi.logBodyFat(
         parseFloat(bodyFatPercentage.toFixed(1)),
         { waist: waistCm, neck: neckCm, hip: hipCm, unit: "cm" },
-        gender as any,
+        gender as "male" | "female",
         dateStr,
       )
       setSelectedLogDate(null)
@@ -1057,7 +1244,12 @@ export default function TrackingScreen(): React.JSX.Element {
       )
       loadData()
     } catch (error) {
-      alert("Error", (error as any)?.message, [{ text: "OK" }], "error")
+      alert(
+        "Error",
+        error instanceof Error ? error.message : "An error occurred",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -1085,21 +1277,26 @@ export default function TrackingScreen(): React.JSX.Element {
       )
       loadData()
     } catch (error) {
-      alert("Error", (error as any)?.message, [{ text: "OK" }], "error")
+      alert(
+        "Error",
+        error instanceof Error ? error.message : "An error occurred",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
   // ─────────────────────────────────────────────────────────────
   // PHOTO METHODS
   // ─────────────────────────────────────────────────────────────
-  const fetchPhotoUri = async (photoId: any) => {
+  const fetchPhotoUri = async (photoId: string | number) => {
     if (photoUriCache[photoId] || photoUriLoading[photoId]) return
-    setPhotoUriLoading((prev: any) => ({ ...prev, [photoId]: true }))
+    setPhotoUriLoading((prev) => ({ ...prev, [photoId]: true }))
     try {
       const localUri = `${FileSystem.cacheDirectory}photo_${photoId}.jpg`
       const info = await FileSystem.getInfoAsync(localUri)
       if (info.exists) {
-        setPhotoUriCache((prev: any) => ({ ...prev, [photoId]: localUri }))
+        setPhotoUriCache((prev) => ({ ...prev, [photoId]: localUri }))
         return
       }
       const result = await FileSystem.downloadAsync(
@@ -1108,19 +1305,19 @@ export default function TrackingScreen(): React.JSX.Element {
         { headers: { Authorization: `Bearer ${authToken}` } },
       )
       if (result.status === 200) {
-        setPhotoUriCache((prev: any) => ({ ...prev, [photoId]: result.uri }))
+        setPhotoUriCache((prev) => ({ ...prev, [photoId]: result.uri }))
       } else {
         throw new Error(`Server returned ${result.status}`)
       }
     } catch (error) {
-      setPhotoUriCache((prev: any) => ({ ...prev, [photoId]: "error" }))
+      setPhotoUriCache((prev) => ({ ...prev, [photoId]: "error" }))
     } finally {
-      setPhotoUriLoading((prev: any) => ({ ...prev, [photoId]: false }))
+      setPhotoUriLoading((prev) => ({ ...prev, [photoId]: false }))
     }
   }
 
-  const prefetchPhotosForDate = async (photos: any) => {
-    await Promise.all(photos.map((p: any) => fetchPhotoUri(p.id)))
+  const prefetchPhotosForDate = async (photos: ProgressPhoto[]) => {
+    await Promise.all(photos.map((p) => fetchPhotoUri(p.id)))
   }
 
   useEffect(() => {
@@ -1131,7 +1328,7 @@ export default function TrackingScreen(): React.JSX.Element {
 
   useEffect(() => {
     if (dayModal?.tab === "photos" && dayModal?.existingEntries?.length) {
-      prefetchPhotosForDate(dayModal.existingEntries)
+      prefetchPhotosForDate(dayModal.existingEntries as ProgressPhoto[])
     }
   }, [dayModal])
 
@@ -1190,7 +1387,7 @@ export default function TrackingScreen(): React.JSX.Element {
     }
   }
 
-  const pickPhotoForDate = async (date: any) => {
+  const pickPhotoForDate = async (date: Date) => {
     try {
       const permissionResult =
         await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -1245,10 +1442,10 @@ export default function TrackingScreen(): React.JSX.Element {
     }
   }
 
-  const getPhotosForDate = (date: any) => {
+  const getPhotosForDate = (date: Date) => {
     const dateStr = toLocalDateStr(date)
     return progressPhotos.filter(
-      (p: any) => isoToLocalDateStr(p?.takenAt) === dateStr,
+      (p) => isoToLocalDateStr(p?.takenAt) === dateStr,
     )
   }
 
@@ -1269,7 +1466,7 @@ export default function TrackingScreen(): React.JSX.Element {
         : null
       await bodyTrackingApi.logWeight(
         parseFloat(newWeight),
-        weightUnit as any,
+        weightUnit as "kg" | "lbs",
         null,
         recordedAt,
       )
@@ -1278,34 +1475,37 @@ export default function TrackingScreen(): React.JSX.Element {
       setSelectedLogDate(null)
       alert("Success", "Weight logged!", [{ text: "OK" }], "success")
       loadData()
-    } catch (err: any) {
-      alert("Error", err.message, [{ text: "OK" }], "error")
+    } catch (err) {
+      alert(
+        "Error",
+        err instanceof Error ? err.message : String(err),
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
   const loadMoreWeightEntries = () =>
-    setWeightEntriesShown((prev: any) =>
+    setWeightEntriesShown((prev: number) =>
       Math.min(prev + 10, weightHistory.length),
     )
 
   // ─────────────────────────────────────────────────────────────
   // CALENDAR HAS-DATA CHECKERS
   // ─────────────────────────────────────────────────────────────
-  const hasWeightData = (date: any) => {
+  const hasWeightData = (date: Date) => {
     const dateStr = toLocalDateStr(date)
     return weightHistory.some(
       (e) => isoToLocalDateStr(e?.recorded_at) === dateStr,
     )
   }
 
-  const hasPhotoData = (date: any) => {
+  const hasPhotoData = (date: Date) => {
     const dateStr = toLocalDateStr(date)
-    return progressPhotos.some(
-      (p: any) => isoToLocalDateStr(p?.takenAt) === dateStr,
-    )
+    return progressPhotos.some((p) => isoToLocalDateStr(p?.takenAt) === dateStr)
   }
 
-  const hasCreatineData = (date: any) => {
+  const hasCreatineData = (date: Date) => {
     const dateStr = toLocalDateStr(date)
     return creatineHistory.some((c) => {
       const d = c?.taken_at || c?.date
@@ -1313,16 +1513,14 @@ export default function TrackingScreen(): React.JSX.Element {
     })
   }
 
-  const hasMacrosData = (date: any) => {
+  const hasMacrosData = (date: Date) => {
     const dateStr = toLocalDateStr(date)
     return macrosEntries.some((e) => isoToLocalDateStr(e?.date) === dateStr)
   }
 
-  const hasBodyFatData = (date: any) => {
+  const hasBodyFatData = (date: Date) => {
     const dateStr = toLocalDateStr(date)
-    return bodyFatHistory.some(
-      (b: any) => isoToLocalDateStr(b?.date) === dateStr,
-    )
+    return bodyFatHistory.some((b) => isoToLocalDateStr(b?.date) === dateStr)
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1356,9 +1554,10 @@ export default function TrackingScreen(): React.JSX.Element {
         unit: heightUnit,
         ...(heightUnit === "ft" && { inches: parseFloat(newHeightIn) || 0 }),
       }
+      // FIX: cast as any to satisfy HeightInput interface
       await bodyTrackingApi.saveHeightAndUnits(
         heightData as any,
-        weightUnit as any,
+        weightUnit as "kg" | "lbs",
       )
       await loadData()
       setShowHeightModal(false)
@@ -1367,7 +1566,12 @@ export default function TrackingScreen(): React.JSX.Element {
       setNewHeightIn("")
       alert("Success", "Height saved!", [{ text: "OK" }], "success")
     } catch (error) {
-      alert("Error", (error as any)?.message, [{ text: "OK" }], "error")
+      alert(
+        "Error",
+        error instanceof Error ? error.message : "An error occurred",
+        [{ text: "OK" }],
+        "error",
+      )
     }
   }
 
@@ -1397,16 +1601,14 @@ export default function TrackingScreen(): React.JSX.Element {
         </View>
       )
     }
-    const grouped: Record<string, any[]> = {}
-    progressPhotos.forEach((p: any) => {
+    const grouped: Record<string, ProgressPhoto[]> = {}
+    progressPhotos.forEach((p) => {
       const d = isoToLocalDateStr(p?.takenAt)
       if (!grouped[d]) grouped[d] = []
       grouped[d].push(p)
     })
-    const sortedDates = Object.keys(grouped).sort((a: any, b: any) =>
-      b.localeCompare(a),
-    )
-    return sortedDates.slice(0, 10).map((dateStr: any) => {
+    const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+    return sortedDates.slice(0, 10).map((dateStr: string) => {
       const photos = grouped[dateStr]
       const label = new Date(dateStr + "T12:00:00").toLocaleDateString(
         "en-US",
@@ -1420,7 +1622,7 @@ export default function TrackingScreen(): React.JSX.Element {
             showsHorizontalScrollIndicator={false}
             style={styles.photoGroupRow}
           >
-            {photos.map((photo: any) => {
+            {photos.map((photo: ProgressPhoto) => {
               const uri = photoUriCache[photo.id]
               const isLoading = !uri && photoUriLoading[photo.id]
               const isError = uri === "error"
@@ -1464,19 +1666,24 @@ export default function TrackingScreen(): React.JSX.Element {
   }
 
   const renderDayModalExistingEntries = () => {
-    const existingEntries = dayModal?.existingEntries
+    const existingEntries = dayModal?.existingEntries as
+      | any[]
+      | null
+      | undefined
     if (!existingEntries || existingEntries.length === 0) return null
-    const { tab } = dayModal
+    // FIX: use non-null assertion since we already checked dayModal via existingEntries
+    const { tab } = dayModal!
 
     if (tab === "weight") {
       return (
         <View style={styles.existingEntriesSection}>
           <Text style={styles.existingEntriesTitle}>Logged entries</Text>
-          {existingEntries.map((entry: any, i: any) => {
+          {existingEntries.map((entry, i: number) => {
+            const wkg = Number(entry.weight_kg)
             const val =
               weightUnit === "kg"
-                ? `${entry.weight_kg.toFixed(1)} kg`
-                : `${(entry.weight_kg * 2.20462).toFixed(1)} lbs`
+                ? `${wkg.toFixed(1)} kg`
+                : `${(wkg * 2.20462).toFixed(1)} lbs`
             const time = new Date(entry.recorded_at).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
@@ -1502,7 +1709,7 @@ export default function TrackingScreen(): React.JSX.Element {
       return (
         <View style={styles.existingEntriesSection}>
           <Text style={styles.existingEntriesTitle}>Logged entries</Text>
-          {existingEntries.map((entry: any, i: any) => {
+          {existingEntries.map((entry, i: number) => {
             const d = entry?.taken_at || entry?.date
             const time = new Date(d).toLocaleTimeString([], {
               hour: "2-digit",
@@ -1534,7 +1741,7 @@ export default function TrackingScreen(): React.JSX.Element {
       return (
         <View style={styles.existingEntriesSection}>
           <Text style={styles.existingEntriesTitle}>Logged entries</Text>
-          {existingEntries.map((entry: any, i: any) => (
+          {existingEntries.map((entry, i: number) => (
             <View key={entry.id ?? i} style={styles.existingEntryRow}>
               <View style={{ flex: 1 }}>
                 {entry.name ? (
@@ -1581,7 +1788,7 @@ export default function TrackingScreen(): React.JSX.Element {
             showsHorizontalScrollIndicator={false}
             style={{ marginTop: 6 }}
           >
-            {existingEntries.map((photo: any) => {
+            {existingEntries.map((photo: ProgressPhoto) => {
               const uri = photoUriCache[photo.id]
               const isLoading = !uri && photoUriLoading[photo.id]
               const isError = uri === "error"
@@ -1627,11 +1834,11 @@ export default function TrackingScreen(): React.JSX.Element {
       return (
         <View style={styles.existingEntriesSection}>
           <Text style={styles.existingEntriesTitle}>Logged measurement</Text>
-          {existingEntries.map((entry: any, i: any) => (
+          {existingEntries.map((entry, i: number) => (
             <View key={entry.id ?? i} style={styles.existingEntryRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.existingEntryValue}>
-                  {entry.percentage}%
+                  {Number(entry.percentage).toFixed(1)}%
                 </Text>
                 <Text style={styles.existingEntryTime}>
                   Waist{" "}
@@ -1702,7 +1909,7 @@ export default function TrackingScreen(): React.JSX.Element {
               <Text style={styles.sectionTitle}>Weight Tracking</Text>
               <UniversalCalendar
                 hasDataOnDate={hasWeightData}
-                onDatePress={(date: any) =>
+                onDatePress={(date: Date) =>
                   handleCalendarDatePress(date, "weight")
                 }
                 initialView='week'
@@ -1753,7 +1960,7 @@ export default function TrackingScreen(): React.JSX.Element {
                         vs. {weightTrend.daysCompared}-day average
                       </Text>
                       <View style={styles.trendSelector}>
-                        {[3, 7, 14, 30].map((days: any) => (
+                        {[3, 7, 14, 30].map((days: number) => (
                           <TouchableOpacity
                             key={days}
                             style={[
@@ -1901,7 +2108,7 @@ export default function TrackingScreen(): React.JSX.Element {
               <Text style={styles.sectionTitle}>Progress Photos</Text>
               <UniversalCalendar
                 hasDataOnDate={hasPhotoData}
-                onDatePress={(date: any) =>
+                onDatePress={(date: Date) =>
                   handleCalendarDatePress(date, "photos")
                 }
                 initialView='week'
@@ -1938,7 +2145,7 @@ export default function TrackingScreen(): React.JSX.Element {
               <Text style={styles.sectionTitle}>Creatine Tracking</Text>
               <UniversalCalendar
                 hasDataOnDate={hasCreatineData}
-                onDatePress={(date: any) =>
+                onDatePress={(date: Date) =>
                   handleCalendarDatePress(date, "creatine")
                 }
                 initialView='week'
@@ -1956,7 +2163,7 @@ export default function TrackingScreen(): React.JSX.Element {
                     {(() => {
                       const currentMonth = new Date().toISOString().slice(0, 7)
                       return `${
-                        creatineHistory.filter((c: any) => {
+                        creatineHistory.filter((c) => {
                           const d = c?.taken_at || c?.date
                           return (
                             d &&
@@ -2006,14 +2213,14 @@ export default function TrackingScreen(): React.JSX.Element {
                       >
                         <View>
                           <Text style={styles.weightEntryDate}>
-                            {new Date(d).toLocaleDateString([], {
+                            {new Date(d ?? "").toLocaleDateString([], {
                               weekday: "short",
                               month: "short",
                               day: "numeric",
                             })}
                           </Text>
                           <Text style={styles.weightEntryTime}>
-                            {new Date(d).toLocaleTimeString([], {
+                            {new Date(d ?? "").toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
@@ -2063,7 +2270,7 @@ export default function TrackingScreen(): React.JSX.Element {
               </View>
               <UniversalCalendar
                 hasDataOnDate={hasMacrosData}
-                onDatePress={(date: any) =>
+                onDatePress={(date: Date) =>
                   handleCalendarDatePress(date, "macros")
                 }
                 initialView='week'
@@ -2101,9 +2308,12 @@ export default function TrackingScreen(): React.JSX.Element {
                         color: colors.error,
                       },
                     ]
-                      .filter(({ key }) => (todayStats as any)[key] != null)
+                      .filter(
+                        ({ key }) =>
+                          todayStats[key as keyof DailyMacrosStats] != null,
+                      )
                       .map(({ key, label, unit, color }) => {
-                        const macro = (todayStats as any)[key]
+                        const macro = todayStats[key as keyof DailyMacrosStats]!
                         return (
                           <View key={key} style={styles.macroRow}>
                             <View style={styles.macroLabelRow}>
@@ -2164,14 +2374,14 @@ export default function TrackingScreen(): React.JSX.Element {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Body Fat %</Text>
               <View style={styles.heightCard}>
-                {height && (height as any).height_cm ? (
+                {height && height.height_cm ? (
                   <View style={styles.heightDisplay}>
                     <View style={styles.heightInfo}>
                       <Text style={styles.heightLabel}>Your Height</Text>
                       <Text style={styles.heightValue}>
                         {heightUnit === "cm"
-                          ? `${(height as any).height_cm.toFixed(1)} cm`
-                          : `${Math.floor((height as any).height_cm / 2.54 / 12)}' ${Math.round(((height as any).height_cm / 2.54) % 12)}"`}
+                          ? `${height.height_cm.toFixed(1)} cm`
+                          : `${Math.floor(height.height_cm / 2.54 / 12)}' ${Math.round((height.height_cm / 2.54) % 12)}"`}
                       </Text>
                       <Text style={styles.heightNote}>
                         Required for body fat calculation
@@ -2182,11 +2392,9 @@ export default function TrackingScreen(): React.JSX.Element {
                       onPress={() => {
                         if (height?.height_cm) {
                           if (heightUnit === "cm")
-                            setNewHeightCm(
-                              String((height as any).height_cm.toFixed(1)),
-                            )
+                            setNewHeightCm(String(height.height_cm.toFixed(1)))
                           else {
-                            const ti = (height as any).height_cm / 2.54
+                            const ti = height.height_cm / 2.54
                             setNewHeightFt(String(Math.floor(ti / 12)))
                             setNewHeightIn(String(Math.round(ti % 12)))
                           }
@@ -2214,7 +2422,7 @@ export default function TrackingScreen(): React.JSX.Element {
               </View>
               <UniversalCalendar
                 hasDataOnDate={hasBodyFatData}
-                onDatePress={(date: any) =>
+                onDatePress={(date: Date) =>
                   handleCalendarDatePress(date, "bodyfat")
                 }
                 initialView='week'
@@ -2224,11 +2432,22 @@ export default function TrackingScreen(): React.JSX.Element {
               {bodyFatHistory.length > 0 && (
                 <View style={styles.bodyFatCard}>
                   <Text style={styles.bodyFatLabel}>Latest Measurement</Text>
+                  {/* FIX: wrap with Number() before toFixed() to handle string | number */}
                   <Text style={styles.bodyFatValue}>
-                    {bodyFatHistory[0].percentage}%
+                    {Number(
+                      bodyFatHistory[0].percentage ??
+                        (bodyFatHistory[0] as { body_fat_percentage?: number })
+                          .body_fat_percentage ??
+                        0,
+                    ).toFixed(1)}
+                    %
                   </Text>
                   <Text style={styles.bodyFatDate}>
-                    {new Date(bodyFatHistory[0].date).toLocaleDateString()}
+                    {new Date(
+                      bodyFatHistory[0].date ??
+                        bodyFatHistory[0].recorded_at ??
+                        "",
+                    ).toLocaleDateString()}
                   </Text>
                   <Text style={styles.bodyFatMethod}>US Navy Method</Text>
                   <TouchableOpacity
@@ -2296,7 +2515,7 @@ export default function TrackingScreen(): React.JSX.Element {
       >
         <Text style={styles.inputLabel}>Unit:</Text>
         <View style={styles.unitToggle}>
-          {["cm", "ft"].map((u: any) => (
+          {["cm", "ft"].map((u: string) => (
             <TouchableOpacity
               key={u}
               style={[
@@ -2450,7 +2669,7 @@ export default function TrackingScreen(): React.JSX.Element {
           keyboardType='decimal-pad'
           value={macrosGoalInput.protein}
           onChangeText={(v) =>
-            setMacrosGoalInput((p: any) => ({ ...p, protein: v }))
+            setMacrosGoalInput((p) => ({ ...p, protein: v }))
           }
         />
         <Text style={styles.inputLabel}>Carbohydrates goal (g)</Text>
@@ -2459,9 +2678,7 @@ export default function TrackingScreen(): React.JSX.Element {
           placeholder='e.g., 250'
           keyboardType='decimal-pad'
           value={macrosGoalInput.carbs}
-          onChangeText={(v) =>
-            setMacrosGoalInput((p: any) => ({ ...p, carbs: v }))
-          }
+          onChangeText={(v) => setMacrosGoalInput((p) => ({ ...p, carbs: v }))}
         />
         <Text style={styles.inputLabel}>Fat goal (g)</Text>
         <TextInput
@@ -2469,9 +2686,7 @@ export default function TrackingScreen(): React.JSX.Element {
           placeholder='e.g., 65'
           keyboardType='decimal-pad'
           value={macrosGoalInput.fat}
-          onChangeText={(v) =>
-            setMacrosGoalInput((p: any) => ({ ...p, fat: v }))
-          }
+          onChangeText={(v) => setMacrosGoalInput((p) => ({ ...p, fat: v }))}
         />
         <Text style={styles.inputLabel}>Calories goal (kcal)</Text>
         <TextInput
@@ -2480,7 +2695,7 @@ export default function TrackingScreen(): React.JSX.Element {
           keyboardType='decimal-pad'
           value={macrosGoalInput.calories}
           onChangeText={(v) =>
-            setMacrosGoalInput((p: any) => ({ ...p, calories: v }))
+            setMacrosGoalInput((p) => ({ ...p, calories: v }))
           }
         />
       </ModalSheet>
@@ -2516,7 +2731,7 @@ export default function TrackingScreen(): React.JSX.Element {
         scrollable={true}
       >
         <View style={styles.genderToggle}>
-          {["male", "female"].map((g: any) => (
+          {["male", "female"].map((g: string) => (
             <TouchableOpacity
               key={g}
               style={[
@@ -2542,7 +2757,7 @@ export default function TrackingScreen(): React.JSX.Element {
         <View style={styles.unitToggleContainer}>
           <Text style={styles.inputLabel}>Unit:</Text>
           <View style={styles.unitToggle}>
-            {["cm", "in"].map((u: any) => (
+            {["cm", "in"].map((u: string) => (
               <TouchableOpacity
                 key={u}
                 style={[
@@ -2625,7 +2840,12 @@ export default function TrackingScreen(): React.JSX.Element {
             setSelectedLogDate(null)
             loadData()
           } catch (error) {
-            alert("Error", (error as any)?.message, [{ text: "OK" }], "error")
+            alert(
+              "Error",
+              error instanceof Error ? error.message : "An error occurred",
+              [{ text: "OK" }],
+              "error",
+            )
           }
         }}
         defaultGrams={defaultCreatineGrams}
@@ -2705,7 +2925,7 @@ export default function TrackingScreen(): React.JSX.Element {
 
         <TouchableOpacity
           style={styles.logEntryBtn}
-          onPress={() => openLogModalForTab(dayModal?.tab)}
+          onPress={() => openLogModalForTab(dayModal?.tab ?? "weight")}
         >
           <Text style={styles.logEntryBtnText}>
             {dayModal?.tab === "weight"
@@ -2740,26 +2960,42 @@ export default function TrackingScreen(): React.JSX.Element {
               resizeMode='contain'
             />
           )}
-          {expandedPhoto?.photo && (
-            <View style={styles.photoViewerInfo}>
-              <Text style={styles.photoViewerTime}>
-                {new Date(expandedPhoto.photo.takenAt).toLocaleDateString(
-                  "en-US",
-                  { weekday: "long", month: "long", day: "numeric" },
-                )}
-                {"  ·  "}
-                {new Date(expandedPhoto.photo.takenAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-              {expandedPhoto.photo.note && (
-                <Text style={styles.photoViewerNote}>
-                  {expandedPhoto.photo.note}
-                </Text>
-              )}
-            </View>
-          )}
+          {expandedPhoto?.photo &&
+            (() => {
+              const p = expandedPhoto.photo as unknown as {
+                takenAt?: string
+                taken_at?: string
+                note?: string
+              }
+              const takenAt = p.takenAt ?? p.taken_at
+              return (
+                <View style={styles.photoViewerInfo}>
+                  <Text style={styles.photoViewerTime}>
+                    {takenAt
+                      ? new Date(takenAt).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          month: "long",
+                          day: "numeric",
+                        })
+                      : ""}
+                    {"  ·  "}
+                    {takenAt
+                      ? new Date(takenAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : ""}
+                  </Text>
+                  {(p.note ??
+                    (expandedPhoto.photo as { note?: string }).note) && (
+                    <Text style={styles.photoViewerNote}>
+                      {p.note ??
+                        (expandedPhoto.photo as { note?: string }).note}
+                    </Text>
+                  )}
+                </View>
+              )
+            })()}
         </View>
       </ModalSheet>
 
@@ -2772,7 +3008,7 @@ export default function TrackingScreen(): React.JSX.Element {
 // ═══════════════════════════════════════════════════════════════
 // STYLES
 // ═══════════════════════════════════════════════════════════════
-const makeStyles = (colors: any) =>
+const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 20, paddingTop: 60, paddingBottom: 120 },

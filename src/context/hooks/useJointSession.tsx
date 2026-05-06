@@ -1,8 +1,8 @@
 // hooks/useJointSession.ts
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { sharingApi } from '../../services/api'
-import type { RealtimeSocket, WebSocketMessage } from './useRealtimeSocket'
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { sharingApi } from "../../services/api"
+import type { RealtimeSocket, WebSocketMessage } from "./useRealtimeSocket"
 
 const SYNC_PULSE_MS = 1_500
 
@@ -77,7 +77,11 @@ export interface UseJointSessionReturn {
   watchSession: unknown
   watchLoading: boolean
   watchError: string | null
-  startWatching: (friendId: string, friendUsername: string, sessionId: string) => Promise<boolean>
+  startWatching: (
+    friendId: string,
+    friendUsername: string,
+    sessionId: string,
+  ) => Promise<boolean>
   stopWatching: () => void
   handleSocketMessage: (msg: WebSocketMessage) => void
 }
@@ -111,13 +115,20 @@ export const useJointSession = ({
   socket,
 }: UseJointSessionOptions): UseJointSessionReturn => {
   const [jointSession, setJointSession] = useState<JointSession | null>(null)
-  const [partnerProgress, setPartnerProgress] = useState<PartnerProgress | null>(null)
-  const [myProgress, setMyProgress] = useState<Record<string, unknown> | null>(null)
-  const [pendingInvite, setPendingInvite] = useState<WebSocketMessage | null>(null)
-  const [inviteStatus, setInviteStatus] = useState<string>('idle')
+  const [partnerProgress, setPartnerProgress] =
+    useState<PartnerProgress | null>(null)
+  const [myProgress, setMyProgress] = useState<Record<string, unknown> | null>(
+    null,
+  )
+  const [pendingInvite, setPendingInvite] = useState<WebSocketMessage | null>(
+    null,
+  )
+  const [inviteStatus, setInviteStatus] = useState<string>("idle")
   const [isPartnerReady, setIsPartnerReady] = useState(false)
   const [syncPulse, setSyncPulse] = useState(false)
-  const [partnerCompletedSets, setPartnerCompletedSets] = useState<PartnerCompletedSet[]>([])
+  const [partnerCompletedSets, setPartnerCompletedSets] = useState<
+    PartnerCompletedSet[]
+  >([])
 
   const [watchTarget, setWatchTarget] = useState<WatchTarget | null>(null)
   const [watchSession, setWatchSession] = useState<unknown>(null)
@@ -129,7 +140,7 @@ export const useJointSession = ({
   const watchTargetRef = useRef<WatchTarget | null>(null)
   const lastPushedKeyRef = useRef<string | null>(null)
 
-  const isInJointSession = inviteStatus === 'active' && !!jointSession
+  const isInJointSession = inviteStatus === "active" && !!jointSession
   const isWatching = !!watchTarget
   const jointSessionId = jointSession?.id ?? null
 
@@ -145,7 +156,7 @@ export const useJointSession = ({
       .filter((e) => e.person === selectedPerson)
       .map((e) => e.name)
       .filter(Boolean)
-      .join('||')
+      .join("||")
   }, [currentDayExercises, selectedPerson])
 
   const partnerExerciseList = useMemo(() => {
@@ -153,11 +164,14 @@ export const useJointSession = ({
     const otherPersonExercises = currentDayExercises.filter(
       (e) => e.person && e.person !== selectedPerson,
     )
-    const source = otherPersonExercises.length > 0 ? otherPersonExercises : currentDayExercises
+    const source =
+      otherPersonExercises.length > 0
+        ? otherPersonExercises
+        : currentDayExercises
     const seen = new Set<string>()
     const result: Array<{ name: string; sets: number }> = []
     for (const e of source) {
-      const key = (e.name ?? '').trim().toLowerCase()
+      const key = (e.name ?? "").trim().toLowerCase()
       if (key && !seen.has(key)) {
         seen.add(key)
         result.push({ name: e.name, sets: e.sets })
@@ -169,16 +183,21 @@ export const useJointSession = ({
   const triggerSyncPulse = useCallback(() => {
     setSyncPulse(true)
     if (syncPulseTimer.current) clearTimeout(syncPulseTimer.current)
-    syncPulseTimer.current = setTimeout(() => setSyncPulse(false), SYNC_PULSE_MS)
+    syncPulseTimer.current = setTimeout(
+      () => setSyncPulse(false),
+      SYNC_PULSE_MS,
+    )
   }, [])
 
   const handleSocketMessage = useCallback(
     (msg: WebSocketMessage) => {
-      console.log('[WS_MESSAGE]', msg.type, msg)
+      console.log("[WS_MESSAGE]", msg.type, msg)
 
       switch (msg.type) {
-        case 'joint_progress': {
-          const progress = (msg as WebSocketMessage & { progress?: JointProgressPayload }).progress
+        case "joint_progress": {
+          const progress = (
+            msg as WebSocketMessage & { progress?: JointProgressPayload }
+          ).progress
           if (!progress) break
 
           if (progress.exerciseNames && progress.fromUserId) {
@@ -204,7 +223,11 @@ export const useJointSession = ({
               triggerSyncPulse()
             }
 
-            if (changed && progress.exerciseName != null && progress.setIndex != null) {
+            if (
+              changed &&
+              progress.exerciseName != null &&
+              progress.setIndex != null
+            ) {
               setPartnerCompletedSets((prevSets) => {
                 const exists = prevSets.some(
                   (s) =>
@@ -236,24 +259,24 @@ export const useJointSession = ({
           break
         }
 
-        case 'joint_invite': {
+        case "joint_invite": {
           if (!isInJointSession) setPendingInvite(msg)
           break
         }
 
-        case 'invite_status': {
+        case "invite_status": {
           // Cast through unknown first to safely narrow to our expected shape
           const statusMsg = msg as unknown as InviteStatusMessage
-          if (statusMsg.status === 'accepted' && statusMsg.jointSession) {
-            setInviteStatus('active')
+          if (statusMsg.status === "accepted" && statusMsg.jointSession) {
+            setInviteStatus("active")
             setJointSession(statusMsg.jointSession)
             jointSessionIdRef.current = statusMsg.jointSession.id
-          } else if (statusMsg.status === 'declined') {
-            setInviteStatus('declined')
-          } else if (statusMsg.status === 'session_ended') {
+          } else if (statusMsg.status === "declined") {
+            setInviteStatus("declined")
+          } else if (statusMsg.status === "session_ended") {
             setJointSession(null)
             setPartnerProgress(null)
-            setInviteStatus('idle')
+            setInviteStatus("idle")
             setIsPartnerReady(false)
             setMyProgress(null)
             setPartnerCompletedSets([])
@@ -261,10 +284,10 @@ export const useJointSession = ({
           break
         }
 
-        case 'joint_session_ended': {
+        case "joint_session_ended": {
           setJointSession(null)
           setPartnerProgress(null)
-          setInviteStatus('idle')
+          setInviteStatus("idle")
           setIsPartnerReady(false)
           setMyProgress(null)
           setPartnerCompletedSets([])
@@ -281,18 +304,21 @@ export const useJointSession = ({
   const sendInvite = useCallback(
     async (toUserId: string): Promise<boolean> => {
       if (!currentSessionId) return false
-      setInviteStatus('sending')
+      setInviteStatus("sending")
       try {
-        const res = await sharingApi.sendJointInvite({ toUserId, fromSessionId: currentSessionId })
+        const res = await sharingApi.sendJointInvite({
+          toUserId,
+          fromSessionId: currentSessionId,
+        })
         if (!(res as AcceptInviteResponse)?.inviteId) {
-          setInviteStatus('error')
+          setInviteStatus("error")
           return false
         }
-        setInviteStatus('waiting')
+        setInviteStatus("waiting")
         return true
       } catch (err) {
-        console.error('Failed to send joint invite:', err)
-        setInviteStatus('error')
+        console.error("Failed to send joint invite:", err)
+        setInviteStatus("error")
         return false
       }
     },
@@ -307,12 +333,12 @@ export const useJointSession = ({
       )) as AcceptInviteResponse
       if (!res?.jointSession) return false
       setPendingInvite(null)
-      setInviteStatus('active')
+      setInviteStatus("active")
       setJointSession(res.jointSession)
       jointSessionIdRef.current = res.jointSession.id
       return true
     } catch (err) {
-      console.error('Failed to accept joint invite:', err)
+      console.error("Failed to accept joint invite:", err)
       return false
     }
   }, [pendingInvite])
@@ -328,14 +354,14 @@ export const useJointSession = ({
   const leaveJointSession = useCallback(async (): Promise<void> => {
     const id = jointSessionIdRef.current
     if (id) {
-      socket?.send({ type: 'leave_joint_session', jointSessionId: id })
+      socket?.send({ type: "leave_joint_session", jointSessionId: id })
       try {
         await sharingApi.leaveJointSession(id)
       } catch (_) {}
     }
     setJointSession(null)
     setPartnerProgress(null)
-    setInviteStatus('idle')
+    setInviteStatus("idle")
     setIsPartnerReady(false)
     setMyProgress(null)
     setPartnerCompletedSets([])
@@ -361,16 +387,26 @@ export const useJointSession = ({
         .map((e) => ({ name: e.name, sets: e.sets }))
         .filter((e) => e.name)
 
-      const progress = { exerciseIndex, setIndex, exerciseName, readyForNext, exerciseNames }
+      const progress = {
+        exerciseIndex,
+        setIndex,
+        exerciseName,
+        readyForNext,
+        exerciseNames,
+      }
       setMyProgress(progress as Record<string, unknown>)
 
       if (socket?.connected) {
-        socket.send({ type: 'push_joint_progress', jointSessionId: id, progress })
+        socket.send({
+          type: "push_joint_progress",
+          jointSessionId: id,
+          progress,
+        })
       } else {
         try {
           await sharingApi.pushJointProgress(id, progress)
         } catch (err) {
-          console.warn('Failed to push joint progress:', (err as Error).message)
+          console.warn("Failed to push joint progress:", (err as Error).message)
         }
       }
     },
@@ -399,7 +435,7 @@ export const useJointSession = ({
     }
 
     if (socket?.connected) {
-      socket.send({ type: 'push_joint_progress', jointSessionId: id, progress })
+      socket.send({ type: "push_joint_progress", jointSessionId: id, progress })
     } else {
       sharingApi.pushJointProgress(id, progress).catch(() => {})
     }
@@ -410,7 +446,11 @@ export const useJointSession = ({
   }, [isInJointSession])
 
   const startWatching = useCallback(
-    async (friendId: string, friendUsername: string, sessionId: string): Promise<boolean> => {
+    async (
+      friendId: string,
+      friendUsername: string,
+      sessionId: string,
+    ): Promise<boolean> => {
       setWatchTarget({ friendId, friendUsername, sessionId })
       setWatchSession(null)
       setWatchError(null)
@@ -418,7 +458,7 @@ export const useJointSession = ({
       try {
         const live = await sharingApi.getFriendLiveSession(friendId, sessionId)
         if (!live) {
-          setWatchError('session_ended')
+          setWatchError("session_ended")
           setWatchTarget(null)
           setWatchLoading(false)
           return false
@@ -427,8 +467,8 @@ export const useJointSession = ({
         setWatchLoading(false)
         return true
       } catch (err) {
-        console.error('Failed to start watching:', (err as Error).message)
-        setWatchError('poll_error')
+        console.error("Failed to start watching:", (err as Error).message)
+        setWatchError("poll_error")
         setWatchTarget(null)
         setWatchLoading(false)
         return false
