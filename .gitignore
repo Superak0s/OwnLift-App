@@ -64,3 +64,6 @@ Thumbs.db
 
 *.apk
 app-release.apk
+
+android/keystore.properties
+*.keystore

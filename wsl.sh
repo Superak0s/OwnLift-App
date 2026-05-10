@@ -108,6 +108,70 @@ grep -qxF 'org.gradle.parallel=true'          "$GRADLE_PROPS" || echo 'org.gradl
 grep -qxF 'org.gradle.caching=true'           "$GRADLE_PROPS" || echo 'org.gradle.caching=true'           >> "$GRADLE_PROPS"
 grep -qxF 'org.gradle.configureondemand=true' "$GRADLE_PROPS" || echo 'org.gradle.configureondemand=true' >> "$GRADLE_PROPS"
 
+# ─── [4b] Inject signing config ───────────────────────────────────────────────
+echo ""
+echo "[4b] Injecting signing config..."
+
+# Load secrets
+source ~/.supergym-secrets
+
+GRADLE_APP="$WSL_PROJECT/android/app/build.gradle"
+
+# Write keystore.properties
+cat > "$WSL_PROJECT/android/keystore.properties" <<PROPS
+storeFile=$KEYSTORE_PATH
+storePassword=$KEYSTORE_PASS
+keyAlias=$KEY_ALIAS
+keyPassword=$KEY_PASS
+PROPS
+
+# Inject into build.gradle
+python3 << 'PYEOF'
+import re, os
+
+gradle_path = os.path.expanduser("~/SuperGym-App/android/app/build.gradle")
+
+with open(gradle_path, "r") as f:
+    content = f.read()
+
+# Signing config block
+signing_block = '''
+    signingConfigs {
+        release {
+            def props = new Properties()
+            def propsFile = rootProject.file("keystore.properties")
+            if (propsFile.exists()) { props.load(new FileInputStream(propsFile)) }
+            storeFile     file(props['storeFile'])
+            storePassword props['storePassword']
+            keyAlias      props['keyAlias']
+            keyPassword   props['keyPassword']
+        }
+    }
+'''
+
+# Insert signingConfigs before buildTypes
+content = re.sub(
+    r'(\s*buildTypes\s*\{)',
+    signing_block + r'\1',
+    content, count=1
+)
+
+# Add signingConfig inside release buildType
+content = re.sub(
+    r'(release\s*\{[^}]*?)(minifyEnabled)',
+    r'\1signingConfig signingConfigs.release\n            \2',
+    content, count=1, flags=re.DOTALL
+)
+
+with open(gradle_path, "w") as f:
+    f.write(content)
+
+print("Done.")
+PYEOF
+
+echo "Signing config injected."
+
+
 # ─── [5/6] Build the APK (WSL native) ────────────────────────────────────────
 echo ""
 echo "[5/6] Building release APK..."
