@@ -217,7 +217,6 @@ unset GRADLE_OPTS
 ./gradlew assembleRelease \
     --build-cache \
     --parallel \
-    --configuration-cache \
     --daemon \
     -Dfile.encoding=UTF-8
 
