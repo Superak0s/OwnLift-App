@@ -974,7 +974,7 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 15,
     },
     completeBadgeText: {
-      color: colors.surface,
+      color: colors.textSecondary,
       fontSize: 14,
       fontWeight: "600",
     },
@@ -1005,7 +1005,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.surface,
     },
     changeDayButtonText: {
-      color: colors.surface,
+      color: colors.textSecondary,
       fontSize: 14,
       fontWeight: "600",
       textAlign: "center",

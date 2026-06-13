@@ -70,7 +70,6 @@ export interface ThemeColors {
 }
 
 // ─── Preset tokens ────────────────────────────────────────────────────────────
-
 export const LIGHT_COLORS: ThemeColors = {
   background: "#f5f5f5",
   surface: "#ffffff",
@@ -105,8 +104,174 @@ export const LIGHT_COLORS: ThemeColors = {
   chartColorDark: "#4f63c8",
 }
 
+export const YELLOW_COLORS: ThemeColors = {
+  background: "#fde06a",
+  surface: "#d9da8c",
+  surfaceElevated: "#e7e329",
+  surfaceBorder: "#e0e0e0",
+
+  textPrimary: "#111827",
+  textSecondary: "#745d00",
+  textMuted: "#b6a862",
+  textOnAccent: "#ffffff",
+
+  accent: "#b69908",
+  accentLight: "#f8ff6e",
+  accentDark: "#696601",
+
+  success: "#d5d37e",
+  successLight: "#d1fae5",
+  error: "#580000",
+  errorLight: "#fef2f2",
+  warning: "#f59e0b",
+  warningLight: "#fef3c7",
+  info: "#e6e63d",
+  infoLight: "#ede9fe",
+
+  separator: "#f3f4f6",
+  shadow: "#000000",
+  inputBackground: "#f9fafb",
+  inputBorder: "#e5e7eb",
+  badgeBackground: "#f3f4f6",
+
+  chartColor: "#d3b325",
+  chartColorDark: "#9c801a",
+}
+export const RED_COLORS: ThemeColors = {
+  background: "#801c1c",
+  surface: "#da8c8c",
+  surfaceElevated: "#7b2323",
+  surfaceBorder: "#e0e0e0",
+
+  textPrimary: "#111827",
+  textSecondary: "#091109",
+  textMuted: "#9ca3af",
+  textOnAccent: "#ffffff",
+
+  accent: "#aa3434",
+  accentLight: "#00051c22",
+  accentDark: "#386b2a",
+
+  success: "#720f0f",
+  successLight: "#d1fae5",
+  error: "#580000",
+  errorLight: "#fef2f2",
+  warning: "#f59e0b",
+  warningLight: "#fef3c7",
+  info: "#e68383",
+  infoLight: "#ede9fe",
+
+  separator: "#f3f4f6",
+  shadow: "#000000",
+  inputBackground: "#f9fafb",
+  inputBorder: "#e5e7eb",
+  badgeBackground: "#f3f4f6",
+
+  chartColor: "#dc9c9c",
+  chartColorDark: "#691313",
+}
+export const GREEN_COLORS: ThemeColors = {
+  background: "#b2f1a1",
+  surface: "#8dc78d",
+  surfaceElevated: "#70a773",
+  surfaceBorder: "#e0e0e0",
+
+  textPrimary: "#111827",
+  textSecondary: "#213c21",
+  textMuted: "#003510",
+  textOnAccent: "#ffffff",
+
+  accent: "#5c9757",
+  accentLight: "#00051c22",
+  accentDark: "#386b2a",
+
+  success: "#67a46a",
+  successLight: "#d1fae5",
+  error: "#ef4444",
+  errorLight: "#fef2f2",
+  warning: "#f59e0b",
+  warningLight: "#fef3c7",
+  info: "#8dcc8a",
+  infoLight: "#ede9fe",
+
+  separator: "#99d196",
+  shadow: "#000000",
+  inputBackground: "#99d196",
+  inputBorder: "#99d196",
+  badgeBackground: "#99d196",
+
+  chartColor: "#b0dc9c",
+  chartColorDark: "#3e6d3f",
+}
+export const BLUE_COLORS: ThemeColors = {
+  background: "#aad3e2",
+  surface: "#84b3e3",
+  surfaceElevated: "#696bd6",
+  surfaceBorder: "#e0e0e0",
+
+  textPrimary: "#111827",
+  textSecondary: "#000000",
+  textMuted: "#003510",
+  textOnAccent: "#ffffff",
+
+  accent: "#577597",
+  accentLight: "#00051c22",
+  accentDark: "#4b4e99",
+
+  success: "#b2b2e2",
+  successLight: "#d1fae5",
+  error: "#ef4444",
+  errorLight: "#fef2f2",
+  warning: "#f59e0b",
+  warningLight: "#fef3c7",
+  info: "#6bacf1",
+  infoLight: "#ede9fe",
+
+  separator: "#4e7caa",
+  shadow: "#000000",
+  inputBackground: "#4e7caa",
+  inputBorder: "#4e7caa",
+  badgeBackground: "#4e7caa",
+
+  chartColor: "#7e9fba",
+  chartColorDark: "#7d93d4",
+}
+export const PINK_COLORS: ThemeColors = {
+  background: "#f3b0ce",
+  surface: "#d9a1cd",
+  surfaceElevated: "#312126",
+  surfaceBorder: "#e0e0e0",
+
+  textPrimary: "#111827",
+  textSecondary: "#482039",
+  textMuted: "#bb327b",
+  textOnAccent: "#ffffff",
+
+  accent: "#e36b95",
+  accentLight: "#00051c22",
+  accentDark: "#c84f7d",
+
+  success: "#fe86a4",
+  successLight: "#d1fae5",
+  error: "#ef4444",
+  errorLight: "#fef2f2",
+  warning: "#f59e0b",
+  warningLight: "#fef3c7",
+  info: "#e9b2c0",
+  infoLight: "#ede9fe",
+
+  separator: "#f3a7c5",
+  shadow: "#000000",
+  inputBackground: "#f3a7c5",
+  inputBorder: "#f3a7c5",
+  badgeBackground: "#f3a7c5",
+
+  chartColor: "#e88fa4",
+  chartColorDark: "#cb4665",
+}
+
 export const DARK_COLORS: ThemeColors = {
-  background: "#111118",
+  background: "#000000",
   surface: "#1c1c26",
   surfaceElevated: "#252533",
   surfaceBorder: "#2f2f42",
@@ -140,7 +305,16 @@ export const DARK_COLORS: ThemeColors = {
 }
 // ─── Theme descriptor ─────────────────────────────────────────────────────────
 
-export type ThemeId = "light" | "dark" | "system" | string
+export type ThemeId =
+  | "light"
+  | "dark"
+  | "yellow"
+  | "red"
+  | "green"
+  | "blue"
+  | "pink"
+  | "system"
+  | string
 
 export interface AppTheme {
   id: ThemeId
@@ -170,6 +344,36 @@ const BUILT_IN_THEMES: AppTheme[] = [
     name: "🌙 Dark",
     description: "Easy on the eyes at night",
     colors: DARK_COLORS,
+  },
+  {
+    id: "yellow",
+    name: "🟡 Yellow",
+    description: "Bright and cheerful",
+    colors: YELLOW_COLORS,
+  },
+  {
+    id: "red",
+    name: "🔴 Red",
+    description: "Bold and energetic",
+    colors: RED_COLORS,
+  },
+  {
+    id: "green",
+    name: "🟢 Green",
+    description: "Natural and calming",
+    colors: GREEN_COLORS,
+  },
+  {
+    id: "blue",
+    name: "🔵 Blue",
+    description: "Calm and trustworthy",
+    colors: BLUE_COLORS,
+  },
+  {
+    id: "pink",
+    name: "🎀 Pink",
+    description: "Playful and feminine",
+    colors: PINK_COLORS,
   },
 ]
 
