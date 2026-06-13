@@ -15,7 +15,7 @@ echo "[0/6] Syncing project to WSL native filesystem..."
 echo "      From: $WIN_PROJECT"
 echo "      To:   $WSL_PROJECT"
 
-rsync -a --delete \
+rsync -a --delete --checksum \
   --exclude='node_modules' \
   --exclude='android' \
   --exclude='.expo' \
@@ -97,16 +97,50 @@ echo ""
 echo "[4/6] Installing dependencies and running prebuild..."
 cd "$WSL_PROJECT"
 
-npm install --legacy-peer-deps
+# Skip npm install if package.json hasn't changed and node_modules exists
+PKG_HASH_WIN=$(md5sum "$WIN_PROJECT/package.json" | cut -d' ' -f1)
+PKG_HASH_WSL=$(md5sum "$WSL_PROJECT/package.json" | cut -d' ' -f1)
+LOCK_CHANGED=false
+if [ -f "$WSL_PROJECT/.last_pkg_hash" ]; then
+    LAST_HASH=$(cat "$WSL_PROJECT/.last_pkg_hash")
+    [ "$PKG_HASH_WSL" != "$LAST_HASH" ] && LOCK_CHANGED=true
+else
+    LOCK_CHANGED=true
+fi
 
-npx expo prebuild --platform android --clean
+if [ "$LOCK_CHANGED" = true ] || [ ! -d "$WSL_PROJECT/node_modules" ]; then
+    echo "Dependencies changed or missing — running npm install..."
+    npm install --legacy-peer-deps
+    echo "$PKG_HASH_WSL" > "$WSL_PROJECT/.last_pkg_hash"
+else
+    echo "package.json unchanged — skipping npm install."
+fi
 
-# Tune gradle.properties for performance
+# Ask whether to do a clean prebuild
+read -rp "Full prebuild with --clean? Needed after adding native deps (y/N): " DO_CLEAN
+DO_CLEAN="${DO_CLEAN:-n}"
+if [ "${DO_CLEAN,,}" = "y" ]; then
+    echo "Running full clean prebuild..."
+    npx expo prebuild --platform android --clean
+else
+    echo "Running incremental prebuild..."
+    npx expo prebuild --platform android
+fi
+
+# ─── Tune gradle.properties for 32GB RAM ──────────────────────────────────────
 GRADLE_PROPS="$WSL_PROJECT/android/gradle.properties"
-sed -i 's/org\.gradle\.jvmargs=.*/org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=2g/' "$GRADLE_PROPS"
-grep -qxF 'org.gradle.parallel=true'          "$GRADLE_PROPS" || echo 'org.gradle.parallel=true'          >> "$GRADLE_PROPS"
-grep -qxF 'org.gradle.caching=true'           "$GRADLE_PROPS" || echo 'org.gradle.caching=true'           >> "$GRADLE_PROPS"
-grep -qxF 'org.gradle.configureondemand=true' "$GRADLE_PROPS" || echo 'org.gradle.configureondemand=true' >> "$GRADLE_PROPS"
+
+# JVM heap — 12GB gives Gradle plenty of room without starving the OS
+sed -i 's/org\.gradle\.jvmargs=.*/org.gradle.jvmargs=-Xmx12g -Xms4g -XX:MaxMetaspaceSize=2g -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200/' "$GRADLE_PROPS"
+
+grep -qxF 'org.gradle.parallel=true'             "$GRADLE_PROPS" || echo 'org.gradle.parallel=true'             >> "$GRADLE_PROPS"
+grep -qxF 'org.gradle.caching=true'              "$GRADLE_PROPS" || echo 'org.gradle.caching=true'              >> "$GRADLE_PROPS"
+grep -qxF 'org.gradle.configureondemand=true'    "$GRADLE_PROPS" || echo 'org.gradle.configureondemand=true'    >> "$GRADLE_PROPS"
+grep -qxF 'org.gradle.daemon=true'               "$GRADLE_PROPS" || echo 'org.gradle.daemon=true'               >> "$GRADLE_PROPS"
+grep -qxF 'kotlin.incremental=true'              "$GRADLE_PROPS" || echo 'kotlin.incremental=true'              >> "$GRADLE_PROPS"
+grep -qxF 'kotlin.daemon.jvm.options=-Xmx4g'    "$GRADLE_PROPS" || echo 'kotlin.daemon.jvm.options=-Xmx4g'    >> "$GRADLE_PROPS"
+grep -qxF 'android.enableR8.fullMode=false'      "$GRADLE_PROPS" || echo 'android.enableR8.fullMode=false'      >> "$GRADLE_PROPS"
+grep -qxF 'android.enableBuildCache=true'        "$GRADLE_PROPS" || echo 'android.enableBuildCache=true'        >> "$GRADLE_PROPS"
 
 # ─── [4b] Inject signing config ───────────────────────────────────────────────
 echo ""
@@ -171,13 +205,20 @@ PYEOF
 
 echo "Signing config injected."
 
-
 # ─── [5/6] Build the APK (WSL native) ────────────────────────────────────────
 echo ""
 echo "[5/6] Building release APK..."
 cd "$WSL_PROJECT/android"
-export GRADLE_OPTS="-Xmx6g -XX:MaxMetaspaceSize=2g"
-./gradlew assembleRelease
+
+# Unset GRADLE_OPTS so gradle.properties values take full effect
+unset GRADLE_OPTS
+
+./gradlew assembleRelease \
+    --build-cache \
+    --parallel \
+    --configuration-cache \
+    --daemon \
+    -Dfile.encoding=UTF-8
 
 APK_SRC="$WSL_PROJECT/android/app/build/outputs/apk/release/app-release.apk"
 APK_WSL="$WSL_PROJECT/app-release.apk"
