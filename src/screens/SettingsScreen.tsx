@@ -1468,7 +1468,7 @@ export default function SettingsScreen(): React.JSX.Element {
             value={tempServerUrl}
             onChangeText={setTempServerUrl}
             keyboardType='url'
-            placeholder='http://192.168.1.100:3000'
+            placeholder='http://192.168.1.243:5000'
             placeholderTextColor='#999'
             autoCapitalize='none'
             autoCorrect={false}

@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getServerUrl } from './config'
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getServerUrl } from "./config"
 
 export interface AuthUser {
   id: number | string
@@ -38,22 +38,27 @@ export const authService = {
     try {
       const API_BASE_URL = getServerUrl()
       const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password, ...(name && { name }) }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+          ...(name && { name }),
+        }),
       })
 
       const data: AuthResponse = await response.json()
-      if (!response.ok) throw new Error((data as any).error || 'Signup failed')
+      if (!response.ok) throw new Error((data as any).error || "Signup failed")
 
       if (data.success && data.token) {
-        await AsyncStorage.setItem('@auth_token', data.token)
-        await AsyncStorage.setItem('@user', JSON.stringify(data.user))
+        await AsyncStorage.setItem("@auth_token", data.token)
+        await AsyncStorage.setItem("@user", JSON.stringify(data.user))
       }
 
       return data
     } catch (error) {
-      console.error('Error signing up:', error)
+      console.error("Error signing up:", error)
       throw error
     }
   },
@@ -66,22 +71,22 @@ export const authService = {
     try {
       const API_BASE_URL = getServerUrl()
       const response = await fetch(`${API_BASE_URL}/api/auth/signin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       })
 
       const data: AuthResponse = await response.json()
-      if (!response.ok) throw new Error((data as any).error || 'Signin failed')
+      if (!response.ok) throw new Error((data as any).error || "Signin failed")
 
       if (data.success && data.token) {
-        await AsyncStorage.setItem('@auth_token', data.token)
-        await AsyncStorage.setItem('@user', JSON.stringify(data.user))
+        await AsyncStorage.setItem("@auth_token", data.token)
+        await AsyncStorage.setItem("@user", JSON.stringify(data.user))
       }
 
       return data
     } catch (error) {
-      console.error('Error signing in:', error)
+      console.error("Error signing in:", error)
       throw error
     }
   },
@@ -93,20 +98,20 @@ export const authService = {
   getCurrentUser: async (): Promise<AuthUser> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const token = await AsyncStorage.getItem('@auth_token')
-      if (!token) throw new Error('No authentication token')
+      const token = await AsyncStorage.getItem("@auth_token")
+      if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        method: 'GET',
+        method: "GET",
         headers: { Authorization: `Bearer ${token}` },
       })
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to get user')
+      if (!response.ok) throw new Error(data.error || "Failed to get user")
 
       return data.user as AuthUser
     } catch (error) {
-      console.error('Error getting current user:', error)
+      console.error("Error getting current user:", error)
       throw error
     }
   },
@@ -118,22 +123,26 @@ export const authService = {
   updateProfile: async (name: string, email: string): Promise<AuthUser> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const token = await AsyncStorage.getItem('@auth_token')
-      if (!token) throw new Error('No authentication token')
+      const token = await AsyncStorage.getItem("@auth_token")
+      if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ name, email }),
       })
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to update profile')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to update profile")
 
-      await AsyncStorage.setItem('@user', JSON.stringify(data.user))
+      await AsyncStorage.setItem("@user", JSON.stringify(data.user))
       return data.user as AuthUser
     } catch (error) {
-      console.error('Error updating profile:', error)
+      console.error("Error updating profile:", error)
       throw error
     }
   },
@@ -142,48 +151,55 @@ export const authService = {
    * Change password
    * PUT /api/auth/password
    */
-  changePassword: async (currentPassword: string, newPassword: string): Promise<unknown> => {
+  changePassword: async (
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const token = await AsyncStorage.getItem('@auth_token')
-      if (!token) throw new Error('No authentication token')
+      const token = await AsyncStorage.getItem("@auth_token")
+      if (!token) throw new Error("No authentication token")
 
       const response = await fetch(`${API_BASE_URL}/api/auth/password`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ currentPassword, newPassword }),
       })
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to change password')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to change password")
 
       return data
     } catch (error) {
-      console.error('Error changing password:', error)
+      console.error("Error changing password:", error)
       throw error
     }
   },
 
   /** Get authentication token */
   getToken: async (): Promise<string | null> => {
-    return await AsyncStorage.getItem('@auth_token')
+    return await AsyncStorage.getItem("@auth_token")
   },
 
   /** Check if user is authenticated */
   isAuthenticated: async (): Promise<boolean> => {
-    const token = await AsyncStorage.getItem('@auth_token')
+    const token = await AsyncStorage.getItem("@auth_token")
     return !!token
   },
 
   /** Logout user */
   logout: async (): Promise<void> => {
-    await AsyncStorage.removeItem('@auth_token')
-    await AsyncStorage.removeItem('@user')
+    await AsyncStorage.removeItem("@auth_token")
+    await AsyncStorage.removeItem("@user")
   },
 
   /** Get stored user data */
   getStoredUser: async (): Promise<AuthUser | null> => {
-    const userJson = await AsyncStorage.getItem('@user')
+    const userJson = await AsyncStorage.getItem("@user")
     return userJson ? (JSON.parse(userJson) as AuthUser) : null
   },
 }
@@ -199,7 +215,7 @@ export const authenticatedFetch = async (
   const token = await authService.getToken()
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(token && { Authorization: `Bearer ${token}` }),
     ...(options.headers as Record<string, string>),
   }
@@ -208,10 +224,10 @@ export const authenticatedFetch = async (
 
   if (response.status === 401) {
     const data = await response.json()
-    if (data.error === 'Token expired' || data.error?.includes('expired')) {
-      console.warn('⚠️ Token expired - logging out user')
+    if (data.error === "Token expired" || data.error?.includes("expired")) {
+      console.warn("⚠️ Token expired - logging out user")
       await authService.logout()
-      throw new Error('SESSION_EXPIRED')
+      throw new Error("SESSION_EXPIRED")
     }
   }
 

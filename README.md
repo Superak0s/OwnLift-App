@@ -152,7 +152,7 @@ eas build --profile development --platform ios
 
 ### Configuring the Server
 
-On first launch, tap the **🌐 Server** badge on the login screen and enter your backend URL (e.g. `http://192.168.1.100:3000`). This can also be changed later in **Settings → Server Configuration**.
+On first launch, tap the **🌐 Server** badge on the login screen and enter your backend URL (e.g. `http://192.168.1.100:5000`). This can also be changed later in **Settings → Server Configuration**.
 
 ---
 
