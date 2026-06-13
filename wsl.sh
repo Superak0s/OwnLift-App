@@ -140,7 +140,8 @@ grep -qxF 'org.gradle.daemon=true'               "$GRADLE_PROPS" || echo 'org.gr
 grep -qxF 'kotlin.incremental=true'              "$GRADLE_PROPS" || echo 'kotlin.incremental=true'              >> "$GRADLE_PROPS"
 grep -qxF 'kotlin.daemon.jvm.options=-Xmx4g'    "$GRADLE_PROPS" || echo 'kotlin.daemon.jvm.options=-Xmx4g'    >> "$GRADLE_PROPS"
 grep -qxF 'android.enableR8.fullMode=false'      "$GRADLE_PROPS" || echo 'android.enableR8.fullMode=false'      >> "$GRADLE_PROPS"
-grep -qxF 'android.enableBuildCache=true'        "$GRADLE_PROPS" || echo 'android.enableBuildCache=true'        >> "$GRADLE_PROPS"
+# Remove deprecated android.enableBuildCache if present (removed in AGP 7.0)
+sed -i '/^android\.enableBuildCache/d' "$GRADLE_PROPS"
 
 # ─── [4b] Inject signing config ───────────────────────────────────────────────
 echo ""
