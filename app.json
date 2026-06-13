@@ -2,7 +2,7 @@
   "expo": {
     "name": "SuperGym",
     "slug": "supergym",
-    "version": "1.2.5",
+    "version": "1.2.6",
     "orientation": "portrait",
     "icon": "./assets/adaptive-icon.png",
     "plugins": [
