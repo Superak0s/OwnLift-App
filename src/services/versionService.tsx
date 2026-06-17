@@ -1,7 +1,7 @@
-import Constants from 'expo-constants'
-import { getServerUrl } from './config'
+import Constants from "expo-constants"
+import { getServerUrl } from "./config"
 
-const MINIMUM_SERVER_VERSION = '1.1.0'
+const MINIMUM_SERVER_VERSION = "1.3.0"
 
 export interface ParsedVersion {
   major: number
@@ -32,11 +32,11 @@ export interface ValidationResult {
  * Parse semantic version string into { major, minor, patch }
  */
 export function parseVersion(versionString: string): ParsedVersion {
-  const parts = versionString.split('.')
+  const parts = versionString.split(".")
   return {
-    major: parseInt(parts[0] ?? '0', 10),
-    minor: parseInt(parts[1] ?? '0', 10),
-    patch: parseInt(parts[2] ?? '0', 10),
+    major: parseInt(parts[0] ?? "0", 10),
+    minor: parseInt(parts[1] ?? "0", 10),
+    patch: parseInt(parts[2] ?? "0", 10),
   }
 }
 
@@ -44,7 +44,10 @@ export function parseVersion(versionString: string): ParsedVersion {
  * Compare two version objects.
  * Returns -1 if a < b, 0 if equal, 1 if a > b.
  */
-export function compareVersions(a: ParsedVersion, b: ParsedVersion): -1 | 0 | 1 {
+export function compareVersions(
+  a: ParsedVersion,
+  b: ParsedVersion,
+): -1 | 0 | 1 {
   if (a.major !== b.major) return a.major < b.major ? -1 : 1
   if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1
   if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1
@@ -72,10 +75,10 @@ export function checkVersionCompatibility(
 
     return { compatible: true, reason: null }
   } catch (error) {
-    console.error('❌ Error checking version compatibility:', error)
+    console.error("❌ Error checking version compatibility:", error)
     return {
       compatible: false,
-      reason: 'Unable to verify server version. Please try again later.',
+      reason: "Unable to verify server version. Please try again later.",
     }
   }
 }
@@ -87,8 +90,8 @@ export async function fetchServerVersion(): Promise<ServerVersionResult> {
   try {
     const serverUrl = getServerUrl()
     const response = await fetch(`${serverUrl}/api/version`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
     })
 
     if (!response.ok) {
@@ -98,11 +101,11 @@ export async function fetchServerVersion(): Promise<ServerVersionResult> {
     const data = await response.json()
     return {
       success: true,
-      version: data.version || '0.0.0',
-      parsed: data.parsed || parseVersion(data.version || '0.0.0'),
+      version: data.version || "0.0.0",
+      parsed: data.parsed || parseVersion(data.version || "0.0.0"),
     }
   } catch (error) {
-    console.error('❌ Error fetching server version:', (error as Error).message)
+    console.error("❌ Error fetching server version:", (error as Error).message)
     return {
       success: false,
       version: null,
@@ -115,7 +118,7 @@ export async function fetchServerVersion(): Promise<ServerVersionResult> {
  * Get client app version from Expo Constants.
  */
 export function getClientVersion(): string {
-  return Constants.expoConfig?.version ?? '0.0.0'
+  return Constants.expoConfig?.version ?? "0.0.0"
 }
 
 /**

@@ -37,7 +37,7 @@ import { WorkoutProvider } from "./src/context/WorkoutContext"
 import * as NavigationBar from "expo-navigation-bar"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as Notifications from "expo-notifications"
-import { rescheduleTimeReminder } from "./tasks/creatineLocationTask"
+import { scheduleTimeReminder } from "./tasks/supplementLocationTask"
 import { useAlert } from "./src/components/CustomAlert"
 import { useTabBar, TabBarProvider } from "./src/context/TabBarContext"
 import { VersionGuard } from "./src/components/VersionGuard"
@@ -49,16 +49,17 @@ import HomeScreen from "./src/screens/HomeScreen"
 import WorkoutScreen from "./src/screens/WorkoutScreen"
 import AnalyticsScreen from "./src/screens/AnalyticsScreen"
 import TrackingScreen from "./src/screens/TrackingScreen"
+import SupplementsScreen from "./src/screens/SupplementsScreen"
 import FriendsScreen from "./src/screens/FriendsScreen"
 import SettingsScreen from "./src/screens/SettingsScreen"
+import PlanScreen from "./src/screens/PlanScreen"
 
 import {
   registerLocationTask,
   unregisterLocationTask,
   isLocationTaskRegistered,
-  initializeCreatineNotifications,
-  clearOldReminderKeys,
-} from "./tasks/creatineLocationTask"
+  initializeSupplementNotifications,
+} from "./tasks/supplementLocationTask"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -328,18 +329,29 @@ function NotificationListener() {
           string,
           unknown
         >
-        if (data?.type === "creatine_time_reminder" && user?.id) {
-          const settingsKey = `creatineSettings_user_${user.id}`
-          const raw = await AsyncStorage.getItem(settingsKey)
+        if (data?.type === "supplement_time_reminder" && user?.id) {
+          const supplementId = data.supplementId as number | undefined
+          if (!supplementId) return
+          const configsKey = `supplementReminderConfigs_user_${user.id}`
+          const raw = await AsyncStorage.getItem(configsKey)
           if (!raw) return
-          const settings = JSON.parse(raw) as {
+          const configs = JSON.parse(raw) as Array<{
+            supplementId: number
+            name: string
+            unit: string
+            defaultAmount: number
             reminderTime: string
-            defaultGrams: number
-          }
-          await rescheduleTimeReminder(
+            timeBasedEnabled: boolean
+          }>
+          const config = configs.find((c) => c.supplementId === supplementId)
+          if (!config || !config.timeBasedEnabled) return
+          await scheduleTimeReminder(
             user.id,
-            settings.reminderTime,
-            settings.defaultGrams,
+            config.supplementId,
+            config.name,
+            config.defaultAmount,
+            config.unit,
+            config.reminderTime,
           )
         }
       },
@@ -424,12 +436,11 @@ function MainTabs() {
   }, [])
 
   useEffect(() => {
-    const initializeCreatineReminders = async () => {
+    const initializeSupplementReminders = async () => {
       if (!user?.id) return
       try {
-        const notificationsReady = await initializeCreatineNotifications()
+        const notificationsReady = await initializeSupplementNotifications()
         if (!notificationsReady) return
-        await clearOldReminderKeys(user.id)
         const creatineSettingsKey = `creatineSettings_user_${user.id}`
         const settingsStr = await AsyncStorage.getItem(creatineSettingsKey)
         if (!settingsStr) return
@@ -445,10 +456,10 @@ function MainTabs() {
           if (isRegistered) await unregisterLocationTask()
         }
       } catch (error) {
-        console.error("❌ Error initializing creatine reminders:", error)
+        console.error("❌ Error initializing supplement reminders:", error)
       }
     }
-    void initializeCreatineReminders()
+    void initializeSupplementReminders()
   }, [user?.id])
 
   const panResponder = useRef(
@@ -509,6 +520,15 @@ function MainTabs() {
           }}
         />
         <Tab.Screen
+          name='Plan'
+          component={PlanScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon icon='📋' label='Plan' focused={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
           name='Analytics'
           component={AnalyticsScreen}
           options={{
@@ -523,6 +543,15 @@ function MainTabs() {
           options={{
             tabBarIcon: ({ focused }) => (
               <TabIcon icon='📈' label='Track' focused={focused} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name='Supplements'
+          component={SupplementsScreen}
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon icon='💊' label='Supps' focused={focused} />
             ),
           }}
         />

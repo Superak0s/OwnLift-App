@@ -15,7 +15,7 @@ import {
   registerLocationTask,
   type BatterySettings,
   type PresetKey,
-} from "../../tasks/creatineLocationTask"
+} from "../../tasks/supplementLocationTask"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
 import { useTheme } from "../context/ThemeContext"
@@ -156,7 +156,7 @@ export default function BatterySettingsModal({
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.accent} />
+          <ActivityIndicator size='large' color={colors.accent} />
           <Text style={styles.loadingText}>Loading settings…</Text>
         </View>
       ) : (
@@ -210,7 +210,9 @@ export default function BatterySettingsModal({
                     <Text style={styles.checkmark}>✓</Text>
                   )}
                 </View>
-                <Text style={styles.presetDescription}>{preset.description}</Text>
+                <Text style={styles.presetDescription}>
+                  {preset.description}
+                </Text>
                 <View style={styles.presetDetails}>
                   <Text style={styles.presetDetail}>
                     ⏱️ Every {preset.timeInterval / 60000} min
@@ -233,7 +235,9 @@ export default function BatterySettingsModal({
           >
             <Text style={styles.advancedIcon}>⚙️</Text>
             <Text style={styles.advancedText}>
-              {showAdvanced ? "Hide Advanced Settings" : "Show Advanced Settings"}
+              {showAdvanced
+                ? "Hide Advanced Settings"
+                : "Show Advanced Settings"}
             </Text>
           </TouchableOpacity>
 
@@ -244,25 +248,29 @@ export default function BatterySettingsModal({
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Time Interval (minutes)</Text>
-                <Text style={styles.inputHint}>How often to check location</Text>
+                <Text style={styles.inputHint}>
+                  How often to check location
+                </Text>
                 <TextInput
                   style={styles.input}
                   value={customTimeInterval}
                   onChangeText={setCustomTimeInterval}
-                  keyboardType="number-pad"
-                  placeholder="10"
+                  keyboardType='number-pad'
+                  placeholder='10'
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Distance Interval (meters)</Text>
+                <Text style={styles.inputLabel}>
+                  Distance Interval (meters)
+                </Text>
                 <Text style={styles.inputHint}>Check when moved this far</Text>
                 <TextInput
                   style={styles.input}
                   value={customDistanceInterval}
                   onChangeText={setCustomDistanceInterval}
-                  keyboardType="number-pad"
-                  placeholder="250"
+                  keyboardType='number-pad'
+                  placeholder='250'
                 />
               </View>
 
@@ -302,142 +310,150 @@ export default function BatterySettingsModal({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const makeStyles = (colors: any) => StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.inputBorder,
-  },
-  headerButton: { padding: 8 },
-  cancelText: { fontSize: 16, color: colors.error, fontWeight: "600" },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: colors.textPrimary },
-  saveText: { fontSize: 16, color: colors.accent, fontWeight: "600" },
-  saveTextDisabled: { opacity: 0.4 },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  loadingText: { fontSize: 15, color: colors.textSecondary },
-  content: { flex: 1 },
-  contentContainer: { padding: 20 },
-  infoCard: {
-    backgroundColor: colors.infoLight,
-    borderRadius: 16,
-    padding: 20,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  infoIcon: { fontSize: 48, marginBottom: 12 },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  section: { marginBottom: 24 },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-  presetCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: colors.inputBorder,
-  },
-  presetCardActive: { borderColor: colors.accent, backgroundColor: "#f0f4ff" },
-  presetHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  presetLabel: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
-  presetLabelActive: { color: colors.accent },
-  checkmark: { fontSize: 20, color: colors.accent, fontWeight: "700" },
-  presetDescription: { fontSize: 14, color: colors.textSecondary, marginBottom: 12 },
-  presetDetails: { flexDirection: "row", gap: 16 },
-  presetDetail: { fontSize: 13, color: colors.textMuted },
-  advancedButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-  },
-  advancedIcon: { fontSize: 20, marginRight: 8 },
-  advancedText: { fontSize: 15, fontWeight: "600", color: colors.accent },
-  advancedSection: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-  },
-  inputGroup: { marginBottom: 20 },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  inputHint: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
-  input: {
-    backgroundColor: colors.inputBackground,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    color: colors.textPrimary,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-  },
-  warningCard: {
-    backgroundColor: colors.warningLight,
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  warningIcon: { fontSize: 20, marginRight: 8 },
-  warningText: { flex: 1, fontSize: 13, color: "#92400e", lineHeight: 18 },
-  recommendationsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.inputBorder,
-  },
-  recommendationsTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: 12,
-  },
-  recommendationItem: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  bold: { fontWeight: "700", color: colors.textPrimary },
-})
+const makeStyles = (colors: any) =>
+  StyleSheet.create({
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.inputBorder,
+    },
+    headerButton: { padding: 8 },
+    cancelText: { fontSize: 16, color: colors.error, fontWeight: "600" },
+    headerTitle: { fontSize: 18, fontWeight: "700", color: colors.textPrimary },
+    saveText: { fontSize: 16, color: colors.accent, fontWeight: "600" },
+    saveTextDisabled: { opacity: 0.4 },
+    loadingContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+    },
+    loadingText: { fontSize: 15, color: colors.textSecondary },
+    content: { flex: 1 },
+    contentContainer: { padding: 20 },
+    infoCard: {
+      backgroundColor: colors.infoLight,
+      borderRadius: 16,
+      padding: 20,
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    infoIcon: { fontSize: 48, marginBottom: 12 },
+    infoTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: 8,
+    },
+    infoText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+      lineHeight: 20,
+    },
+    section: { marginBottom: 24 },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    presetCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 2,
+      borderColor: colors.inputBorder,
+    },
+    presetCardActive: {
+      borderColor: colors.accent,
+      backgroundColor: "#f0f4ff",
+    },
+    presetHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    presetLabel: { fontSize: 16, fontWeight: "700", color: colors.textPrimary },
+    presetLabelActive: { color: colors.accent },
+    checkmark: { fontSize: 20, color: colors.accent, fontWeight: "700" },
+    presetDescription: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 12,
+    },
+    presetDetails: { flexDirection: "row", gap: 16 },
+    presetDetail: { fontSize: 13, color: colors.textMuted },
+    advancedButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    advancedIcon: { fontSize: 20, marginRight: 8 },
+    advancedText: { fontSize: 15, fontWeight: "600", color: colors.accent },
+    advancedSection: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 24,
+    },
+    inputGroup: { marginBottom: 20 },
+    inputLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textPrimary,
+      marginBottom: 4,
+    },
+    inputHint: { fontSize: 12, color: colors.textMuted, marginBottom: 8 },
+    input: {
+      backgroundColor: colors.inputBackground,
+      borderRadius: 12,
+      padding: 14,
+      fontSize: 16,
+      color: colors.textPrimary,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    warningCard: {
+      backgroundColor: colors.warningLight,
+      borderRadius: 12,
+      padding: 12,
+      flexDirection: "row",
+      alignItems: "flex-start",
+    },
+    warningIcon: { fontSize: 20, marginRight: 8 },
+    warningText: { flex: 1, fontSize: 13, color: "#92400e", lineHeight: 18 },
+    recommendationsCard: {
+      backgroundColor: colors.surface,
+      borderRadius: 16,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+    },
+    recommendationsTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginBottom: 12,
+    },
+    recommendationItem: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 8,
+      lineHeight: 20,
+    },
+    bold: { fontWeight: "700", color: colors.textPrimary },
+  })

@@ -18,7 +18,7 @@
  *   />
  */
 
-import React, { useState, useCallback, useRef } from "react"
+import React, { useState, useCallback } from "react"
 import {
   View,
   Text,
@@ -26,14 +26,11 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Modal,
   Share,
   Platform,
   Clipboard,
   ActivityIndicator,
-  KeyboardAvoidingView,
 } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
 import {
   useTheme,
   type AppTheme,
@@ -42,6 +39,7 @@ import {
   DARK_COLORS,
 } from "../context/ThemeContext"
 import { useAlert } from "./CustomAlert"
+import ModalSheet from "./ModalSheet"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -458,7 +456,6 @@ export default function ThemeEditorModal({
   visible,
   onClose,
 }: ThemeEditorModalProps) {
-  const insets = useSafeAreaInsets()
   const {
     colors,
     allThemes,
@@ -641,589 +638,514 @@ export default function ThemeEditorModal({
   }
 
   return (
-    <Modal
+    <ModalSheet
       visible={visible}
-      animationType='slide'
-      presentationStyle='pageSheet'
-      onRequestClose={onClose}
+      onClose={onClose}
+      title='🎨 Themes'
+      showCancelButton={false}
+      showConfirmButton={false}
+      fullHeight
     >
-      <KeyboardAvoidingView
-        style={[s.root, { backgroundColor: colors.background }]}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* ── Header ── */}
-        <View
-          style={[
-            s.header,
-            {
-              paddingTop: insets.top + 8,
-              backgroundColor: colors.surface,
-              borderBottomColor: colors.surfaceBorder,
-            },
-          ]}
-        >
-          <Text style={[s.headerTitle, { color: colors.textPrimary }]}>
-            🎨 Themes
-          </Text>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-            <Text style={[s.closeBtnText, { color: colors.textSecondary }]}>
-              Done
+      {/* ── Tabs ── */}
+      <View style={[s.tabBar, { borderBottomColor: colors.surfaceBorder }]}>
+        {(["browse", "create", "import"] as Tab[]).map((t) => (
+          <TouchableOpacity
+            key={t}
+            style={[
+              s.tab,
+              tab === t && {
+                borderBottomColor: colors.accent,
+                borderBottomWidth: 2.5,
+              },
+            ]}
+            onPress={() => setTab(t)}
+          >
+            <Text
+              style={[
+                s.tabText,
+                { color: tab === t ? colors.accent : colors.textMuted },
+                tab === t && s.tabTextActive,
+              ]}
+            >
+              {t === "browse" ? "Browse" : t === "create" ? "Create" : "Import"}
             </Text>
           </TouchableOpacity>
-        </View>
+        ))}
+      </View>
 
-        {/* ── Tabs ── */}
-        <View
-          style={[
-            s.tabBar,
-            {
-              backgroundColor: colors.surface,
-              borderBottomColor: colors.surfaceBorder,
-            },
-          ]}
-        >
-          {(["browse", "create", "import"] as Tab[]).map((t) => (
+      {/* ── Content ── */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={s.content}
+        keyboardShouldPersistTaps='handled'
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ══════════════ BROWSE TAB ══════════════ */}
+        {tab === "browse" && (
+          <View>
+            <Text style={[s.sectionHeader, { color: colors.textSecondary }]}>
+              BUILT-IN
+            </Text>
+            {allThemes
+              .filter((t) => ["system", "light", "dark"].includes(t.id))
+              .map((t) => (
+                <ThemeCard
+                  key={t.id}
+                  theme={t}
+                  isActive={activeThemeId === t.id}
+                  onSelect={() => setTheme(t.id)}
+                  onExport={() => handleExport(t)}
+                />
+              ))}
+
+            {allThemes.filter(
+              (t) => !["system", "light", "dark"].includes(t.id),
+            ).length > 0 && (
+              <>
+                <Text
+                  style={[
+                    s.sectionHeader,
+                    { color: colors.textSecondary, marginTop: 8 },
+                  ]}
+                >
+                  CUSTOM
+                </Text>
+                {allThemes
+                  .filter((t) => !["system", "light", "dark"].includes(t.id))
+                  .map((t) => (
+                    <ThemeCard
+                      key={t.id}
+                      theme={t}
+                      isActive={activeThemeId === t.id}
+                      onSelect={() => setTheme(t.id)}
+                      onExport={() => handleExport(t)}
+                      onDelete={() => handleDelete(t)}
+                    />
+                  ))}
+              </>
+            )}
+
             <TouchableOpacity
-              key={t}
               style={[
-                s.tab,
-                tab === t && {
-                  borderBottomColor: colors.accent,
-                  borderBottomWidth: 2.5,
+                s.createCta,
+                {
+                  borderColor: colors.accent,
+                  backgroundColor: colors.accentLight,
                 },
               ]}
-              onPress={() => setTab(t)}
+              onPress={() => setTab("create")}
             >
-              <Text
-                style={[
-                  s.tabText,
-                  { color: tab === t ? colors.accent : colors.textMuted },
-                  tab === t && s.tabTextActive,
-                ]}
-              >
-                {t === "browse"
-                  ? "Browse"
-                  : t === "create"
-                    ? "Create"
-                    : "Import"}
+              <Text style={[s.createCtaText, { color: colors.accent }]}>
+                ✨ Create a custom theme
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        )}
 
-        {/* ── Content ── */}
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[
-            s.content,
-            { paddingBottom: insets.bottom + 32 },
-          ]}
-          keyboardShouldPersistTaps='handled'
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ══════════════ BROWSE TAB ══════════════ */}
-          {tab === "browse" && (
-            <View>
-              <Text style={[s.sectionHeader, { color: colors.textSecondary }]}>
-                BUILT-IN
-              </Text>
-              {allThemes
-                .filter((t) => ["system", "light", "dark"].includes(t.id))
-                .map((t) => (
-                  <ThemeCard
-                    key={t.id}
-                    theme={t}
-                    isActive={activeThemeId === t.id}
-                    onSelect={() => setTheme(t.id)}
-                    onExport={() => handleExport(t)}
-                  />
-                ))}
-
-              {allThemes.filter(
-                (t) => !["system", "light", "dark"].includes(t.id),
-              ).length > 0 && (
-                <>
-                  <Text
-                    style={[
-                      s.sectionHeader,
-                      { color: colors.textSecondary, marginTop: 8 },
-                    ]}
-                  >
-                    CUSTOM
-                  </Text>
-                  {allThemes
-                    .filter((t) => !["system", "light", "dark"].includes(t.id))
-                    .map((t) => (
-                      <ThemeCard
-                        key={t.id}
-                        theme={t}
-                        isActive={activeThemeId === t.id}
-                        onSelect={() => setTheme(t.id)}
-                        onExport={() => handleExport(t)}
-                        onDelete={() => handleDelete(t)}
-                      />
-                    ))}
-                </>
-              )}
-
-              <TouchableOpacity
-                style={[
-                  s.createCta,
-                  {
-                    borderColor: colors.accent,
-                    backgroundColor: colors.accentLight,
-                  },
-                ]}
-                onPress={() => setTab("create")}
-              >
-                <Text style={[s.createCtaText, { color: colors.accent }]}>
-                  ✨ Create a custom theme
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ══════════════ CREATE TAB ══════════════ */}
-          {tab === "create" && (
-            <View>
-              {/* Live preview strip */}
+        {/* ══════════════ CREATE TAB ══════════════ */}
+        {tab === "create" && (
+          <View>
+            {/* Live preview strip */}
+            <View
+              style={[
+                s.previewStrip,
+                { backgroundColor: previewColors.background },
+              ]}
+            >
               <View
                 style={[
-                  s.previewStrip,
-                  { backgroundColor: previewColors.background },
+                  s.previewStripBar,
+                  { backgroundColor: previewColors.surface },
                 ]}
               >
                 <View
                   style={[
-                    s.previewStripBar,
-                    { backgroundColor: previewColors.surface },
+                    s.previewStripDot,
+                    { backgroundColor: previewColors.accent },
+                  ]}
+                />
+                <Text
+                  style={[
+                    s.previewStripTitle,
+                    { color: previewColors.textPrimary },
                   ]}
                 >
-                  <View
-                    style={[
-                      s.previewStripDot,
-                      { backgroundColor: previewColors.accent },
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      s.previewStripTitle,
-                      { color: previewColors.textPrimary },
-                    ]}
-                  >
-                    {themeName || "My Theme"}
-                  </Text>
-                </View>
+                  {themeName || "My Theme"}
+                </Text>
+              </View>
+              <View
+                style={[
+                  s.previewStripCard,
+                  {
+                    backgroundColor: previewColors.surface,
+                    borderColor: previewColors.surfaceBorder,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    s.previewStripHeading,
+                    { color: previewColors.textPrimary },
+                  ]}
+                >
+                  Workout Day 1
+                </Text>
+                <Text
+                  style={[
+                    s.previewStripSub,
+                    { color: previewColors.textSecondary },
+                  ]}
+                >
+                  3 exercises · 45 min
+                </Text>
                 <View
                   style={[
-                    s.previewStripCard,
+                    s.previewStripBtn,
+                    { backgroundColor: previewColors.accent },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: previewColors.textOnAccent,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    Start
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Theme meta */}
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
+              THEME NAME *
+            </Text>
+            <TextInput
+              style={[
+                s.textInput,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                  color: colors.textPrimary,
+                },
+              ]}
+              value={themeName}
+              onChangeText={setThemeName}
+              placeholder='My Awesome Theme'
+              placeholderTextColor={colors.textMuted}
+            />
+
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
+              AUTHOR (optional)
+            </Text>
+            <TextInput
+              style={[
+                s.textInput,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                  color: colors.textPrimary,
+                },
+              ]}
+              value={themeAuthor}
+              onChangeText={setThemeAuthor}
+              placeholder='@yourusername'
+              placeholderTextColor={colors.textMuted}
+            />
+
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
+              DESCRIPTION (optional)
+            </Text>
+            <TextInput
+              style={[
+                s.textInput,
+                s.textArea,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                  color: colors.textPrimary,
+                },
+              ]}
+              value={themeDesc}
+              onChangeText={setThemeDesc}
+              placeholder='A brief description of your theme…'
+              placeholderTextColor={colors.textMuted}
+              multiline
+              numberOfLines={2}
+            />
+
+            {/* Base preset */}
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
+              START FROM
+            </Text>
+            <View style={s.presetRow}>
+              {(["light", "dark"] as const).map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[
+                    s.presetChip,
                     {
-                      backgroundColor: previewColors.surface,
-                      borderColor: previewColors.surfaceBorder,
+                      borderColor: colors.inputBorder,
+                      backgroundColor: colors.surface,
+                    },
+                    basePreset === p && {
+                      borderColor: colors.accent,
+                      backgroundColor: colors.accentLight,
                     },
                   ]}
+                  onPress={() => applyPreset(p)}
                 >
-                  <Text
-                    style={[
-                      s.previewStripHeading,
-                      { color: previewColors.textPrimary },
-                    ]}
-                  >
-                    Workout Day 1
+                  <Text style={{ fontSize: 18 }}>
+                    {p === "light" ? "☀️" : "🌙"}
                   </Text>
                   <Text
                     style={[
-                      s.previewStripSub,
-                      { color: previewColors.textSecondary },
-                    ]}
-                  >
-                    3 exercises · 45 min
-                  </Text>
-                  <View
-                    style={[
-                      s.previewStripBtn,
-                      { backgroundColor: previewColors.accent },
-                    ]}
-                  >
-                    <Text
-                      style={{
-                        color: previewColors.textOnAccent,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      Start
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Theme meta */}
-              <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
-                THEME NAME *
-              </Text>
-              <TextInput
-                style={[
-                  s.textInput,
-                  {
-                    backgroundColor: colors.inputBackground,
-                    borderColor: colors.inputBorder,
-                    color: colors.textPrimary,
-                  },
-                ]}
-                value={themeName}
-                onChangeText={setThemeName}
-                placeholder='My Awesome Theme'
-                placeholderTextColor={colors.textMuted}
-              />
-
-              <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
-                AUTHOR (optional)
-              </Text>
-              <TextInput
-                style={[
-                  s.textInput,
-                  {
-                    backgroundColor: colors.inputBackground,
-                    borderColor: colors.inputBorder,
-                    color: colors.textPrimary,
-                  },
-                ]}
-                value={themeAuthor}
-                onChangeText={setThemeAuthor}
-                placeholder='@yourusername'
-                placeholderTextColor={colors.textMuted}
-              />
-
-              <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
-                DESCRIPTION (optional)
-              </Text>
-              <TextInput
-                style={[
-                  s.textInput,
-                  s.textArea,
-                  {
-                    backgroundColor: colors.inputBackground,
-                    borderColor: colors.inputBorder,
-                    color: colors.textPrimary,
-                  },
-                ]}
-                value={themeDesc}
-                onChangeText={setThemeDesc}
-                placeholder='A brief description of your theme…'
-                placeholderTextColor={colors.textMuted}
-                multiline
-                numberOfLines={2}
-              />
-
-              {/* Base preset */}
-              <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
-                START FROM
-              </Text>
-              <View style={s.presetRow}>
-                {(["light", "dark"] as const).map((p) => (
-                  <TouchableOpacity
-                    key={p}
-                    style={[
-                      s.presetChip,
+                      s.presetChipLabel,
                       {
-                        borderColor: colors.inputBorder,
-                        backgroundColor: colors.surface,
-                      },
-                      basePreset === p && {
-                        borderColor: colors.accent,
-                        backgroundColor: colors.accentLight,
+                        color:
+                          basePreset === p ? colors.accent : colors.textPrimary,
                       },
                     ]}
-                    onPress={() => applyPreset(p)}
                   >
-                    <Text style={{ fontSize: 18 }}>
-                      {p === "light" ? "☀️" : "🌙"}
-                    </Text>
-                    <Text
-                      style={[
-                        s.presetChipLabel,
-                        {
-                          color:
-                            basePreset === p
-                              ? colors.accent
-                              : colors.textPrimary,
-                        },
-                      ]}
-                    >
-                      {p === "light" ? "Light" : "Dark"}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    {p === "light" ? "Light" : "Dark"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-              {/* Quick colors */}
-              <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
-                QUICK COLORS
-              </Text>
-              <Text style={[s.hint, { color: colors.textMuted }]}>
-                These four values auto-generate the rest of the palette.
-              </Text>
+            {/* Quick colors */}
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
+              QUICK COLORS
+            </Text>
+            <Text style={[s.hint, { color: colors.textMuted }]}>
+              These four values auto-generate the rest of the palette.
+            </Text>
 
+            <View
+              style={[
+                s.quickColorsCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.surfaceBorder,
+                },
+              ]}
+            >
+              {(
+                [
+                  { label: "Background", val: bgColor, set: setBgColor },
+                  {
+                    label: "Surface",
+                    val: surfaceColor,
+                    set: setSurfaceColor,
+                  },
+                  { label: "Accent", val: accentColor, set: setAccentColor },
+                  { label: "Text", val: textColor, set: setTextColor },
+                ] as const
+              ).map(({ label, val, set }) => (
+                <View key={label} style={s.quickColorRow}>
+                  <View style={[s.quickSwatch, { backgroundColor: val }]} />
+                  <Text
+                    style={[s.quickColorLabel, { color: colors.textPrimary }]}
+                  >
+                    {label}
+                  </Text>
+                  <TextInput
+                    style={[
+                      s.quickColorInput,
+                      {
+                        backgroundColor: colors.inputBackground,
+                        borderColor: colors.inputBorder,
+                        color: colors.textPrimary,
+                      },
+                      !isValidHex(val) && { borderColor: "#ef4444" },
+                    ]}
+                    value={val}
+                    onChangeText={(t) => {
+                      const v = t.startsWith("#") ? t : `#${t}`
+                      set(v)
+                    }}
+                    placeholder='#rrggbb'
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize='none'
+                    autoCorrect={false}
+                    maxLength={9}
+                  />
+                </View>
+              ))}
+            </View>
+
+            {/* Advanced toggle */}
+            <TouchableOpacity
+              style={[s.advancedToggle, { borderColor: colors.surfaceBorder }]}
+              onPress={() => {
+                if (!showAdvanced) {
+                  setAdvancedColors(
+                    deriveColors(bgColor, surfaceColor, accentColor, textColor),
+                  )
+                }
+                setShowAdvanced(!showAdvanced)
+              }}
+            >
+              <Text style={[s.advancedToggleText, { color: colors.accent }]}>
+                {showAdvanced ? "⬆ Hide" : "⬇ Show"} Advanced Color Editor
+              </Text>
+            </TouchableOpacity>
+
+            {showAdvanced && (
               <View
                 style={[
-                  s.quickColorsCard,
+                  s.advancedCard,
                   {
                     backgroundColor: colors.surface,
                     borderColor: colors.surfaceBorder,
                   },
                 ]}
               >
-                {(
-                  [
-                    { label: "Background", val: bgColor, set: setBgColor },
-                    {
-                      label: "Surface",
-                      val: surfaceColor,
-                      set: setSurfaceColor,
-                    },
-                    { label: "Accent", val: accentColor, set: setAccentColor },
-                    { label: "Text", val: textColor, set: setTextColor },
-                  ] as const
-                ).map(({ label, val, set }) => (
-                  <View key={label} style={s.quickColorRow}>
-                    <View style={[s.quickSwatch, { backgroundColor: val }]} />
-                    <Text
-                      style={[s.quickColorLabel, { color: colors.textPrimary }]}
-                    >
-                      {label}
-                    </Text>
-                    <TextInput
-                      style={[
-                        s.quickColorInput,
-                        {
-                          backgroundColor: colors.inputBackground,
-                          borderColor: colors.inputBorder,
-                          color: colors.textPrimary,
-                        },
-                        !isValidHex(val) && { borderColor: "#ef4444" },
-                      ]}
-                      value={val}
-                      onChangeText={(t) => {
-                        const v = t.startsWith("#") ? t : `#${t}`
-                        set(v)
-                      }}
-                      placeholder='#rrggbb'
-                      placeholderTextColor={colors.textMuted}
-                      autoCapitalize='none'
-                      autoCorrect={false}
-                      maxLength={9}
-                    />
-                  </View>
-                ))}
-              </View>
-
-              {/* Advanced toggle */}
-              <TouchableOpacity
-                style={[
-                  s.advancedToggle,
-                  { borderColor: colors.surfaceBorder },
-                ]}
-                onPress={() => {
-                  if (!showAdvanced) {
-                    setAdvancedColors(
-                      deriveColors(
-                        bgColor,
-                        surfaceColor,
-                        accentColor,
-                        textColor,
-                      ),
-                    )
-                  }
-                  setShowAdvanced(!showAdvanced)
-                }}
-              >
-                <Text style={[s.advancedToggleText, { color: colors.accent }]}>
-                  {showAdvanced ? "⬆ Hide" : "⬇ Show"} Advanced Color Editor
-                </Text>
-              </TouchableOpacity>
-
-              {showAdvanced && (
-                <View
+                <Text
                   style={[
-                    s.advancedCard,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.surfaceBorder,
-                    },
+                    s.fieldLabel,
+                    { color: colors.textSecondary, marginBottom: 12 },
                   ]}
                 >
-                  <Text
-                    style={[
-                      s.fieldLabel,
-                      { color: colors.textSecondary, marginBottom: 12 },
-                    ]}
-                  >
-                    ALL COLOR TOKENS
-                  </Text>
-                  {COLOR_ROWS.map((row) => (
-                    <ColorPickerRow
-                      key={row.key}
-                      row={row}
-                      value={advancedColors[row.key]}
-                      onChange={handleAdvancedChange}
-                    />
-                  ))}
-                </View>
+                  ALL COLOR TOKENS
+                </Text>
+                {COLOR_ROWS.map((row) => (
+                  <ColorPickerRow
+                    key={row.key}
+                    row={row}
+                    value={advancedColors[row.key]}
+                    onChange={handleAdvancedChange}
+                  />
+                ))}
+              </View>
+            )}
+
+            {/* Save */}
+            <TouchableOpacity
+              style={[
+                s.saveBtn,
+                { backgroundColor: colors.accent },
+                saving && { opacity: 0.6 },
+              ]}
+              onPress={handleSaveCustom}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color='#fff' />
+              ) : (
+                <Text style={s.saveBtnText}>✓ Save & Apply Theme</Text>
               )}
-
-              {/* Save */}
-              <TouchableOpacity
-                style={[
-                  s.saveBtn,
-                  { backgroundColor: colors.accent },
-                  saving && { opacity: 0.6 },
-                ]}
-                onPress={handleSaveCustom}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color='#fff' />
-                ) : (
-                  <Text style={s.saveBtnText}>✓ Save & Apply Theme</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ══════════════ IMPORT TAB ══════════════ */}
-          {tab === "import" && (
-            <View>
-              <View
-                style={[
-                  s.importInfoCard,
-                  {
-                    backgroundColor: colors.accentLight,
-                    borderColor: colors.accent,
-                  },
-                ]}
-              >
-                <Text style={s.importInfoIcon}>📥</Text>
-                <Text style={[s.importInfoTitle, { color: colors.accent }]}>
-                  Import a Theme
-                </Text>
-                <Text
-                  style={[s.importInfoText, { color: colors.textSecondary }]}
-                >
-                  Paste a theme JSON shared by another user. You can get one by
-                  tapping <Text style={{ fontWeight: "700" }}>📤 Export</Text>{" "}
-                  on any theme in the Browse tab.
-                </Text>
-              </View>
-
-              <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
-                PASTE THEME JSON
-              </Text>
-              <TextInput
-                style={[
-                  s.textInput,
-                  s.jsonInput,
-                  {
-                    backgroundColor: colors.inputBackground,
-                    borderColor: colors.inputBorder,
-                    color: colors.textPrimary,
-                  },
-                ]}
-                value={importJson}
-                onChangeText={setImportJson}
-                placeholder={
-                  '{\n  "id": "custom_123",\n  "name": "My Theme",\n  "colors": { ... }\n}'
-                }
-                placeholderTextColor={colors.textMuted}
-                multiline
-                autoCapitalize='none'
-                autoCorrect={false}
-              />
-
-              <TouchableOpacity
-                style={[s.saveBtn, { backgroundColor: colors.accent }]}
-                onPress={handleImport}
-              >
-                <Text style={s.saveBtnText}>📥 Import Theme</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* ── Export sheet ── */}
-        {showExportSheet && (
-          <Modal
-            visible
-            transparent
-            animationType='slide'
-            onRequestClose={() => setShowExportSheet(false)}
-          >
-            <View style={s.exportOverlay}>
-              <View
-                style={[s.exportSheet, { paddingBottom: insets.bottom + 20 }]}
-              >
-                <Text style={s.exportTitle}>📤 Export Theme</Text>
-                <Text style={s.exportSubtitle}>
-                  Share this JSON with other users so they can import your
-                  theme.
-                </Text>
-
-                <ScrollView
-                  style={s.exportJsonScroll}
-                  contentContainerStyle={{ padding: 12 }}
-                >
-                  <Text style={s.exportJsonText}>{exportJson}</Text>
-                </ScrollView>
-
-                <View style={s.exportActions}>
-                  <TouchableOpacity
-                    style={s.exportBtn}
-                    onPress={handleCopyExport}
-                  >
-                    <Text style={s.exportBtnText}>📋 Copy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.exportBtn, { backgroundColor: "#667eea" }]}
-                    onPress={handleShareExport}
-                  >
-                    <Text style={[s.exportBtnText, { color: "#fff" }]}>
-                      🔗 Share
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  style={s.exportCloseBtn}
-                  onPress={() => setShowExportSheet(false)}
-                >
-                  <Text style={s.exportCloseBtnText}>Done</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
+            </TouchableOpacity>
+          </View>
         )}
 
-        {AlertComponent}
-      </KeyboardAvoidingView>
-    </Modal>
+        {/* ══════════════ IMPORT TAB ══════════════ */}
+        {tab === "import" && (
+          <View>
+            <View
+              style={[
+                s.importInfoCard,
+                {
+                  backgroundColor: colors.accentLight,
+                  borderColor: colors.accent,
+                },
+              ]}
+            >
+              <Text style={s.importInfoIcon}>📥</Text>
+              <Text style={[s.importInfoTitle, { color: colors.accent }]}>
+                Import a Theme
+              </Text>
+              <Text style={[s.importInfoText, { color: colors.textSecondary }]}>
+                Paste a theme JSON shared by another user. You can get one by
+                tapping <Text style={{ fontWeight: "700" }}>📤 Export</Text> on
+                any theme in the Browse tab.
+              </Text>
+            </View>
+
+            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
+              PASTE THEME JSON
+            </Text>
+            <TextInput
+              style={[
+                s.textInput,
+                s.jsonInput,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                  color: colors.textPrimary,
+                },
+              ]}
+              value={importJson}
+              onChangeText={setImportJson}
+              placeholder={
+                '{\n  "id": "custom_123",\n  "name": "My Theme",\n  "colors": { ... }\n}'
+              }
+              placeholderTextColor={colors.textMuted}
+              multiline
+              autoCapitalize='none'
+              autoCorrect={false}
+            />
+
+            <TouchableOpacity
+              style={[s.saveBtn, { backgroundColor: colors.accent }]}
+              onPress={handleImport}
+            >
+              <Text style={s.saveBtnText}>📥 Import Theme</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* ── Export sheet ── */}
+      <ModalSheet
+        visible={showExportSheet}
+        onClose={() => setShowExportSheet(false)}
+        title='📤 Export Theme'
+        subtitle='Share this JSON with other users so they can import your theme.'
+        showCancelButton={false}
+        showConfirmButton={false}
+      >
+        <ScrollView
+          style={[
+            s.exportJsonScroll,
+            { backgroundColor: colors.inputBackground },
+          ]}
+          contentContainerStyle={{ padding: 12 }}
+        >
+          <Text style={[s.exportJsonText, { color: colors.textPrimary }]}>
+            {exportJson}
+          </Text>
+        </ScrollView>
+
+        <View style={s.exportActions}>
+          <TouchableOpacity
+            style={[s.exportBtn, { backgroundColor: colors.inputBackground }]}
+            onPress={handleCopyExport}
+          >
+            <Text style={[s.exportBtnText, { color: colors.textPrimary }]}>
+              📋 Copy
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.exportBtn, { backgroundColor: colors.accent }]}
+            onPress={handleShareExport}
+          >
+            <Text style={[s.exportBtnText, { color: colors.textOnAccent }]}>
+              🔗 Share
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ModalSheet>
+
+      {AlertComponent}
+    </ModalSheet>
   )
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-  },
-  headerTitle: { fontSize: 20, fontWeight: "800" },
-  closeBtn: { padding: 8 },
-  closeBtnText: { fontSize: 16, fontWeight: "600" },
   tabBar: {
     flexDirection: "row",
     borderBottomWidth: 1,
@@ -1237,7 +1159,7 @@ const s = StyleSheet.create({
   },
   tabText: { fontSize: 14, fontWeight: "600" },
   tabTextActive: { fontWeight: "800" },
-  content: { padding: 16 },
+  content: { paddingTop: 8, paddingBottom: 32 },
   sectionHeader: {
     fontSize: 11,
     fontWeight: "700",
@@ -1379,56 +1301,22 @@ const s = StyleSheet.create({
   },
 
   // Export sheet
-  exportOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  exportSheet: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-    maxHeight: "75%",
-  },
-  exportTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1a1a2e",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  exportSubtitle: {
-    fontSize: 13,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 18,
-    marginBottom: 14,
-  },
   exportJsonScroll: {
-    backgroundColor: "#f4f4f8",
     borderRadius: 12,
     maxHeight: 200,
-    marginBottom: 16,
+    marginBottom: 4,
   },
   exportJsonText: {
     fontSize: 11,
-    color: "#334",
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     lineHeight: 16,
   },
-  exportActions: { flexDirection: "row", gap: 12, marginBottom: 12 },
+  exportActions: { flexDirection: "row", gap: 12, marginTop: 4 },
   exportBtn: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingVertical: 13,
     alignItems: "center",
   },
-  exportBtnText: { fontSize: 15, fontWeight: "700", color: "#1a1a2e" },
-  exportCloseBtn: {
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  exportCloseBtnText: { fontSize: 15, color: "#999", fontWeight: "600" },
+  exportBtnText: { fontSize: 15, fontWeight: "700" },
 })
