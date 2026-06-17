@@ -47,14 +47,12 @@ export default function HomeScreen({
     selectedPerson,
     currentDay,
     saveWorkoutData,
-    saveSelectedPerson,
     saveCurrentDay,
     isDayLocked,
     fetchSessionHistory,
     hasActiveSession,
   } = useWorkout()
   const { alert, AlertComponent } = useAlert()
-  const [isUploading, setIsUploading] = useState<boolean>(false)
   const [showDayPicker, setShowDayPicker] = useState<boolean>(false)
   const [sessionHistory, setSessionHistory] = useState<WorkoutSession[]>([])
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false)
@@ -144,53 +142,6 @@ export default function HomeScreen({
     }
   }
 
-  const handleUploadFile = async (): Promise<void> => {
-    try {
-      setIsUploading(true)
-
-      const fileUri = await workoutApi.pickWorkoutFile()
-      if (!fileUri) {
-        setIsUploading(false)
-        return
-      }
-
-      const data = (await programApi.uploadAndSave(fileUri)) as WorkoutData & {
-        success?: boolean
-        totalDays?: number
-        people?: string[]
-      }
-
-      if (data.success) {
-        await saveWorkoutData(data)
-        alert(
-          "Success!",
-          `Loaded ${data?.totalDays ?? 0} workout days for ${data.people?.join(", ") ?? ""}`,
-          [{ text: "OK" }],
-          "success",
-        )
-      }
-    } catch (error) {
-      alert(
-        "Error",
-        (error instanceof Error ? error.message : null) ??
-          "Failed to upload workout file",
-        [{ text: "OK" }],
-      )
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleSelectPerson = (person: string): void => {
-    saveSelectedPerson(person)
-    alert(
-      "Success",
-      `Selected ${person}'s workout plan`,
-      [{ text: "OK" }],
-      "success",
-    )
-  }
-
   const handleSelectDay = (day: number): void => {
     if (hasActiveSession()) {
       alert(
@@ -273,24 +224,6 @@ export default function HomeScreen({
     } catch (error) {
       alert("Error", "Failed to load session details")
     }
-  }
-
-  const getPersonWorkoutSummary = (
-    person: string,
-  ): { totalSets: number; totalDays: number } | null => {
-    if (!workoutData?.days) return null
-
-    let totalSets = 0
-    let totalDays = 0
-
-    workoutData.days.forEach((day) => {
-      if (day.people[person]?.exercises.length > 0) {
-        totalDays++
-        totalSets += day.people[person].totalSets || 0
-      }
-    })
-
-    return { totalSets, totalDays }
   }
 
   const getDayTitle = (dayNumber: number): string => {
@@ -379,85 +312,6 @@ export default function HomeScreen({
               Upload your workout plan and get started
             </Text>
           </View>
-
-          <TouchableOpacity
-            style={styles.uploadButton}
-            onPress={handleUploadFile}
-            disabled={isUploading}
-          >
-            {isUploading ? (
-              <ActivityIndicator color='#fff' />
-            ) : (
-              <>
-                <Text style={styles.uploadButtonIcon}>📁</Text>
-                <Text style={styles.uploadButtonText}>
-                  {workoutData ? "Upload New File" : "Upload Workout File"}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {workoutData && (
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>📊 Workout Plan Loaded</Text>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Total Days:</Text>
-                <Text style={styles.summaryValue}>
-                  {workoutData?.totalDays ?? workoutData?.days?.length}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>People:</Text>
-                <Text style={styles.summaryValue}>
-                  {workoutData.people?.join(", ")}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          {workoutData && workoutData.people && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Select Your Profile</Text>
-              {workoutData.people.map((person: string) => {
-                const summary = getPersonWorkoutSummary(person)
-                const isSelected = selectedPerson === person
-
-                return (
-                  <TouchableOpacity
-                    key={person}
-                    style={[
-                      styles.personCard,
-                      isSelected && styles.personCardSelected,
-                    ]}
-                    onPress={() => handleSelectPerson(person)}
-                  >
-                    <View style={styles.personCardHeader}>
-                      <Text
-                        style={[
-                          styles.personName,
-                          isSelected && styles.personNameSelected,
-                        ]}
-                      >
-                        {person}
-                      </Text>
-                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                    {summary && (
-                      <View style={styles.personStats}>
-                        <Text style={styles.personStat}>
-                          {summary?.totalDays} workout days
-                        </Text>
-                        <Text style={styles.personStat}> </Text>
-                        <Text style={styles.personStat}>
-                          {summary.totalSets} total sets
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-          )}
 
           {selectedPerson && workoutData && (
             <View
@@ -551,19 +405,10 @@ export default function HomeScreen({
                 📝 How to get started:
               </Text>
               <Text style={styles.instructionStep}>
-                1. Tap "Upload Workout File" above
+                1. Select which day you want to do
               </Text>
               <Text style={styles.instructionStep}>
-                2. Select your .ods, .xlsx, or .xls workout file
-              </Text>
-              <Text style={styles.instructionStep}>
-                3. Choose your profile (GF or BF)
-              </Text>
-              <Text style={styles.instructionStep}>
-                4. Select which day you want to do
-              </Text>
-              <Text style={styles.instructionStep}>
-                5. Go to the Workout tab to start!
+                2. Go to the Workout tab to start!
               </Text>
             </View>
           )}
@@ -842,60 +687,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       textAlign: "center",
     },
-    uploadButton: {
-      backgroundColor: colors.accent,
-      borderRadius: 12,
-      padding: 18,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 20,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 3,
-    },
-    uploadButtonIcon: {
-      fontSize: 24,
-      marginRight: 10,
-    },
-    uploadButtonText: {
-      color: colors.surface,
-      fontSize: 18,
-      fontWeight: "600",
-    },
-    summaryCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 20,
-      marginBottom: 20,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    summaryTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: colors.textPrimary,
-      marginBottom: 15,
-    },
-    summaryRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 10,
-    },
-    summaryLabel: {
-      fontSize: 16,
-      color: colors.textSecondary,
-    },
-    summaryValue: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: colors.textPrimary,
-    },
     section: {
       marginBottom: 20,
     },
@@ -904,44 +695,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: "bold",
       color: colors.textPrimary,
       marginBottom: 15,
-    },
-    personCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 18,
-      marginBottom: 12,
-      borderWidth: 2,
-      borderColor: colors.surfaceBorder,
-    },
-    personCardSelected: {
-      borderColor: colors.accent,
-      backgroundColor: colors.accentLight,
-    },
-    personCardHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 10,
-    },
-    personName: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: colors.textPrimary,
-    },
-    personNameSelected: {
-      color: colors.accent,
-    },
-    checkmark: {
-      fontSize: 24,
-      color: colors.accent,
-    },
-    personStats: {
-      flexDirection: "row",
-      justifyContent: "flex-start",
-    },
-    personStat: {
-      fontSize: 14,
-      color: colors.textSecondary,
     },
     currentDayCard: {
       backgroundColor: colors.accent,

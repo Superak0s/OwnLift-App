@@ -8,8 +8,28 @@
  *   2. Call useTheme() anywhere to get { theme, colors, isDark, ... }
  *   3. Replace hard-coded color strings with colors.XXX from the hook
  *
- * Custom themes can be exported as JSON and shared with other users,
- * who can import them via the ThemeEditorModal.
+ * ─── Adding / editing built-in themes ─────────────────────────────────────
+ * Built-in theme presets (light, dark, yellow, red, ...) live in
+ * `themes.json`, next to this file — NOT in this TSX file.
+ *
+ * To add a new built-in theme:
+ *   1. Open themes.json
+ *   2. Copy an existing entry
+ *   3. Give it a unique `id`, a `name` / `description`, and a full
+ *      `colors` object containing every key from the ThemeColors
+ *      interface below
+ *   4. Save. It will automatically show up in `allThemes` (and therefore
+ *      in any theme picker UI that maps over `allThemes`) — no changes
+ *      to this file are needed.
+ *
+ * If an entry in themes.json is missing a color key, this file logs a
+ * dev warning and fills the missing key in from a hardcoded fallback so
+ * the app doesn't crash.
+ *
+ * Custom (user-created) themes are a separate, runtime concept: they can
+ * be exported as JSON and shared with other users, who import them via
+ * the ThemeEditorModal. Those are stored on-device with AsyncStorage and
+ * are independent of the presets in themes.json.
  */
 
 import React, {
@@ -22,6 +42,7 @@ import React, {
 } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useColorScheme } from "react-native"
+import themesData from "./themes.json"
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 
@@ -69,8 +90,11 @@ export interface ThemeColors {
   chartColorDark: string
 }
 
-// ─── Preset tokens ────────────────────────────────────────────────────────────
-export const LIGHT_COLORS: ThemeColors = {
+// ─── Emergency fallback ───────────────────────────────────────────────────────
+// Used only if themes.json is missing/unreadable, or if a theme entry in
+// themes.json is missing one or more color keys. Day-to-day edits should
+// happen in themes.json, not here.
+const FALLBACK_COLORS: ThemeColors = {
   background: "#f5f5f5",
   surface: "#ffffff",
   surfaceElevated: "#ffffff",
@@ -104,205 +128,143 @@ export const LIGHT_COLORS: ThemeColors = {
   chartColorDark: "#4f63c8",
 }
 
-export const YELLOW_COLORS: ThemeColors = {
-  background: "#fde06a",
-  surface: "#d9da8c",
-  surfaceElevated: "#e7e329",
-  surfaceBorder: "#e0e0e0",
+const REQUIRED_COLOR_KEYS = Object.keys(FALLBACK_COLORS) as Array<
+  keyof ThemeColors
+>
 
-  textPrimary: "#111827",
-  textSecondary: "#745d00",
-  textMuted: "#b6a862",
-  textOnAccent: "#ffffff",
+// ─── Loading & validating themes.json ─────────────────────────────────────────
 
-  accent: "#b69908",
-  accentLight: "#f8ff6e",
-  accentDark: "#696601",
-
-  success: "#d5d37e",
-  successLight: "#d1fae5",
-  error: "#580000",
-  errorLight: "#fef2f2",
-  warning: "#f59e0b",
-  warningLight: "#fef3c7",
-  info: "#e6e63d",
-  infoLight: "#ede9fe",
-
-  separator: "#f3f4f6",
-  shadow: "#000000",
-  inputBackground: "#f9fafb",
-  inputBorder: "#e5e7eb",
-  badgeBackground: "#f3f4f6",
-
-  chartColor: "#d3b325",
-  chartColorDark: "#9c801a",
-}
-export const RED_COLORS: ThemeColors = {
-  background: "#801c1c",
-  surface: "#da8c8c",
-  surfaceElevated: "#7b2323",
-  surfaceBorder: "#e0e0e0",
-
-  textPrimary: "#111827",
-  textSecondary: "#091109",
-  textMuted: "#9ca3af",
-  textOnAccent: "#ffffff",
-
-  accent: "#aa3434",
-  accentLight: "#00051c22",
-  accentDark: "#386b2a",
-
-  success: "#720f0f",
-  successLight: "#d1fae5",
-  error: "#580000",
-  errorLight: "#fef2f2",
-  warning: "#f59e0b",
-  warningLight: "#fef3c7",
-  info: "#e68383",
-  infoLight: "#ede9fe",
-
-  separator: "#f3f4f6",
-  shadow: "#000000",
-  inputBackground: "#f9fafb",
-  inputBorder: "#e5e7eb",
-  badgeBackground: "#f3f4f6",
-
-  chartColor: "#dc9c9c",
-  chartColorDark: "#691313",
-}
-export const GREEN_COLORS: ThemeColors = {
-  background: "#b2f1a1",
-  surface: "#8dc78d",
-  surfaceElevated: "#70a773",
-  surfaceBorder: "#e0e0e0",
-
-  textPrimary: "#111827",
-  textSecondary: "#213c21",
-  textMuted: "#003510",
-  textOnAccent: "#ffffff",
-
-  accent: "#5c9757",
-  accentLight: "#00051c22",
-  accentDark: "#386b2a",
-
-  success: "#67a46a",
-  successLight: "#d1fae5",
-  error: "#ef4444",
-  errorLight: "#fef2f2",
-  warning: "#f59e0b",
-  warningLight: "#fef3c7",
-  info: "#8dcc8a",
-  infoLight: "#ede9fe",
-
-  separator: "#99d196",
-  shadow: "#000000",
-  inputBackground: "#99d196",
-  inputBorder: "#99d196",
-  badgeBackground: "#99d196",
-
-  chartColor: "#b0dc9c",
-  chartColorDark: "#3e6d3f",
-}
-export const BLUE_COLORS: ThemeColors = {
-  background: "#aad3e2",
-  surface: "#84b3e3",
-  surfaceElevated: "#696bd6",
-  surfaceBorder: "#e0e0e0",
-
-  textPrimary: "#111827",
-  textSecondary: "#000000",
-  textMuted: "#003510",
-  textOnAccent: "#ffffff",
-
-  accent: "#577597",
-  accentLight: "#00051c22",
-  accentDark: "#4b4e99",
-
-  success: "#b2b2e2",
-  successLight: "#d1fae5",
-  error: "#ef4444",
-  errorLight: "#fef2f2",
-  warning: "#f59e0b",
-  warningLight: "#fef3c7",
-  info: "#6bacf1",
-  infoLight: "#ede9fe",
-
-  separator: "#4e7caa",
-  shadow: "#000000",
-  inputBackground: "#4e7caa",
-  inputBorder: "#4e7caa",
-  badgeBackground: "#4e7caa",
-
-  chartColor: "#7e9fba",
-  chartColorDark: "#7d93d4",
-}
-export const PINK_COLORS: ThemeColors = {
-  background: "#f3b0ce",
-  surface: "#d9a1cd",
-  surfaceElevated: "#312126",
-  surfaceBorder: "#e0e0e0",
-
-  textPrimary: "#111827",
-  textSecondary: "#482039",
-  textMuted: "#bb327b",
-  textOnAccent: "#ffffff",
-
-  accent: "#e36b95",
-  accentLight: "#00051c22",
-  accentDark: "#c84f7d",
-
-  success: "#fe86a4",
-  successLight: "#d1fae5",
-  error: "#ef4444",
-  errorLight: "#fef2f2",
-  warning: "#f59e0b",
-  warningLight: "#fef3c7",
-  info: "#e9b2c0",
-  infoLight: "#ede9fe",
-
-  separator: "#f3a7c5",
-  shadow: "#000000",
-  inputBackground: "#f3a7c5",
-  inputBorder: "#f3a7c5",
-  badgeBackground: "#f3a7c5",
-
-  chartColor: "#e88fa4",
-  chartColorDark: "#cb4665",
+interface RawTheme {
+  id: string
+  name: string
+  description?: string
+  author?: string
+  version?: string
+  createdAt?: string
+  colors: Record<string, unknown>
 }
 
-export const DARK_COLORS: ThemeColors = {
-  background: "#000000",
-  surface: "#1c1c26",
-  surfaceElevated: "#252533",
-  surfaceBorder: "#2f2f42",
+/**
+ * Ensures a theme's color object has every key required by ThemeColors.
+ * Any missing/invalid keys fall back to FALLBACK_COLORS so a typo in
+ * themes.json never crashes the app — it just logs a warning in dev.
+ */
+function normalizeColors(
+  raw: Record<string, unknown> | undefined | null,
+  themeId: string,
+): ThemeColors {
+  const result = {} as ThemeColors
+  const missing: string[] = []
 
-  textPrimary: "#eeeef5",
-  textSecondary: "#9898b0",
-  textMuted: "#5c5c72",
-  textOnAccent: "#ffffff",
+  for (const key of REQUIRED_COLOR_KEYS) {
+    const value = raw?.[key]
+    if (typeof value === "string") {
+      result[key] = value
+    } else {
+      missing.push(key)
+      result[key] = FALLBACK_COLORS[key]
+    }
+  }
 
-  accent: "#7c6df0",
-  accentLight: "#7c6df018",
-  accentDark: "#5f51d4",
+  if (missing.length > 0 && typeof __DEV__ !== "undefined" && __DEV__) {
+    console.warn(
+      `[ThemeContext] Theme "${themeId}" in themes.json is missing color key(s): ${missing.join(
+        ", ",
+      )}. Using fallback values for those keys.`,
+    )
+  }
 
-  success: "#2dd4a0",
-  successLight: "#0a2e22",
-  error: "#f06b6b",
-  errorLight: "#2d0a0a",
-  warning: "#f0b429",
-  warningLight: "#2d1f05",
-  info: "#7c8cf8",
-  infoLight: "#141230",
-
-  separator: "#22222e",
-  shadow: "#000000",
-  inputBackground: "#16161f",
-  inputBorder: "#2a2a3a",
-  badgeBackground: "#252533",
-
-  chartColor: "#7c6df0",
-  chartColorDark: "#5f51d4",
+  return result
 }
+
+/**
+ * Reads themes.json, validates each entry, and returns a clean list of
+ * built-in theme presets (excluding the reserved "system" id).
+ */
+function loadBuiltInThemes(): AppTheme[] {
+  const raw = Array.isArray(themesData) ? (themesData as RawTheme[]) : []
+  const seen = new Set<string>()
+  const result: AppTheme[] = []
+
+  for (const entry of raw) {
+    if (!entry || typeof entry.id !== "string" || !entry.id) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(
+          "[ThemeContext] Skipping invalid entry in themes.json:",
+          entry,
+        )
+      }
+      continue
+    }
+    if (entry.id === "system") {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(
+          '[ThemeContext] "system" is a reserved theme id and is handled automatically; skipping this entry in themes.json.',
+        )
+      }
+      continue
+    }
+    if (seen.has(entry.id)) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(
+          `[ThemeContext] Duplicate theme id "${entry.id}" in themes.json; keeping the first occurrence.`,
+        )
+      }
+      continue
+    }
+    seen.add(entry.id)
+
+    result.push({
+      id: entry.id,
+      name: entry.name ?? entry.id,
+      description: entry.description,
+      author: entry.author,
+      version: entry.version,
+      createdAt: entry.createdAt,
+      colors: normalizeColors(entry.colors, entry.id),
+    })
+  }
+
+  if (result.length === 0 && typeof __DEV__ !== "undefined" && __DEV__) {
+    console.warn(
+      "[ThemeContext] No valid themes found in themes.json — falling back to a single built-in light theme.",
+    )
+    result.push({
+      id: "light",
+      name: "☀️ Light",
+      description: "Clean white theme",
+      colors: FALLBACK_COLORS,
+    })
+  }
+
+  return result
+}
+
+const PRESET_THEMES: AppTheme[] = loadBuiltInThemes()
+
+function findPreset(id: string): AppTheme | undefined {
+  return PRESET_THEMES.find((t) => t.id === id)
+}
+
+// Kept as named exports for backwards compatibility with existing imports
+// elsewhere in the app. New themes added to themes.json don't need (and
+// won't get) a named export like this — look them up via `allThemes` or
+// `PRESET_THEMES` by id instead.
+export const LIGHT_COLORS: ThemeColors =
+  findPreset("light")?.colors ?? FALLBACK_COLORS
+export const DARK_COLORS: ThemeColors =
+  findPreset("dark")?.colors ?? FALLBACK_COLORS
+export const YELLOW_COLORS: ThemeColors =
+  findPreset("yellow")?.colors ?? FALLBACK_COLORS
+export const RED_COLORS: ThemeColors =
+  findPreset("red")?.colors ?? FALLBACK_COLORS
+export const GREEN_COLORS: ThemeColors =
+  findPreset("green")?.colors ?? FALLBACK_COLORS
+export const BLUE_COLORS: ThemeColors =
+  findPreset("blue")?.colors ?? FALLBACK_COLORS
+export const PINK_COLORS: ThemeColors =
+  findPreset("pink")?.colors ?? FALLBACK_COLORS
+
 // ─── Theme descriptor ─────────────────────────────────────────────────────────
 
 export type ThemeId =
@@ -333,48 +295,7 @@ const BUILT_IN_THEMES: AppTheme[] = [
     description: "Follows your device's light/dark mode setting",
     colors: LIGHT_COLORS, // resolved at runtime
   },
-  {
-    id: "light",
-    name: "☀️ Light",
-    description: "Clean white theme",
-    colors: LIGHT_COLORS,
-  },
-  {
-    id: "dark",
-    name: "🌙 Dark",
-    description: "Easy on the eyes at night",
-    colors: DARK_COLORS,
-  },
-  {
-    id: "yellow",
-    name: "🟡 Yellow",
-    description: "Bright and cheerful",
-    colors: YELLOW_COLORS,
-  },
-  {
-    id: "red",
-    name: "🔴 Red",
-    description: "Bold and energetic",
-    colors: RED_COLORS,
-  },
-  {
-    id: "green",
-    name: "🟢 Green",
-    description: "Natural and calming",
-    colors: GREEN_COLORS,
-  },
-  {
-    id: "blue",
-    name: "🔵 Blue",
-    description: "Calm and trustworthy",
-    colors: BLUE_COLORS,
-  },
-  {
-    id: "pink",
-    name: "🎀 Pink",
-    description: "Playful and feminine",
-    colors: PINK_COLORS,
-  },
+  ...PRESET_THEMES,
 ]
 
 // ─── Context value ────────────────────────────────────────────────────────────
@@ -492,8 +413,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
     const found = allThemes.find((t) => t.id === activeThemeId)
     if (found) return found
-    // Fallback to light
-    return BUILT_IN_THEMES[1]!
+    // Fallback to the first preset theme (light)
+    return BUILT_IN_THEMES[1] ?? BUILT_IN_THEMES[0]!
   }, [activeThemeId, customThemes, systemScheme])
 
   const theme = resolveTheme()
@@ -570,7 +491,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         }
 
         // Validate that all required keys are present
-        const required = Object.keys(LIGHT_COLORS) as Array<keyof ThemeColors>
+        const required = REQUIRED_COLOR_KEYS
         const missing = required.filter((k) => !(k in parsed.colors!))
         if (missing.length > 0) {
           return {

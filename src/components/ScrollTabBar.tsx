@@ -4,7 +4,6 @@ import {
   TouchableOpacity,
   Text,
   View,
-  Modal,
   StyleSheet,
 } from "react-native"
 import AsyncStorage from "@react-native-async-storage/async-storage"
@@ -21,6 +20,7 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from "react-native-gesture-handler"
+import ModalSheet from "./ModalSheet"
 
 export interface TabItem {
   key: string
@@ -310,57 +310,45 @@ export default function ScrollTabBar({
         </TouchableOpacity>
       </ScrollView>
 
-      <Modal
+      <ModalSheet
         visible={showEditor}
-        animationType='slide'
-        presentationStyle='pageSheet'
-        onRequestClose={() => setShowEditor(false)}
+        onClose={() => setShowEditor(false)}
+        title='Customize Tabs'
+        subtitle='Drag ☰ to reorder · tap to toggle visibility'
+        showCancelButton={false}
+        showConfirmButton={false}
+        fullHeight
       >
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <View style={styles.editorContainer}>
-            <View style={styles.editorHeader}>
-              <Text style={styles.editorTitle}>Customize Tabs</Text>
-              <TouchableOpacity
-                style={styles.doneBtn}
-                onPress={() => setShowEditor(false)}
-              >
-                <Text style={styles.doneBtnText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.editorSubtitle}>
-              Drag ☰ to reorder · tap to toggle visibility
-            </Text>
+          <ScrollView
+            style={styles.editorList}
+            contentContainerStyle={styles.editorListContent}
+          >
+            {config.map((c, index) => {
+              const tab = tabMap.get(c.key)
+              if (!tab) return null
+              return (
+                <DraggableRow
+                  key={c.key}
+                  tab={tab}
+                  cfg={c}
+                  index={index}
+                  total={config.length}
+                  visibleCount={visibleCount}
+                  accentLightColor={colors.accentLight as string}
+                  surfaceColor={colors.surface as string}
+                  onToggle={toggleVisible}
+                  onReorder={handleReorder}
+                />
+              )
+            })}
+          </ScrollView>
 
-            <ScrollView
-              style={styles.editorList}
-              contentContainerStyle={styles.editorListContent}
-            >
-              {config.map((c, index) => {
-                const tab = tabMap.get(c.key)
-                if (!tab) return null
-                return (
-                  <DraggableRow
-                    key={c.key}
-                    tab={tab}
-                    cfg={c}
-                    index={index}
-                    total={config.length}
-                    visibleCount={visibleCount}
-                    accentLightColor={colors.accentLight as string}
-                    surfaceColor={colors.surface as string}
-                    onToggle={toggleVisible}
-                    onReorder={handleReorder}
-                  />
-                )
-              })}
-            </ScrollView>
-
-            <TouchableOpacity style={styles.resetBtn} onPress={reset}>
-              <Text style={styles.resetBtnText}>Reset to Default</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.resetBtn} onPress={reset}>
+            <Text style={styles.resetBtnText}>Reset to Default</Text>
+          </TouchableOpacity>
         </GestureHandlerRootView>
-      </Modal>
+      </ModalSheet>
     </>
   )
 }
@@ -461,37 +449,9 @@ const makeStyles = (colors: any) =>
       marginRight: 4,
     },
     editBtnText: { fontSize: 20, color: colors.textMuted, lineHeight: 22 },
-    editorContainer: {
-      flex: 1,
-      backgroundColor: colors.background,
-      paddingTop: 20,
-    },
-    editorHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingBottom: 4,
-    },
-    editorTitle: { fontSize: 22, fontWeight: "700", color: colors.textPrimary },
-    doneBtn: {
-      backgroundColor: colors.accent,
-      paddingHorizontal: 18,
-      paddingVertical: 8,
-      borderRadius: 10,
-    },
-    doneBtnText: { color: colors.surface, fontWeight: "700", fontSize: 15 },
-    editorSubtitle: {
-      fontSize: 13,
-      color: colors.textMuted,
-      paddingHorizontal: 20,
-      marginBottom: 20,
-      marginTop: 6,
-    },
-    editorList: { flex: 1, paddingHorizontal: 20 },
-    editorListContent: { paddingBottom: 20 },
+    editorList: { flex: 1 },
+    editorListContent: { paddingBottom: 12 },
     resetBtn: {
-      margin: 20,
       marginTop: 4,
       paddingVertical: 14,
       borderRadius: 12,

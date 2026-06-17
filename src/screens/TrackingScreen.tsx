@@ -4,16 +4,12 @@ import type {
   WeightEntry,
   WeightHistoryResponse,
   HeightData,
-  CreatineStatus,
-  CreatineEntry,
   MacrosEntry,
   MacrosGoals,
   MacrosStat,
   DailyMacrosStats,
   BodyFatEntry,
   ProgressPhoto,
-  ReminderLocation,
-  CreatineLocationResponse,
 } from "../types/index"
 import {
   View,
@@ -38,15 +34,8 @@ import * as Location from "expo-location"
 import * as Notifications from "expo-notifications"
 import * as FileSystem from "expo-file-system/legacy"
 import { useAuth } from "../context/AuthContext"
-import {
-  bodyTrackingApi,
-  macrosTrackingApi,
-  bodyFatApi,
-  creatineApi,
-} from "../services/api"
+import { bodyTrackingApi, macrosTrackingApi, bodyFatApi } from "../services/api"
 import UniversalCalendar from "../components/UniversalCalendar"
-import CreatineLocationPicker from "../components/CreatineLocationPicker"
-import QuickLogCreatine from "../components/QuickLogCreatine"
 import ProgressChart from "../components/ProgressChart"
 import ModalSheet from "../components/ModalSheet"
 import ScrollTabBar from "../components/ScrollTabBar"
@@ -80,7 +69,6 @@ interface DayModalState {
   existingEntries: unknown[] | null
   isToday: boolean
   weightEntries?: WeightEntry[]
-  creatineEntries?: CreatineEntry[]
   macrosEntries?: MacrosEntry[]
   photos?: ProgressPhoto[]
   bodyFatEntries?: BodyFatEntry[]
@@ -107,7 +95,6 @@ const { width, height: SCREEN_HEIGHT } = Dimensions.get("window")
 const TRACKING_TABS = [
   { key: "weight", icon: "⚖️", label: "Weight" },
   { key: "photos", icon: "📸", label: "Photos" },
-  { key: "creatine", icon: "💊", label: "Creatine" },
   { key: "macros", icon: "🥗", label: "Macros" },
   { key: "bodyfat", icon: "📐", label: "Body Fat" },
 ]
@@ -143,8 +130,6 @@ export async function getCurrentBodyWeight(
   }
 }
 
-const LOCATION_TASK_NAME = "creatine-location-reminder"
-
 export default function TrackingScreen(): React.JSX.Element {
   const { colors } = useTheme()
   const styles = makeStyles(colors)
@@ -175,9 +160,6 @@ export default function TrackingScreen(): React.JSX.Element {
 
   // Past-day weight
   const [pastWeight, setPastWeight] = useState<string>("")
-  // Past-day creatine
-  const [pastCreatineGrams, setPastCreatineGrams] = useState<string>("5")
-  const [pastCreatineTime, setPastCreatineTime] = useState<string>("09:00")
   // Past-day macros
   const [pastMacrosName, setPastMacrosName] = useState<string>("")
   const [pastMacrosProtein, setPastMacrosProtein] = useState<string>("")
@@ -203,23 +185,6 @@ export default function TrackingScreen(): React.JSX.Element {
   const [newHeightCm, setNewHeightCm] = useState<string>("")
   const [newHeightFt, setNewHeightFt] = useState<string>("")
   const [newHeightIn, setNewHeightIn] = useState<string>("")
-
-  // ─────────────────────────────────────────────────────────────
-  // CREATINE
-  // ─────────────────────────────────────────────────────────────
-  const [creatineEnabled, setCreatineEnabled] = useState<boolean>(false)
-  const [creatineTime, setCreatineTime] = useState<string>("09:00")
-  const [creatineTakenToday, setCreatineTakenToday] = useState<boolean>(false)
-  const [creatineStreak, setCreatineStreak] = useState<number>(0)
-  const [creatineHistory, setCreatineHistory] = useState<CreatineEntry[]>([])
-  const [showCreatineModal, setShowCreatineModal] = useState<boolean>(false)
-  const [creatineGrams, setCreatineGrams] = useState<string>("5")
-  const [defaultCreatineGrams, setDefaultCreatineGrams] = useState<number>(5)
-  const [locationBasedReminder, setLocationBasedReminder] =
-    useState<boolean>(false)
-  const [reminderLocation, setReminderLocation] =
-    useState<ReminderLocation | null>(null)
-  const [showLocationPicker, setShowLocationPicker] = useState<boolean>(false)
 
   // ─────────────────────────────────────────────────────────────
   // PROGRESS PHOTOS
@@ -283,7 +248,6 @@ export default function TrackingScreen(): React.JSX.Element {
   const [selectedDateBodyFat, setSelectedDateBodyFat] = useState(null)
   const [showDateBodyFatModal, setShowDateBodyFatModal] = useState(false)
   const [newMacrosName, setNewMacrosName] = useState("")
-  const [showQuickLogCreatine, setShowQuickLogCreatine] = useState(false)
 
   // ─────────────────────────────────────────────────────────────
   // SELECTED LOG DATE
@@ -321,8 +285,6 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   const resetDayModalFields = () => {
     setPastWeight("")
-    setPastCreatineGrams(String(defaultCreatineGrams))
-    setPastCreatineTime("09:00")
     setPastMacrosName("")
     setPastMacrosProtein("")
     setPastMacrosCarbs("")
@@ -361,14 +323,6 @@ export default function TrackingScreen(): React.JSX.Element {
       if (entries.length > 0) existingEntries = entries
     }
 
-    if (tab === "creatine") {
-      const entries = creatineHistory.filter((c) => {
-        const d = c?.taken_at || c?.date
-        return isoToLocalDateStr(d) === dateStr
-      })
-      if (entries.length > 0) existingEntries = entries
-    }
-
     if (tab === "macros") {
       const stats = getDailyMacrosStats(date)
       if (stats) existingEntries = stats.entriesList
@@ -402,9 +356,6 @@ export default function TrackingScreen(): React.JSX.Element {
       case "weight":
         setNewWeight("")
         setShowWeightModal(true)
-        break
-      case "creatine":
-        setShowQuickLogCreatine(true)
         break
       case "macros":
         setNewMacrosName("")
@@ -467,50 +418,6 @@ export default function TrackingScreen(): React.JSX.Element {
                   existingEntries: remaining.length > 0 ? remaining : null,
                 }
               })
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          },
-        },
-      ],
-      "warning",
-    )
-  }
-
-  const deleteCreatineEntry = (entry: CreatineEntry) => {
-    alert(
-      "Delete Entry",
-      "Remove this creatine log?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await bodyTrackingApi.deleteCreatineEntry(entry.id)
-              setCreatineHistory((prev) =>
-                prev.filter((c) => c.id !== entry.id),
-              )
-              setDayModal((prev) => {
-                if (!prev) return null
-                const remaining = (prev.existingEntries || []).filter(
-                  (e) => (e as CreatineEntry).id !== entry.id,
-                )
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                }
-              })
-              const entryDate = isoToLocalDateStr(entry.taken_at || entry.date)
-              if (entryDate === toLocalDateStr(new Date()))
-                setCreatineTakenToday(false)
-              loadData()
             } catch (err) {
               alert(
                 "Error",
@@ -689,20 +596,6 @@ export default function TrackingScreen(): React.JSX.Element {
           recordedAt,
         )
         alert("Logged", "Weight entry added", [{ text: "OK" }], "success")
-      }
-
-      if (tab === "creatine") {
-        const grams = parseFloat(pastCreatineGrams)
-        if (!grams || isNaN(grams) || grams <= 0)
-          return alert(
-            "Invalid Input",
-            "Enter valid grams",
-            [{ text: "OK" }],
-            "error",
-          )
-        const takenAt = buildLocalISOForDate(date, pastCreatineTime)
-        await bodyTrackingApi.markCreatineTaken(grams, null, takenAt)
-        alert("Logged", `${grams}g creatine added`, [{ text: "OK" }], "success")
       }
 
       if (tab === "macros") {
@@ -898,68 +791,6 @@ export default function TrackingScreen(): React.JSX.Element {
       if (heightData?.height) {
         setHeight(heightData.height as unknown as HeightData)
         setHeightUnit(heightData.height.height_unit || "cm")
-      }
-    } catch {}
-
-    const creatineData =
-      (await bodyTrackingApi.getCreatineStatus()) as unknown as {
-        settings?: {
-          enabled?: boolean
-          reminderTime?: string
-          defaultGrams?: number
-          timeBasedEnabled?: boolean
-          locationBasedEnabled?: boolean
-          notificationType?: string
-        }
-        taken_today?: boolean
-        takenToday?: boolean
-        streak?: number
-      }
-    if (creatineData.settings) {
-      setCreatineEnabled(
-        creatineData.settings.enabled ??
-          creatineData.settings.timeBasedEnabled ??
-          false,
-      )
-      setCreatineTime(creatineData.settings.reminderTime ?? "09:00")
-      setDefaultCreatineGrams(creatineData.settings.defaultGrams || 5)
-      setCreatineGrams(String(creatineData.settings.defaultGrams || 5))
-    }
-    setCreatineTakenToday(
-      creatineData.taken_today ?? creatineData.takenToday ?? false,
-    )
-    setCreatineStreak(creatineData.streak || 0)
-
-    const creatineHistoryData = (await bodyTrackingApi.getCreatineHistory(
-      90,
-    )) as unknown as { entries?: CreatineEntry[] }
-    setCreatineHistory(creatineHistoryData.entries || [])
-
-    try {
-      const locationData =
-        (await creatineApi.getReminderLocation()) as unknown as {
-          location?: {
-            lat?: number
-            lng?: number
-            latitude?: number
-            longitude?: number
-            address?: string
-            radius?: number
-          }
-          enabled?: boolean
-          location_based_enabled?: boolean
-        }
-      if (locationData.location) {
-        const loc = locationData.location
-        setReminderLocation({
-          lat: loc.lat ?? loc.latitude ?? 0,
-          lng: loc.lng ?? loc.longitude ?? 0,
-          address: loc.address ?? "",
-          radius: loc.radius ?? 100,
-        } as unknown as ReminderLocation)
-        setLocationBasedReminder(
-          locationData.enabled ?? locationData.location_based_enabled ?? false,
-        )
       }
     } catch {}
 
@@ -1254,39 +1085,6 @@ export default function TrackingScreen(): React.JSX.Element {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // CREATINE METHODS
-  // ─────────────────────────────────────────────────────────────
-  const markCreatineTaken = async () => {
-    const grams = parseFloat(creatineGrams)
-    if (!grams || isNaN(grams) || grams <= 0)
-      return alert(
-        "Invalid Input",
-        "Enter valid grams",
-        [{ text: "OK" }],
-        "error",
-      )
-    try {
-      await bodyTrackingApi.markCreatineTaken(grams)
-      setCreatineTakenToday(true)
-      setShowCreatineModal(false)
-      alert(
-        "Success",
-        `Logged ${grams}g of creatine`,
-        [{ text: "OK" }],
-        "success",
-      )
-      loadData()
-    } catch (error) {
-      alert(
-        "Error",
-        error instanceof Error ? error.message : "An error occurred",
-        [{ text: "OK" }],
-        "error",
-      )
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────
   // PHOTO METHODS
   // ─────────────────────────────────────────────────────────────
   const fetchPhotoUri = async (photoId: string | number) => {
@@ -1505,14 +1303,6 @@ export default function TrackingScreen(): React.JSX.Element {
     return progressPhotos.some((p) => isoToLocalDateStr(p?.takenAt) === dateStr)
   }
 
-  const hasCreatineData = (date: Date) => {
-    const dateStr = toLocalDateStr(date)
-    return creatineHistory.some((c) => {
-      const d = c?.taken_at || c?.date
-      return isoToLocalDateStr(d) === dateStr
-    })
-  }
-
   const hasMacrosData = (date: Date) => {
     const dateStr = toLocalDateStr(date)
     return macrosEntries.some((e) => isoToLocalDateStr(e?.date) === dateStr)
@@ -1694,38 +1484,6 @@ export default function TrackingScreen(): React.JSX.Element {
                 <Text style={styles.existingEntryValue}>{val}</Text>
                 <TouchableOpacity
                   onPress={() => deleteWeightEntry(entry)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.existingEntryDelete}>🗑</Text>
-                </TouchableOpacity>
-              </View>
-            )
-          })}
-        </View>
-      )
-    }
-
-    if (tab === "creatine") {
-      return (
-        <View style={styles.existingEntriesSection}>
-          <Text style={styles.existingEntriesTitle}>Logged entries</Text>
-          {existingEntries.map((entry, i: number) => {
-            const d = entry?.taken_at || entry?.date
-            const time = new Date(d).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-            return (
-              <View key={entry.id ?? i} style={styles.existingEntryRow}>
-                <Text style={styles.existingEntryTime}>{time}</Text>
-                <Text style={styles.existingEntryValue}>
-                  {entry.grams ?? 5}g
-                </Text>
-                {entry.note ? (
-                  <Text style={styles.existingEntryNote}>"{entry.note}"</Text>
-                ) : null}
-                <TouchableOpacity
-                  onPress={() => deleteCreatineEntry(entry)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={styles.existingEntryDelete}>🗑</Text>
@@ -1921,8 +1679,8 @@ export default function TrackingScreen(): React.JSX.Element {
                   <Text style={styles.statsTitle}>Current Weight</Text>
                   <Text style={styles.statsValue}>
                     {weightUnit === "kg"
-                      ? `${weightHistory[0].weight_kg.toFixed(1)} kg`
-                      : `${(weightHistory[0].weight_kg * 2.20462).toFixed(1)} lbs`}
+                      ? `${Number(weightHistory[0].weight_kg).toFixed(1)} kg`
+                      : `${(Number(weightHistory[0].weight_kg) * 2.20462).toFixed(1)} lbs`}
                   </Text>
                   <Text style={styles.statsDate}>
                     {new Date(
@@ -2000,8 +1758,8 @@ export default function TrackingScreen(): React.JSX.Element {
                     .map((entry, index) => {
                       const val =
                         weightUnit === "kg"
-                          ? `${entry.weight_kg.toFixed(1)} kg`
-                          : `${(entry.weight_kg * 2.20462).toFixed(1)} lbs`
+                          ? `${Number(entry.weight_kg).toFixed(1)} kg`
+                          : `${(Number(entry.weight_kg) * 2.20462).toFixed(1)} lbs`
                       const isLatest = index === 0
                       return (
                         <View
@@ -2136,113 +1894,6 @@ export default function TrackingScreen(): React.JSX.Element {
                   <Text style={styles.secondaryButtonText}>🖼️ Gallery</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          )}
-
-          {/* ── CREATINE TAB ── */}
-          {activeTab === "creatine" && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Creatine Tracking</Text>
-              <UniversalCalendar
-                hasDataOnDate={hasCreatineData}
-                onDatePress={(date: Date) =>
-                  handleCalendarDatePress(date, "creatine")
-                }
-                initialView='week'
-                legendText='Creatine taken · tap any day to view/add'
-                dotColor='#f59e0b'
-              />
-              <View style={styles.creatineStatsCard}>
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Current Streak:</Text>
-                  <Text style={styles.statValue}>{creatineStreak} days 🔥</Text>
-                </View>
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>This Month:</Text>
-                  <Text style={styles.statValue}>
-                    {(() => {
-                      const currentMonth = new Date().toISOString().slice(0, 7)
-                      return `${
-                        creatineHistory.filter((c) => {
-                          const d = c?.taken_at || c?.date
-                          return (
-                            d &&
-                            typeof d === "string" &&
-                            d.startsWith(currentMonth)
-                          )
-                        }).length
-                      } days`
-                    })()}
-                  </Text>
-                </View>
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Taken Today:</Text>
-                  <Text style={styles.statValue}>
-                    {creatineTakenToday ? "✅ Yes" : "❌ No"}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.primaryButton,
-                  creatineTakenToday && styles.primaryButtonDisabled,
-                ]}
-                onPress={() => {
-                  setSelectedLogDate(null)
-                  setShowQuickLogCreatine(true)
-                }}
-                disabled={creatineTakenToday}
-              >
-                <Text style={styles.primaryButtonText}>
-                  {creatineTakenToday ? "✓ Taken Today" : "✓ Mark Taken"}
-                </Text>
-              </TouchableOpacity>
-              {creatineHistory.length > 0 && (
-                <View style={styles.weightHistoryCard}>
-                  <Text style={styles.weightHistoryTitle}>Recent Intakes</Text>
-                  {creatineHistory.slice(0, 10).map((entry, index) => {
-                    const d = entry?.taken_at || entry?.date
-                    return (
-                      <View
-                        key={entry.id ?? index}
-                        style={[
-                          styles.weightEntryRow,
-                          index < Math.min(creatineHistory.length, 10) - 1 &&
-                            styles.weightEntryRowBorder,
-                        ]}
-                      >
-                        <View>
-                          <Text style={styles.weightEntryDate}>
-                            {new Date(d ?? "").toLocaleDateString([], {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </Text>
-                          <Text style={styles.weightEntryTime}>
-                            {new Date(d ?? "").toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </Text>
-                        </View>
-                        <View style={styles.weightEntryValueRow}>
-                          <Text style={styles.weightEntryValue}>
-                            {entry.grams ?? 5}g
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.deleteEntryBtn}
-                            onPress={() => deleteCreatineEntry(entry)}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          >
-                            <Text style={styles.deleteEntryBtnText}>🗑</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    )
-                  })}
-                </View>
-              )}
             </View>
           )}
 
@@ -2700,23 +2351,6 @@ export default function TrackingScreen(): React.JSX.Element {
         />
       </ModalSheet>
 
-      {/* Creatine Modal */}
-      <ModalSheet
-        visible={showCreatineModal}
-        onClose={() => setShowCreatineModal(false)}
-        title='Mark Creatine Taken'
-        onConfirm={markCreatineTaken}
-      >
-        <Text style={styles.inputLabel}>Amount (grams)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder='e.g., 5'
-          keyboardType='decimal-pad'
-          value={creatineGrams}
-          onChangeText={setCreatineGrams}
-        />
-      </ModalSheet>
-
       {/* Body Fat Modal */}
       <ModalSheet
         visible={showBodyFatModal}
@@ -2801,56 +2435,6 @@ export default function TrackingScreen(): React.JSX.Element {
         )}
       </ModalSheet>
 
-      {/* Creatine Location Picker */}
-      <CreatineLocationPicker
-        visible={showLocationPicker}
-        onClose={() => setShowLocationPicker(false)}
-        onLocationSelected={async (location) => {
-          setReminderLocation(location)
-          try {
-            await creatineApi.saveReminderLocation(
-              location.lat,
-              location.lng,
-              location.address,
-              location.radius,
-            )
-          } catch (error) {
-            alert("Error", "Failed to save location", [{ text: "OK" }], "error")
-          }
-        }}
-        initialLocation={reminderLocation}
-      />
-
-      {/* Quick Log Creatine */}
-      <QuickLogCreatine
-        visible={showQuickLogCreatine}
-        onClose={() => {
-          setShowQuickLogCreatine(false)
-          setSelectedLogDate(null)
-        }}
-        onLog={async (grams, note) => {
-          try {
-            const takenAt = selectedLogDate
-              ? buildLocalISOForDate(selectedLogDate, creatineTime || "09:00")
-              : null
-            await bodyTrackingApi.markCreatineTaken(grams, note, takenAt)
-            if (!selectedLogDate || dayModal?.isToday) {
-              setCreatineTakenToday(true)
-            }
-            setSelectedLogDate(null)
-            loadData()
-          } catch (error) {
-            alert(
-              "Error",
-              error instanceof Error ? error.message : "An error occurred",
-              [{ text: "OK" }],
-              "error",
-            )
-          }
-        }}
-        defaultGrams={defaultCreatineGrams}
-      />
-
       {/* UNIFIED DAY MODAL */}
       <ModalSheet
         visible={!!dayModal}
@@ -2867,26 +2451,22 @@ export default function TrackingScreen(): React.JSX.Element {
             <Text style={styles.dayModalIcon}>
               {dayModal?.tab === "weight"
                 ? "⚖️"
-                : dayModal?.tab === "creatine"
-                  ? "💊"
-                  : dayModal?.tab === "macros"
-                    ? "🥗"
-                    : dayModal?.tab === "photos"
-                      ? "📸"
-                      : "📐"}
+                : dayModal?.tab === "macros"
+                  ? "🥗"
+                  : dayModal?.tab === "photos"
+                    ? "📸"
+                    : "📐"}
             </Text>
           </View>
           <View style={styles.dayModalHeaderText}>
             <Text style={styles.dayModalTitle}>
               {dayModal?.tab === "weight"
                 ? "Weight"
-                : dayModal?.tab === "creatine"
-                  ? "Creatine"
-                  : dayModal?.tab === "macros"
-                    ? "Macros"
-                    : dayModal?.tab === "photos"
-                      ? "Photos"
-                      : "Body Fat"}
+                : dayModal?.tab === "macros"
+                  ? "Macros"
+                  : dayModal?.tab === "photos"
+                    ? "Photos"
+                    : "Body Fat"}
             </Text>
             <Text style={styles.dayModalSubtitle}>
               {dayModal?.isToday
@@ -2909,13 +2489,11 @@ export default function TrackingScreen(): React.JSX.Element {
             <Text style={styles.dayModalEmptyIcon}>
               {dayModal?.tab === "weight"
                 ? "⚖️"
-                : dayModal?.tab === "creatine"
-                  ? "💊"
-                  : dayModal?.tab === "macros"
-                    ? "🥗"
-                    : dayModal?.tab === "photos"
-                      ? "📸"
-                      : "📐"}
+                : dayModal?.tab === "macros"
+                  ? "🥗"
+                  : dayModal?.tab === "photos"
+                    ? "📸"
+                    : "📐"}
             </Text>
             <Text style={styles.dayModalEmptyText}>
               No entries for this day
@@ -2930,13 +2508,11 @@ export default function TrackingScreen(): React.JSX.Element {
           <Text style={styles.logEntryBtnText}>
             {dayModal?.tab === "weight"
               ? "⚖️ Log Weight"
-              : dayModal?.tab === "creatine"
-                ? "💊 Log Creatine"
-                : dayModal?.tab === "macros"
-                  ? "🥗 Log Macros"
-                  : dayModal?.tab === "photos"
-                    ? "📸 Add Photo"
-                    : "📐 Calculate Body Fat"}
+              : dayModal?.tab === "macros"
+                ? "🥗 Log Macros"
+                : dayModal?.tab === "photos"
+                  ? "📸 Add Photo"
+                  : "📐 Calculate Body Fat"}
           </Text>
         </TouchableOpacity>
       </ModalSheet>
@@ -3171,12 +2747,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     goalButtonText: { color: colors.accent, fontWeight: "600", fontSize: 14 },
 
-    creatineStatsCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 15,
-    },
     statRow: {
       flexDirection: "row",
       justifyContent: "space-between",

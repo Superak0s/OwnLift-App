@@ -5,9 +5,6 @@ import type {
   LockedDays,
   PendingSync,
   WorkoutSession,
-  ReminderLocation,
-  CreatineStatus,
-  CreatineLocationResponse,
 } from "../types/index"
 import type { User } from "../context/AuthContext"
 import {
@@ -25,7 +22,6 @@ import {
 import { useWorkout } from "../context/WorkoutContext"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useAuth } from "../context/AuthContext"
-import DateTimePicker from "@react-native-community/datetimepicker"
 import * as Location from "expo-location"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import {
@@ -34,23 +30,13 @@ import {
   resetServerUrl,
   getDefaultServerUrl,
   bodyTrackingApi,
-  creatineApi,
   getSessionHistory,
   deleteAllSessionsForPerson,
 } from "../services/api"
 import {
-  scheduleDailyTimeReminder,
-  cancelTimeReminders,
-  clearAllReminderKeys,
-  registerLocationTask,
-  unregisterLocationTask,
-  isLocationTaskRegistered,
-  initializeCreatineNotifications,
-  triggerImmediateLocationCheck,
   getBatterySettings,
   BATTERY_PRESETS,
-} from "../../tasks/creatineLocationTask"
-import CreatineLocationPicker from "../components/CreatineLocationPicker"
+} from "../../tasks/supplementLocationTask"
 import BatterySettingsModal from "../components/BatterySettingsModal"
 import ThemeEditorModal from "../components/ThemeEditorModal"
 import ModalSheet from "../components/ModalSheet"
@@ -110,28 +96,12 @@ export default function SettingsScreen(): React.JSX.Element {
     null,
   )
 
-  // Creatine reminder settings
-  const [creatineTimeBasedEnabled, setCreatineTimeBasedEnabled] =
-    useState<boolean>(false)
-  const [creatineLocationBasedEnabled, setCreatineLocationBasedEnabled] =
-    useState<boolean>(false)
-  const [creatineReminderTime, setCreatineReminderTime] = useState<Date>(
-    new Date(),
-  )
-  const [showCreatineTimePicker, setShowCreatineTimePicker] =
-    useState<boolean>(false)
-  const [creatineDefaultGrams, setCreatineDefaultGrams] = useState<string>("5")
-  const [creatineNotificationType, setCreatineNotificationType] =
-    useState<string>("notification")
-  const [reminderLocation, setReminderLocation] =
-    useState<ReminderLocation | null>(null)
-  const [showLocationPicker, setShowLocationPicker] = useState<boolean>(false)
-  const [showCreatineSettings, setShowCreatineSettings] =
-    useState<boolean>(false)
-
+  // Supplement reminder settings are now managed per-supplement in the
+  // Supplements screen (Settings → open any supplement card → ⚙️ Settings).
+  // Retained only for battery preset display in the summary row.
+  const [batteryPreset, setBatteryPreset] = useState<string>("MEDIUM")
   const [showBatterySettings, setShowBatterySettings] = useState<boolean>(false)
   const [showThemeEditor, setShowThemeEditor] = useState<boolean>(false)
-  const [batteryPreset, setBatteryPreset] = useState<string>("MEDIUM")
 
   const [serverProgress, setServerProgress] = useState<{
     daysCount?: number
@@ -143,28 +113,8 @@ export default function SettingsScreen(): React.JSX.Element {
 
   useEffect(() => {
     setCurrentServerUrl(getServerUrl())
-    loadCreatineSettings()
     loadServerProgress()
   }, [])
-
-  // Check task status on mount
-  useEffect(() => {
-    const checkTaskStatus = async () => {
-      try {
-        const isRegistered = await isLocationTaskRegistered()
-        if (isRegistered && user?.id) {
-          const settingsKey = `creatineSettings_user_${user.id}`
-          await AsyncStorage.getItem(settingsKey)
-        }
-      } catch {
-        // non-critical — silently ignore
-      }
-    }
-
-    if (user?.id) {
-      checkTaskStatus()
-    }
-  }, [user?.id])
 
   useEffect(() => {
     const loadBatterySettings = async () => {
@@ -208,320 +158,6 @@ export default function SettingsScreen(): React.JSX.Element {
       )
     } finally {
       setLoadingProgress(false)
-    }
-  }
-
-  const loadCreatineSettings = async () => {
-    try {
-      console.log("📥 Loading creatine settings...")
-
-      if (!user?.id) {
-        console.log("⚠️ No user ID, skipping load")
-        return
-      }
-
-      const settingsKey = `creatineSettings_user_${user.id}`
-      const settingsStr = await AsyncStorage.getItem(settingsKey)
-
-      let hasValidLocalSettings = false
-
-      if (settingsStr) {
-        const settings = JSON.parse(settingsStr)
-        console.log("📱 Loaded settings from AsyncStorage:", settings)
-
-        setCreatineTimeBasedEnabled(settings.timeBasedEnabled || false)
-        setCreatineLocationBasedEnabled(settings.locationBasedReminder || false)
-        setCreatineDefaultGrams(String(settings.defaultGrams || 5))
-        setCreatineNotificationType(settings.notificationType || "notification")
-
-        if (settings.reminderLocation) {
-          setReminderLocation(settings.reminderLocation)
-          console.log(
-            "✅ Loaded location from AsyncStorage:",
-            settings.reminderLocation.address,
-          )
-        }
-
-        if (settings.reminderTime) {
-          const [hours, minutes] = settings.reminderTime.split(":")
-          const date = new Date()
-          date.setHours(parseInt(hours, 10))
-          date.setMinutes(parseInt(minutes, 10))
-          setCreatineReminderTime(date)
-        }
-
-        hasValidLocalSettings =
-          settings.locationBasedReminder || settings.timeBasedEnabled
-
-        console.log("✅ State updated from AsyncStorage:", {
-          timeBasedEnabled: settings.timeBasedEnabled,
-          locationBasedEnabled: settings.locationBasedReminder,
-          hasValidSettings: hasValidLocalSettings,
-        })
-      }
-
-      try {
-        const status =
-          (await bodyTrackingApi.getCreatineStatus()) as CreatineStatus
-        console.log("🔍 Server status:", status)
-
-        if (status.settings) {
-          const serverHasTimeBasedField =
-            status.settings.hasOwnProperty("timeBasedEnabled")
-          const serverHasLocationBasedField = status.settings.hasOwnProperty(
-            "locationBasedEnabled",
-          )
-
-          if (
-            hasValidLocalSettings &&
-            (!serverHasTimeBasedField || !serverHasLocationBasedField)
-          ) {
-            console.log(
-              "⚠️ Local settings are valid but server data is incomplete, keeping local",
-            )
-            return
-          }
-
-          if (serverHasTimeBasedField && serverHasLocationBasedField) {
-            const timeBasedEnabled = status.settings.timeBasedEnabled || false
-            const locationBasedEnabled =
-              status.settings.locationBasedEnabled || false
-
-            setCreatineTimeBasedEnabled(timeBasedEnabled)
-            setCreatineLocationBasedEnabled(locationBasedEnabled)
-            setCreatineDefaultGrams(String(status.settings.defaultGrams || 5))
-            setCreatineNotificationType(
-              status.settings.notificationType || "notification",
-            )
-
-            if (status.settings.reminderTime) {
-              const [hours, minutes] = status.settings.reminderTime.split(":")
-              const date = new Date()
-              date.setHours(parseInt(hours, 10))
-              date.setMinutes(parseInt(minutes, 10))
-              setCreatineReminderTime(date)
-            }
-          }
-        }
-
-        const locationData =
-          (await creatineApi.getReminderLocation()) as CreatineLocationResponse
-
-        if (locationData.location) {
-          const location = {
-            lat: locationData.location.latitude,
-            lng: locationData.location.longitude,
-            address: locationData.location.address,
-            radius: locationData.location.radius,
-          }
-          setReminderLocation(location)
-
-          if (
-            status.settings?.hasOwnProperty("timeBasedEnabled") &&
-            status.settings?.hasOwnProperty("locationBasedEnabled")
-          ) {
-            const creatineSettings = {
-              locationBasedReminder:
-                status.settings.locationBasedEnabled || false,
-              reminderLocation: location,
-              reminderTime: status.settings.reminderTime || "09:00",
-              enabled: true,
-              timeBasedEnabled: status.settings.timeBasedEnabled || false,
-              defaultGrams: status.settings.defaultGrams || 5,
-              notificationType:
-                status.settings.notificationType || "notification",
-            }
-
-            await AsyncStorage.setItem(
-              settingsKey,
-              JSON.stringify(creatineSettings),
-            )
-          }
-        }
-      } catch (serverError) {
-        console.log(
-          "⚠️ Server sync failed, using local data:",
-          serverError instanceof Error ? serverError.message : serverError,
-        )
-      }
-    } catch (error) {
-      console.error("❌ Error loading creatine settings:", error)
-    }
-  }
-
-  const handleSaveCreatineSettings = async () => {
-    try {
-      if (!creatineTimeBasedEnabled && !creatineLocationBasedEnabled) {
-        alert(
-          "Enable a Condition",
-          "Please enable at least one reminder condition (time or location).",
-          [{ text: "OK" }],
-          "warning",
-        )
-        return
-      }
-
-      if (creatineLocationBasedEnabled && !reminderLocation) {
-        alert(
-          "Set Location",
-          "Please set a reminder location before enabling location-based reminders.",
-          [{ text: "OK" }],
-          "warning",
-        )
-        return
-      }
-
-      const grams = parseFloat(creatineDefaultGrams)
-      if (isNaN(grams) || grams <= 0) {
-        alert(
-          "Invalid Amount",
-          "Please enter a valid number of grams.",
-          [{ text: "OK" }],
-          "error",
-        )
-        return
-      }
-
-      const notificationsReady = await initializeCreatineNotifications()
-      if (!notificationsReady) {
-        alert(
-          "Notifications Required",
-          "Please enable notifications for reminders to work.",
-          [{ text: "OK" }],
-          "warning",
-        )
-        return
-      }
-
-      if (creatineLocationBasedEnabled) {
-        const { status: foregroundStatus } =
-          await Location.requestForegroundPermissionsAsync()
-        if (foregroundStatus !== "granted") {
-          alert(
-            "Permission Required",
-            "Location access is needed for location-based reminders.",
-            [{ text: "OK" }],
-            "warning",
-          )
-          return
-        }
-
-        if (Platform.OS === "android") {
-          const { status: backgroundStatus } =
-            await Location.requestBackgroundPermissionsAsync()
-          if (backgroundStatus !== "granted") {
-            alert(
-              "Background Permission Required",
-              "Background location access is needed for location-based reminders to work when the app is closed.\n\nPlease select 'Allow all the time' in the next screen.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Open Settings",
-                  onPress: () => Linking.openSettings(),
-                },
-              ],
-              "warning",
-            )
-            return
-          }
-        }
-      }
-
-      const reminderTimeStr = `${creatineReminderTime.getHours().toString().padStart(2, "0")}:${creatineReminderTime.getMinutes().toString().padStart(2, "0")}`
-
-      await bodyTrackingApi.saveCreatineSettings(
-        creatineTimeBasedEnabled,
-        creatineLocationBasedEnabled,
-        reminderTimeStr,
-        grams,
-        creatineNotificationType,
-      )
-
-      if (user?.id) {
-        const creatineSettings = {
-          locationBasedReminder: creatineLocationBasedEnabled,
-          reminderLocation: reminderLocation,
-          reminderTime: reminderTimeStr,
-          enabled: true,
-          timeBasedEnabled: creatineTimeBasedEnabled,
-          defaultGrams: grams,
-          notificationType: creatineNotificationType,
-        }
-
-        const settingsKey = `creatineSettings_user_${user.id}`
-        await AsyncStorage.setItem(
-          settingsKey,
-          JSON.stringify(creatineSettings),
-        )
-        await clearAllReminderKeys(user.id)
-      }
-
-      if (creatineTimeBasedEnabled && !creatineLocationBasedEnabled) {
-        await cancelTimeReminders()
-
-        const isRegistered = await isLocationTaskRegistered()
-        if (isRegistered) {
-          await unregisterLocationTask()
-        }
-
-        const identifier = await scheduleDailyTimeReminder(
-          user!.id,
-          reminderTimeStr,
-          grams,
-        )
-
-        if (!identifier) {
-          alert(
-            "Warning",
-            "Could not schedule time-based notification. Please try again.",
-            [{ text: "OK" }],
-            "warning",
-          )
-        }
-      } else if (creatineLocationBasedEnabled) {
-        await cancelTimeReminders()
-
-        const registered = await registerLocationTask()
-        if (!registered) {
-          alert(
-            "Warning",
-            "Location tracking may not work properly. Please check permissions.",
-            [{ text: "OK" }],
-            "warning",
-          )
-        } else {
-          await triggerImmediateLocationCheck()
-        }
-      }
-
-      setShowCreatineSettings(false)
-
-      let successMessage = "Creatine reminder settings saved!"
-      if (creatineTimeBasedEnabled && !creatineLocationBasedEnabled) {
-        successMessage += ` You'll get a notification at ${reminderTimeStr} each day.`
-      } else if (creatineLocationBasedEnabled && !creatineTimeBasedEnabled) {
-        successMessage += ` You'll get a notification when you arrive at your location. Background checks run every 10 minutes.`
-      } else {
-        successMessage += ` You'll get a notification at ${reminderTimeStr} when you're at your location. Background checks run every 10 minutes.`
-      }
-
-      alert("✅ Success", successMessage, [{ text: "OK" }], "success")
-    } catch (error) {
-      console.error("Error saving creatine settings:", error)
-      alert(
-        "Error",
-        (error instanceof Error ? error.message : null) ||
-          "Failed to save settings",
-        [{ text: "OK" }],
-        "error",
-      )
-    }
-  }
-
-  const handleTimeChange = (_event: unknown, selectedDate?: Date) => {
-    setShowCreatineTimePicker(Platform.OS === "ios")
-    if (selectedDate) {
-      setCreatineReminderTime(selectedDate)
     }
   }
 
@@ -967,99 +603,26 @@ export default function SettingsScreen(): React.JSX.Element {
         contentContainerStyle={styles.contentContainer}
       >
         <View style={styles.content}>
-          {/* Creatine Reminders Section */}
+          {/* Supplement Reminders Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>💊 Creatine Reminders</Text>
+            <Text style={styles.sectionTitle}>💊 Supplement Reminders</Text>
             <View style={styles.card}>
-              <TouchableOpacity
-                style={styles.settingRow}
-                onPress={async () => {
-                  setShowCreatineSettings(true)
-                  await loadCreatineSettings()
-                }}
-              >
+              <View style={styles.infoRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.settingLabel}>Reminder Settings</Text>
                   <Text style={styles.settingDescription}>
-                    {creatineTimeBasedEnabled || creatineLocationBasedEnabled
-                      ? `Active: ${creatineTimeBasedEnabled ? "Time" : ""}${creatineTimeBasedEnabled && creatineLocationBasedEnabled ? " + " : ""}${creatineLocationBasedEnabled ? "Location" : ""}`
-                      : "Not configured"}
+                    Configure reminders for each supplement individually in the
+                    Supplements tab.
                   </Text>
                 </View>
-                <Text style={styles.settingValue}>Configure</Text>
-              </TouchableOpacity>
-
-              {(creatineTimeBasedEnabled || creatineLocationBasedEnabled) && (
-                <>
-                  <View style={styles.divider} />
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Status</Text>
-                    <Text style={styles.activeValue}>✓ Active</Text>
-                  </View>
-                  {creatineTimeBasedEnabled && (
-                    <>
-                      <View style={styles.divider} />
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Time</Text>
-                        <Text style={styles.infoValue}>
-                          {creatineReminderTime.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                  {creatineLocationBasedEnabled && (
-                    <>
-                      <View style={styles.divider} />
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Location</Text>
-                        <Text
-                          style={styles.infoValue}
-                          numberOfLines={1}
-                          ellipsizeMode='tail'
-                        >
-                          {reminderLocation?.address || "Set location"}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                </>
-              )}
-
-              {(creatineTimeBasedEnabled || creatineLocationBasedEnabled) &&
-                creatineLocationBasedEnabled && (
-                  <View style={styles.card}>
-                    <TouchableOpacity
-                      style={styles.settingRow}
-                      onPress={() => setShowBatterySettings(true)}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.settingLabel}>Battery Impact</Text>
-                        <Text style={styles.settingDescription}>
-                          {BATTERY_PRESETS[
-                            batteryPreset as keyof typeof BATTERY_PRESETS
-                          ]?.label || "Medium Impact"}
-                          {" - "}
-                          {BATTERY_PRESETS[
-                            batteryPreset as keyof typeof BATTERY_PRESETS
-                          ]?.description || "Checks every 10 min"}
-                        </Text>
-                      </View>
-                      <Text style={styles.settingValue}>⚙️</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                <Text style={styles.settingValue}>💊</Text>
+              </View>
             </View>
             <Text style={styles.helperText}>
-              💡 Configure flexible time and/or location-based reminders
+              💡 Open a supplement card → ⚙️ Settings to configure time or
+              location-based reminders
             </Text>
           </View>
-
-          <Text style={styles.helperText}>
-            💡 Adjust how often the app checks your location in the background
-          </Text>
 
           {/* App Info */}
           <View style={styles.section}>
@@ -1531,254 +1094,6 @@ export default function SettingsScreen(): React.JSX.Element {
           )}
         </ModalSheet>
 
-        {/* ── Creatine Settings Modal ── */}
-        <ModalSheet
-          visible={showCreatineSettings}
-          onClose={() => setShowCreatineSettings(false)}
-          fullHeight={true}
-          showCancelButton={false}
-          showConfirmButton={false}
-        >
-          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-            <View style={styles.creatineModalHeader}>
-              <TouchableOpacity
-                onPress={() => setShowCreatineSettings(false)}
-                style={styles.modalHeaderButton}
-              >
-                <Text style={styles.modalHeaderButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={styles.creatineModalTitle}>Creatine Reminders</Text>
-              <View style={{ width: 60 }} />
-            </View>
-
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={styles.fullModalContent}
-            >
-              <View style={styles.infoCardBig}>
-                <Text style={styles.infoIconBig}>💊</Text>
-                <Text style={styles.infoTitleBig}>Flexible Reminders</Text>
-                <Text style={styles.infoTextBig}>
-                  Set up your perfect reminder system. Enable time-based,
-                  location-based, or both!
-                </Text>
-              </View>
-
-              {/* Time-Based Section */}
-              <View style={styles.settingsSection}>
-                <View style={styles.settingsSectionHeader}>
-                  <View style={styles.settingsTitleContainer}>
-                    <Text style={styles.settingsSectionIcon}>🕐</Text>
-                    <View>
-                      <Text style={styles.settingsSectionTitle}>
-                        Time-Based Reminder
-                      </Text>
-                      <Text style={styles.settingsSectionSubtitle}>
-                        Get reminded at a specific time each day
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    value={creatineTimeBasedEnabled}
-                    onValueChange={setCreatineTimeBasedEnabled}
-                    trackColor={{
-                      false: colors.surfaceBorder,
-                      true: colors.accent,
-                    }}
-                    thumbColor='#fff'
-                  />
-                </View>
-
-                {creatineTimeBasedEnabled && (
-                  <View style={styles.settingsSectionContent}>
-                    <TouchableOpacity
-                      style={styles.timePickerButton}
-                      onPress={() => setShowCreatineTimePicker(true)}
-                    >
-                      <Text style={styles.timePickerLabel}>Reminder Time</Text>
-                      <Text style={styles.timePickerValue}>
-                        {creatineReminderTime.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {showCreatineTimePicker && (
-                      <DateTimePicker
-                        value={creatineReminderTime}
-                        mode='time'
-                        is24Hour={true}
-                        display='default'
-                        onChange={handleTimeChange}
-                      />
-                    )}
-                  </View>
-                )}
-              </View>
-
-              {/* Location-Based Section */}
-              <View style={styles.settingsSection}>
-                <View style={styles.settingsSectionHeader}>
-                  <View style={styles.settingsTitleContainer}>
-                    <Text style={styles.settingsSectionIcon}>📍</Text>
-                    <View>
-                      <Text style={styles.settingsSectionTitle}>
-                        Location-Based Reminder
-                      </Text>
-                      <Text style={styles.settingsSectionSubtitle}>
-                        Get reminded when you arrive at a location
-                      </Text>
-                    </View>
-                  </View>
-                  <Switch
-                    value={creatineLocationBasedEnabled}
-                    onValueChange={setCreatineLocationBasedEnabled}
-                    trackColor={{
-                      false: colors.surfaceBorder,
-                      true: colors.accent,
-                    }}
-                    thumbColor='#fff'
-                  />
-                </View>
-
-                {creatineLocationBasedEnabled && (
-                  <View style={styles.settingsSectionContent}>
-                    <TouchableOpacity
-                      style={styles.locationButton}
-                      onPress={() => setShowLocationPicker(true)}
-                    >
-                      <Text style={styles.locationButtonLabel}>
-                        {reminderLocation
-                          ? `📍 ${reminderLocation.address}`
-                          : "📍 Set Reminder Location"}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-
-              {creatineTimeBasedEnabled && creatineLocationBasedEnabled && (
-                <View style={styles.bothEnabledCard}>
-                  <Text style={styles.bothEnabledIcon}>⏰ + 📍</Text>
-                  <Text style={styles.bothEnabledTitle}>
-                    Both Conditions Active
-                  </Text>
-                  <Text style={styles.bothEnabledText}>
-                    You'll be reminded only when you're at the location AND it's
-                    the set time.
-                  </Text>
-                </View>
-              )}
-
-              {/* Default Dosage */}
-              <View style={styles.settingsSection}>
-                <View style={styles.settingsSectionHeaderSimple}>
-                  <Text style={styles.settingsSectionIcon}>⚗️</Text>
-                  <Text style={styles.settingsSectionTitle}>
-                    Default Dosage
-                  </Text>
-                </View>
-                <View style={styles.inputContainerBig}>
-                  <TextInput
-                    style={styles.inputBig}
-                    value={creatineDefaultGrams}
-                    onChangeText={setCreatineDefaultGrams}
-                    keyboardType='decimal-pad'
-                    placeholder='5'
-                  />
-                  <Text style={styles.inputUnitBig}>grams</Text>
-                </View>
-                <Text style={styles.hintText}>
-                  You can change this when logging each entry
-                </Text>
-              </View>
-
-              {/* Notification Type */}
-              <View style={styles.settingsSection}>
-                <View style={styles.settingsSectionHeaderSimple}>
-                  <Text style={styles.settingsSectionIcon}>🔔</Text>
-                  <Text style={styles.settingsSectionTitle}>Alert Type</Text>
-                </View>
-                <Text style={styles.settingsSectionSubtitle}>
-                  Choose how you want to be notified
-                </Text>
-
-                <View style={styles.notificationTypes}>
-                  {[
-                    {
-                      key: "notification",
-                      icon: "📱",
-                      label: "Notification",
-                      desc: "Standard push alert",
-                    },
-                    {
-                      key: "alarm",
-                      icon: "⏰",
-                      label: "Alarm",
-                      desc: "Clock-style alert",
-                    },
-                    {
-                      key: "both",
-                      icon: "📱⏰",
-                      label: "Both",
-                      desc: "Notification + alarm",
-                    },
-                  ].map((option) => (
-                    <TouchableOpacity
-                      key={option.key}
-                      style={[
-                        styles.notificationOption,
-                        creatineNotificationType === option.key &&
-                          styles.notificationOptionActive,
-                      ]}
-                      onPress={() => setCreatineNotificationType(option.key)}
-                    >
-                      <Text style={styles.notificationIcon}>{option.icon}</Text>
-                      <Text
-                        style={[
-                          styles.notificationLabel,
-                          creatineNotificationType === option.key &&
-                            styles.notificationLabelActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                      <Text style={styles.notificationDesc}>{option.desc}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {(creatineTimeBasedEnabled || creatineLocationBasedEnabled) && (
-                <View style={styles.summaryCard}>
-                  <Text style={styles.summaryTitle}>📋 Summary</Text>
-                  <Text style={styles.summaryText}>
-                    {creatineTimeBasedEnabled &&
-                      !creatineLocationBasedEnabled &&
-                      `You'll be reminded daily at ${creatineReminderTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
-                    {!creatineTimeBasedEnabled &&
-                      creatineLocationBasedEnabled &&
-                      `You'll be reminded when you arrive at ${reminderLocation?.address || "your set location"}`}
-                    {creatineTimeBasedEnabled &&
-                      creatineLocationBasedEnabled &&
-                      `You'll be reminded at ${creatineReminderTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} when you're at ${reminderLocation?.address || "your set location"}`}
-                  </Text>
-                </View>
-              )}
-            </ScrollView>
-
-            <View style={styles.fullModalFooter}>
-              <TouchableOpacity
-                style={styles.saveButtonBig}
-                onPress={handleSaveCreatineSettings}
-              >
-                <Text style={styles.saveButtonTextBig}>✓ Save Settings</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </ModalSheet>
-
         {/* Battery Settings Modal */}
         <ThemeEditorModal
           visible={showThemeEditor}
@@ -1790,38 +1105,6 @@ export default function SettingsScreen(): React.JSX.Element {
           onSave={(settings) => {
             setBatteryPreset(settings.preset)
           }}
-        />
-
-        {/* Location Picker Modal */}
-        <CreatineLocationPicker
-          visible={showLocationPicker}
-          onClose={() => setShowLocationPicker(false)}
-          onLocationSelected={async (location) => {
-            setReminderLocation(location)
-            try {
-              await creatineApi.saveReminderLocation(
-                location.lat,
-                location.lng,
-                location.address,
-                location.radius,
-              )
-              alert(
-                "Location Set",
-                `Location saved: ${location.address}`,
-                [{ text: "OK" }],
-                "success",
-              )
-            } catch (error) {
-              console.error("Error saving location:", error)
-              alert(
-                "Error",
-                "Failed to save location",
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          }}
-          initialLocation={reminderLocation}
         />
       </ScrollView>
       {AlertComponent}

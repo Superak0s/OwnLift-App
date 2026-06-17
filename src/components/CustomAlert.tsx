@@ -1,19 +1,7 @@
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-  type ReactElement,
-} from "react"
+import React, { useState, useCallback, type ReactElement } from "react"
 import { useTheme } from "../context/ThemeContext"
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-} from "react-native"
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
+import ModalSheet from "./ModalSheet"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,92 +88,60 @@ function CustomAlert({
   const accent = ACCENT_COLORS[safeType]
   const icon = ICONS[safeType]
 
-  const scaleAnim = useRef(new Animated.Value(0.85)).current
-  const opacityAnim = useRef(new Animated.Value(0)).current
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          useNativeDriver: true,
-          tension: 120,
-          friction: 8,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 180,
-          useNativeDriver: true,
-        }),
-      ]).start()
-    } else {
-      scaleAnim.setValue(0.85)
-      opacityAnim.setValue(0)
-    }
-  }, [visible])
-
   return (
-    <Modal
+    <ModalSheet
       visible={visible}
-      transparent
-      animationType='none'
-      onRequestClose={onDismiss}
-      statusBarTranslucent
+      onClose={onDismiss}
+      showCancelButton={false}
+      showConfirmButton={false}
+      dismissOnBackdropPress={false}
     >
-      <Animated.View style={[styles.backdrop, { opacity: opacityAnim }]}>
-        <Animated.View
-          style={[styles.card, { transform: [{ scale: scaleAnim }] }]}
-        >
-          <View style={[styles.accentStripe, { backgroundColor: accent }]} />
+      <View style={[styles.iconBadge, { backgroundColor: accent + "22" }]}>
+        <Text style={[styles.iconText, { color: accent }]}>{icon}</Text>
+      </View>
 
-          <View style={[styles.iconBadge, { backgroundColor: accent + "22" }]}>
-            <Text style={[styles.iconText, { color: accent }]}>{icon}</Text>
-          </View>
+      <View style={styles.content}>
+        {!!title && <Text style={styles.title}>{title}</Text>}
+        {!!message && <Text style={styles.message}>{message}</Text>}
+      </View>
 
-          <View style={styles.content}>
-            {!!title && <Text style={styles.title}>{title}</Text>}
-            {!!message && <Text style={styles.message}>{message}</Text>}
-          </View>
+      <View style={styles.buttonRow}>
+        {safeButtons.map((btn, idx) => {
+          const isCancel = btn.style === "cancel"
+          const isDestructive = btn.style === "destructive"
+          const isPrimary =
+            !isCancel && !isDestructive && idx === safeButtons.length - 1
 
-          <View style={styles.buttonRow}>
-            {safeButtons.map((btn, idx) => {
-              const isCancel = btn.style === "cancel"
-              const isDestructive = btn.style === "destructive"
-              const isPrimary =
-                !isCancel && !isDestructive && idx === safeButtons.length - 1
-
-              return (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.button,
-                    isPrimary && { backgroundColor: accent },
-                    isDestructive && styles.buttonDestructive,
-                    isCancel && styles.buttonCancel,
-                  ]}
-                  onPress={() => {
-                    onDismiss()
-                    btn.onPress?.()
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Text
-                    style={[
-                      styles.buttonText,
-                      isPrimary && styles.buttonTextPrimary,
-                      isDestructive && styles.buttonTextDestructive,
-                      isCancel && styles.buttonTextCancel,
-                    ]}
-                  >
-                    {btn.text}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
+          return (
+            <TouchableOpacity
+              key={idx}
+              style={[
+                styles.button,
+                isPrimary && { backgroundColor: accent },
+                isDestructive && styles.buttonDestructive,
+                isCancel && styles.buttonCancel,
+              ]}
+              onPress={() => {
+                onDismiss()
+                btn.onPress?.()
+              }}
+              activeOpacity={0.75}
+            >
+              <Text
+                style={[
+                  styles.buttonText,
+                  isPrimary && styles.buttonTextPrimary,
+                  isDestructive && styles.buttonTextDestructive,
+                  isCancel && styles.buttonTextCancel,
+                ]}
+              >
+                {btn.text}
+              </Text>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+    </ModalSheet>
   )
 }
 
@@ -243,40 +199,19 @@ export function useAlert(): UseAlertReturn {
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
-    backdrop: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 28,
-    },
-    card: {
-      width: "100%",
-      maxWidth: 360,
-      backgroundColor: colors.surface,
-      borderRadius: 20,
-      overflow: "hidden",
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.2,
-      shadowRadius: 24,
-      elevation: 16,
-    },
-    accentStripe: { height: 4, width: "100%" },
     iconBadge: {
       alignSelf: "center",
-      marginTop: 24,
       width: 52,
       height: 52,
       borderRadius: 26,
       alignItems: "center",
       justifyContent: "center",
+      marginBottom: 4,
     },
     iconText: { fontSize: 22, fontWeight: "700" },
     content: {
-      paddingHorizontal: 24,
       paddingTop: 14,
-      paddingBottom: 24,
+      paddingBottom: 8,
       alignItems: "center",
     },
     title: {
@@ -297,7 +232,8 @@ const makeStyles = (colors: any) =>
       flexDirection: "row",
       borderTopWidth: 1,
       borderTopColor: colors.separator,
-      padding: 10,
+      paddingTop: 14,
+      marginTop: 4,
       gap: 8,
     },
     button: {
