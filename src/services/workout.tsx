@@ -1,6 +1,6 @@
-import * as DocumentPicker from 'expo-document-picker'
-import { getServerUrl } from './config'
-import { authenticatedFetch, authService } from './auth'
+import * as DocumentPicker from "expo-document-picker"
+import { getServerUrl } from "./config"
+import { authenticatedFetch, authService } from "./auth"
 
 export interface WorkoutAnalytics {
   averageTimeBetweenSets: number
@@ -19,6 +19,8 @@ export interface WorkoutSession {
   start_time: string
   end_time?: string | null
   set_timings?: SetTiming[]
+  /** Set count on summary rows returned by getSessionHistory */
+  set_count?: number
 }
 
 export interface SetTiming {
@@ -35,16 +37,20 @@ export interface SetTiming {
 }
 
 const WORKOUT_MIME_TYPES: Record<string, string> = {
-  ods: 'application/vnd.oasis.opendocument.spreadsheet',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  xls: 'application/vnd.ms-excel',
+  ods: "application/vnd.oasis.opendocument.spreadsheet",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
 }
 
-function buildFormData(fileUri: string): { formData: FormData; fileName: string; fileType: string } {
-  const fileName = fileUri.split('/').pop() ?? 'workout'
-  const fileType = fileName.split('.').pop()?.toLowerCase() ?? ''
+function buildFormData(fileUri: string): {
+  formData: FormData
+  fileName: string
+  fileType: string
+} {
+  const fileName = fileUri.split("/").pop() ?? "workout"
+  const fileType = fileName.split(".").pop()?.toLowerCase() ?? ""
   const formData = new FormData()
-  formData.append('workoutFile', {
+  formData.append("workoutFile", {
     uri: fileUri,
     name: fileName,
     type: WORKOUT_MIME_TYPES[fileType] || `application/${fileType}`,
@@ -59,25 +65,26 @@ export const workoutApi = {
   uploadWorkoutFile: async (fileUri: string): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
-      console.log('Starting upload for file:', fileUri)
+      console.log("Starting upload for file:", fileUri)
 
       const { formData } = buildFormData(fileUri)
       const token = await authService.getToken()
 
       const response = await fetch(`${API_BASE_URL}/upload`, {
-        method: 'POST',
+        method: "POST",
         body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
+          "Content-Type": "multipart/form-data",
           ...(token && { Authorization: `Bearer ${token}` }),
         },
       })
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || `Server error: ${response.status}`)
+      if (!response.ok)
+        throw new Error(data.error || `Server error: ${response.status}`)
       return data
     } catch (error) {
-      console.error('Error uploading file:', (error as Error).message)
+      console.error("Error uploading file:", (error as Error).message)
       throw error
     }
   },
@@ -89,11 +96,11 @@ export const workoutApi = {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
-          'application/vnd.oasis.opendocument.spreadsheet',
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/vnd.ms-excel',
-          'application/octet-stream',
-          '*/*',
+          "application/vnd.oasis.opendocument.spreadsheet",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+          "application/octet-stream",
+          "*/*",
         ],
         copyToCacheDirectory: true,
         multiple: false,
@@ -103,7 +110,7 @@ export const workoutApi = {
       if (result.assets && result.assets.length > 0) return result.assets[0].uri
       return (result as any).uri || null
     } catch (error) {
-      console.error('Error picking file:', error)
+      console.error("Error picking file:", error)
       throw error
     }
   },
@@ -111,7 +118,10 @@ export const workoutApi = {
   /**
    * Upload file and get specific person's weekly plan
    */
-  getPersonWeeklyPlan: async (fileUri: string, personName: string): Promise<unknown> => {
+  getPersonWeeklyPlan: async (
+    fileUri: string,
+    personName: string,
+  ): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
       const { formData } = buildFormData(fileUri)
@@ -120,20 +130,21 @@ export const workoutApi = {
       const response = await fetch(
         `${API_BASE_URL}/upload/person/${encodeURIComponent(personName)}`,
         {
-          method: 'POST',
+          method: "POST",
           body: formData,
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
             ...(token && { Authorization: `Bearer ${token}` }),
           },
         },
       )
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || "Failed to get person's plan")
+      if (!response.ok)
+        throw new Error(data.error || "Failed to get person's plan")
       return data
     } catch (error) {
-      console.error('Error getting person plan:', error)
+      console.error("Error getting person plan:", error)
       throw error
     }
   },
@@ -141,26 +152,30 @@ export const workoutApi = {
   /**
    * Upload file and get specific day
    */
-  getDayWorkout: async (fileUri: string, dayNumber: number): Promise<unknown> => {
+  getDayWorkout: async (
+    fileUri: string,
+    dayNumber: number,
+  ): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
       const { formData } = buildFormData(fileUri)
       const token = await authService.getToken()
 
       const response = await fetch(`${API_BASE_URL}/upload/day/${dayNumber}`, {
-        method: 'POST',
+        method: "POST",
         body: formData,
         headers: {
-          'Content-Type': 'multipart/form-data',
+          "Content-Type": "multipart/form-data",
           ...(token && { Authorization: `Bearer ${token}` }),
         },
       })
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to get day workout')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to get day workout")
       return data
     } catch (error) {
-      console.error('Error getting day workout:', error)
+      console.error("Error getting day workout:", error)
       throw error
     }
   },
@@ -174,7 +189,7 @@ export const workoutApi = {
       const response = await fetch(`${API_BASE_URL}/health`)
       return await response.json()
     } catch (error) {
-      console.error('Error checking server health:', error)
+      console.error("Error checking server health:", error)
       throw error
     }
   },
@@ -194,16 +209,26 @@ export const workoutApi = {
   ): Promise<number | string> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/sessions/start`, {
-        method: 'POST',
-        body: JSON.stringify({ person, dayNumber, dayTitle, muscleGroups, isDemo, startTime }),
-      })
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/api/sessions/start`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            person,
+            dayNumber,
+            dayTitle,
+            muscleGroups,
+            isDemo,
+            startTime,
+          }),
+        },
+      )
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to start session')
+      if (!response.ok) throw new Error(data.error || "Failed to start session")
       return data.session.id
     } catch (error) {
-      console.error('Error starting session:', error)
+      console.error("Error starting session:", error)
       throw error
     }
   },
@@ -219,7 +244,7 @@ export const workoutApi = {
     endTime: string,
     weight: number,
     reps: number,
-    note: string = '',
+    note: string = "",
     isWarmup: boolean = false,
     muscleGroup: string | null = null,
   ): Promise<SetTiming> => {
@@ -228,7 +253,7 @@ export const workoutApi = {
       const response = await authenticatedFetch(
         `${API_BASE_URL}/api/sessions/${sessionId}/set`,
         {
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({
             exerciseName,
             setIndex,
@@ -244,11 +269,11 @@ export const workoutApi = {
       )
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to record set')
+      if (!response.ok) throw new Error(data.error || "Failed to record set")
       console.log(data.timing)
       return data.timing as SetTiming
     } catch (error) {
-      console.error('Error recording set:', error)
+      console.error("Error recording set:", error)
       throw error
     }
   },
@@ -265,16 +290,16 @@ export const workoutApi = {
       const response = await authenticatedFetch(
         `${API_BASE_URL}/api/sessions/${sessionId}/end`,
         {
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify({ endTime }),
         },
       )
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to end session')
+      if (!response.ok) throw new Error(data.error || "Failed to end session")
       return data.session as WorkoutSession
     } catch (error) {
-      console.error('Error ending session:', error)
+      console.error("Error ending session:", error)
       throw error
     }
   },
@@ -288,8 +313,8 @@ export const workoutApi = {
   ): Promise<WorkoutAnalytics> => {
     const API_BASE_URL = getServerUrl()
     const params = new URLSearchParams()
-    if (person) params.append('person', person)
-    if (dayNumber) params.append('dayNumber', dayNumber.toString())
+    if (person) params.append("person", person)
+    if (dayNumber) params.append("dayNumber", dayNumber.toString())
 
     try {
       const response = await authenticatedFetch(
@@ -307,11 +332,11 @@ export const workoutApi = {
           averageSetDuration: data.analytics?.averageSetDuration || 0,
         }
       } else {
-        throw new Error(data.error || 'Failed to get analytics')
+        throw new Error(data.error || "Failed to get analytics")
       }
     } catch (error) {
-      if ((error as Error).message === 'SESSION_EXPIRED') throw error
-      console.error('[getAnalytics] Error:', (error as Error).message)
+      if ((error as Error).message === "SESSION_EXPIRED") throw error
+      console.error("[getAnalytics] Error:", (error as Error).message)
       return {
         averageTimeBetweenSets: 120,
         totalSessions: 0,
@@ -335,19 +360,20 @@ export const workoutApi = {
     try {
       const API_BASE_URL = getServerUrl()
       const params = new URLSearchParams()
-      if (person) params.append('person', person)
-      if (dayNumber) params.append('dayNumber', dayNumber.toString())
-      if (limit) params.append('limit', limit.toString())
-      if (includeTimings) params.append('includeTimings', 'true')
+      if (person) params.append("person", person)
+      if (dayNumber) params.append("dayNumber", dayNumber.toString())
+      if (limit) params.append("limit", limit.toString())
+      if (includeTimings) params.append("includeTimings", "true")
 
       const response = await authenticatedFetch(
         `${API_BASE_URL}/api/sessions?${params.toString()}`,
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to get session history')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to get session history")
       return data.sessions as WorkoutSession[]
     } catch (error) {
-      console.error('Error getting session history:', error)
+      console.error("Error getting session history:", error)
       return []
     }
   },
@@ -362,10 +388,10 @@ export const workoutApi = {
         `${API_BASE_URL}/api/sessions/${sessionId}`,
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to get session')
+      if (!response.ok) throw new Error(data.error || "Failed to get session")
       return data.session as WorkoutSession
     } catch (error) {
-      console.error('Error getting session:', error)
+      console.error("Error getting session:", error)
       throw error
     }
   },
@@ -374,14 +400,18 @@ export const workoutApi = {
   clearDemoSessions: async (): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/sessions/demo`, {
-        method: 'DELETE',
-      })
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/api/sessions/demo`,
+        {
+          method: "DELETE",
+        },
+      )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to clear demo sessions')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to clear demo sessions")
       return data
     } catch (error) {
-      console.error('Error clearing demo sessions:', error)
+      console.error("Error clearing demo sessions:", error)
       throw error
     }
   },
@@ -390,15 +420,19 @@ export const workoutApi = {
   deleteAllSessions: async (): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/sessions`, {
-        method: 'DELETE',
-        body: JSON.stringify({ confirmDelete: 'DELETE_ALL_SESSIONS' }),
-      })
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/api/sessions`,
+        {
+          method: "DELETE",
+          body: JSON.stringify({ confirmDelete: "DELETE_ALL_SESSIONS" }),
+        },
+      )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to delete sessions')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to delete sessions")
       return data
     } catch (error) {
-      console.error('Error deleting sessions:', error)
+      console.error("Error deleting sessions:", error)
       throw error
     }
   },
@@ -409,14 +443,15 @@ export const workoutApi = {
       const API_BASE_URL = getServerUrl()
       const response = await authenticatedFetch(
         `${API_BASE_URL}/api/sessions/person/${person}`,
-        { method: 'DELETE' },
+        { method: "DELETE" },
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to delete sessions')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to delete sessions")
       console.log(`✓ Deleted ${data.deletedCount} sessions for ${person}`)
       return data
     } catch (error) {
-      console.error('Error deleting sessions for person:', error)
+      console.error("Error deleting sessions for person:", error)
       throw error
     }
   },

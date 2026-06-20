@@ -33,11 +33,6 @@ import {
   getSessionHistory,
   deleteAllSessionsForPerson,
 } from "../services/api"
-import {
-  getBatterySettings,
-  BATTERY_PRESETS,
-} from "../../tasks/supplementLocationTask"
-import BatterySettingsModal from "../components/BatterySettingsModal"
 import ThemeEditorModal from "../components/ThemeEditorModal"
 import ModalSheet from "../components/ModalSheet"
 import { useAlert } from "../components/CustomAlert"
@@ -96,11 +91,6 @@ export default function SettingsScreen(): React.JSX.Element {
     null,
   )
 
-  // Supplement reminder settings are now managed per-supplement in the
-  // Supplements screen (Settings → open any supplement card → ⚙️ Settings).
-  // Retained only for battery preset display in the summary row.
-  const [batteryPreset, setBatteryPreset] = useState<string>("MEDIUM")
-  const [showBatterySettings, setShowBatterySettings] = useState<boolean>(false)
   const [showThemeEditor, setShowThemeEditor] = useState<boolean>(false)
 
   const [serverProgress, setServerProgress] = useState<{
@@ -114,14 +104,6 @@ export default function SettingsScreen(): React.JSX.Element {
   useEffect(() => {
     setCurrentServerUrl(getServerUrl())
     loadServerProgress()
-  }, [])
-
-  useEffect(() => {
-    const loadBatterySettings = async () => {
-      const settings = await getBatterySettings()
-      setBatteryPreset(settings.preset)
-    }
-    loadBatterySettings()
   }, [])
 
   const loadServerProgress = async () => {
@@ -603,27 +585,6 @@ export default function SettingsScreen(): React.JSX.Element {
         contentContainerStyle={styles.contentContainer}
       >
         <View style={styles.content}>
-          {/* Supplement Reminders Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>💊 Supplement Reminders</Text>
-            <View style={styles.card}>
-              <View style={styles.infoRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.settingLabel}>Reminder Settings</Text>
-                  <Text style={styles.settingDescription}>
-                    Configure reminders for each supplement individually in the
-                    Supplements tab.
-                  </Text>
-                </View>
-                <Text style={styles.settingValue}>💊</Text>
-              </View>
-            </View>
-            <Text style={styles.helperText}>
-              💡 Open a supplement card → ⚙️ Settings to configure time or
-              location-based reminders
-            </Text>
-          </View>
-
           {/* App Info */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>⚙️ Settings</Text>
@@ -1094,17 +1055,9 @@ export default function SettingsScreen(): React.JSX.Element {
           )}
         </ModalSheet>
 
-        {/* Battery Settings Modal */}
         <ThemeEditorModal
           visible={showThemeEditor}
           onClose={() => setShowThemeEditor(false)}
-        />
-        <BatterySettingsModal
-          visible={showBatterySettings}
-          onClose={() => setShowBatterySettings(false)}
-          onSave={(settings) => {
-            setBatteryPreset(settings.preset)
-          }}
         />
       </ScrollView>
       {AlertComponent}
