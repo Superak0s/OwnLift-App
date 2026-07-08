@@ -68,27 +68,47 @@ export const authService = {
    * POST /api/auth/signin
    */
   signin: async (username: string, password: string): Promise<AuthResponse> => {
+    const API_BASE_URL = getServerUrl()
+
+    // Network-level failure (server unreachable, no connection, timeout, etc.)
+    // — this is a genuine unexpected error, so it's worth an error-level log.
+    let response: Response
     try {
-      const API_BASE_URL = getServerUrl()
-      const response = await fetch(`${API_BASE_URL}/api/auth/signin`, {
+      response = await fetch(`${API_BASE_URL}/api/auth/signin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       })
-
-      const data: AuthResponse = await response.json()
-      if (!response.ok) throw new Error((data as any).error || "Signin failed")
-
-      if (data.success && data.token) {
-        await AsyncStorage.setItem("@auth_token", data.token)
-        await AsyncStorage.setItem("@user", JSON.stringify(data.user))
-      }
-
-      return data
     } catch (error) {
-      console.error("Error signing in:", error)
+      console.error("Error signing in (network):", error)
       throw error
     }
+
+    // Malformed/non-JSON response — also unexpected, log it.
+    let data: AuthResponse
+    try {
+      data = await response.json()
+    } catch (error) {
+      console.error("Error signing in (invalid server response):", error)
+      throw new Error("Unexpected server response")
+    }
+
+    if (!response.ok) {
+      // Expected failure case — wrong username/password, locked account, etc.
+      // This isn't a bug, so we warn instead of throwing a loud console error.
+      console.warn(
+        "Signin rejected:",
+        (data as any).error || `HTTP ${response.status}`,
+      )
+      throw new Error((data as any).error || "Invalid username or password")
+    }
+
+    if (data.success && data.token) {
+      await AsyncStorage.setItem("@auth_token", data.token)
+      await AsyncStorage.setItem("@user", JSON.stringify(data.user))
+    }
+
+    return data
   },
 
   /**

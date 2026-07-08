@@ -1,5 +1,5 @@
-import { getServerUrl } from './config'
-import { authenticatedFetch } from './auth'
+import { getServerUrl } from "./config"
+import { authenticatedFetch } from "./auth"
 
 export interface Friend {
   id: number | string
@@ -32,6 +32,12 @@ export interface UserSearchResult {
   email?: string
 }
 
+export interface ContactFriendSuggestion {
+  id: number | string
+  username: string
+  name?: string
+}
+
 /**
  * Friends API
  */
@@ -40,7 +46,10 @@ export const friendsApi = {
    * Search for users
    * GET /api/friends/search
    */
-  searchUsers: async (query: string, limit: number = 10): Promise<UserSearchResult[]> => {
+  searchUsers: async (
+    query: string,
+    limit: number = 10,
+  ): Promise<UserSearchResult[]> => {
     try {
       const API_BASE_URL = getServerUrl()
       const params = new URLSearchParams({ q: query, limit: limit.toString() })
@@ -48,10 +57,38 @@ export const friendsApi = {
         `${API_BASE_URL}/api/friends/search?${params.toString()}`,
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to search users')
+      if (!response.ok) throw new Error(data.error || "Failed to search users")
       return data.users as UserSearchResult[]
     } catch (error) {
-      console.error('Error searching users:', error)
+      console.error("Error searching users:", error)
+      throw error
+    }
+  },
+
+  /**
+   * Suggest friends from the device's contacts.
+   * Send only pre-hashed (SHA-256) emails — never raw contact data.
+   * POST /api/friends/suggest-from-contacts
+   */
+  suggestFriendsFromContacts: async (
+    emailHashes: string[],
+  ): Promise<ContactFriendSuggestion[]> => {
+    try {
+      if (emailHashes.length === 0) return []
+      const API_BASE_URL = getServerUrl()
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/api/friends/suggest-from-contacts`,
+        {
+          method: "POST",
+          body: JSON.stringify({ emailHashes }),
+        },
+      )
+      const data = await response.json()
+      if (!response.ok)
+        throw new Error(data.error || "Failed to get contact suggestions")
+      return (data.suggestions || []) as ContactFriendSuggestion[]
+    } catch (error) {
+      console.error("Error getting contact suggestions:", error)
       throw error
     }
   },
@@ -65,7 +102,7 @@ export const friendsApi = {
       const API_BASE_URL = getServerUrl()
       const response = await authenticatedFetch(`${API_BASE_URL}/api/friends`)
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to get friends')
+      if (!response.ok) throw new Error(data.error || "Failed to get friends")
 
       return (data.friends || []).map((friend: Record<string, unknown>) => ({
         id: friend.friend_user_id,
@@ -75,7 +112,7 @@ export const friendsApi = {
         createdAt: friend.friends_since,
       }))
     } catch (error) {
-      console.error('Error getting friends:', error)
+      console.error("Error getting friends:", error)
       throw error
     }
   },
@@ -87,15 +124,19 @@ export const friendsApi = {
   sendFriendRequest: async (username: string): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/friends/request`, {
-        method: 'POST',
-        body: JSON.stringify({ username }),
-      })
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/api/friends/request`,
+        {
+          method: "POST",
+          body: JSON.stringify({ username }),
+        },
+      )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to send friend request')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to send friend request")
       return data
     } catch (error) {
-      console.error('Error sending friend request:', error)
+      console.error("Error sending friend request:", error)
       throw error
     }
   },
@@ -111,7 +152,8 @@ export const friendsApi = {
         `${API_BASE_URL}/api/friends/requests/pending`,
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to get pending requests')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to get pending requests")
 
       return (data.requests || []).map((request: Record<string, unknown>) => ({
         id: request.friendship_id,
@@ -121,7 +163,7 @@ export const friendsApi = {
         createdAt: request.created_at,
       }))
     } catch (error) {
-      console.error('Error getting pending requests:', error)
+      console.error("Error getting pending requests:", error)
       throw error
     }
   },
@@ -137,7 +179,8 @@ export const friendsApi = {
         `${API_BASE_URL}/api/friends/requests/sent`,
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to get sent requests')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to get sent requests")
 
       return (data.requests || []).map((request: Record<string, unknown>) => ({
         id: request.friendship_id,
@@ -147,7 +190,7 @@ export const friendsApi = {
         createdAt: request.created_at,
       }))
     } catch (error) {
-      console.error('Error getting sent requests:', error)
+      console.error("Error getting sent requests:", error)
       throw error
     }
   },
@@ -156,18 +199,21 @@ export const friendsApi = {
    * Accept friend request
    * POST /api/friends/request/:friendshipId/accept
    */
-  acceptFriendRequest: async (friendshipId: number | string): Promise<unknown> => {
+  acceptFriendRequest: async (
+    friendshipId: number | string,
+  ): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
       const response = await authenticatedFetch(
         `${API_BASE_URL}/api/friends/request/${friendshipId}/accept`,
-        { method: 'POST' },
+        { method: "POST" },
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to accept friend request')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to accept friend request")
       return data
     } catch (error) {
-      console.error('Error accepting friend request:', error)
+      console.error("Error accepting friend request:", error)
       throw error
     }
   },
@@ -176,18 +222,21 @@ export const friendsApi = {
    * Reject friend request
    * POST /api/friends/request/:friendshipId/reject
    */
-  rejectFriendRequest: async (friendshipId: number | string): Promise<unknown> => {
+  rejectFriendRequest: async (
+    friendshipId: number | string,
+  ): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
       const response = await authenticatedFetch(
         `${API_BASE_URL}/api/friends/request/${friendshipId}/reject`,
-        { method: 'POST' },
+        { method: "POST" },
       )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to reject friend request')
+      if (!response.ok)
+        throw new Error(data.error || "Failed to reject friend request")
       return data
     } catch (error) {
-      console.error('Error rejecting friend request:', error)
+      console.error("Error rejecting friend request:", error)
       throw error
     }
   },
@@ -199,14 +248,17 @@ export const friendsApi = {
   removeFriend: async (friendId: number | string): Promise<unknown> => {
     try {
       const API_BASE_URL = getServerUrl()
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/friends/${friendId}`, {
-        method: 'DELETE',
-      })
+      const response = await authenticatedFetch(
+        `${API_BASE_URL}/api/friends/${friendId}`,
+        {
+          method: "DELETE",
+        },
+      )
       const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'Failed to remove friend')
+      if (!response.ok) throw new Error(data.error || "Failed to remove friend")
       return data
     } catch (error) {
-      console.error('Error removing friend:', error)
+      console.error("Error removing friend:", error)
       throw error
     }
   },

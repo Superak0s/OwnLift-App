@@ -6,5 +6,5 @@
     "sourceMap": true,
     "resolveJsonModule": true
   },
-  "include": ["./**/*.ts", "./**/*.tsx"]
+  "include": ["./**/*.ts", "./**/*.tsx", "src/services/contactsMatching.tsχ"]
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
 import {
   View,
   Text,
@@ -32,9 +32,6 @@ type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Login">
 }
 
-const MAX_LOGIN_ATTEMPTS = 5
-const LOCKOUT_DURATION_MS = 5 * 60 * 1000 // 5 minutes
-
 export default function LoginScreen({
   navigation,
 }: LoginScreenProps): React.JSX.Element {
@@ -49,78 +46,19 @@ export default function LoginScreen({
   const [tempServerUrl, setTempServerUrl] = useState<string>("")
   const [currentServerUrl, setCurrentServerUrl] = useState<string>("")
 
-  // Rate limiting state
-  const [failedAttempts, setFailedAttempts] = useState<number>(0)
-  const [isLockedOut, setIsLockedOut] = useState<boolean>(false)
-  const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null)
-  const [remainingLockoutSeconds, setRemainingLockoutSeconds] =
-    useState<number>(0)
-
   const { signin } = useAuth()
   const { alert, AlertComponent } = useAlert()
-
-  const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const isMountedRef = useRef<boolean>(true)
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false
-      if (lockoutTimerRef.current) {
-        clearInterval(lockoutTimerRef.current)
-      }
-    }
-  }, [])
 
   // Initialize server URL
   useEffect(() => {
     setCurrentServerUrl(getServerUrl())
   }, [])
 
-  // Handle lockout timer
-  useEffect(() => {
-    if (isLockedOut && lockoutEndTime) {
-      lockoutTimerRef.current = setInterval(() => {
-        const now = Date.now()
-        const remaining = Math.max(0, Math.ceil((lockoutEndTime - now) / 1000))
-
-        if (isMountedRef.current) {
-          setRemainingLockoutSeconds(remaining)
-
-          if (remaining === 0) {
-            setIsLockedOut(false)
-            setLockoutEndTime(null)
-            setFailedAttempts(0)
-            if (lockoutTimerRef.current) {
-              clearInterval(lockoutTimerRef.current)
-            }
-          }
-        }
-      }, 1000)
-
-      return () => {
-        if (lockoutTimerRef.current) {
-          clearInterval(lockoutTimerRef.current)
-        }
-      }
-    }
-  }, [isLockedOut, lockoutEndTime])
-
   const clearSensitiveData = useCallback(() => {
     setPassword("")
   }, [])
 
   const handleLogin = async (): Promise<void> => {
-    if (isLockedOut) {
-      alert(
-        "Account Locked",
-        `Too many failed attempts. Please try again in ${remainingLockoutSeconds} seconds.`,
-        [{ text: "OK" }],
-        "warning",
-      )
-      return
-    }
-
     if (!usernameOrEmail.trim() || !password) {
       alert(
         "Error",
@@ -136,43 +74,23 @@ export default function LoginScreen({
     try {
       const result = await signin(usernameOrEmail.trim(), password)
 
-      if (result.success) {
-        // Clear sensitive data on success
-        clearSensitiveData()
-        setFailedAttempts(0)
-      } else {
-        // Clear password on failure
-        clearSensitiveData()
+      // Always clear the password field after an attempt, success or not.
+      clearSensitiveData()
 
-        // Increment failed attempts
-        const newFailedAttempts = failedAttempts + 1
-        setFailedAttempts(newFailedAttempts)
-
-        // Check if we should lock out
-        if (newFailedAttempts >= MAX_LOGIN_ATTEMPTS) {
-          const endTime = Date.now() + LOCKOUT_DURATION_MS
-          setIsLockedOut(true)
-          setLockoutEndTime(endTime)
-
-          alert(
-            "Account Locked",
-            `Too many failed login attempts. Your account has been temporarily locked for 5 minutes.`,
-            [{ text: "OK" }],
-            "error",
-          )
-        } else {
-          const attemptsRemaining = MAX_LOGIN_ATTEMPTS - newFailedAttempts
-          alert(
-            "Login Failed",
-            `${result.error || "Invalid username/email or password"}\n\n${attemptsRemaining} attempt${attemptsRemaining !== 1 ? "s" : ""} remaining.`,
-            [{ text: "OK" }],
-            "error",
-          )
-        }
+      if (!result.success) {
+        alert(
+          "Login Failed",
+          result.error || "Invalid username or password",
+          [{ text: "OK" }],
+          "error",
+        )
       }
     } catch (error) {
+      // signin() normally catches its own errors and resolves with
+      // { success: false, error }, so this only fires on a truly
+      // unexpected failure (e.g. a bug upstream).
       clearSensitiveData()
-      console.error("Login error:", error)
+      console.error("Unexpected login error:", error)
       alert(
         "Error",
         "An unexpected error occurred. Please check your connection and try again.",
@@ -345,22 +263,6 @@ export default function LoginScreen({
               </Text>
             </View>
 
-            {/* Lockout Warning */}
-            {isLockedOut && (
-              <View style={styles.lockoutBanner}>
-                <Text style={styles.lockoutIcon}>🔒</Text>
-                <View style={styles.lockoutContent}>
-                  <Text style={styles.lockoutTitle}>
-                    Account Temporarily Locked
-                  </Text>
-                  <Text style={styles.lockoutText}>
-                    Too many failed attempts. Try again in{" "}
-                    {remainingLockoutSeconds}s
-                  </Text>
-                </View>
-              </View>
-            )}
-
             {/* Server Configuration Badge */}
             <TouchableOpacity
               style={styles.serverBadge}
@@ -390,7 +292,7 @@ export default function LoginScreen({
                   autoCapitalize='none'
                   autoCorrect={false}
                   keyboardType='email-address'
-                  editable={!isLoading && !isLockedOut}
+                  editable={!isLoading}
                 />
               </View>
 
@@ -405,13 +307,13 @@ export default function LoginScreen({
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize='none'
-                    editable={!isLoading && !isLockedOut}
+                    editable={!isLoading}
                     onSubmitEditing={handleLogin}
                   />
                   <TouchableOpacity
                     style={styles.eyeButton}
                     onPress={() => setShowPassword(!showPassword)}
-                    disabled={isLoading || isLockedOut}
+                    disabled={isLoading}
                   >
                     <Text style={styles.eyeIcon}>
                       {showPassword ? "👁️" : "👁️‍🗨️"}
@@ -420,37 +322,24 @@ export default function LoginScreen({
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={styles.forgotPassword}
-                disabled={isLockedOut}
-              >
+              <TouchableOpacity style={styles.forgotPassword}>
                 <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.loginButton,
-                  (isLoading || isLockedOut) && styles.loginButtonDisabled,
+                  isLoading && styles.loginButtonDisabled,
                 ]}
                 onPress={handleLogin}
-                disabled={isLoading || isLockedOut}
+                disabled={isLoading}
               >
                 {isLoading ? (
                   <ActivityIndicator color={colors.surface} />
                 ) : (
-                  <Text style={styles.loginButtonText}>
-                    {isLockedOut ? "Locked" : "Sign In"}
-                  </Text>
+                  <Text style={styles.loginButtonText}>Sign In</Text>
                 )}
               </TouchableOpacity>
-
-              {failedAttempts > 0 && !isLockedOut && (
-                <Text style={styles.attemptsWarning}>
-                  ⚠️ {MAX_LOGIN_ATTEMPTS - failedAttempts} attempt
-                  {MAX_LOGIN_ATTEMPTS - failedAttempts !== 1 ? "s" : ""}{" "}
-                  remaining
-                </Text>
-              )}
 
               <View style={styles.divider}>
                 <View style={styles.dividerLine} />
@@ -540,25 +429,6 @@ const makeStyles = (colors: any) =>
       color: colors.textSecondary,
       textAlign: "center",
     },
-    lockoutBanner: {
-      backgroundColor: "#ff444420",
-      borderRadius: 12,
-      padding: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 16,
-      borderWidth: 1,
-      borderColor: "#ff4444",
-    },
-    lockoutIcon: { fontSize: 24, marginRight: 12 },
-    lockoutContent: { flex: 1 },
-    lockoutTitle: {
-      fontSize: 16,
-      fontWeight: "bold",
-      color: "#ff4444",
-      marginBottom: 4,
-    },
-    lockoutText: { fontSize: 14, color: "#ff4444" },
     serverBadge: {
       backgroundColor: colors.surface,
       borderRadius: 12,
@@ -643,13 +513,6 @@ const makeStyles = (colors: any) =>
       color: colors.surface,
       fontSize: 18,
       fontWeight: "bold",
-    },
-    attemptsWarning: {
-      fontSize: 14,
-      color: "#ff8800",
-      textAlign: "center",
-      marginTop: 12,
-      fontWeight: "600",
     },
     divider: {
       flexDirection: "row",

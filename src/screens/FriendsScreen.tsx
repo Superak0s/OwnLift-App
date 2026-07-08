@@ -33,6 +33,18 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import { useAuth } from "../context/AuthContext"
 import { friendsApi, sharingApi } from "../services/api"
 import type { GrantedPermission, ReceivedPermission } from "../services/api"
+import type { ContactFriendSuggestion } from "../services/api"
+import { collectHashedContactEmails } from "../services/contactsMatching"
+import {
+  CameraView,
+  useCameraPermissions,
+  type BarcodeScanningResult,
+} from "expo-camera"
+import QRCode from "react-native-qrcode-svg"
+import {
+  buildFriendQrPayload,
+  parseFriendQrPayload,
+} from "../services/qrFriendCode"
 import { useWorkout } from "../context/WorkoutContext"
 import ModalSheet from "../components/ModalSheet"
 import UniversalCalendar from "../components/UniversalCalendar"
@@ -486,6 +498,25 @@ export default function FriendsScreen(): React.JSX.Element {
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
   const [searching, setSearching] = useState<boolean>(false)
 
+  const [contactSuggestions, setContactSuggestions] = useState<
+    ContactFriendSuggestion[]
+  >([])
+  const [loadingContactSuggestions, setLoadingContactSuggestions] =
+    useState<boolean>(false)
+  const [contactPermissionDenied, setContactPermissionDenied] =
+    useState<boolean>(false)
+  const [contactSuggestionsRequested, setContactSuggestionsRequested] =
+    useState<boolean>(false)
+  const [sendingRequestTo, setSendingRequestTo] = useState<
+    number | string | null
+  >(null)
+
+  const [showMyQrModal, setShowMyQrModal] = useState<boolean>(false)
+  const [showScanQrModal, setShowScanQrModal] = useState<boolean>(false)
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions()
+  const [qrScanLocked, setQrScanLocked] = useState<boolean>(false)
+  const [addingFriendFromQr, setAddingFriendFromQr] = useState<boolean>(false)
+
   const [sharingStats, setSharingStats] = useState<Record<
     string,
     unknown
@@ -889,6 +920,137 @@ export default function FriendsScreen(): React.JSX.Element {
         [{ text: "OK" }],
         "error",
       )
+    }
+  }
+
+  // ── Contact-based friend suggestions ────────────────────────────────────────
+
+  const handleFindContactSuggestions = async () => {
+    setLoadingContactSuggestions(true)
+    setContactPermissionDenied(false)
+    try {
+      const { status, hashes } = await collectHashedContactEmails()
+      setContactSuggestionsRequested(true)
+      if (status === "denied") {
+        setContactPermissionDenied(true)
+        setContactSuggestions([])
+        return
+      }
+      const suggestions = await friendsApi.suggestFriendsFromContacts(hashes)
+      setContactSuggestions(suggestions)
+    } catch (_error) {
+      alert(
+        "Error",
+        "Couldn't check your contacts for friends right now.",
+        [{ text: "OK" }],
+        "error",
+      )
+    } finally {
+      setLoadingContactSuggestions(false)
+    }
+  }
+
+  const sendFriendRequestToSuggestion = async (
+    suggestion: ContactFriendSuggestion,
+  ) => {
+    setSendingRequestTo(suggestion.id)
+    try {
+      await friendsApi.sendFriendRequest(suggestion.username)
+      await loadFriends()
+      setContactSuggestions((prev) =>
+        prev.filter((s) => s.id !== suggestion.id),
+      )
+    } catch (error) {
+      const err = error as Error
+      alert(
+        "Error",
+        err.message || "Failed to send friend request",
+        [{ text: "OK" }],
+        "error",
+      )
+    } finally {
+      setSendingRequestTo(null)
+    }
+  }
+
+  // ── QR code friend adding ───────────────────────────────────────────────────
+
+  const openScanQrModal = async () => {
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission()
+      if (!result.granted) {
+        alert(
+          "Camera Access Needed",
+          "Enable camera access in your device settings to scan a friend's QR code.",
+          [{ text: "OK" }],
+          "error",
+        )
+        return
+      }
+    }
+    setQrScanLocked(false)
+    setShowScanQrModal(true)
+  }
+
+  const handleQrScanned = async (result: BarcodeScanningResult) => {
+    if (qrScanLocked) return
+    setQrScanLocked(true)
+
+    const payload = parseFriendQrPayload(result.data)
+    if (!payload) {
+      alert(
+        "Invalid Code",
+        "That doesn't look like a friend QR code from this app.",
+        [{ text: "OK", onPress: () => setQrScanLocked(false) }],
+        "error",
+      )
+      return
+    }
+
+    if (payload.username === user?.username || payload.id === user?.id) {
+      alert(
+        "That's You!",
+        "You can't add yourself as a friend.",
+        [{ text: "OK", onPress: () => setQrScanLocked(false) }],
+        "error",
+      )
+      return
+    }
+
+    const isFriend = friends.some(
+      (f) => f.id === payload.id || f.username === payload.username,
+    )
+    if (isFriend) {
+      alert(
+        "Already Friends",
+        `You and ${payload.username} are already friends.`,
+        [{ text: "OK", onPress: () => setShowScanQrModal(false) }],
+        "info",
+      )
+      return
+    }
+
+    setAddingFriendFromQr(true)
+    try {
+      await friendsApi.sendFriendRequest(payload.username)
+      await loadFriends()
+      setShowScanQrModal(false)
+      alert(
+        "Request Sent",
+        `Friend request sent to ${payload.username}.`,
+        [{ text: "OK" }],
+        "success",
+      )
+    } catch (error) {
+      const err = error as Error
+      alert(
+        "Error",
+        err.message || "Failed to send friend request",
+        [{ text: "OK", onPress: () => setQrScanLocked(false) }],
+        "error",
+      )
+    } finally {
+      setAddingFriendFromQr(false)
     }
   }
 
@@ -1389,6 +1551,116 @@ export default function FriendsScreen(): React.JSX.Element {
           {activeTab === "search" && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Find Friends</Text>
+
+              {/* ── Contact suggestions ── */}
+              <View style={permStyles.row}>
+                <Text style={permStyles.icon}>📱</Text>
+                <View style={permStyles.text}>
+                  <Text style={permStyles.title}>Friends from Contacts</Text>
+                  <Text style={permStyles.desc}>
+                    We'll ask for contacts access and only send hashed emails —
+                    never raw contact info — to check for matches.
+                  </Text>
+                </View>
+                {loadingContactSuggestions ? (
+                  <ActivityIndicator
+                    size='small'
+                    color='#667eea'
+                    style={{ marginLeft: 8 }}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    style={permStyles.grantBtn}
+                    onPress={handleFindContactSuggestions}
+                  >
+                    <Text style={permStyles.grantBtnText}>Check</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {contactPermissionDenied && (
+                <View style={styles.emptyStateSmall}>
+                  <Text style={styles.emptyTextSmall}>
+                    Contacts access was denied. You can enable it in your device
+                    settings to see friend suggestions.
+                  </Text>
+                </View>
+              )}
+
+              {!contactPermissionDenied &&
+                contactSuggestionsRequested &&
+                !loadingContactSuggestions &&
+                contactSuggestions.length === 0 && (
+                  <View style={styles.emptyStateSmall}>
+                    <Text style={styles.emptyTextSmall}>
+                      No contacts found on this app yet.
+                    </Text>
+                  </View>
+                )}
+
+              {contactSuggestions.length > 0 && (
+                <View style={[styles.listContainer, { marginBottom: 20 }]}>
+                  {contactSuggestions.map((suggestion) => (
+                    <View
+                      key={String(suggestion.id)}
+                      style={styles.searchResultCard}
+                    >
+                      <View style={styles.friendInfo}>
+                        <View style={styles.avatar}>
+                          <Text style={styles.avatarText}>
+                            {suggestion.username?.charAt(0).toUpperCase() ||
+                              "?"}
+                          </Text>
+                        </View>
+                        <View style={styles.friendDetails}>
+                          <Text style={styles.friendName}>
+                            {suggestion.username}
+                          </Text>
+                          <Text style={styles.friendMeta}>From contacts</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.addButton}
+                        onPress={() =>
+                          sendFriendRequestToSuggestion(suggestion)
+                        }
+                        disabled={sendingRequestTo === suggestion.id}
+                      >
+                        {sendingRequestTo === suggestion.id ? (
+                          <ActivityIndicator size='small' color='#fff' />
+                        ) : (
+                          <Text style={styles.addButtonText}>+ Add Friend</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* ── QR code friend adding ── */}
+              <View style={permStyles.row}>
+                <Text style={permStyles.icon}>🔳</Text>
+                <View style={permStyles.text}>
+                  <Text style={permStyles.title}>Add via QR Code</Text>
+                  <Text style={permStyles.desc}>
+                    Show your code for a friend to scan, or scan theirs to add
+                    them instantly.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={permStyles.grantBtn}
+                  onPress={() => setShowMyQrModal(true)}
+                >
+                  <Text style={permStyles.grantBtnText}>My Code</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[permStyles.grantBtn, { marginLeft: 8 }]}
+                  onPress={openScanQrModal}
+                >
+                  <Text style={permStyles.grantBtnText}>Scan</Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.searchContainer}>
                 <TextInput
                   style={styles.searchInput}
@@ -2461,6 +2733,75 @@ export default function FriendsScreen(): React.JSX.Element {
         </SafeAreaView>
       </ModalSheet>
 
+      {/* ── My QR Code modal ── */}
+      <ModalSheet
+        visible={showMyQrModal}
+        onClose={() => setShowMyQrModal(false)}
+        title='My QR Code'
+        showCancelButton={false}
+        showConfirmButton={false}
+      >
+        <View style={styles.qrModalContent}>
+          <Text style={styles.qrModalHint}>
+            Have a friend scan this with their camera to send you a friend
+            request.
+          </Text>
+          <View style={styles.qrCodeWrapper}>
+            {user?.username ? (
+              <QRCode
+                value={buildFriendQrPayload(user.id, user.username)}
+                size={220}
+                backgroundColor={colors.surface}
+              />
+            ) : (
+              <ActivityIndicator size='large' color={colors.accent} />
+            )}
+          </View>
+          {!!user?.username && (
+            <Text style={styles.qrModalUsername}>{user.username}</Text>
+          )}
+        </View>
+      </ModalSheet>
+
+      {/* ── Scan Friend's QR Code modal ── */}
+      <ModalSheet
+        visible={showScanQrModal}
+        onClose={() => setShowScanQrModal(false)}
+        title="Scan Friend's QR Code"
+        showCancelButton={false}
+        showConfirmButton={false}
+        fullHeight={true}
+      >
+        <View style={styles.qrScannerContainer}>
+          {cameraPermission?.granted ? (
+            <>
+              <CameraView
+                style={styles.qrCameraView}
+                facing='back'
+                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                onBarcodeScanned={qrScanLocked ? undefined : handleQrScanned}
+              />
+              <View style={styles.qrScanFrame} pointerEvents='none' />
+              <Text style={styles.qrScannerHint}>
+                Point your camera at your friend's QR code
+              </Text>
+              {addingFriendFromQr && (
+                <View style={styles.qrScannerLoading}>
+                  <ActivityIndicator size='large' color='#fff' />
+                </View>
+              )}
+            </>
+          ) : (
+            <View style={styles.emptyStateSmall}>
+              <Text style={styles.emptyTextSmall}>
+                Camera access is needed to scan QR codes. You can enable it in
+                your device settings.
+              </Text>
+            </View>
+          )}
+        </View>
+      </ModalSheet>
+
       {AlertComponent}
     </SafeAreaView>
   )
@@ -3110,4 +3451,72 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.success,
     },
     leaveText: { fontSize: 13, fontWeight: "700", color: colors.error },
+    qrModalContent: {
+      alignItems: "center",
+      paddingHorizontal: 24,
+      paddingVertical: 20,
+    },
+    qrModalHint: {
+      fontSize: 14,
+      color: colors.textMuted,
+      textAlign: "center",
+      lineHeight: 20,
+      marginBottom: 24,
+    },
+    qrCodeWrapper: {
+      backgroundColor: colors.surface,
+      padding: 20,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      minHeight: 260,
+      minWidth: 260,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    qrModalUsername: {
+      fontSize: 17,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      marginTop: 20,
+    },
+    qrScannerContainer: {
+      flex: 1,
+      minHeight: 420,
+      backgroundColor: "#000",
+      borderRadius: 16,
+      overflow: "hidden",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    qrCameraView: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    qrScanFrame: {
+      width: 220,
+      height: 220,
+      borderWidth: 3,
+      borderColor: "rgba(255,255,255,0.85)",
+      borderRadius: 20,
+      backgroundColor: "transparent",
+    },
+    qrScannerHint: {
+      position: "absolute",
+      bottom: 28,
+      left: 24,
+      right: 24,
+      textAlign: "center",
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    qrScannerLoading: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
   })
