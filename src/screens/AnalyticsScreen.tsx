@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from "react"
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  StyleSheet,
+} from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import * as DocumentPicker from "expo-document-picker"
+import { File as ExpoFile } from "expo-file-system"
 import { useWorkout } from "../context/WorkoutContext"
 import { useAuth } from "../context/AuthContext"
 import { getCurrentBodyWeight } from "./TrackingScreen"
 import ExerciseAnalytics from "../components/ExerciseAnalytics"
 import { useAlert } from "../components/CustomAlert"
+import { importStrengthLevelCSV } from "../utils/strengthLevelImport"
 import type { WorkoutData, CompletedDays, WorkoutSession } from "../types/index"
 
 export default function AnalyticsScreen(): React.JSX.Element {
@@ -28,6 +38,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
   const [refreshing, setRefreshing] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [isImporting, setIsImporting] = useState<boolean>(false)
 
   // Refs to track component mount state and prevent race conditions
   const isMountedRef = useRef<boolean>(true)
@@ -150,8 +161,102 @@ export default function AnalyticsScreen(): React.JSX.Element {
     }
   }, [syncFromServer, loadSessions, refreshing, alert])
 
+  const handleImportCSV = useCallback(async (): Promise<void> => {
+    if (!selectedPerson) {
+      alert(
+        "No Person Selected",
+        "Select a person before importing workout history.",
+        [{ text: "OK" }],
+        "error",
+      )
+      return
+    }
+
+    try {
+      const pickerResult = await DocumentPicker.getDocumentAsync({
+        type: [
+          "text/csv",
+          "text/comma-separated-values",
+          "public.comma-separated-values-text",
+          "*/*",
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      })
+
+      if (pickerResult.canceled) return
+
+      const fileUri = pickerResult.assets?.[0]?.uri
+      if (!fileUri) return
+
+      setIsImporting(true)
+
+      const csvText = await new ExpoFile(fileUri).text()
+
+      const result = await importStrengthLevelCSV(csvText, selectedPerson)
+
+      if (result.sessionsCreated > 0 && isMountedRef.current) {
+        await syncFromServer()
+        await loadSessions()
+      }
+
+      if (!isMountedRef.current) return
+
+      const summary =
+        `Imported ${result.setsImported} set${result.setsImported === 1 ? "" : "s"} ` +
+        `across ${result.sessionsCreated} session${result.sessionsCreated === 1 ? "" : "s"}.` +
+        (result.skipped > 0 ? `\n${result.skipped} row(s) were skipped.` : "")
+
+      alert(
+        result.errors.length > 0
+          ? "Import Completed with Issues"
+          : "Import Successful",
+        result.errors.length > 0
+          ? `${summary}\n\n${result.errors.slice(0, 3).join("\n")}`
+          : summary,
+        [{ text: "OK" }],
+        result.errors.length > 0 ? "error" : "success",
+      )
+    } catch (error) {
+      console.error("Error importing CSV:", error)
+      if (isMountedRef.current) {
+        alert(
+          "Import Failed",
+          error instanceof Error
+            ? error.message
+            : "Failed to import the CSV file.",
+          [{ text: "OK" }],
+          "error",
+        )
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsImporting(false)
+      }
+    }
+  }, [selectedPerson, syncFromServer, loadSessions, alert])
+
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+      <View style={styles.importRow}>
+        <TouchableOpacity
+          style={[
+            styles.importButton,
+            isImporting && styles.importButtonDisabled,
+          ]}
+          onPress={handleImportCSV}
+          disabled={isImporting}
+          activeOpacity={0.7}
+        >
+          {isImporting ? (
+            <ActivityIndicator size='small' color='#fff' />
+          ) : (
+            <Text style={styles.importButtonText}>
+              📥 Import from Strength Level CSV
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
       <ExerciseAnalytics
         sessions={sessions}
         workoutData={workoutData}
@@ -170,3 +275,26 @@ export default function AnalyticsScreen(): React.JSX.Element {
     </SafeAreaView>
   )
 }
+
+const styles = StyleSheet.create({
+  importRow: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  importButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  importButtonDisabled: {
+    opacity: 0.6,
+  },
+  importButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
+  },
+})

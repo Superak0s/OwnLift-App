@@ -61,6 +61,7 @@ export type {
   PendingFriendRequest,
   SentFriendRequest,
   UserSearchResult,
+  ContactFriendSuggestion,
 } from "./friends"
 
 // Sharing
