@@ -16,8 +16,11 @@ import ModalSheet from "@shared/components/ModalSheet"
 import type { ChartData } from "react-native-chart-kit/dist/HelperTypes"
 
 // Canonical shared + feature types — no local redefinitions.
-import type { WorkoutData } from "@shared/types"
-import type { SetTiming, WorkoutSession } from "@shared/types"
+import type {
+  WorkoutData,
+  SetTiming,
+  FullSessionWithGroups,
+} from "@shared/types"
 import { useTheme } from "@shared/context/ThemeContext"
 
 // Analytics-only types, extracted to keep this file focused on rendering.
@@ -31,9 +34,15 @@ import type {
 
 const { width: screenWidth } = Dimensions.get("window")
 
-// Session is really just the fields ExerciseAnalytics reads from a
-// WorkoutSession — narrow it via Pick instead of duplicating the shape.
-type Session = Pick<WorkoutSession, "day_number" | "start_time" | "set_timings">
+// Session is really just the fields ExerciseAnalytics reads from a full
+// session detail — narrow it via Pick instead of duplicating the shape.
+// NOTE: based on FullSessionWithGroups, not WorkoutSession — the lightweight
+// summary type has no set_timings. fetchSessionHistory(100, true)'s second
+// arg is what triggers the server/context to return full detail.
+type Session = Pick<
+  FullSessionWithGroups,
+  "day_number" | "start_time" | "set_timings"
+>
 
 // ─── Props (kept local — tightly bound to this one component) ─────────────
 

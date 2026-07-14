@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { workoutApi } from "@features/workout"
+import { workoutApi } from "@features/workout/services/index"
 import type { WorkoutSession, SetTiming } from "@shared/types"
 import {
   checkForTypo,

@@ -3,7 +3,7 @@
  * Handles workout session operations
  */
 
-import type { WorkoutData } from "../types/types"
+import type { WorkoutData } from "@shared/types"
 import type { CompletedDays } from "./dayCompletion"
 
 export const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000 // 30 minutes

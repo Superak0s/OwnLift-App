@@ -46,11 +46,11 @@ import { useAlert } from "@shared/components/CustomAlert"
 import ExerciseAnalytics from "@features/analytics/components/ExerciseAnalytics"
 import LiveSessionTab from "./components/LiveSessionTab"
 import { friendsApi, sharingApi } from "./services"
-import { collectHashedContactEmails } from "./services/on/contactsMatching"
+import { collectHashedContactEmails } from "./services/contactsMatching"
 import {
   buildFriendQrPayload,
   parseFriendQrPayload,
-} from "./services/on/qrFriendCode"
+} from "./services/qrFriendCode"
 import type {
   Friend,
   GrantedPermission,

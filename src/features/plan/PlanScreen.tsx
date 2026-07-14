@@ -24,8 +24,8 @@ import {
   getAllExerciseNames,
   getAllMuscleGroups,
 } from "@utils/exerciseMatching"
-import { workoutApi } from "@features/workout"
-import { programApi } from "@features/plan"
+import { workoutApi } from "@features/workout/services/index"
+import { programApi } from "@features/plan/services/index"
 import type { WorkoutData, RootStackParamList } from "@shared/types"
 
 // Enable LayoutAnimation on Android

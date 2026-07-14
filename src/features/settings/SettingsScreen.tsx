@@ -32,8 +32,8 @@ import {
   resetServerUrl,
   getDefaultServerUrl,
 } from "@shared/services/config"
-import { bodyTrackingApi } from "@features/tracking"
-import { workoutApi } from "@features/workout"
+import { bodyTrackingApi } from "@features/tracking/services/index"
+import { workoutApi } from "@features/workout/services/index"
 import type {
   WorkoutData,
   WorkoutSession,

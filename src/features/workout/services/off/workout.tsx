@@ -17,7 +17,7 @@ import {
   offlineUnsupported,
   readJSON,
   writeJSON,
-} from "@shared/services/storage"
+} from "@shared/services/offlineHelpers"
 // Reuse the exact same types as the server-backed implementation so both
 // sides of the dispatch proxy line up structurally.
 import type {
@@ -32,7 +32,7 @@ import type {
 // internals. This is still a cross-feature dependency in principle — see
 // the earlier flag about whether "delete sessions" cascading into "delete
 // program" belongs here at all, or should move to the caller instead.
-import { programApi } from "@features/plan"
+import { programApi } from "@features/plan/services/index"
 
 // ─── Storage shape ──────────────────────────────────────────────────────────
 

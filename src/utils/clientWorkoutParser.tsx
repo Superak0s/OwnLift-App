@@ -24,7 +24,7 @@
 
 import XLSX from "xlsx"
 import * as FileSystem from "expo-file-system/legacy"
-import type { WorkoutData, WorkoutDay } from "../types/types"
+import type { WorkoutData, WorkoutDay } from "@shared/types"
 
 const MAX_TOTAL_COLUMNS = 52
 const MAX_FILE_BYTES = 5 * 1024 * 1024 // 5 MB

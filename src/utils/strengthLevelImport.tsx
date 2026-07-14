@@ -4,7 +4,10 @@
 // Expected header:
 // Date Lifted,Exercise,Weight (kg),Weight (lb),Reps,Bodyweight (kg),Bodyweight (lb),Percentile (%),Warmup
 
-import { startSession, recordSet, endSession } from "../services/api"
+import { workoutApi } from "@features/workout/services/index"
+const startSession = workoutApi.startSession
+const recordSet = workoutApi.recordSet
+const endSession = workoutApi.endSession
 
 export interface StrengthLevelRow {
   date: string // e.g. "2026-01-13"

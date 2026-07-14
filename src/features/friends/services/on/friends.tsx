@@ -1,5 +1,5 @@
 // features/friends/services/on/friends.tsx
-import { getServerUrl } from "@shared/services/on/config"
+import { getServerUrl } from "@shared/services/config"
 import { authenticatedFetch } from "@shared/services/authenticatedFetch"
 import type {
   Friend,

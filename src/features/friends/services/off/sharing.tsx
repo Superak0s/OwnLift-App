@@ -1,5 +1,5 @@
 // features/friends/services/off/sharing.tsx
-import { offlineUnsupported } from "@shared/services/off/offlineHelpers"
+import { offlineUnsupported } from "@shared/services/offlineHelpers"
 import type {
   PermissionType,
   JointInviteParams,

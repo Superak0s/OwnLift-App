@@ -1,5 +1,5 @@
 // features/friends/services/off/friends.tsx
-import { offlineUnsupported } from "@shared/services/off/storage"
+import { offlineUnsupported } from "@shared/services/offlineHelpers"
 import type {
   Friend,
   PendingFriendRequest,
