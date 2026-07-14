@@ -1,6 +1,6 @@
 // Utility functions for exercise name matching and suggestions
 
-import type { WorkoutData } from "../types/index"
+import type { WorkoutData } from "../types/types"
 
 export interface SimilarityMatch {
   name: string

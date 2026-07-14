@@ -3,7 +3,7 @@
  * Handles workout time estimation and calculations
  */
 
-import type { WorkoutData } from "../types/index"
+import type { WorkoutData } from "../types/types"
 import type { CompletedDays } from "./dayCompletion"
 
 /**
