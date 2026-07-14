@@ -85,6 +85,7 @@ export interface WorkoutSession {
 }
 
 /** Full session detail returned by getSession */
+/** Full session detail returned by getSession */
 export interface SetTiming {
   exercise_name?: string
   set_index: number
@@ -96,6 +97,9 @@ export interface SetTiming {
   /** Duration in seconds for the set */
   set_duration?: number
   exercise_id?: string | number
+  exercise_index?: number
+  /** Same caveat as exercise_index — inferred from usage, not confirmed. */
+  exercise_muscle_group?: string
 }
 
 export interface FullSession {

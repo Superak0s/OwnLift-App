@@ -17,9 +17,9 @@ import {
 } from "react-native"
 import { sharingApi } from "../services"
 import { useTheme } from "@shared/context/ThemeContext"
-import type { Friend } from "@shared/services/api" // confirm actual export path
 import type { SetTiming } from "@shared/types"
 import type {
+  Friend,
   LiveData,
   Exercise,
   ProgramDay,
@@ -114,7 +114,7 @@ function SetBubble({ setIndex, setData }: SetBubbleProps) {
   const { colors } = useTheme()
   const bbl = makeBblStyles(colors)
   const done = !!setData
-  const isWarmup = done && (setData?.isWarmup ?? false)
+  const isWarmup = done && (setData?.is_warmup ?? false)
 
   return (
     <View

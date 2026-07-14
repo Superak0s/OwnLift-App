@@ -13,7 +13,7 @@ import {
   nowIso,
   readJSON,
   writeJSON,
-} from "@shared/services/off/offlineHelpers"
+} from "@shared/services/offlineHelpers"
 import type {
   AtLocationResult,
   CreateSupplementParams,

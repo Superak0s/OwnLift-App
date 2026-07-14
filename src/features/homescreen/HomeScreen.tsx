@@ -18,8 +18,8 @@ import type { ThemeColors } from "@shared/context/ThemeContext"
 import UniversalCalendar from "@shared/components/UniversalCalendar"
 import ModalSheet from "@shared/components/ModalSheet"
 import { useAlert } from "@shared/components/CustomAlert"
-import { workoutApi } from "@features/workout"
-import { programApi } from "@features/plan"
+import { workoutApi } from "@features/workout/services/index"
+import { programApi } from "@features/plan/services/index"
 import type {
   WorkoutData,
   WorkoutSession,

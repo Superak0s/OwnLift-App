@@ -41,7 +41,7 @@ import type {
   DailyMacrosStats,
   BodyFatEntry,
   ProgressPhoto,
-} from "./services" // TODO: confirm these are actually exported here — move to types.ts if not
+} from "@shared/types" // TODO: confirm these are actually exported here — move to types.ts if not
 
 // ─────────────────────────────────────────────────────────────────────────────
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window")
