@@ -3,7 +3,7 @@
  * Handles day completion checks and validations
  */
 
-import type { WorkoutData } from "../types/index"
+import type { WorkoutData } from "../types/types"
 
 export type CompletedSets = Record<number, Record<number, SetDetails>>
 export type CompletedDays = Record<number, CompletedSets>
