@@ -12,7 +12,7 @@ export const authenticatedFetch = async (
   // Callers that already pass an absolute URL (http/https) are left untouched.
   const resolvedUrl = /^https?:\/\//i.test(url) ? url : `${getServerUrl()}${url}`
 
-  console.log(`[API] Calling: ${resolvedUrl}`)
+  if (__DEV__) console.log(`[API] Calling: ${resolvedUrl}`)
   const token = await tokenStorage.get()
 
   const headers: Record<string, string> = {
@@ -24,7 +24,13 @@ export const authenticatedFetch = async (
   const response = await fetch(resolvedUrl, { ...options, headers })
 
   if (response.status === 401) {
-    const data = await response.json()
+    // Read a CLONE so the original response body stays intact for callers
+    // that handle non-expiry 401s themselves (reading it here would leave the
+    // returned response with an already-consumed body → "Already read" throw).
+    const data = await response
+      .clone()
+      .json()
+      .catch(() => ({}) as { error?: string })
     if (data.error === "Token expired" || data.error?.includes("expired")) {
       console.warn("⚠️ Token expired - clearing token")
       await tokenStorage.clear()
