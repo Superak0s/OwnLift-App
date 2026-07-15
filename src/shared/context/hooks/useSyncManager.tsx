@@ -105,9 +105,13 @@ export const useSyncManager = ({
               for (let j = i + 1; j < workingSyncs.length; j++) {
                 const ps = workingSyncs[j]
                 if (
-                  ps.type === "recordSet" &&
+                  (ps.type === "recordSet" || ps.type === "endSession") &&
                   ps.data.sessionId === sync.localSessionId
                 ) {
+                  // Without remapping endSession too, a session started AND
+                  // ended offline keeps its local ID here, hits the
+                  // startsWith("local_") guard below, gets dropped, and the
+                  // session stays open on the server forever.
                   ps.data.sessionId = serverIdStr
                 }
               }
