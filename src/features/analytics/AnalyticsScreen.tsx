@@ -5,12 +5,13 @@ import { useWorkout } from "@shared/context/WorkoutContext"
 import { useAuth } from "@shared/context/AuthContext"
 import { useAlert } from "@shared/components/CustomAlert"
 import ExerciseAnalytics from "./components/ExerciseAnalytics"
-import type { WorkoutSession } from "@shared/types"
+import type { FullSessionWithGroups } from "@shared/types"
+import { getCurrentBodyWeight } from "@features/tracking/services"
 
 export default function AnalyticsScreen(): React.JSX.Element {
   const {
     workoutData,
-    selectedPerson,
+    selectedSplit,
     completedDays,
     isDemoMode,
     syncFromServer,
@@ -24,7 +25,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
   const [currentBodyWeight, setCurrentBodyWeight] = useState<number | null>(
     null,
   )
-  const [sessions, setSessions] = useState<WorkoutSession[]>([])
+  const [sessions, setSessions] = useState<FullSessionWithGroups[]>([])
   const [refreshing, setRefreshing] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,10 +71,10 @@ export default function AnalyticsScreen(): React.JSX.Element {
 
   // Load sessions when person changes
   useEffect(() => {
-    if (selectedPerson) {
+    if (selectedSplit) {
       loadSessions()
     }
-  }, [selectedPerson])
+  }, [selectedSplit])
 
   const loadSessions = useCallback(async (): Promise<void> => {
     if (!isMountedRef.current) return
@@ -89,7 +90,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
       const sessionsData = await fetchSessionHistory(100, true)
 
       if (isMountedRef.current) {
-        setSessions((sessionsData as WorkoutSession[]) || []) // ← add cast
+        setSessions((sessionsData as FullSessionWithGroups[]) || [])
         setIsLoading(false)
       }
     } catch (error) {
@@ -155,7 +156,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
       <ExerciseAnalytics
         sessions={sessions}
         workoutData={workoutData}
-        selectedPerson={selectedPerson}
+        selectedSplit={selectedSplit}
         completedDays={completedDays}
         currentBodyWeight={currentBodyWeight}
         isDemoMode={isDemoMode}

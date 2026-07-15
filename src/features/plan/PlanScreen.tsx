@@ -26,7 +26,29 @@ import {
 } from "@utils/exerciseMatching"
 import { workoutApi } from "@features/workout/services/index"
 import { programApi } from "@features/plan/services/index"
-import type { WorkoutData, RootStackParamList } from "@shared/types"
+import type { WorkoutData, RootStackParamList, WorkoutDay } from "@shared/types"
+
+// ─── Draft types for the day editor ────────────────────────────────────────
+// Not part of the canonical WorkoutData model — these are local, flat,
+// string-valued editing scratch types used only while a day is being
+// edited. `startEditing` converts the real per-person exercises[] into
+// this shape, and `handleSubmitEdits` converts it back before saving.
+
+interface ExerciseDraft {
+  name: string
+  muscleGroup: string
+  setsByPerson: Record<string, string>
+}
+
+interface DayDraft {
+  exercises: ExerciseDraft[]
+}
+
+const EMPTY_EXERCISE = (people: string[]): ExerciseDraft => ({
+  name: "",
+  muscleGroup: "",
+  setsByPerson: Object.fromEntries(people.map((p) => [p, "0"])),
+})
 
 // Enable LayoutAnimation on Android
 if (
@@ -44,7 +66,7 @@ export default function PlanScreen({
 }: PlanScreenProps): React.JSX.Element {
   const { colors } = useTheme()
   const styles = makeStyles(colors)
-  const { workoutData, selectedPerson, saveWorkoutData, saveSelectedPerson } =
+  const { workoutData, selectedSplit, saveWorkoutData, saveSelectedSplit } =
     useWorkout()
   const { alert, AlertComponent } = useAlert()
   const [isUploading, setIsUploading] = useState<boolean>(false)
@@ -123,24 +145,24 @@ export default function PlanScreen({
     }
   }
 
-  const handleSelectPerson = (person: string): void => {
-    saveSelectedPerson(person)
+  const handleSelectSplit = (split: string): void => {
+    saveSelectedSplit(split)
     alert(
       "Success",
-      `Selected ${person}'s workout plan`,
+      `Selected the ${split} split`,
       [{ text: "OK" }],
       "success",
     )
   }
 
-  const getPersonWorkoutSummary = (person: string) => {
+  const getSplitWorkoutSummary = (split: string) => {
     if (!workoutData?.days) return null
     let totalSets = 0
     let totalDays = 0
-    workoutData.days.forEach((day) => {
-      if (day.people[person]?.exercises.length > 0) {
+    workoutData.days.forEach((day: WorkoutDay) => {
+      if (day.people[split]?.exercises.length > 0) {
         totalDays++
-        totalSets += day.people[person].totalSets || 0
+        totalSets += day.people[split].totalSets || 0
       }
     })
     return { totalSets, totalDays }
@@ -193,7 +215,7 @@ export default function PlanScreen({
 
     // Compute suggestions
     if (field === "name") {
-      const allNames = getAllExerciseNames(workoutData, selectedPerson)
+      const allNames = getAllExerciseNames(workoutData, selectedSplit)
       const exact = findExactMatch(value, allNames)
       if (exact || value.trim().length < 2) {
         setNameSuggestions((prev) => ({ ...prev, [exIdx]: [] }))
@@ -206,7 +228,7 @@ export default function PlanScreen({
     }
 
     if (field === "muscleGroup") {
-      const allMg = getAllMuscleGroups(workoutData, selectedPerson)
+      const allMg = getAllMuscleGroups(workoutData, selectedSplit)
       const exact = findExactMatch(value, allMg)
       if (exact || value.trim().length < 2) {
         setMgSuggestions((prev) => ({ ...prev, [exIdx]: [] }))
@@ -233,7 +255,7 @@ export default function PlanScreen({
     if (!dayDraft) return
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
     setDayDraft({
-      exercises: [...dayDraft.exercises, EMPTY_EXERCISE(programPeople)],
+      exercises: [...dayDraft.exercises, EMPTY_EXERCISE(programSplits)],
     })
   }
 
@@ -377,8 +399,8 @@ export default function PlanScreen({
     }>
   } | null
 
-  const programPeople: string[] = wd?.people ?? []
-  const allOptions = ["All", ...programPeople]
+  const programSplits: string[] = wd?.people ?? []
+  const allOptions = ["All", ...programSplits]
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -388,7 +410,7 @@ export default function PlanScreen({
           <View style={styles.header}>
             <Text style={styles.title}>📋 Workout Plan</Text>
             <Text style={styles.subtitle}>
-              Upload your workout plan and choose who's training
+              Upload your workout plan and choose your split
             </Text>
           </View>
 
@@ -421,7 +443,7 @@ export default function PlanScreen({
                 </Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>People:</Text>
+                <Text style={styles.summaryLabel}>Splits:</Text>
                 <Text style={styles.summaryValue}>
                   {workoutData.people?.join(", ")}
                 </Text>
@@ -441,21 +463,21 @@ export default function PlanScreen({
             </View>
           )}
 
-          {/* Person selector */}
+          {/* Split selector */}
           {workoutData && workoutData.people && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Select Your Profile</Text>
-              {workoutData.people.map((person: string) => {
-                const summary = getPersonWorkoutSummary(person)
-                const isSelected = selectedPerson === person
+              <Text style={styles.sectionTitle}>Select Your Split</Text>
+              {workoutData.people.map((split: string) => {
+                const summary = getSplitWorkoutSummary(split)
+                const isSelected = selectedSplit === split
                 return (
                   <TouchableOpacity
-                    key={person}
+                    key={split}
                     style={[
                       styles.personCard,
                       isSelected && styles.personCardSelected,
                     ]}
-                    onPress={() => handleSelectPerson(person)}
+                    onPress={() => handleSelectSplit(split)}
                   >
                     <View style={styles.personCardHeader}>
                       <Text
@@ -464,7 +486,7 @@ export default function PlanScreen({
                           isSelected && styles.personNameSelected,
                         ]}
                       >
-                        {person}
+                        {split}
                       </Text>
                       {isSelected && <Text style={styles.checkmark}>✓</Text>}
                     </View>
@@ -808,7 +830,7 @@ export default function PlanScreen({
                 2. Select your .ods, .xlsx, or .xls workout file
               </Text>
               <Text style={styles.instructionStep}>
-                3. Choose your profile (GF or BF)
+                3. Choose your split
               </Text>
               <Text style={styles.instructionStep}>
                 4. Head to the Home tab to pick your day and start!

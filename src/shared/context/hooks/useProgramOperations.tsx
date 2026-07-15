@@ -1,6 +1,6 @@
 import { useCallback } from "react"
-import { programApi } from "../../services/api"
-import type { WorkoutData } from "../../types/index"
+import { programApi } from "@features/plan/services/index"
+import type { WorkoutData } from "../../types"
 
 /**
  * Program Operations Hook

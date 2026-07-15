@@ -1,6 +1,6 @@
 import React from "react"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
-import type { AppMode } from "../../services/api"
+import type { AppMode } from "@shared/services/appMode"
 
 interface ServerModeToggleProps {
   mode: AppMode

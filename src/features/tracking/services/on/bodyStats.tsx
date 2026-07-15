@@ -126,13 +126,13 @@ export const bodyTrackingApi = {
 
   /**
    * Get current weight
-   * GET /api/tracking/bodystats/current
+   * GET /api/tracking/bodystats/weight/current
    */
   getCurrentWeight: async (): Promise<{ entry?: { weight_kg: number } }> => {
     try {
       const API_BASE_URL = getServerUrl()
       const response = await authenticatedFetch(
-        `${API_BASE_URL}/api/tracking/bodystats/current`,
+        `${API_BASE_URL}/api/tracking/bodystats/weight/current`,
       )
       const data = await response.json()
       if (!response.ok)

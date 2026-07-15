@@ -2,7 +2,7 @@
 import Constants from "expo-constants"
 import { getServerUrl } from "./config"
 
-const MINIMUM_SERVER_VERSION = "1.3.0"
+const MINIMUM_SERVER_VERSION = "1.5.0"
 
 export interface ParsedVersion {
   major: number

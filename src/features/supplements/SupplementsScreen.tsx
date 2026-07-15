@@ -25,6 +25,7 @@ import { useAlert } from "@shared/components/CustomAlert"
 import { useTheme } from "@shared/context/ThemeContext"
 import type { ThemeColors } from "@shared/context/ThemeContext"
 import type { SupplementTemplate } from "./types"
+import { formatDate as formatDateUtil, formatClockTime } from "@utils/format"
 
 const DEFAULT_SUPPLEMENT_TEMPLATES: SupplementTemplate[] = [
   {
@@ -321,14 +322,10 @@ export default function SupplementsScreen(): React.JSX.Element {
 
   // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    return (
-      d.toLocaleDateString([], { month: "short", day: "numeric" }) +
-      " " +
-      d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    )
-  }
+  const formatDate = (iso: string) =>
+    formatDateUtil(iso, { month: "short", day: "numeric" }) +
+    " " +
+    formatClockTime(iso, { hour: "2-digit", minute: "2-digit" })
 
   const alreadyAdded = (template: SupplementTemplate) =>
     supplements.some(

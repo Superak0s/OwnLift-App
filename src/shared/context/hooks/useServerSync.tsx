@@ -1,5 +1,6 @@
 import { useCallback } from "react"
-import { getSessionHistory, getSession, programApi } from "../../services/api"
+import { programApi } from "@features/plan/services/index"
+import { workoutApi } from "@features/workout/services/index"
 import type {
   WorkoutData,
   CompletedDays,
@@ -7,7 +8,7 @@ import type {
   WorkoutSession,
   FullSession,
   SavedProgram,
-} from "../../types/index"
+} from "../../types"
 
 /**
  * Server Sync Hook
@@ -16,7 +17,7 @@ import type {
 
 export interface UseServerSyncOptions {
   userId: string | null
-  selectedPerson: string | null
+  selectedSplit: string | null
   workoutData: WorkoutData | null
   setWorkoutData: (data: WorkoutData) => void
   completedDays: CompletedDays
@@ -61,7 +62,7 @@ function getCurrentWeekMonday(): Date {
 
 export const useServerSync = ({
   userId,
-  selectedPerson,
+  selectedSplit,
   workoutData,
   setWorkoutData,
   completedDays,
@@ -83,8 +84,8 @@ export const useServerSync = ({
       includeTimings: boolean = false,
     ): Promise<WorkoutSession[]> => {
       try {
-        const sessions = await getSessionHistory(
-          selectedPerson,
+        const sessions = await workoutApi.getSessionHistory(
+          selectedSplit,
           null,
           limit,
           includeTimings,
@@ -95,7 +96,7 @@ export const useServerSync = ({
         return []
       }
     },
-    [selectedPerson],
+    [selectedSplit],
   )
 
   /**
@@ -104,7 +105,7 @@ export const useServerSync = ({
   const syncFromServer = useCallback(async (): Promise<
     CompletedDays | undefined
   > => {
-    if (!userId || !selectedPerson || !workoutData?.days) return
+    if (!userId || !selectedSplit || !workoutData?.days) return
 
     console.log("🔄 Syncing completedDays from server...")
 
@@ -144,8 +145,15 @@ export const useServerSync = ({
                   const localExCount =
                     localPersonWorkout?.exercises?.length ?? 0
 
+                  // Exercise count is only a crude proxy for "which side is
+                  // newer". On a tie, prefer the LOCAL copy: an equal count can
+                  // hide an un-pushed local rename or set-change, and taking the
+                  // server copy would silently revert it. Only let the server
+                  // win when it strictly has more exercises.
+                  // TODO: replace this heuristic with real program versioning /
+                  // updatedAt timestamps for a correct last-writer-wins merge.
                   mergedPeople[person] =
-                    serverExCount >= localExCount
+                    serverExCount > localExCount
                       ? serverPersonWorkout
                       : localPersonWorkout
                 })
@@ -168,8 +176,8 @@ export const useServerSync = ({
       }
 
       // ── Fetch session list ───────────────────────────────────────────────
-      const allSessions = (await getSessionHistory(
-        selectedPerson,
+      const allSessions = (await workoutApi.getSessionHistory(
+        selectedSplit,
         null,
         100,
       )) as WorkoutSession[]
@@ -198,7 +206,7 @@ export const useServerSync = ({
       const sessionResults = await Promise.all(
         sessions.map(async (session) => {
           try {
-            const full = await getSession(String(session.id))
+            const full = await workoutApi.getSession(String(session.id))
             return full as FullSession
           } catch (err) {
             console.warn(
@@ -237,7 +245,7 @@ export const useServerSync = ({
         )
         if (!day) continue
 
-        const personWorkout = day.people[selectedPerson]
+        const personWorkout = day.people[selectedSplit]
         if (!personWorkout?.exercises) continue
 
         if (!newCompletedDays[dayNumber]) {
@@ -333,7 +341,7 @@ export const useServerSync = ({
     }
   }, [
     userId,
-    selectedPerson,
+    selectedSplit,
     workoutData,
     setWorkoutData,
     completedDays,

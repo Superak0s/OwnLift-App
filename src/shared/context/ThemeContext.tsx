@@ -42,7 +42,7 @@ import React, {
 } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useColorScheme } from "react-native"
-import themesData from "../../context/themes.json"
+import themesData from "./themes.json"
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 

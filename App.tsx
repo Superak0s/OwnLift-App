@@ -46,12 +46,12 @@ import { ThemeProvider, useTheme } from "./src/shared/context/ThemeContext"
 import LoginScreen from "./src/features/auth/LoginScreen"
 import SignupScreen from "./src/features/auth/SignupScreen"
 import HomeScreen from "./src/features/homescreen/HomeScreen"
-import WorkoutScreen from "./src/screens/WorkoutScreen"
+import WorkoutScreen from "./src/features/workout/WorkoutScreen"
 import AnalyticsScreen from "./src/features/analytics/AnalyticsScreen"
-import TrackingScreen from "./src/screens/TrackingScreen"
-import SupplementsScreen from "./src/screens/SupplementsScreen"
+import TrackingScreen from "./src/features/tracking/TrackingScreen"
+import SupplementsScreen from "./src/features/supplements/SupplementsScreen"
 import FriendsScreen from "./src/features/friends/FriendsScreen"
-import SettingsScreen from "./src/screens/SettingsScreen"
+import SettingsScreen from "./src/features/settings/SettingsScreen"
 import PlanScreen from "./src/features/plan/PlanScreen"
 
 import {
@@ -441,19 +441,26 @@ function MainTabs() {
       try {
         const notificationsReady = await initializeSupplementNotifications()
         if (!notificationsReady) return
-        const creatineSettingsKey = `creatineSettings_user_${user.id}`
-        const settingsStr = await AsyncStorage.getItem(creatineSettingsKey)
-        if (!settingsStr) return
-        const settings = JSON.parse(settingsStr) as {
-          locationBasedReminder?: boolean
-          enabled?: boolean
-        }
-        if (settings.locationBasedReminder && settings.enabled) {
-          const isRegistered = await isLocationTaskRegistered()
-          if (!isRegistered) await registerLocationTask()
-        } else {
-          const isRegistered = await isLocationTaskRegistered()
-          if (isRegistered) await unregisterLocationTask()
+        // Re-register the background location task on startup if any
+        // supplement still has a location-based reminder enabled. (This used
+        // to read a legacy creatine-only settings key; supplement reminders
+        // now live under supplementReminderConfigs_user_*.)
+        const configsKey = `supplementReminderConfigs_user_${user.id}`
+        const raw = await AsyncStorage.getItem(configsKey)
+        const configs = raw
+          ? (JSON.parse(raw) as Array<{
+              locationBasedReminder?: boolean
+              enabled?: boolean
+            }>)
+          : []
+        const anyLocationEnabled = configs.some(
+          (c) => c.locationBasedReminder && c.enabled,
+        )
+        const isRegistered = await isLocationTaskRegistered()
+        if (anyLocationEnabled && !isRegistered) {
+          await registerLocationTask()
+        } else if (!anyLocationEnabled && isRegistered) {
+          await unregisterLocationTask()
         }
       } catch (error) {
         console.error("❌ Error initializing supplement reminders:", error)

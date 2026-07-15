@@ -31,7 +31,10 @@ import {
   checkForTypo,
   checkMuscleGroupForTypo,
   getCanonicalName,
+  normalizeExerciseName,
 } from "@utils/exerciseMatching"
+import { formatTime as formatDuration } from "@utils/timeEstimation"
+import { formatDate as formatDateUtil } from "@utils/format"
 import type { WorkoutData } from "@shared/types"
 import type { CompletedDays } from "@shared/types"
 import type { SetDetails, SimilarityMatch, PartnerBannerProps } from "./types"
@@ -269,7 +272,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   const { isTabBarCollapsed } = useTabBar()
   const {
     workoutData,
-    selectedPerson,
+    selectedSplit,
     currentDay,
     completedDays,
     saveSetDetails: saveSetDetailsCtx,
@@ -378,21 +381,21 @@ export default function WorkoutScreen(): React.JSX.Element {
     unknown
   > | null>(null)
 
-  const allExerciseNames = getAllExerciseNames(workoutData, selectedPerson)
-  const allMuscleGroups = getAllMuscleGroups(workoutData, selectedPerson)
+  const allExerciseNames = getAllExerciseNames(workoutData, selectedSplit)
+  const allMuscleGroups = getAllMuscleGroups(workoutData, selectedSplit)
   const isCurrentDayLocked = isDayLocked(currentDay)
   const areAllSetsComplete = isDayComplete(currentDay)
 
   const getCurrentDayWorkout = (): Record<string, unknown> | null => {
-    if (!workoutData?.days || !selectedPerson) return null
+    if (!workoutData?.days || !selectedSplit) return null
     const day = workoutData.days.find((d) => d.dayNumber === currentDay)
-    if (!day || !day.people[selectedPerson]) return null
+    if (!day || !day.people[selectedSplit]) return null
     return {
       dayNumber: day.dayNumber,
       dayTitle: day.dayTitle,
       muscleGroups: day.muscleGroups,
-      exercises: day.people[selectedPerson].exercises || [],
-      totalSets: day.people[selectedPerson].totalSets || 0,
+      exercises: day.people[selectedSplit].exercises || [],
+      totalSets: day.people[selectedSplit].totalSets || 0,
     }
   }
   const dayWorkout = getCurrentDayWorkout()
@@ -507,7 +510,7 @@ export default function WorkoutScreen(): React.JSX.Element {
           (d) => d.dayNumber === parseInt(dayNumber),
         )
         if (!day) return
-        const pw = day.people[selectedPerson!]
+        const pw = day.people[selectedSplit!]
         if (!pw?.exercises) return
         pw.exercises.forEach((ex, exerciseIndex) => {
           if (
@@ -575,7 +578,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     dayWorkout,
     completedDays,
     workoutData,
-    selectedPerson,
+    selectedSplit,
     allExerciseNames,
   ])
 
@@ -753,7 +756,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     if (tc.exactMatch) {
       updateExerciseName(
         currentDay,
-        selectedPerson!,
+        selectedSplit!,
         editingExercise.index,
         tc.exactMatch,
         trimmedMG,
@@ -777,7 +780,7 @@ export default function WorkoutScreen(): React.JSX.Element {
             onPress: () => {
               updateExerciseName(
                 currentDay,
-                selectedPerson!,
+                selectedSplit!,
                 editingExercise.index,
                 trimmed,
                 trimmedMG,
@@ -790,7 +793,7 @@ export default function WorkoutScreen(): React.JSX.Element {
             onPress: () => {
               updateExerciseName(
                 currentDay,
-                selectedPerson!,
+                selectedSplit!,
                 editingExercise.index,
                 top.name,
                 trimmedMG,
@@ -804,7 +807,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     } else {
       updateExerciseName(
         currentDay,
-        selectedPerson!,
+        selectedSplit!,
         editingExercise.index,
         trimmed,
         trimmedMG,
@@ -823,7 +826,7 @@ export default function WorkoutScreen(): React.JSX.Element {
       )
       return
     }
-    addExtraSetsToExercise(currentDay, selectedPerson!, exerciseIndex, 1)
+    addExtraSetsToExercise(currentDay, selectedSplit!, exerciseIndex, 1)
   }
 
   const handleAddMultipleSets = useCallback(
@@ -867,7 +870,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     }
     addExtraSetsToExercise(
       currentDay,
-      selectedPerson!,
+      selectedSplit!,
       addingSetsExercise.index as number,
       sets,
     )
@@ -917,7 +920,7 @@ export default function WorkoutScreen(): React.JSX.Element {
       trimmedMG = muscleGroup.trim()
     const tc = checkForTypo(trimmed, allExerciseNames)
     if (tc.exactMatch) {
-      addNewExercise(currentDay, selectedPerson!, {
+      addNewExercise(currentDay, selectedSplit!, {
         name: tc.exactMatch,
         muscleGroup: trimmedMG,
         sets: setsNum,
@@ -941,7 +944,7 @@ export default function WorkoutScreen(): React.JSX.Element {
             text: "Use Original",
             style: "cancel",
             onPress: () => {
-              addNewExercise(currentDay, selectedPerson!, {
+              addNewExercise(currentDay, selectedSplit!, {
                 name: trimmed,
                 muscleGroup: trimmedMG,
                 sets: setsNum,
@@ -952,7 +955,7 @@ export default function WorkoutScreen(): React.JSX.Element {
           {
             text: `Use "${top.name}"`,
             onPress: () => {
-              addNewExercise(currentDay, selectedPerson!, {
+              addNewExercise(currentDay, selectedSplit!, {
                 name: top.name,
                 muscleGroup: trimmedMG,
                 sets: setsNum,
@@ -965,7 +968,7 @@ export default function WorkoutScreen(): React.JSX.Element {
       )
       return
     }
-    addNewExercise(currentDay, selectedPerson!, {
+    addNewExercise(currentDay, selectedSplit!, {
       name: trimmed,
       muscleGroup: trimmedMG,
       sets: setsNum,
@@ -1041,14 +1044,10 @@ export default function WorkoutScreen(): React.JSX.Element {
     )
   }, [dayWorkout, getExerciseCompletedSets, currentDay])
 
-  const formatTime = useCallback((seconds: number): string => {
-    const h = Math.floor(seconds / 3600),
-      m = Math.floor((seconds % 3600) / 60),
-      s = seconds % 60
-    if (h > 0) return `${h}h ${m}m`
-    if (m > 0) return `${m}m ${s}s`
-    return `${s}s`
-  }, [])
+  const formatTime = useCallback(
+    (seconds: number): string => formatDuration(seconds),
+    [],
+  )
 
   const formatEndTime = useCallback(
     (d: Date | null): string =>
@@ -1058,15 +1057,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     [],
   )
 
-  const formatDate = useCallback(
-    (d: Date): string =>
-      d.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-    [],
-  )
+  const formatDate = useCallback((d: Date): string => formatDateUtil(d), [])
 
   const isAssistedExercise = useCallback(
     (name: string): boolean => name.toLowerCase().includes("assisted"),
@@ -1081,11 +1072,11 @@ export default function WorkoutScreen(): React.JSX.Element {
     if (!partnerExerciseNames?.length) return new Set<string>()
     const partnerSet = new Set<string>(
       partnerExerciseNames.map((e) =>
-        (typeof e === "string" ? e : e.name).trim().toLowerCase(),
+        normalizeExerciseName(typeof e === "string" ? e : e.name),
       ),
     )
     const myExerciseNames = ((dayWorkout?.exercises ?? []) as any[])
-      .map((ex: any) => ex.name?.trim().toLowerCase())
+      .map((ex: any) => (ex.name ? normalizeExerciseName(ex.name) : undefined))
       .filter(Boolean) as string[]
     return new Set<string>(myExerciseNames.filter((n) => partnerSet.has(n)))
   }, [isInJointSession, jointSession?.participants, dayWorkout])
@@ -1101,13 +1092,13 @@ export default function WorkoutScreen(): React.JSX.Element {
         </Text>
       </View>
     )
-  if (!selectedPerson)
+  if (!selectedSplit)
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyIcon}>👤</Text>
-        <Text style={styles.emptyTitle}>No Profile Selected</Text>
+        <Text style={styles.emptyTitle}>No Split Selected</Text>
         <Text style={styles.emptyText}>
-          Go to the Home tab to select your profile
+          Go to the Plan tab to select your split
         </Text>
       </View>
     )
@@ -1117,7 +1108,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         <Text style={styles.emptyIcon}>🤷</Text>
         <Text style={styles.emptyTitle}>No Workout for This Day</Text>
         <Text style={styles.emptyText}>
-          {selectedPerson} has no exercises scheduled for Day {currentDay}
+          {selectedSplit} has no exercises scheduled for Day {currentDay}
         </Text>
       </View>
     )
@@ -1286,15 +1277,17 @@ export default function WorkoutScreen(): React.JSX.Element {
               ) as number
               const allDone = completedSets === exercise.sets
               const isAssisted = isAssistedExercise(exercise.name)
-              const exerciseNameLower =
-                exercise.name?.trim().toLowerCase() ?? ""
+              const exerciseNameLower = exercise.name
+                ? normalizeExerciseName(exercise.name)
+                : ""
               const partnerMatchesByName =
                 isInJointSession && partnerNameSet.has(exerciseNameLower)
-              const partnerActiveNameLower = (
-                partnerProgress?.exerciseName as string | undefined
-              )
-                ?.trim()
-                .toLowerCase()
+              const partnerActiveExercise = partnerProgress?.exerciseName as
+                | string
+                | undefined
+              const partnerActiveNameLower = partnerActiveExercise
+                ? normalizeExerciseName(partnerActiveExercise)
+                : undefined
               const partnerOnThis =
                 isInJointSession &&
                 !!partnerActiveNameLower &&
@@ -1392,8 +1385,10 @@ export default function WorkoutScreen(): React.JSX.Element {
                         isInJointSession &&
                         partnerCompletedSets.some(
                           (s) =>
-                            s.exerciseName?.trim().toLowerCase() ===
-                              exerciseNameLower && s.setIndex === setIndex,
+                            (s.exerciseName
+                              ? normalizeExerciseName(s.exerciseName)
+                              : undefined) === exerciseNameLower &&
+                            s.setIndex === setIndex,
                         )
                       const partnerOnSet =
                         partnerOnThis &&

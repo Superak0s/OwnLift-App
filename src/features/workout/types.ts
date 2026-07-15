@@ -1,17 +1,10 @@
 // ─── Set details shape (returned by getSetDetails) ─────────────────────────
-export interface SetDetails {
-  weight?: number
-  reps?: number
-  isWarmup?: boolean
-  note?: string
-  completedAt?: string
-}
+// Canonical shape lives in @shared/types; re-exported here so existing
+// `import { SetDetails } from "./types"` call sites keep working.
+export type { SetDetail as SetDetails } from "@shared/types"
 
 // ─── Similarity match shape ─────────────────────────────────────────────────
-export interface SimilarityMatch {
-  name: string
-  similarity: number
-}
+export type { SimilarityMatch } from "@utils/exerciseMatching"
 
 // ─── Partner banner props ───────────────────────────────────────────────────
 export interface PartnerBannerProps {

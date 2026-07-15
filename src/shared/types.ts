@@ -86,9 +86,12 @@ export interface WorkoutSession {
 
 /** Full session detail returned by getSession */
 /** Full session detail returned by getSession */
+/** Full session detail returned by getSession */
 export interface SetTiming {
+  id?: string | number
   exercise_name?: string
   set_index: number
+  start_time?: string
   end_time: string
   weight?: number
   reps?: number
@@ -98,7 +101,6 @@ export interface SetTiming {
   set_duration?: number
   exercise_id?: string | number
   exercise_index?: number
-  /** Same caveat as exercise_index — inferred from usage, not confirmed. */
   exercise_muscle_group?: string
 }
 
@@ -130,12 +132,21 @@ export interface ServerDay {
   people: Record<string, PersonWorkout>
 }
 
+/**
+ * Program as persisted/returned by programApi.fetchSavedProgram (both the
+ * server and the offline store build this exact shape). `days` holds full
+ * WorkoutDay objects.
+ */
 export interface SavedProgram {
-  days: ServerDay[]
-  success?: boolean
+  success: boolean
+  totalDays: number
+  people: string[]
+  days: WorkoutDay[]
+  originalFilename?: string
+  uploadedAt?: string
 }
 
-// ─── Creatine / location ──────────────────────────────────────────────────────
+// ─── Reminder location ────────────────────────────────────────────────────────
 
 export interface ReminderLocation {
   lat: number
@@ -162,26 +173,6 @@ export interface HeightData {
   unit?: string
 }
 
-export interface CreatineStatus {
-  taken_today?: boolean
-  streak?: number
-  settings?: {
-    timeBasedEnabled?: boolean
-    locationBasedEnabled?: boolean
-    reminderTime?: string
-    defaultGrams?: number
-    notificationType?: string
-  }
-}
-
-export interface CreatineEntry {
-  id: string | number
-  grams?: number
-  taken_at?: string
-  date?: string
-  time?: string
-}
-
 export interface MacrosEntry {
   id: string | number
   protein?: number | null
@@ -193,12 +184,8 @@ export interface MacrosEntry {
   meal_error_margin?: number | null
 }
 
-export interface MacrosGoals {
-  protein: number
-  carbs: number
-  fat: number
-  calories: number
-}
+// NOTE: MacrosGoals is defined in features/tracking/types.ts (the only
+// consumer). It is intentionally NOT duplicated here.
 
 export interface MacrosStat {
   value: number | null
@@ -229,15 +216,6 @@ export interface ProgressPhoto {
   takenAt?: string
   taken_at?: string
   uri?: string
-}
-
-export interface CreatineLocationResponse {
-  location?: {
-    latitude: number
-    longitude: number
-    address: string
-    radius: number
-  }
 }
 
 // ─── Pending sync — discriminated union ───────────────────────────────────────

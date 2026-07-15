@@ -30,7 +30,7 @@ import {
   getBatterySettings,
   BATTERY_PRESETS,
 } from "../../../../tasks/supplementLocationTask"
-import CreatineLocationPicker from "./SupplementLocationPicker"
+import SupplementLocationPicker from "./SupplementLocationPicker"
 import type { SelectedLocation } from "../types"
 import BatterySettingsModal from "./BatterySettingsModal"
 import ModalSheet from "@shared/components/ModalSheet"
@@ -654,7 +654,7 @@ export default function SupplementSettingsModal({
         )}
 
         {/* Sub-modals */}
-        <CreatineLocationPicker
+        <SupplementLocationPicker
           visible={showLocationPicker}
           onClose={() => setShowLocationPicker(false)}
           onLocationSelected={async (loc) => {

@@ -16,18 +16,18 @@ import {
   Animated,
 } from "react-native"
 import { sharingApi } from "../services"
+import { normalizeExerciseName } from "@utils/exerciseMatching"
 import { useTheme } from "@shared/context/ThemeContext"
 import type { SetTiming } from "@shared/types"
 import type {
   Friend,
   LiveData,
-  Exercise,
+  ProgramExercise,
   ProgramDay,
   ReceivedProgram,
   Phase,
   ExerciseEntry,
 } from "../types"
-
 // ─── Local props ────────────────────────────────────────────────────────────
 
 interface LiveSessionTabProps {
@@ -403,14 +403,14 @@ export default function LiveSessionTab({
       { name: string; muscleGroup: string | null; totalSets: number }
     >()
 
-    const exercises: Exercise[] = Array.isArray(day.exercises)
+    const exercises: ProgramExercise[] = Array.isArray(day.exercises)
       ? day.exercises
       : day.people
         ? Object.values(day.people).flatMap((pw) => pw?.exercises ?? [])
         : []
 
     exercises.forEach((e) => {
-      const key = (e.name ?? "").trim().toLowerCase()
+      const key = normalizeExerciseName(e.name ?? "")
       if (!key) return
 
       let totalSets = 0
@@ -438,7 +438,7 @@ export default function LiveSessionTab({
   const exerciseList = useMemo((): ExerciseEntry[] => {
     const completedByExercise = new Map<string, Record<number, SetTiming>>()
     ;(liveData?.set_timings ?? []).forEach((t) => {
-      const key = (t.exercise_name ?? "").trim().toLowerCase()
+      const key = normalizeExerciseName(t.exercise_name ?? "")
       if (!completedByExercise.has(key)) completedByExercise.set(key, {})
       completedByExercise.get(key)![t.set_index] = t
     })
@@ -466,7 +466,7 @@ export default function LiveSessionTab({
       completedByExercise.forEach((completedSetMap, key) => {
         if (coveredKeys.has(key)) return
         const sample = liveData?.set_timings?.find(
-          (t) => (t.exercise_name ?? "").trim().toLowerCase() === key,
+          (t) => normalizeExerciseName(t.exercise_name ?? "") === key,
         )
         const maxIndex = Math.max(...Object.keys(completedSetMap).map(Number))
         list.push({
@@ -482,7 +482,7 @@ export default function LiveSessionTab({
     return Array.from(completedByExercise.entries()).map(
       ([key, completedSetMap]) => {
         const sample = liveData?.set_timings?.find(
-          (t) => (t.exercise_name ?? "").trim().toLowerCase() === key,
+          (t) => normalizeExerciseName(t.exercise_name ?? "") === key,
         )
         const maxIndex = Math.max(...Object.keys(completedSetMap).map(Number))
         return {

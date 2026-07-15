@@ -40,6 +40,7 @@ import {
 } from "../context/ThemeContext"
 import { useAlert } from "./CustomAlert"
 import ModalSheet from "./ModalSheet"
+import { generateId } from "@utils/format"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -133,10 +134,6 @@ const COLOR_ROWS: ColorRow[] = [
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateId(): string {
-  return `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-}
 
 function isValidHex(hex: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex)
@@ -541,7 +538,7 @@ export default function ThemeEditorModal({
       : deriveColors(bgColor, surfaceColor, accentColor, textColor)
 
     const newTheme: AppTheme = {
-      id: generateId(),
+      id: generateId("custom"),
       name: themeName.trim(),
       description: themeDesc.trim() || undefined,
       author: themeAuthor.trim() || undefined,

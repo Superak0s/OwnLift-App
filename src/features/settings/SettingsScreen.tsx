@@ -26,26 +26,24 @@ import ThemeEditorModal from "@shared/components/ThemeEditorModal"
 import EditWorkoutHistoryModal from "./components/EditWorkoutHistoryModal"
 import ModalSheet from "@shared/components/ModalSheet"
 import { importStrengthLevelCSV } from "@utils/strengthLevelImport"
-import {
-  getServerUrl,
-  setServerUrl,
-  resetServerUrl,
-  getDefaultServerUrl,
-} from "@shared/services/config"
+import { formatTime as formatDuration } from "@utils/timeEstimation"
+import { isServerless } from "@shared/services/appMode"
 import { bodyTrackingApi } from "@features/tracking/services/index"
 import { workoutApi } from "@features/workout/services/index"
 import type {
   WorkoutData,
+  WorkoutDay,
   WorkoutSession,
   LockedDays,
   PendingSync,
+  CompletedExercises,
 } from "@shared/types"
 import type { CompletedDays } from "@shared/types"
 
 export default function SettingsScreen(): React.JSX.Element {
   const { colors } = useTheme()
   const styles = makeStyles(colors)
-  const { user, logout } = useAuth()
+  const { logout } = useAuth()
   const { alert, AlertComponent } = useAlert()
 
   const isMountedRef = useRef<boolean>(true)
@@ -57,7 +55,7 @@ export default function SettingsScreen(): React.JSX.Element {
 
   const {
     workoutData,
-    selectedPerson,
+    selectedSplit,
     currentDay,
     completedDays,
     lockedDays,
@@ -69,7 +67,7 @@ export default function SettingsScreen(): React.JSX.Element {
     isSyncing,
     workoutStartTime,
     currentSessionId,
-    saveSelectedPerson,
+    saveSelectedSplit,
     saveCurrentDay,
     saveCompletedDays,
     saveLockedDays,
@@ -87,9 +85,6 @@ export default function SettingsScreen(): React.JSX.Element {
   const [showTimeBetweenSetsModal, setShowTimeBetweenSetsModal] =
     useState<boolean>(false)
   const [tempTimeBetweenSets, setTempTimeBetweenSets] = useState<string>("")
-  const [showServerUrlModal, setShowServerUrlModal] = useState<boolean>(false)
-  const [tempServerUrl, setTempServerUrl] = useState<string>("")
-  const [currentServerUrl, setCurrentServerUrl] = useState<string>("")
   const [showResetDayModal, setShowResetDayModal] = useState<boolean>(false)
   const [selectedDayToReset, setSelectedDayToReset] = useState<number | null>(
     null,
@@ -109,15 +104,18 @@ export default function SettingsScreen(): React.JSX.Element {
   const [loadingProgress, setLoadingProgress] = useState<boolean>(false)
 
   useEffect(() => {
-    setCurrentServerUrl(getServerUrl())
     loadServerProgress()
   }, [])
 
   const loadServerProgress = async () => {
-    if (!selectedPerson) return
+    if (!selectedSplit) return
     setLoadingProgress(true)
     try {
-      const sessions = await getSessionHistory(selectedPerson, null, 100)
+      const sessions = await workoutApi.getSessionHistory(
+        selectedSplit,
+        null,
+        100,
+      )
       if (!sessions || sessions.length === 0) {
         setServerProgress({ daysCount: 0, setsCount: 0, lockedCount: 0 })
         return
@@ -151,7 +149,7 @@ export default function SettingsScreen(): React.JSX.Element {
   }
 
   const handleImportCSV = useCallback(async (): Promise<void> => {
-    if (!selectedPerson) {
+    if (!selectedSplit) {
       alert(
         "No Person Selected",
         "Select a person before importing workout history.",
@@ -182,7 +180,7 @@ export default function SettingsScreen(): React.JSX.Element {
 
       const csvText = await new ExpoFile(fileUri).text()
 
-      const result = await importStrengthLevelCSV(csvText, selectedPerson)
+      const result = await importStrengthLevelCSV(csvText, selectedSplit)
 
       if (result.sessionsCreated > 0 && isMountedRef.current) {
         await syncFromServer()
@@ -223,7 +221,7 @@ export default function SettingsScreen(): React.JSX.Element {
         setIsImporting(false)
       }
     }
-  }, [selectedPerson, syncFromServer, alert])
+  }, [selectedSplit, syncFromServer, alert])
 
   const handleClearData = () => {
     alert(
@@ -236,14 +234,9 @@ export default function SettingsScreen(): React.JSX.Element {
           style: "destructive",
           onPress: async () => {
             try {
-              if (selectedPerson) {
-                // deleteAllSessionsForPerson is imported at the top of the file
-                try {
-                  await deleteAllSessionsForPerson(selectedPerson)
-                } catch (error) {
-                  console.error("Failed to clear server data:", error)
-                }
-              }
+              // Wipe ALL server-side data for this user (workouts, tracking,
+              // social) — not just the selected profile's sessions.
+              await workoutApi.deleteAllUserData()
 
               await clearAllData()
               alert(
@@ -289,10 +282,10 @@ export default function SettingsScreen(): React.JSX.Element {
 
               console.log("asdasdadssad")
 
-              if (selectedPerson) {
+              if (selectedSplit) {
                 // deleteAllSessionsForPerson is imported at the top of the file
                 try {
-                  await deleteAllSessionsForPerson(selectedPerson)
+                  await workoutApi.deleteAllSessionsForPerson(selectedSplit)
                 } catch (error) {
                   console.error("Failed to delete server data:", error)
                 }
@@ -364,9 +357,10 @@ export default function SettingsScreen(): React.JSX.Element {
 
               const allDayNumbers =
                 workoutData?.days?.reduce(
-                  (acc, d) => ({ ...acc, [d.dayNumber]: true }),
+                  (acc, d: WorkoutDay) => ({ ...acc, [d.dayNumber]: true }),
                   {},
                 ) || {}
+
               await saveUnlockedOverrides(allDayNumbers)
 
               alert(
@@ -389,7 +383,9 @@ export default function SettingsScreen(): React.JSX.Element {
   }
 
   const handleResetSingleDay = (dayNumber: number) => {
-    const day = workoutData?.days.find((d) => d.dayNumber === dayNumber)
+    const day = workoutData?.days.find(
+      (d: WorkoutDay) => d.dayNumber === dayNumber,
+    )
     const dayTitle = day
       ? (day.dayTitle ?? day.muscleGroups?.join("/") ?? `Day ${dayNumber}`)
       : `Day ${dayNumber}`
@@ -483,83 +479,6 @@ export default function SettingsScreen(): React.JSX.Element {
     }
   }
 
-  const handleOpenServerUrlModal = () => {
-    setTempServerUrl(currentServerUrl)
-    setShowServerUrlModal(true)
-  }
-
-  const handleSaveServerUrl = async () => {
-    const url = tempServerUrl.trim()
-
-    if (!url) {
-      alert(
-        "Invalid URL",
-        "Please enter a server URL",
-        [{ text: "OK" }],
-        "error",
-      )
-      return
-    }
-
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      alert(
-        "Invalid URL",
-        "URL must start with http:// or https://",
-        [{ text: "OK" }],
-        "error",
-      )
-      return
-    }
-
-    const success = await setServerUrl(url)
-    if (success) {
-      setCurrentServerUrl(url)
-      setShowServerUrlModal(false)
-      alert(
-        "Success",
-        "Server URL updated successfully!",
-        [{ text: "OK" }],
-        "success",
-      )
-    } else {
-      alert("Error", "Failed to save server URL", [{ text: "OK" }], "error")
-    }
-  }
-
-  const handleResetServerUrl = async () => {
-    alert(
-      "Reset Server URL?",
-      `This will reset the server URL to the default: ${getDefaultServerUrl()}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          onPress: async () => {
-            const success = await resetServerUrl()
-            if (success) {
-              setCurrentServerUrl(getDefaultServerUrl())
-              setShowServerUrlModal(false)
-              alert(
-                "Success",
-                "Server URL updated successfully!",
-                [{ text: "OK" }],
-                "success",
-              )
-            } else {
-              alert(
-                "Error",
-                "Failed to reset server URL",
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          },
-        },
-      ],
-      "warning",
-    )
-  }
-
   const handleToggleDemoMode = (value: boolean) => {
     if (!value) {
       alert(
@@ -637,7 +556,7 @@ export default function SettingsScreen(): React.JSX.Element {
 
   const getTotalCompletedSets = () => {
     let total = 0
-    Object.values(completedDays).forEach((day) => {
+    Object.values(completedDays).forEach((day: CompletedExercises) => {
       Object.values(day).forEach((exercise) => {
         total += Object.keys(exercise).length
       })
@@ -651,16 +570,12 @@ export default function SettingsScreen(): React.JSX.Element {
   const getDaysWithActivity = () => {
     if (!workoutData?.days) return []
     return workoutData.days.filter(
-      (day) => completedDays[day.dayNumber] || lockedDays[day.dayNumber],
+      (day: WorkoutDay) =>
+        completedDays[day.dayNumber] || lockedDays[day.dayNumber],
     )
   }
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 60) return `${seconds}s`
-    const minutes = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`
-  }
+  const formatTime = (seconds: number) => formatDuration(seconds)
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -690,8 +605,11 @@ export default function SettingsScreen(): React.JSX.Element {
                 <Text style={styles.infoLabel}>App Version</Text>
                 <Text style={styles.infoValue}>
                   {
-                    (require("../../app.json") as { expo: { version: string } })
-                      .expo.version
+                    (
+                      require("../../../app.json") as {
+                        expo: { version: string }
+                      }
+                    ).expo.version
                   }
                 </Text>
               </View>
@@ -714,28 +632,6 @@ export default function SettingsScreen(): React.JSX.Element {
                 </>
               )}
             </View>
-          </View>
-
-          {/* Server Configuration */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🌐 Server Configuration</Text>
-            <View style={styles.card}>
-              <TouchableOpacity
-                style={styles.settingRow}
-                onPress={handleOpenServerUrlModal}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.settingLabel}>Server URL</Text>
-                  <Text style={styles.settingDescription} numberOfLines={1}>
-                    {currentServerUrl}
-                  </Text>
-                </View>
-                <Text style={styles.settingValue}>Edit</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.helperText}>
-              💡 Configure the backend server URL for data sync
-            </Text>
           </View>
 
           {/* Sync Status */}
@@ -886,7 +782,7 @@ export default function SettingsScreen(): React.JSX.Element {
           </View>
 
           {/* Progress Stats */}
-          {selectedPerson && workoutData && (
+          {selectedSplit && workoutData && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📊 Progress</Text>
               <View style={styles.card}>
@@ -955,7 +851,7 @@ export default function SettingsScreen(): React.JSX.Element {
               <TouchableOpacity
                 style={styles.settingRow}
                 onPress={() => {
-                  if (!selectedPerson) {
+                  if (!selectedSplit) {
                     alert(
                       "No Person Selected",
                       "Select a person before editing workout history.",
@@ -1049,28 +945,19 @@ export default function SettingsScreen(): React.JSX.Element {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👤 Account</Text>
-            <View style={styles.card}>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Username</Text>
-                <Text style={styles.infoValue}>{user?.username}</Text>
-              </View>
-              <View style={styles.divider} />
+          {!isServerless() && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.dangerButton]}
+                onPress={handleLogout}
+              >
+                <Text style={styles.actionButtonIcon}>🚪</Text>
+                <Text style={[styles.actionButtonText, styles.dangerText]}>
+                  Logout
+                </Text>
+              </TouchableOpacity>
             </View>
-          </View>
-
-          <View style={styles.section}>
-            <TouchableOpacity
-              style={[styles.actionButton, styles.dangerButton]}
-              onPress={handleLogout}
-            >
-              <Text style={styles.actionButtonIcon}>🚪</Text>
-              <Text style={[styles.actionButtonText, styles.dangerText]}>
-                Logout
-              </Text>
-            </TouchableOpacity>
-          </View>
+          )}
 
           {/* About */}
           <View style={styles.section}>
@@ -1111,36 +998,6 @@ export default function SettingsScreen(): React.JSX.Element {
             placeholder='120'
             placeholderTextColor='#999'
           />
-        </ModalSheet>
-
-        {/* ── Server URL Modal ── */}
-        <ModalSheet
-          visible={showServerUrlModal}
-          onClose={() => setShowServerUrlModal(false)}
-          title='Server URL'
-          onConfirm={handleSaveServerUrl}
-          confirmText='Save'
-        >
-          <Text style={styles.modalDescription}>
-            Enter the URL of your workout tracker server (including http:// or
-            https://)
-          </Text>
-          <TextInput
-            style={styles.input}
-            value={tempServerUrl}
-            onChangeText={setTempServerUrl}
-            keyboardType='url'
-            placeholder='http://192.168.1.243:5000'
-            placeholderTextColor='#999'
-            autoCapitalize='none'
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={styles.resetButton}
-            onPress={handleResetServerUrl}
-          >
-            <Text style={styles.resetButtonText}>Reset to Default</Text>
-          </TouchableOpacity>
         </ModalSheet>
 
         {/* ── Unlock Single Day Modal ── */}
@@ -1198,11 +1055,11 @@ export default function SettingsScreen(): React.JSX.Element {
           onClose={() => setShowThemeEditor(false)}
         />
 
-        {selectedPerson && (
+        {selectedSplit && (
           <EditWorkoutHistoryModal
             visible={showEditHistoryModal}
             onClose={() => setShowEditHistoryModal(false)}
-            person={selectedPerson}
+            person={selectedSplit}
             onDataChanged={() => {
               syncFromServer()
               loadServerProgress()
@@ -1382,26 +1239,11 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textMuted,
       textAlign: "center",
     },
-    creatineModalHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.surfaceBorder,
-    },
     modalHeaderButton: { padding: 8 },
     modalHeaderButtonText: {
       fontSize: 16,
       color: colors.error,
       fontWeight: "600",
-    },
-    creatineModalTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: colors.textPrimary,
     },
     fullModalContent: { padding: 20, paddingBottom: 20 },
     fullModalFooter: {

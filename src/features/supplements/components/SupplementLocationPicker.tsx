@@ -20,7 +20,7 @@ import type {
   WebViewMessage,
 } from "../types"
 
-interface CreatineLocationPickerProps {
+interface SupplementLocationPickerProps {
   visible: boolean
   onClose: () => void
   onLocationSelected: (location: SelectedLocation) => void
@@ -28,12 +28,12 @@ interface CreatineLocationPickerProps {
 }
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function CreatineLocationPicker({
+export default function SupplementLocationPicker({
   visible,
   onClose,
   onLocationSelected,
   initialLocation,
-}: CreatineLocationPickerProps) {
+}: SupplementLocationPickerProps) {
   const { colors } = useTheme()
   const styles = makeStyles(colors)
   const [markerPosition, setMarkerPosition] = useState<MarkerPosition | null>(
@@ -139,7 +139,7 @@ export default function CreatineLocationPicker({
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
-        { headers: { "User-Agent": "CreatineFitnessApp/1.0" } },
+        { headers: { "User-Agent": "SuperGymFitnessApp/1.0" } },
       )
       const data = (await response.json()) as {
         display_name?: string
@@ -184,7 +184,7 @@ export default function CreatineLocationPicker({
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-        { headers: { "User-Agent": "CreatineFitnessApp/1.0" } },
+        { headers: { "User-Agent": "SuperGymFitnessApp/1.0" } },
       )
       const data = (await response.json()) as Array<{
         lat: string
