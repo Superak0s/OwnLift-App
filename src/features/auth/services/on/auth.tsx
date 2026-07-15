@@ -5,6 +5,9 @@ import { getServerUrl } from "@shared/services/config"
 import { tokenStorage } from "@shared/services/tokenStorage"
 import type { AuthResponse, AuthUser } from "../../types"
 
+// AsyncStorage key for the cached user object (single source of truth).
+const USER_KEY = "@user"
+
 /**
  * Authentication Service
  *
@@ -42,7 +45,7 @@ export const authService = {
 
       if (data.success && data.token) {
         await tokenStorage.set(data.token)
-        await AsyncStorage.setItem("@user", JSON.stringify(data.user))
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user))
       }
 
       return data
@@ -94,7 +97,7 @@ export const authService = {
 
     if (data.success && data.token) {
       await tokenStorage.set(data.token)
-      await AsyncStorage.setItem("@user", JSON.stringify(data.user))
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user))
     }
 
     return data
@@ -148,7 +151,7 @@ export const authService = {
       if (!response.ok)
         throw new Error(data.error || "Failed to update profile")
 
-      await AsyncStorage.setItem("@user", JSON.stringify(data.user))
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user))
       return data.user as AuthUser
     } catch (error) {
       console.error("Error updating profile:", error)
@@ -203,12 +206,12 @@ export const authService = {
   /** Logout user */
   logout: async (): Promise<void> => {
     await tokenStorage.clear()
-    await AsyncStorage.removeItem("@user")
+    await AsyncStorage.removeItem(USER_KEY)
   },
 
   /** Get stored user data */
   getStoredUser: async (): Promise<AuthUser | null> => {
-    const userJson = await AsyncStorage.getItem("@user")
+    const userJson = await AsyncStorage.getItem(USER_KEY)
     return userJson ? (JSON.parse(userJson) as AuthUser) : null
   },
 }

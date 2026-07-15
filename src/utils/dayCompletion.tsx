@@ -4,19 +4,20 @@
  */
 
 import type { WorkoutData } from "@shared/types"
+import type {
+  CompletedDays,
+  CompletedExercises,
+  LockedDays,
+  SetDetail,
+} from "@shared/types"
 
-export type CompletedSets = Record<number, Record<number, SetDetails>>
-export type CompletedDays = Record<number, CompletedSets>
-export type LockedDays = Record<number, boolean>
-
-export interface SetDetails {
-  weight: number
-  reps: number
-  completedAt: string
-  note: string
-  isWarmup: boolean
-  source?: string
-}
+// Single source of truth lives in @shared/types. These re-exports/aliases keep
+// the historical names this module (and its importers) have always used:
+//   • CompletedSets here = the per-day exercise→set map (shared CompletedExercises)
+//   • SetDetails         = shared SetDetail
+export type { CompletedDays, LockedDays }
+export type CompletedSets = CompletedExercises
+export type SetDetails = SetDetail
 
 /**
  * Check if a specific set is complete
@@ -58,16 +59,16 @@ export const getExerciseCompletedSets = (
  */
 export const areAllExercisesComplete = (
   workoutData: WorkoutData | null | undefined,
-  selectedPerson: string | null,
+  selectedSplit: string | null,
   dayNumber: number,
   completedDays: CompletedDays,
 ): boolean => {
-  if (!workoutData?.days || !selectedPerson) return false
+  if (!workoutData?.days || !selectedSplit) return false
 
   const day = workoutData.days.find((d) => d.dayNumber === dayNumber)
-  if (!day || !day.people[selectedPerson]) return false
+  if (!day || !day.people[selectedSplit]) return false
 
-  const exercises = day.people[selectedPerson].exercises || []
+  const exercises = day.people[selectedSplit].exercises || []
   if (exercises.length === 0) return false
 
   for (let i = 0; i < exercises.length; i++) {
@@ -88,7 +89,7 @@ export const isDayComplete = (
   lockedDays: LockedDays,
   dayNumber: number,
   workoutData: WorkoutData | null | undefined,
-  selectedPerson: string | null,
+  selectedSplit: string | null,
   completedDays: CompletedDays,
 ): boolean => {
   if (lockedDays[dayNumber]) {
@@ -97,7 +98,7 @@ export const isDayComplete = (
 
   return areAllExercisesComplete(
     workoutData,
-    selectedPerson,
+    selectedSplit,
     dayNumber,
     completedDays,
   )

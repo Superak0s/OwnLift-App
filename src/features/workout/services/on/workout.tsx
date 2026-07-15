@@ -1,36 +1,16 @@
 // features/workout/services/on/workout.tsx
 //
 // Server-backed workout API. Talks to the Express/MySQL backend via
-// authenticatedFetch. This is a RECONSTRUCTION based on the off-mode
-// mirror's function signatures — replace endpoint paths/response shapes
-// with your actual server routes before using.
+// authenticatedFetch.
 
 import { authenticatedFetch } from "@shared/services/authenticatedFetch"
-// ─── Types ──────────────────────────────────────────────────────────────────
+import type {
+  SetTiming,
+  WorkoutSession,
+  FullSessionWithGroups,
+} from "@shared/types"
 
-export interface SetTiming {
-  id: number | string
-  exercise_name: string
-  exercise_muscle_group?: string
-  set_index: number
-  start_time: string
-  end_time: string
-  weight?: number
-  reps?: number
-  note?: string
-  is_warmup: boolean
-}
-
-export interface WorkoutSession {
-  id: number | string
-  person: string
-  day_number: number
-  day_title?: string
-  start_time: string
-  end_time: string | null
-  set_timings?: SetTiming[]
-  set_count?: number
-}
+// ─── Types local to this service (not shared elsewhere) ────────────────────
 
 export interface WorkoutAnalytics {
   averageTimeBetweenSets: number
@@ -61,15 +41,16 @@ export interface RenameExerciseResult {
 export const workoutApi = {
   uploadWorkoutFile: async (fileUri: string): Promise<unknown> => {
     const formData = new FormData()
-    formData.append("file", {
+    // Server route: POST /api/program/upload, multer field name "workoutFile".
+    formData.append("workoutFile", {
       uri: fileUri,
       name: "workout-plan",
       type: "application/octet-stream",
     } as any)
-    const res = await authenticatedFetch("/api/workout/upload", {
+    // Do NOT set Content-Type manually — fetch must add the multipart boundary.
+    const res = await authenticatedFetch("/api/program/upload", {
       method: "POST",
       body: formData,
-      headers: { "Content-Type": "multipart/form-data" },
     })
     return res.json()
   },
@@ -126,7 +107,7 @@ export const workoutApi = {
     isDemo: boolean = false,
     startTime: string | null = null,
   ): Promise<number | string> => {
-    const res = await authenticatedFetch("/api/workout/sessions", {
+    const res = await authenticatedFetch("/api/sessions/start", {
       method: "POST",
       body: JSON.stringify({
         person,
@@ -138,8 +119,9 @@ export const workoutApi = {
       }),
       headers: { "Content-Type": "application/json" },
     })
+    // Server responds with { success, session: { ...session, id } }.
     const data = await res.json()
-    return data.id
+    return data.session?.id
   },
 
   recordSet: async (
@@ -155,7 +137,7 @@ export const workoutApi = {
     muscleGroup: string | null = null,
   ): Promise<SetTiming> => {
     const res = await authenticatedFetch(
-      `/api/workout/sessions/${sessionId}/sets`,
+      `/api/sessions/${sessionId}/set`,
       {
         method: "POST",
         body: JSON.stringify({
@@ -172,7 +154,9 @@ export const workoutApi = {
         headers: { "Content-Type": "application/json" },
       },
     )
-    return res.json()
+    // Server responds with { success, timing }.
+    const data = await res.json()
+    return data.timing
   },
 
   updateSet: async (
@@ -181,14 +165,16 @@ export const workoutApi = {
     updates: UpdateSetParams,
   ): Promise<SetTiming> => {
     const res = await authenticatedFetch(
-      `/api/workout/sessions/${sessionId}/sets/${setId}`,
+      `/api/sessions/${sessionId}/sets/${setId}`,
       {
         method: "PATCH",
         body: JSON.stringify(updates),
         headers: { "Content-Type": "application/json" },
       },
     )
-    return res.json()
+    // Server responds with { success, timing }.
+    const data = await res.json()
+    return data.timing
   },
 
   renameExercise: async (
@@ -196,11 +182,12 @@ export const workoutApi = {
     oldName: string,
     updates: { newName?: string; muscleGroup?: string | null },
   ): Promise<RenameExerciseResult> => {
-    const res = await authenticatedFetch("/api/workout/rename-exercise", {
+    const res = await authenticatedFetch("/api/sessions/rename-exercise", {
       method: "POST",
       body: JSON.stringify({ person, oldName, ...updates }),
       headers: { "Content-Type": "application/json" },
     })
+    // Server responds with { success, updatedCount }.
     return res.json()
   },
 
@@ -209,14 +196,16 @@ export const workoutApi = {
     endTime: string | null = null,
   ): Promise<WorkoutSession> => {
     const res = await authenticatedFetch(
-      `/api/workout/sessions/${sessionId}/end`,
+      `/api/sessions/${sessionId}/end`,
       {
         method: "POST",
         body: JSON.stringify({ endTime }),
         headers: { "Content-Type": "application/json" },
       },
     )
-    return res.json()
+    // Server responds with { success, session }.
+    const data = await res.json()
+    return data.session
   },
 
   getAnalytics: async (
@@ -227,9 +216,10 @@ export const workoutApi = {
     if (person) params.set("person", person)
     if (dayNumber) params.set("dayNumber", String(dayNumber))
     const res = await authenticatedFetch(
-      `/api/workout/analytics?${params.toString()}`,
+      `/api/analytics?${params.toString()}`,
       { method: "GET" },
     )
+    // Server responds with { success, ...analytics }.
     return res.json()
   },
 
@@ -245,38 +235,59 @@ export const workoutApi = {
     params.set("limit", String(limit))
     params.set("includeTimings", String(includeTimings))
     const res = await authenticatedFetch(
-      `/api/workout/sessions?${params.toString()}`,
+      `/api/sessions?${params.toString()}`,
       { method: "GET" },
     )
-    return res.json()
+    // Server responds with { success, sessions, total }; callers expect the array.
+    const data = await res.json()
+    return data.sessions ?? []
   },
 
-  getSession: async (sessionId: number | string): Promise<WorkoutSession> => {
-    const res = await authenticatedFetch(`/api/workout/sessions/${sessionId}`, {
+  getSession: async (
+    sessionId: number | string,
+  ): Promise<FullSessionWithGroups> => {
+    const res = await authenticatedFetch(`/api/sessions/${sessionId}`, {
       method: "GET",
     })
-    return res.json()
+    // Server responds with { success, session }; callers expect the session.
+    const data = await res.json()
+    return data.session
   },
 
   clearDemoSessions: async (): Promise<unknown> => {
-    const res = await authenticatedFetch("/api/workout/sessions/demo", {
+    const res = await authenticatedFetch("/api/sessions/demo", {
       method: "DELETE",
     })
     return res.json()
   },
 
   deleteAllSessions: async (): Promise<unknown> => {
-    const res = await authenticatedFetch("/api/workout/sessions", {
+    // Server requires an explicit confirmation token in the body.
+    const res = await authenticatedFetch("/api/sessions", {
       method: "DELETE",
+      body: JSON.stringify({ confirmDelete: "DELETE_ALL_SESSIONS" }),
+      headers: { "Content-Type": "application/json" },
     })
     return res.json()
   },
 
   deleteAllSessionsForPerson: async (person: string): Promise<unknown> => {
     const res = await authenticatedFetch(
-      `/api/workout/sessions/person/${encodeURIComponent(person)}`,
+      `/api/sessions/person/${encodeURIComponent(person)}`,
       { method: "DELETE" },
     )
+    return res.json()
+  },
+
+  deleteAllUserData: async (): Promise<unknown> => {
+    // Wipes every piece of the user's data server-side (workouts, tracking,
+    // social) while keeping the account. Requires an explicit confirmation
+    // token in the body.
+    const res = await authenticatedFetch("/api/auth/account/data", {
+      method: "DELETE",
+      body: JSON.stringify({ confirmDelete: "DELETE_ALL_DATA" }),
+      headers: { "Content-Type": "application/json" },
+    })
     return res.json()
   },
 }

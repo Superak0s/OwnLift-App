@@ -47,6 +47,8 @@ import ExerciseAnalytics from "@features/analytics/components/ExerciseAnalytics"
 import LiveSessionTab from "./components/LiveSessionTab"
 import { friendsApi, sharingApi } from "./services"
 import { collectHashedContactEmails } from "./services/contactsMatching"
+import { formatTime as formatDuration } from "@utils/timeEstimation"
+import { formatDate as formatDateUtil } from "@utils/format"
 import {
   buildFriendQrPayload,
   parseFriendQrPayload,
@@ -1176,14 +1178,9 @@ export default function FriendsScreen(): React.JSX.Element {
     }
   }
 
-  const formatDate = (s: string): string =>
-    new Date(s).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })
+  const formatDate = (s: string): string => formatDateUtil(s)
   const formatCalDate = (d: Date): string =>
-    d.toLocaleDateString("en-US", {
+    formatDateUtil(d, {
       weekday: "short",
       month: "short",
       day: "numeric",
@@ -1194,15 +1191,8 @@ export default function FriendsScreen(): React.JSX.Element {
     const hr = parseInt(h)
     return `${hr % 12 || 12}:${m || "00"} ${hr >= 12 ? "PM" : "AM"}`
   }
-  const formatTime = (sec: number | undefined): string => {
-    if (!sec) return "N/A"
-    const h = Math.floor(sec / 3600),
-      m = Math.floor((sec % 3600) / 60),
-      s = sec % 60
-    if (h > 0) return `${h}h ${m}m`
-    if (sec >= 60) return s > 0 ? `${m}m ${s}s` : `${m}m`
-    return `${sec}s`
-  }
+  const formatTime = (sec: number | undefined): string =>
+    formatDuration(sec ?? 0, "N/A")
   const getSessionTitle = (s: SessionRecord | null): string => {
     if (!s?.day_title) return `Day ${s?.day_number ?? ""}`
     const p = s.day_title.split("—")
@@ -1879,7 +1869,7 @@ export default function FriendsScreen(): React.JSX.Element {
                     >[0]["sessions"]
                   }
                   workoutData={null}
-                  selectedPerson={null}
+                  selectedSplit={null}
                   title={`📊 ${selectedFriend?.username}'s Analytics`}
                   isDemoMode={false}
                   completedDays={{}}
@@ -1968,7 +1958,9 @@ export default function FriendsScreen(): React.JSX.Element {
                           ? day.exercises.filter(
                               (ex) =>
                                 !selectedProgram ||
-                                (ex.setsByPerson?.[selectedProgram] ?? 0) > 0,
+                                Number(
+                                  ex.setsByPerson?.[selectedProgram] ?? 0,
+                                ) > 0,
                             )
                           : []
                         if (!exercises.length) return null
@@ -1996,10 +1988,18 @@ export default function FriendsScreen(): React.JSX.Element {
                                   ? [
                                       [
                                         selectedProgram,
-                                        setsByPerson[selectedProgram] ?? 0,
+                                        Number(
+                                          setsByPerson[selectedProgram] ?? 0,
+                                        ),
                                       ],
                                     ]
-                                  : Object.entries(setsByPerson)
+                                  : Object.entries(setsByPerson).map(
+                                      ([person, count]) =>
+                                        [person, Number(count)] as [
+                                          string,
+                                          number,
+                                        ],
+                                    )
                               return (
                                 <View
                                   key={exIdx}

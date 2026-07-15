@@ -12,8 +12,11 @@ export const workoutApi: WorkoutApiShape = createDispatchProxy(
 
 export type {
   WorkoutAnalytics,
-  WorkoutSession,
-  SetTiming,
   UpdateSetParams,
   RenameExerciseResult,
 } from "./on/workout"
+export type {
+  SetTiming,
+  WorkoutSession,
+  FullSessionWithGroups,
+} from "@shared/types"

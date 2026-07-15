@@ -2,6 +2,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import * as FileSystem from "expo-file-system/legacy"
+import { generateId } from "@utils/format"
 import type {
   BodyFatMeasurements,
   Gender,
@@ -32,9 +33,6 @@ const HEIGHT_KEY = "@off_body_height_units"
 const BODYFAT_KEY = "@off_body_fat_history"
 const PHOTOS_KEY = "@off_body_photos"
 const PHOTOS_DIR = `${FileSystem.documentDirectory}progress-photos/`
-
-const generateId = (): string =>
-  `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 
 async function readList<T>(key: string): Promise<T[]> {
   try {
@@ -233,7 +231,11 @@ export const bodyTrackingApi = {
   getHeightAndUnits: async (): Promise<unknown> => {
     try {
       const raw = await AsyncStorage.getItem(HEIGHT_KEY)
-      return raw ? JSON.parse(raw) : null
+      // Match the server shape ({ height: {...} }) so callers like
+      // TrackingScreen (which read `.height`) work in offline mode too.
+      // Returning the bare record here meant the screen never picked up a
+      // saved height and kept showing "Set Your Height".
+      return { height: raw ? JSON.parse(raw) : null }
     } catch (error) {
       console.error("Error getting local height and units:", error)
       throw error

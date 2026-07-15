@@ -1,7 +1,8 @@
 // hooks/useJointSession.ts
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
-import { sharingApi } from "../../services/api"
+import { sharingApi } from "@features/friends/services/index"
+import { normalizeExerciseName } from "@utils/exerciseMatching"
 import type { RealtimeSocket, WebSocketMessage } from "./useRealtimeSocket"
 
 const SYNC_PULSE_MS = 1_500
@@ -47,7 +48,7 @@ export interface UseJointSessionOptions {
   currentSessionId: string | null
   workoutStartTime: string | null
   currentDayExercises?: ExerciseEntry[]
-  selectedPerson?: string | null
+  selectedSplit?: string | null
   socket: RealtimeSocket | null
 }
 
@@ -111,7 +112,7 @@ export const useJointSession = ({
   currentSessionId,
   workoutStartTime,
   currentDayExercises = [],
-  selectedPerson = null,
+  selectedSplit = null,
   socket,
 }: UseJointSessionOptions): UseJointSessionReturn => {
   const [jointSession, setJointSession] = useState<JointSession | null>(null)
@@ -153,16 +154,16 @@ export const useJointSession = ({
 
   const myExerciseNamesKey = useMemo(() => {
     return currentDayExercises
-      .filter((e) => e.person === selectedPerson)
+      .filter((e) => e.person === selectedSplit)
       .map((e) => e.name)
       .filter(Boolean)
       .join("||")
-  }, [currentDayExercises, selectedPerson])
+  }, [currentDayExercises, selectedSplit])
 
   const partnerExerciseList = useMemo(() => {
     if (!isInJointSession || !currentDayExercises.length) return []
     const otherPersonExercises = currentDayExercises.filter(
-      (e) => e.person && e.person !== selectedPerson,
+      (e) => e.person && e.person !== selectedSplit,
     )
     const source =
       otherPersonExercises.length > 0
@@ -171,14 +172,14 @@ export const useJointSession = ({
     const seen = new Set<string>()
     const result: Array<{ name: string; sets: number }> = []
     for (const e of source) {
-      const key = (e.name ?? "").trim().toLowerCase()
+      const key = normalizeExerciseName(e.name ?? "")
       if (key && !seen.has(key)) {
         seen.add(key)
         result.push({ name: e.name, sets: e.sets })
       }
     }
     return result
-  }, [isInJointSession, currentDayExercises, selectedPerson])
+  }, [isInJointSession, currentDayExercises, selectedSplit])
 
   const triggerSyncPulse = useCallback(() => {
     setSyncPulse(true)
@@ -231,9 +232,12 @@ export const useJointSession = ({
               setPartnerCompletedSets((prevSets) => {
                 const exists = prevSets.some(
                   (s) =>
-                    s.exerciseName?.trim().toLowerCase() ===
-                      progress.exerciseName?.trim().toLowerCase() &&
-                    s.setIndex === progress.setIndex,
+                    (s.exerciseName
+                      ? normalizeExerciseName(s.exerciseName)
+                      : undefined) ===
+                      (progress.exerciseName
+                        ? normalizeExerciseName(progress.exerciseName)
+                        : undefined) && s.setIndex === progress.setIndex,
                 )
                 if (exists) return prevSets
                 return [
@@ -383,7 +387,7 @@ export const useJointSession = ({
       if (!id) return
 
       const exerciseNames = currentDayExercises
-        .filter((e) => e.person === selectedPerson)
+        .filter((e) => e.person === selectedSplit)
         .map((e) => ({ name: e.name, sets: e.sets }))
         .filter((e) => e.name)
 
@@ -410,7 +414,7 @@ export const useJointSession = ({
         }
       }
     },
-    [socket, selectedPerson, currentDayExercises],
+    [socket, selectedSplit, currentDayExercises],
   )
 
   useEffect(() => {
@@ -422,7 +426,7 @@ export const useJointSession = ({
     if (!id) return
 
     const exerciseNames = currentDayExercises
-      .filter((e) => e.person === selectedPerson)
+      .filter((e) => e.person === selectedSplit)
       .map((e) => ({ name: e.name, sets: e.sets }))
       .filter((e) => e.name)
 

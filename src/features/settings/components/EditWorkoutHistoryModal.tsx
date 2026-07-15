@@ -11,19 +11,24 @@ import {
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { workoutApi } from "@features/workout/services/index"
-import type { WorkoutSession, SetTiming } from "@shared/types"
+import type {
+  WorkoutSession,
+  FullSessionWithGroups,
+  SetTiming,
+} from "@shared/types"
 import {
   checkForTypo,
   checkMuscleGroupForTypo,
   getCanonicalName,
   getCanonicalMuscleGroup,
+  normalizeExerciseName,
   CANONICAL_MUSCLE_GROUPS,
 } from "@utils/exerciseMatching"
 import ModalSheet from "@shared/components/ModalSheet"
 import { useAlert } from "@shared/components/CustomAlert"
 import { useTheme } from "@shared/context/ThemeContext"
 import type { ThemeColors } from "@shared/context/ThemeContext"
-import type { SimilarityMatch, GroupedExercise } from "../types"
+import type { SimilarityMatch, SessionExerciseGroup } from "../types"
 
 /** day_title stamped on every session created by the CSV importer. */
 const IMPORTED_DAY_TITLE = "Imported (Strength Level)"
@@ -36,9 +41,9 @@ interface Props {
   onDataChanged?: () => void
 }
 /** Groups a session's flat set list by exercise name, preserving set order. */
-function groupSetsByExercise(sets: SetTiming[]): GroupedExercise[] {
+function groupSetsByExercise(sets: SetTiming[]): SessionExerciseGroup[] {
   const order: string[] = []
-  const groups = new Map<string, GroupedExercise>()
+  const groups = new Map<string, SessionExerciseGroup>()
 
   sets.forEach((set) => {
     const name = set.exercise_name ?? "Unknown Exercise"
@@ -111,9 +116,8 @@ export default function EditWorkoutHistoryModal({
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [showImportedOnly, setShowImportedOnly] = useState(false)
-  const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(
-    null,
-  )
+  const [selectedSession, setSelectedSession] =
+    useState<FullSessionWithGroups | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   // Known exercise names / muscle groups across this person's history, used to
@@ -123,7 +127,7 @@ export default function EditWorkoutHistoryModal({
 
   // Edit-exercise (name + muscle group, applies everywhere) form state
   const [editingExercise, setEditingExercise] =
-    useState<GroupedExercise | null>(null)
+    useState<SessionExerciseGroup | null>(null)
   const [exerciseNameInput, setExerciseNameInput] = useState("")
   const [muscleGroupInput, setMuscleGroupInput] = useState("")
   const [savingExercise, setSavingExercise] = useState(false)
@@ -144,7 +148,7 @@ export default function EditWorkoutHistoryModal({
     if (!person) return
     setLoadingSessions(true)
     try {
-      const result = await getSessionHistory(person, null, 60)
+      const result = await workoutApi.getSessionHistory(person, null, 60)
       setSessions(result ?? [])
     } catch (error) {
       console.error("Error loading sessions to edit:", error)
@@ -152,20 +156,24 @@ export default function EditWorkoutHistoryModal({
       setLoadingSessions(false)
     }
 
-    // Separately pull full set timings (uncapped-ish) so the rename flow can
-    // check new names/muscle groups against everything this person has ever
-    // logged, not just what's currently loaded/open.
     try {
-      const withTimings = await getSessionHistory(person, null, 200, true)
+      const withTimings = await workoutApi.getSessionHistory(
+        person,
+        null,
+        200,
+        true,
+      )
       const names = new Set<string>()
       const groups = new Set<string>()
-      ;(withTimings ?? []).forEach((session) => {
-        session.set_timings?.forEach((set) => {
-          if (set.exercise_name) names.add(set.exercise_name.trim())
-          if (set.exercise_muscle_group)
-            groups.add(set.exercise_muscle_group.trim())
-        })
-      })
+      ;(withTimings ?? []).forEach(
+        (session: WorkoutSession & { set_timings?: SetTiming[] }) => {
+          session.set_timings?.forEach((set: SetTiming) => {
+            if (set.exercise_name) names.add(set.exercise_name.trim())
+            if (set.exercise_muscle_group)
+              groups.add(set.exercise_muscle_group.trim())
+          })
+        },
+      )
       setKnownExerciseNames(Array.from(names))
       setKnownMuscleGroups(Array.from(groups))
     } catch (error) {
@@ -176,8 +184,8 @@ export default function EditWorkoutHistoryModal({
   const openSession = useCallback(async (session: WorkoutSession) => {
     setLoadingDetail(true)
     try {
-      const full = await getSession(session.id)
-      setSelectedSession(full)
+      const full = await workoutApi.getSession(session.id)
+      setSelectedSession(full as FullSessionWithGroups)
     } catch (error) {
       console.error("Error loading session detail:", error)
       alert(
@@ -197,7 +205,7 @@ export default function EditWorkoutHistoryModal({
     loadSessions()
   }, [loadSessions])
 
-  const openEditExercise = (group: GroupedExercise) => {
+  const openEditExercise = (group: SessionExerciseGroup) => {
     setEditingExercise(group)
     setExerciseNameInput(group.name)
     setMuscleGroupInput(group.muscleGroup ?? "")
@@ -221,7 +229,8 @@ export default function EditWorkoutHistoryModal({
     }
     const otherNames = knownExerciseNames.filter(
       (n) =>
-        n.toLowerCase().trim() !== editingExercise.name.toLowerCase().trim(),
+        normalizeExerciseName(n) !==
+        normalizeExerciseName(editingExercise.name),
     )
     const t = checkForTypo(exerciseNameInput, otherNames)
     setNameSuggestions(t.suggestions.length > 0 ? t.suggestions : [])
@@ -257,17 +266,16 @@ export default function EditWorkoutHistoryModal({
     if (!editingExercise) return
     setSavingExercise(true)
     try {
-      await renameExercise(person, editingExercise.name, {
+      await workoutApi.renameExercise(person, editingExercise.name, {
         newName: finalName !== editingExercise.name ? finalName : undefined,
         muscleGroup: finalGroup || null,
       })
 
-      // Reflect the change in the currently open session view immediately
       setSelectedSession((prev) => {
         if (!prev?.set_timings) return prev
         return {
           ...prev,
-          set_timings: prev.set_timings.map((s) =>
+          set_timings: prev.set_timings.map((s: SetTiming) =>
             s.exercise_name === editingExercise.name
               ? {
                   ...s,
@@ -318,7 +326,8 @@ export default function EditWorkoutHistoryModal({
     // currently being renamed (so we don't "catch" its own old name).
     const otherNames = knownExerciseNames.filter(
       (n) =>
-        n.toLowerCase().trim() !== editingExercise.name.toLowerCase().trim(),
+        normalizeExerciseName(n) !==
+        normalizeExerciseName(editingExercise.name),
     )
     const otherGroups = Array.from(
       new Set([...CANONICAL_MUSCLE_GROUPS, ...knownMuscleGroups]),
@@ -435,7 +444,9 @@ export default function EditWorkoutHistoryModal({
 
     // Preserve the original set duration by shifting start_time by the same delta
     const originalEnd = new Date(editingSet.end_time).getTime()
-    const originalStart = new Date(editingSet.start_time).getTime()
+    const originalStart = editingSet.start_time
+      ? new Date(editingSet.start_time).getTime()
+      : NaN
     const durationMs =
       !Number.isNaN(originalEnd) && !Number.isNaN(originalStart)
         ? originalEnd - originalStart
@@ -447,18 +458,22 @@ export default function EditWorkoutHistoryModal({
 
     setSavingSet(true)
     try {
-      const updated = await updateSet(selectedSession.id, editingSet.id, {
-        endTime: newEndIso,
-        startTime: newStartIso,
-        weight,
-        reps,
-      })
+      const updated = await workoutApi.updateSet(
+        selectedSession.id,
+        editingSet.id,
+        {
+          endTime: newEndIso,
+          startTime: newStartIso,
+          weight,
+          reps,
+        },
+      )
 
       setSelectedSession((prev) => {
         if (!prev?.set_timings) return prev
         return {
           ...prev,
-          set_timings: prev.set_timings.map((s) =>
+          set_timings: prev.set_timings.map((s: SetTiming) =>
             s.id === editingSet.id ? { ...s, ...updated } : s,
           ),
         }

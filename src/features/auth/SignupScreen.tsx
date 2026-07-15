@@ -28,13 +28,6 @@ type SignupScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Signup">
 }
 
-interface PasswordStrength {
-  score: number // 0-4
-  label: string
-  color: string
-  feedback: string[]
-}
-
 export default function SignupScreen({
   navigation,
 }: SignupScreenProps): React.JSX.Element {

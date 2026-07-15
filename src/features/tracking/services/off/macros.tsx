@@ -1,6 +1,7 @@
 // features/tracking/services/off/macros.tsx
 
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { generateId } from "@utils/format"
 import type { LogMacrosParams, MacrosGoals } from "../../types"
 
 interface StoredMacrosEntry {
@@ -18,9 +19,6 @@ interface StoredMacrosEntry {
 
 const ENTRIES_KEY = "@offline_macros_entries"
 const GOALS_KEY = "@offline_macros_goals"
-
-const generateId = (): string =>
-  `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 
 const loadEntries = async (): Promise<StoredMacrosEntry[]> => {
   try {

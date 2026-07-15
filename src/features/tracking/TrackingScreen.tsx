@@ -36,7 +36,6 @@ import type {
   WeightHistoryResponse,
   HeightData,
   MacrosEntry,
-  MacrosGoals,
   MacrosStat,
   DailyMacrosStats,
   BodyFatEntry,

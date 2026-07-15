@@ -67,14 +67,14 @@ export const calculateSimilarity = (str1: string, str2: string): number => {
  */
 export const getAllExerciseNames = (
   workoutData: WorkoutData | null | undefined,
-  selectedPerson: string | null,
+  selectedSplit: string | null,
 ): string[] => {
   const exerciseNames = new Set<string>()
 
-  if (!workoutData?.days || !selectedPerson) return []
+  if (!workoutData?.days || !selectedSplit) return []
 
   workoutData.days.forEach((day) => {
-    const personWorkout = day.people[selectedPerson]
+    const personWorkout = day.people[selectedSplit]
     if (personWorkout?.exercises) {
       personWorkout.exercises.forEach((exercise) => {
         if (exercise.name) {
@@ -92,13 +92,13 @@ export const getAllExerciseNames = (
  */
 export const getAllMuscleGroups = (
   workoutData: WorkoutData | null | undefined,
-  selectedPerson: string | null,
+  selectedSplit: string | null,
 ): string[] => {
   const groups = new Set<string>(CANONICAL_MUSCLE_GROUPS)
 
-  if (workoutData?.days && selectedPerson) {
+  if (workoutData?.days && selectedSplit) {
     workoutData.days.forEach((day) => {
-      const personWorkout = day.people?.[selectedPerson]
+      const personWorkout = day.people?.[selectedSplit]
       if (personWorkout?.exercises) {
         personWorkout.exercises.forEach((exercise) => {
           if (exercise.muscleGroup?.trim()) {
@@ -150,14 +150,21 @@ export const CANONICAL_MUSCLE_GROUPS: readonly string[] = [
 ]
 
 /**
+ * Normalize an exercise name for case-insensitive matching / keying.
+ * Single source of truth so session set-matching stays consistent everywhere.
+ */
+export const normalizeExerciseName = (name: string): string =>
+  name.trim().toLowerCase()
+
+/**
  * Find exact match for a name (case-insensitive)
  */
 export const findExactMatch = (
   name: string,
   allNames: string[],
 ): string | undefined => {
-  const normalized = name.toLowerCase().trim()
-  return allNames.find((n) => n.toLowerCase().trim() === normalized)
+  const normalized = normalizeExerciseName(name)
+  return allNames.find((n) => normalizeExerciseName(n) === normalized)
 }
 
 /**
@@ -171,11 +178,11 @@ export const findSimilarNames = (
 ): SimilarityMatch[] => {
   if (!name || name.trim().length < 3) return []
 
-  const normalized = name.toLowerCase().trim()
+  const normalized = normalizeExerciseName(name)
 
   return allNames
     .map((n) => {
-      const candidate = n.toLowerCase().trim()
+      const candidate = normalizeExerciseName(n)
       const similarity = calculateSimilarity(name, n)
       const isPrefix = candidate.startsWith(normalized)
       return {

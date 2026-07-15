@@ -3,8 +3,7 @@
 // Serverless mirror of services/on/supplements.tsx. Supplements, their log
 // entries, and their location reminders are all stored locally via
 // AsyncStorage. Shape and behavior (including the takenToday/streak
-// computation and the creatineApi back-compat shim) match the server
-// implementation as closely as possible.
+// computation) match the server implementation as closely as possible.
 
 import {
   computeDailyStreak,
@@ -372,65 +371,5 @@ export const supplementsApi = {
     }
 
     return { success: true, message: "Location reminder removed" }
-  },
-}
-
-// ─── Legacy creatine shim ─────────────────────────────────────────────────────
-// Mirrors services/on/supplements.tsx: resolves (or auto-creates) a
-// "Creatine" supplement so old creatineApi callers keep working unchanged.
-
-let _creatineSupplementId: number | null = null
-
-async function resolveCreatineId(): Promise<number> {
-  if (_creatineSupplementId != null) return _creatineSupplementId
-
-  const { supplements } = await supplementsApi.list()
-  const existing = supplements.find((s) => s.name.toLowerCase() === "creatine")
-  if (existing) {
-    _creatineSupplementId = existing.id
-    return existing.id
-  }
-
-  const { supplement } = await supplementsApi.create({
-    name: "Creatine",
-    unit: "g",
-    defaultAmount: 5,
-  })
-  _creatineSupplementId = supplement.id
-  return supplement.id
-}
-
-export const creatineApi = {
-  saveReminderLocation: async (
-    latitude: number,
-    longitude: number,
-    address: string,
-    radius: number,
-  ): Promise<unknown> => {
-    const id = await resolveCreatineId()
-    return supplementsApi.saveLocation(id, {
-      latitude,
-      longitude,
-      address,
-      radius,
-    })
-  },
-
-  getReminderLocation: async (): Promise<unknown> => {
-    const id = await resolveCreatineId()
-    return supplementsApi.getLocation(id)
-  },
-
-  toggleLocationReminder: async (enabled: boolean): Promise<unknown> => {
-    const id = await resolveCreatineId()
-    return supplementsApi.toggleLocation(id, enabled)
-  },
-
-  checkIfAtLocation: async (
-    currentLatitude: number,
-    currentLongitude: number,
-  ): Promise<AtLocationResult> => {
-    const id = await resolveCreatineId()
-    return supplementsApi.checkLocation(id, currentLatitude, currentLongitude)
   },
 }

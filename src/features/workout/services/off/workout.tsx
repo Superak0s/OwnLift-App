@@ -18,14 +18,20 @@ import {
   readJSON,
   writeJSON,
 } from "@shared/services/offlineHelpers"
-// Reuse the exact same types as the server-backed implementation so both
-// sides of the dispatch proxy line up structurally.
+// SetTiming/WorkoutSession/FullSessionWithGroups are canonical shared types
+// — on/workout.tsx only imports them (doesn't re-export), so pull from the
+// source directly rather than through on/workout.
+import type {
+  SetTiming,
+  WorkoutSession,
+  FullSessionWithGroups,
+} from "@shared/types"
+// WorkoutAnalytics, UpdateSetParams, RenameExerciseResult are genuinely
+// local to this service pair, not duplicated in @shared/types.
 import type {
   RenameExerciseResult,
-  SetTiming,
   UpdateSetParams,
   WorkoutAnalytics,
-  WorkoutSession,
 } from "../on/workout"
 
 // Option C: cross-feature import through plan's public barrel, not its
@@ -36,7 +42,9 @@ import { programApi } from "@features/plan/services/index"
 
 // ─── Storage shape ──────────────────────────────────────────────────────────
 
-interface StoredSession extends WorkoutSession {
+interface StoredSession extends Omit<WorkoutSession, "end_time"> {
+  person: string
+  end_time: string | null
   set_timings: SetTiming[]
   is_demo: boolean
 }
@@ -55,13 +63,30 @@ async function saveAllSessions(sessions: StoredSession[]): Promise<void> {
   await writeJSON(SESSIONS_KEY, sessions)
 }
 
+/** Used by endSession/getSessionHistory — matches on/workout's WorkoutSession return type. */
 function toPublicSession(
   s: StoredSession,
   includeTimings: boolean,
-): WorkoutSession {
-  const { is_demo: _isDemo, set_timings, ...rest } = s
-  if (includeTimings) return { ...rest, set_timings }
-  return { ...rest, set_count: set_timings.length }
+): WorkoutSession & { set_timings?: SetTiming[] } {
+  const { is_demo: _isDemo, set_timings, end_time, ...rest } = s
+  const publicEndTime = end_time ?? undefined
+  if (includeTimings) return { ...rest, end_time: publicEndTime, set_timings }
+  return { ...rest, end_time: publicEndTime, set_count: set_timings.length }
+}
+
+/** Used by getSession — matches on/workout's FullSessionWithGroups return type. */
+function toFullSession(s: StoredSession): FullSessionWithGroups {
+  return {
+    id: s.id,
+    day_number: s.day_number ?? 0,
+    end_time: s.end_time ?? undefined,
+    set_timings: s.set_timings,
+    start_time: s.start_time,
+    day_title: s.day_title,
+    // total_duration / completed_sets / muscle_groups / groupedExercises
+    // aren't tracked offline; left undefined, same as the server response
+    // before the client builds groupedExercises itself.
+  }
 }
 
 // ─── API ────────────────────────────────────────────────────────────────────
@@ -263,19 +288,21 @@ export const workoutApi = {
     const restGaps: number[] = []
     const sortedSets = [...workingSets].sort(
       (a, b) =>
-        new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+        new Date(a.start_time ?? 0).getTime() -
+        new Date(b.start_time ?? 0).getTime(),
     )
     for (let i = 0; i < sortedSets.length; i++) {
       const t = sortedSets[i]
       const duration =
-        (new Date(t.end_time).getTime() - new Date(t.start_time).getTime()) /
+        (new Date(t.end_time).getTime() -
+          new Date(t.start_time ?? 0).getTime()) /
         1000
       if (Number.isFinite(duration) && duration >= 0)
         setDurations.push(duration)
 
       if (i > 0) {
         const gap =
-          (new Date(t.start_time).getTime() -
+          (new Date(t.start_time ?? 0).getTime() -
             new Date(sortedSets[i - 1].end_time).getTime()) /
           1000
         if (Number.isFinite(gap) && gap >= 0) restGaps.push(gap)
@@ -310,18 +337,21 @@ export const workoutApi = {
       )
       .sort(
         (a, b) =>
-          new Date(b.start_time).getTime() - new Date(a.start_time).getTime(),
+          new Date(b.start_time ?? 0).getTime() -
+          new Date(a.start_time ?? 0).getTime(),
       )
       .slice(0, limit)
 
     return filtered.map((s) => toPublicSession(s, includeTimings))
   },
 
-  getSession: async (sessionId: number | string): Promise<WorkoutSession> => {
+  getSession: async (
+    sessionId: number | string,
+  ): Promise<FullSessionWithGroups> => {
     const sessions = await getAllSessions()
     const session = sessions.find((s) => String(s.id) === String(sessionId))
     if (!session) throw new Error("Failed to get session: session not found")
-    return toPublicSession(session, true)
+    return toFullSession(session)
   },
 
   clearDemoSessions: async (): Promise<unknown> => {
@@ -341,8 +371,16 @@ export const workoutApi = {
     const sessions = await getAllSessions()
     const remaining = sessions.filter((s) => s.person !== person)
     const deletedCount = sessions.length - remaining.length
-    await programApi.deleteProgram(person)
+    await programApi.deleteProgram()
     await saveAllSessions(remaining)
     return { success: true, deletedCount }
+  },
+
+  deleteAllUserData: async (): Promise<unknown> => {
+    // Serverless equivalent of the server-side wipe: drop all locally stored
+    // sessions and the imported program.
+    await saveAllSessions([])
+    await programApi.deleteProgram()
+    return { success: true }
   },
 }

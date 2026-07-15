@@ -11,16 +11,16 @@ import type { CompletedDays } from "./dayCompletion"
  */
 export const countRemainingSets = (
   workoutData: WorkoutData | null | undefined,
-  selectedPerson: string | null,
+  selectedSplit: string | null,
   dayNumber: number,
   completedDays: CompletedDays,
 ): number => {
-  if (!workoutData?.days || !selectedPerson) return 0
+  if (!workoutData?.days || !selectedSplit) return 0
 
   const day = workoutData.days.find((d) => d.dayNumber === dayNumber)
-  if (!day || !day.people[selectedPerson]) return 0
+  if (!day || !day.people[selectedSplit]) return 0
 
-  const exercises = day.people[selectedPerson].exercises || []
+  const exercises = day.people[selectedSplit].exercises || []
 
   let remainingSets = 0
   exercises.forEach((exercise, exerciseIndex) => {
@@ -52,7 +52,7 @@ export const getCompletedExerciseSets = (
  */
 export const getEstimatedTimeRemaining = (
   workoutData: WorkoutData | null | undefined,
-  selectedPerson: string | null,
+  selectedSplit: string | null,
   dayNumber: number,
   completedDays: CompletedDays,
   timeBetweenSets: number,
@@ -61,11 +61,11 @@ export const getEstimatedTimeRemaining = (
   useManualTime: boolean,
   serverAnalytics: { averageTimeBetweenSets?: number } | null | undefined,
 ): number => {
-  if (!workoutData?.days || !selectedPerson) return 0
+  if (!workoutData?.days || !selectedSplit) return 0
 
   const remainingSets = countRemainingSets(
     workoutData,
-    selectedPerson,
+    selectedSplit,
     dayNumber,
     completedDays,
   )
@@ -95,9 +95,19 @@ export const getEstimatedEndTime = (
 }
 
 /**
- * Format seconds to human readable string
+ * Format a duration in seconds to a human readable string (e.g. "1h 5m", "45s").
+ *
+ * @param seconds  Duration in seconds.
+ * @param fallback Optional string returned when `seconds` is falsy (0/NaN/undefined).
+ *                 Pass "N/A" to reproduce the old per-screen behaviour; omit to
+ *                 render "0s".
  */
-export const formatTime = (seconds: number): string => {
+export const formatTime = (
+  seconds: number,
+  fallback?: string,
+): string => {
+  if (fallback !== undefined && !seconds) return fallback
+
   if (seconds < 60) {
     return `${seconds}s`
   }

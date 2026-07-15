@@ -5,37 +5,34 @@
 // This is intentionally dumb (no schema, no migrations) — it just needs to
 // be a drop-in stand-in for what the server used to persist for us.
 
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import {
+  loadFromStorage,
+  removeFromStorage,
+  saveToStorage,
+} from "./storage"
+
+// These thin wrappers delegate to the shared AsyncStorage primitives in
+// `storage.tsx` so there's a single error-handling/logging path. They use raw
+// keys (no per-user namespacing) by passing `userId = null`, matching the
+// offline service's flat key space.
 
 /** Read a JSON value, returning `fallback` if it's missing or unparsable. */
 export async function readJSON<T>(key: string, fallback: T): Promise<T> {
-  try {
-    const raw = await AsyncStorage.getItem(key)
-    if (raw == null) return fallback
-    return JSON.parse(raw) as T
-  } catch (error) {
-    console.error(`[offline storage] Failed to read "${key}":`, error)
-    return fallback
-  }
+  const value = await loadFromStorage<T>(key)
+  return value == null ? fallback : value
 }
 
-/** Write a JSON value. */
+/** Write a JSON value. Throws if the underlying write fails. */
 export async function writeJSON<T>(key: string, value: T): Promise<void> {
-  try {
-    await AsyncStorage.setItem(key, JSON.stringify(value))
-  } catch (error) {
-    console.error(`[offline storage] Failed to write "${key}":`, error)
-    throw error
+  const ok = await saveToStorage(key, value)
+  if (!ok) {
+    throw new Error(`[offline storage] Failed to write "${key}"`)
   }
 }
 
 /** Remove a key entirely. */
 export async function removeKey(key: string): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(key)
-  } catch (error) {
-    console.error(`[offline storage] Failed to remove "${key}":`, error)
-  }
+  await removeFromStorage(key)
 }
 
 /**

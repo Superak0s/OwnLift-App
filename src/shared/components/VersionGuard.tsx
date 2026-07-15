@@ -10,7 +10,7 @@ import {
   validateServerVersion,
   compareVersions,
   parseVersion,
-} from "../../services/on/versionService"
+} from "@shared/services/versionService"
 import { useAlert } from "./CustomAlert"
 import * as Linking from "expo-linking"
 import { useTheme } from "../context/ThemeContext"
@@ -19,13 +19,15 @@ import {
   setServerUrl,
   resetServerUrl,
   getDefaultServerUrl,
+} from "@shared/services/config"
+import {
   getAppMode,
   setAppMode,
   isServerless,
   ensureAppModeLoaded,
   onAppModeChange,
-} from "../../services/api"
-import type { AppMode } from "../../services/api"
+} from "@shared/services/appMode"
+import type { AppMode } from "@shared/services/appMode"
 import ModalSheet from "./ModalSheet"
 import ServerModeToggle from "./ServerModeToggle"
 

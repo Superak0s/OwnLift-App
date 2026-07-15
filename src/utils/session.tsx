@@ -3,10 +3,57 @@
  * Handles workout session operations
  */
 
-import type { WorkoutData } from "@shared/types"
+import type { PendingSync, WorkoutData } from "@shared/types"
 import type { CompletedDays } from "./dayCompletion"
 
 export const INACTIVITY_THRESHOLD_MS = 30 * 60 * 1000 // 30 minutes
+
+/**
+ * Remove pending-sync operations that reference a *local* (un-synced) session
+ * id — they can't be replayed against the server as-is.
+ *
+ * Only `recordSet` and `endSession` syncs carry a session id; `startSession`
+ * syncs are always kept (they're what mints the real server id).
+ *
+ * - With no `sessionId`, every sync pointing at any `local_…` session is
+ *   dropped (bulk cleanup of orphaned syncs).
+ * - With a `sessionId`, only syncs pointing at that exact session are dropped.
+ * - `types` narrows which sync kinds are eligible for removal. It defaults to
+ *   both id-bearing kinds; pass `["endSession"]` to drop the end marker while
+ *   keeping queued `recordSet`s so they can be remapped once the session syncs.
+ */
+export const filterOutLocalSessionSyncs = (
+  syncs: PendingSync[],
+  options: {
+    sessionId?: string | null
+    types?: Array<PendingSync["type"]>
+  } = {},
+): PendingSync[] => {
+  const { sessionId, types = ["endSession", "recordSet"] } = options
+  return syncs.filter((sync) => {
+    if (!types.includes(sync.type)) return true
+    // Narrow to the id-bearing variants so `sync.data.sessionId` is valid
+    // (startSession's data has no sessionId).
+    if (sync.type !== "endSession" && sync.type !== "recordSet") return true
+    if (sessionId != null) return sync.data.sessionId !== sessionId
+    return !String(sync.data.sessionId).startsWith("local_")
+  })
+}
+
+/**
+ * Current time as an ISO-8601 string that preserves the device's local
+ * timezone offset (instead of the UTC "Z" that Date.toISOString() emits).
+ */
+export const getLocalISOString = (): string => {
+  const now = new Date()
+  const offsetMs = now.getTimezoneOffset() * 60 * 1000
+  const localTime = new Date(now.getTime() - offsetMs)
+  const offsetMinutes = Math.abs(now.getTimezoneOffset())
+  const sign = now.getTimezoneOffset() <= 0 ? "+" : "-"
+  const hh = String(Math.floor(offsetMinutes / 60)).padStart(2, "0")
+  const mm = String(offsetMinutes % 60).padStart(2, "0")
+  return localTime.toISOString().replace("Z", `${sign}${hh}:${mm}`)
+}
 
 /**
  * Check if session is inactive
@@ -146,7 +193,7 @@ export const getSessionStatistics = (
   completedDays: CompletedDays,
   dayNumber: number,
   workoutData: WorkoutData | null | undefined,
-  selectedPerson: string | null,
+  selectedSplit: string | null,
   timeBetweenSets: number,
 ): SessionStatisticsResult | null => {
   if (!workoutStartTime) return null
@@ -162,7 +209,7 @@ export const getSessionStatistics = (
   const completedSetsCount = countCompletedSets(completedDays, dayNumber)
 
   const day = workoutData?.days?.find((d) => d.dayNumber === dayNumber)
-  const totalSets = day?.people?.[selectedPerson ?? ""]?.totalSets || 0
+  const totalSets = day?.people?.[selectedSplit ?? ""]?.totalSets || 0
 
   return {
     totalTime,

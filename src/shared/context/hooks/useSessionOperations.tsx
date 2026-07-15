@@ -1,24 +1,14 @@
 import { useCallback } from "react"
-import { generateLocalSessionId, isLocalSessionId } from "../../utils/session"
-import { startSession, recordSet, endSession } from "../../services/api"
-import type { WorkoutData } from "../../types/index"
-import type { CompletedDays, LockedDays } from "../../utils/dayCompletion"
-import type { PendingSync } from "../../types/index"
-
-/**
- * Returns the current local time as an ISO-8601 string that preserves the
- * user's timezone offset (e.g. "2026-02-19T14:30:00.000+02:00").
- */
-const getLocalISOString = (): string => {
-  const now = new Date()
-  const offsetMs = now.getTimezoneOffset() * 60 * 1000
-  const localTime = new Date(now.getTime() - offsetMs)
-  const offsetMinutes = Math.abs(now.getTimezoneOffset())
-  const sign = now.getTimezoneOffset() <= 0 ? "+" : "-"
-  const hh = String(Math.floor(offsetMinutes / 60)).padStart(2, "0")
-  const mm = String(offsetMinutes % 60).padStart(2, "0")
-  return localTime.toISOString().replace("Z", `${sign}${hh}:${mm}`)
-}
+import {
+  filterOutLocalSessionSyncs,
+  generateLocalSessionId,
+  getLocalISOString,
+  isLocalSessionId,
+} from "../../../utils/session"
+import { workoutApi } from "@features/workout/services/index"
+import type { WorkoutData } from "../../types"
+import type { CompletedDays, LockedDays } from "../../../utils/dayCompletion"
+import type { PendingSync } from "../../types"
 
 export interface UseSessionOperationsOptions {
   workoutStartTime: string | null
@@ -30,7 +20,7 @@ export interface UseSessionOperationsOptions {
   lastActivityTime: number | null
   setLastActivityTime: (time: number | null) => void
   currentDay: number
-  selectedPerson: string | null
+  selectedSplit: string | null
   workoutData: WorkoutData | null
   isDemoMode: boolean
   completedDays: CompletedDays
@@ -95,7 +85,7 @@ export const useSessionOperations = ({
   lastActivityTime,
   setLastActivityTime,
   currentDay,
-  selectedPerson,
+  selectedSplit,
   workoutData,
   isDemoMode,
   completedDays,
@@ -215,8 +205,8 @@ export const useSessionOperations = ({
         const localSessionId = generateLocalSessionId()
 
         try {
-          const sessionId = await startSession(
-            selectedPerson,
+          const sessionId = await workoutApi.startSession(
+            selectedSplit,
             currentDay,
             day.dayTitle,
             day.muscleGroups,
@@ -249,9 +239,9 @@ export const useSessionOperations = ({
             type: "startSession",
             localSessionId,
             data: {
-              // FIX 2: selectedPerson is string | null but StartSessionSyncData.person
+              // FIX 2: selectedSplit is string | null but StartSessionSyncData.person
               // is string — coerce null to empty string with nullish coalescing.
-              person: selectedPerson ?? "",
+              person: selectedSplit ?? "",
               dayNumber: currentDay,
               dayTitle: day.dayTitle,
               muscleGroups: day.muscleGroups,
@@ -273,7 +263,7 @@ export const useSessionOperations = ({
     workoutStartTime,
     currentSessionId,
     currentDay,
-    selectedPerson,
+    selectedSplit,
     workoutData,
     isDemoMode,
     saveToStorage,
@@ -302,15 +292,12 @@ export const useSessionOperations = ({
             sessionIdToEnd,
           )
 
-          const cleanedSyncs = pendingSyncs.filter((sync) => {
-            if (
-              sync.type === "endSession" &&
-              sync.data.sessionId === sessionIdToEnd
-            ) {
-              console.log("  Removed: endSession for local session")
-              return false
-            }
-            return true
+          // Drop only the endSession marker for this local session; queued
+          // recordSet syncs are kept so they can be remapped to the real
+          // server id once the startSession sync completes.
+          const cleanedSyncs = filterOutLocalSessionSyncs(pendingSyncs, {
+            sessionId: sessionIdToEnd,
+            types: ["endSession"],
           })
 
           await saveToStorage(STORAGE_KEYS.PENDING_SYNCS, cleanedSyncs, userId)
@@ -322,7 +309,7 @@ export const useSessionOperations = ({
 
         if (sessionIdToEnd && !isLocalSessionId(sessionIdToEnd)) {
           try {
-            await endSession(sessionIdToEnd, getLocalISOString())
+            await workoutApi.endSession(sessionIdToEnd, getLocalISOString())
             console.log("✓ Session ended on server")
           } catch (error) {
             console.error("Failed to end session on server:", error)
@@ -409,7 +396,7 @@ export const useSessionOperations = ({
 
         const day = workoutData?.days?.find((d) => d.dayNumber === dayNumber)
         const exercise =
-          day?.people?.[selectedPerson ?? ""]?.exercises?.[exerciseIndex]
+          day?.people?.[selectedSplit ?? ""]?.exercises?.[exerciseIndex]
         const exerciseName = exercise?.name ?? `Exercise ${exerciseIndex}`
         const muscleGroup = exercise?.muscleGroup ?? null
 
@@ -432,7 +419,7 @@ export const useSessionOperations = ({
 
         if (sessionId) {
           try {
-            await recordSet(
+            await workoutApi.recordSet(
               sessionId,
               exerciseName,
               setIndex,
@@ -486,7 +473,7 @@ export const useSessionOperations = ({
       addPendingSync,
       saveToStorage,
       workoutData,
-      selectedPerson,
+      selectedSplit,
       userId,
       STORAGE_KEYS,
     ],

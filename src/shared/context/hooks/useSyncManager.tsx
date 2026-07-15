@@ -1,6 +1,7 @@
 import { useCallback } from "react"
-import { startSession, recordSet, endSession } from "../../services/api"
-import type { PendingSync } from "../../types/index"
+import { workoutApi } from "@features/workout/services/index"
+import { filterOutLocalSessionSyncs, getLocalISOString } from "@utils/session"
+import type { PendingSync } from "../../types"
 
 /**
  * Sync Management Hook
@@ -88,7 +89,7 @@ export const useSyncManager = ({
         switch (sync.type) {
           case "startSession": {
             // sync.data is StartSessionSyncData — fully typed, no casts needed
-            const sessionId = await startSession(
+            const sessionId = await workoutApi.startSession(
               sync.data.person,
               sync.data.dayNumber,
               sync.data.dayTitle,
@@ -146,7 +147,7 @@ export const useSyncManager = ({
                 ? `Exercise ${sync.data.exerciseIndex}`
                 : "Unknown Exercise")
 
-            await recordSet(
+            await workoutApi.recordSet(
               sync.data.sessionId,
               exerciseName,
               sync.data.setIndex,
@@ -170,7 +171,10 @@ export const useSyncManager = ({
             }
 
             try {
-              await endSession(sync.data.sessionId)
+              await workoutApi.endSession(
+                sync.data.sessionId,
+                getLocalISOString(),
+              )
               console.log("✓ Synced session end")
             } catch (error) {
               if (
@@ -225,31 +229,7 @@ export const useSyncManager = ({
    * Clean up invalid syncs
    */
   const cleanupInvalidSyncs = useCallback(async (): Promise<void> => {
-    const validSyncs = pendingSyncs.filter((sync) => {
-      if (
-        sync.type === "endSession" &&
-        String(sync.data.sessionId).startsWith("local_")
-      ) {
-        console.log(
-          "🧹 Removing invalid endSession sync for local session:",
-          sync.data.sessionId,
-        )
-        return false
-      }
-
-      if (
-        sync.type === "recordSet" &&
-        String(sync.data.sessionId).startsWith("local_")
-      ) {
-        console.log(
-          "🧹 Removing invalid recordSet sync for local session:",
-          sync.data.sessionId,
-        )
-        return false
-      }
-
-      return true
-    })
+    const validSyncs = filterOutLocalSessionSyncs(pendingSyncs)
 
     if (validSyncs.length !== pendingSyncs.length) {
       await saveToStorage(STORAGE_KEYS.PENDING_SYNCS, validSyncs, userId)

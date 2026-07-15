@@ -1,8 +1,9 @@
-import type { SetTiming } from "@shared/types"
+import type { SetTiming, GroupedExercise } from "@shared/types"
 
 export interface Friend {
   id: number | string
   username: string
+  createdAt: string
 }
 
 // ─── Program sharing ──────────────────────────────────────────────────────
@@ -87,10 +88,9 @@ export interface FriendSessionStatus {
 
 // ─── Session history ──────────────────────────────────────────────────────
 
-export interface GroupedExercise {
-  exerciseName: string
-  sets: SetTiming[]
-}
+// Canonical definition lives in @shared/types; re-exported so existing
+// `import { GroupedExercise } from "./types"` call sites keep working.
+export type { GroupedExercise }
 
 export interface SessionRecord {
   id: number | string

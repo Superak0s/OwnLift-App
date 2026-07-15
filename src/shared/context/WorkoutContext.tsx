@@ -10,12 +10,9 @@ import React, {
 } from "react"
 import { useAuth } from "./AuthContext"
 import { useRealtimeSocket } from "./hooks/useRealtimeSocket"
-import {
-  authService,
-  getAnalytics,
-  clearDemoSessions,
-} from "../../services/api"
-import type { WorkoutAnalytics } from "../../services/api"
+import { authService } from "@features/auth/services"
+import { workoutApi } from "@features/workout/services"
+import type { WorkoutAnalytics } from "@features/workout/services/on/workout"
 
 import {
   STORAGE_KEYS,
@@ -55,10 +52,12 @@ import { useJointSession } from "./hooks/useJointSession"
 
 import type {
   WorkoutData,
+  WorkoutDay,
   CompletedDays,
   LockedDays,
   PendingSync,
-} from "../../types/types"
+  Exercise,
+} from "../types"
 import type { WebSocketMessage } from "./hooks/useRealtimeSocket"
 import type {
   JointSession,
@@ -75,7 +74,7 @@ type ServerAnalyticsType = WorkoutAnalytics | null
 interface WorkoutContextValue {
   socketLastMessage: WebSocketMessage | null
   workoutData: WorkoutData | null
-  selectedPerson: string | null
+  selectedSplit: string | null
   currentDay: number
   completedDays: CompletedDays
   lockedDays: LockedDays
@@ -92,7 +91,7 @@ interface WorkoutContextValue {
   lastActivityTime: number | null
   weightUnit: "kg" | "lbs"
   saveWorkoutData: (data: WorkoutData | null) => Promise<void>
-  saveSelectedPerson: (person: string) => Promise<void>
+  saveSelectedSplit: (person: string) => Promise<void>
   saveCurrentDay: (day: number) => Promise<void>
   saveCompletedDays: (completed: CompletedDays) => Promise<void>
   saveLockedDays: (locked: LockedDays) => Promise<void>
@@ -223,7 +222,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [workoutData, setWorkoutData] = useState<WorkoutData | null>(null)
-  const [selectedPerson, setSelectedPerson] = useState<string | null>(null)
+  const [selectedSplit, setSelectedSplit] = useState<string | null>(null)
   const [currentDay, setCurrentDay] = useState(1)
   const [completedDays, setCompletedDays] = useState<CompletedDays>({})
   const [lockedDays, setLockedDays] = useState<LockedDays>({})
@@ -254,11 +253,13 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   // ── Joint session exercise list ────────────────────────────────────────────
   const currentDayAllExercises = useMemo((): ExerciseEntry[] => {
     if (!workoutData?.days || !currentDay) return []
-    const day = workoutData.days.find((d) => d.dayNumber === currentDay)
+    const day = workoutData.days.find(
+      (d: WorkoutDay) => d.dayNumber === currentDay,
+    )
     if (!day?.people) return []
     const result: ExerciseEntry[] = []
     Object.entries(day.people).forEach(([person, personWorkout]) => {
-      ;(personWorkout?.exercises ?? []).forEach((ex) => {
+      ;(personWorkout?.exercises ?? []).forEach((ex: Exercise) => {
         result.push({ name: ex.name, sets: ex.sets ?? 0, person })
       })
     })
@@ -285,14 +286,17 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     currentSessionId,
     workoutStartTime,
     currentDayExercises: currentDayAllExercises,
-    selectedPerson,
+    selectedSplit,
     socket,
   })
 
   // ── Fetch analytics ────────────────────────────────────────────────────────
   const fetchAnalytics = useCallback(async () => {
     try {
-      const analytics = await getAnalytics(selectedPerson, currentDay)
+      const analytics = await workoutApi.getAnalytics(
+        selectedSplit,
+        currentDay,
+      )
       if (analytics) {
         setServerAnalytics(analytics as WorkoutAnalytics)
         const avg = (analytics as WorkoutAnalytics).averageTimeBetweenSets
@@ -301,8 +305,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Error fetching analytics:", error)
     }
-  }, [selectedPerson, currentDay, useManualTime])
-
+  }, [selectedSplit, currentDay, useManualTime])
   // ── Sub-hooks ──────────────────────────────────────────────────────────────
   const syncManager = useSyncManager({
     pendingSyncs,
@@ -328,7 +331,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     lastActivityTime,
     setLastActivityTime,
     currentDay,
-    selectedPerson,
+    selectedSplit,
     workoutData,
     isDemoMode,
     completedDays,
@@ -359,7 +362,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   const serverSync = useServerSync({
     userId,
-    selectedPerson,
+    selectedSplit,
     workoutData,
     setWorkoutData,
     completedDays,
@@ -382,10 +385,10 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     [userId],
   )
 
-  const saveSelectedPerson = useCallback(
+  const saveSelectedSplit = useCallback(
     async (person: string) => {
       await saveToStorage(STORAGE_KEYS.SELECTED_PERSON, person, userId)
-      setSelectedPerson(person)
+      setSelectedSplit(person)
     },
     [userId],
   )
@@ -426,7 +429,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       setUnlockedOverrides(overrides)
 
       // Clear completed days for any day that has been unlocked
-      setCompletedDays((prev) => {
+      setCompletedDays((prev: CompletedDays) => {
         const next = { ...prev }
         let changed = false
         Object.keys(overrides).forEach((dayNumberStr) => {
@@ -466,9 +469,9 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         userId,
       )
       setUseManualTime(enabled)
-      if (!enabled && selectedPerson) await fetchAnalytics()
+      if (!enabled && selectedSplit) await fetchAnalytics()
     },
-    [userId, selectedPerson, fetchAnalytics],
+    [userId, selectedSplit, fetchAnalytics],
   )
 
   const toggleDemoMode = useCallback(
@@ -477,7 +480,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       setIsDemoMode(enabled)
       if (!enabled) {
         try {
-          await clearDemoSessions()
+          await workoutApi.clearDemoSessions()
         } catch (error) {
           console.error("Failed to clear demo sessions (offline):", error)
         }
@@ -485,7 +488,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     },
     [userId],
   )
-
   const saveWeightUnit = useCallback(
     async (unit: "kg" | "lbs") => {
       await saveToStorage(STORAGE_KEYS.WEIGHT_UNIT, unit, userId)
@@ -497,7 +499,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   // ── Utility helpers ────────────────────────────────────────────────────────
   const resetAllState = useCallback(() => {
     setWorkoutData(null)
-    setSelectedPerson(null)
+    setSelectedSplit(null)
     setCurrentDay(1)
     setCompletedDays({})
     setLockedDays({})
@@ -582,7 +584,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       ])
 
       if (data) setWorkoutData(data as WorkoutData)
-      if (person) setSelectedPerson(person as string)
+      if (person) setSelectedSplit(person as string)
       if (day) setCurrentDay(parseInt(day as string))
       if (completed) setCompletedDays(completed as CompletedDays)
       if (locked) setLockedDays(locked as LockedDays)
@@ -642,7 +644,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       )
       return getEstimatedTimeRemaining(
         workoutData,
-        selectedPerson,
+        selectedSplit,
         dayNumber,
         completedDays,
         timeBetweenSets,
@@ -657,7 +659,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       workoutStartTime,
       timeBetweenSets,
       workoutData,
-      selectedPerson,
+      selectedSplit,
       useManualTime,
       serverAnalytics,
     ],
@@ -699,7 +701,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         completedDays,
         dayNumber,
         workoutData,
-        selectedPerson,
+        selectedSplit,
         timeBetweenSets,
       ),
     [
@@ -707,7 +709,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       lastSetEndTime,
       completedDays,
       workoutData,
-      selectedPerson,
+      selectedSplit,
       timeBetweenSets,
     ],
   )
@@ -734,10 +736,10 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
         lockedDays,
         dayNumber,
         workoutData,
-        selectedPerson,
+        selectedSplit,
         completedDays,
       ),
-    [lockedDays, workoutData, selectedPerson, completedDays],
+    [lockedDays, workoutData, selectedSplit, completedDays],
   )
   const isDayLockedFunc = useCallback(
     (dayNumber: number) => isDayLocked(lockedDays, dayNumber),
@@ -755,8 +757,8 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   }, [userId])
 
   useEffect(() => {
-    if (selectedPerson && !useManualTime && userId) void fetchAnalytics()
-  }, [selectedPerson, currentDay, useManualTime, userId, fetchAnalytics])
+    if (selectedSplit && !useManualTime && userId) void fetchAnalytics()
+  }, [selectedSplit, currentDay, useManualTime, userId, fetchAnalytics])
 
   useEffect(() => {
     if (!userId) return
@@ -776,22 +778,22 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     const checkStaleSessionOnStart = async () => {
       if (isLoading) return
       const hadStaleSession = await checkAndEndStaleSession()
-      if (hadStaleSession && !useManualTime && selectedPerson)
+      if (hadStaleSession && !useManualTime && selectedSplit)
         await fetchAnalytics()
     }
     void checkStaleSessionOnStart()
   }, [isLoading])
 
   useEffect(() => {
-    if (isLoading || !userId || !selectedPerson || !workoutData) return
+    if (isLoading || !userId || !selectedSplit || !workoutData) return
     if (hasSyncedRef.current) return
     hasSyncedRef.current = true
     void serverSync.syncFromServer()
-  }, [isLoading, userId, selectedPerson])
+  }, [isLoading, userId, selectedSplit])
 
   useEffect(() => {
     hasSyncedRef.current = false
-  }, [selectedPerson, userId])
+  }, [selectedSplit, userId])
 
   useEffect(() => {
     if (!workoutStartTime || !currentSessionId) return
@@ -808,7 +810,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     }
     authService
       .getToken()
-      .then((t) => setAuthToken(t))
+      .then((t: string | null) => setAuthToken(t))
       .catch(() => setAuthToken(null))
   }, [userId])
 
@@ -837,7 +839,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       socketLastMessage: socket.lastMessage,
       workoutData,
-      selectedPerson,
+      selectedSplit,
       currentDay,
       completedDays,
       lockedDays,
@@ -854,7 +856,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       lastActivityTime,
       weightUnit,
       saveWorkoutData,
-      saveSelectedPerson,
+      saveSelectedSplit,
       saveCurrentDay,
       saveCompletedDays,
       saveLockedDays,
@@ -917,7 +919,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     [
       socket.lastMessage,
       workoutData,
-      selectedPerson,
+      selectedSplit,
       currentDay,
       completedDays,
       lockedDays,
@@ -934,7 +936,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       lastActivityTime,
       weightUnit,
       saveWorkoutData,
-      saveSelectedPerson,
+      saveSelectedSplit,
       saveCurrentDay,
       saveCompletedDays,
       saveLockedDays,

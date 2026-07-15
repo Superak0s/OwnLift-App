@@ -20,8 +20,11 @@ import ModalSheet from "@shared/components/ModalSheet"
 import { useAlert } from "@shared/components/CustomAlert"
 import { workoutApi } from "@features/workout/services/index"
 import { programApi } from "@features/plan/services/index"
+import { formatTime as formatDuration } from "@utils/timeEstimation"
+import { formatDate as formatDateUtil } from "@utils/format"
 import type {
   WorkoutData,
+  WorkoutDay,
   WorkoutSession,
   FullSessionWithGroups,
 } from "@shared/types"
@@ -40,7 +43,7 @@ export default function HomeScreen({
   const styles = makeStyles(colors)
   const {
     workoutData,
-    selectedPerson,
+    selectedSplit,
     currentDay,
     saveWorkoutData,
     saveCurrentDay,
@@ -65,7 +68,7 @@ export default function HomeScreen({
   }
 
   useEffect(() => {
-    if (selectedPerson) {
+    if (selectedSplit) {
       loadSessionHistory().catch((error) => {
         if ((error as Error)?.message === "SESSION_EXPIRED") {
           alert(
@@ -87,7 +90,7 @@ export default function HomeScreen({
         }
       })
     }
-  }, [selectedPerson])
+  }, [selectedSplit])
 
   useEffect(() => {
     const restoreProgram = async () => {
@@ -223,10 +226,11 @@ export default function HomeScreen({
   }
 
   const getDayTitle = (dayNumber: number): string => {
-    const day = workoutData?.days?.find((d) => d.dayNumber === dayNumber)
+    const day = workoutData?.days?.find(
+      (d: WorkoutDay) => d.dayNumber === dayNumber,
+    )
     return day?.muscleGroups?.join("/") || `Day ${dayNumber}`
   }
-
   const getSessionTitle = (session: WorkoutSession): string => {
     if (!session?.day_title) return `Day ${session?.day_number ?? ""}`
     const parts = session.day_title.split("—")
@@ -248,30 +252,14 @@ export default function HomeScreen({
     return getSessionsForDate(date).length > 0
   }
 
-  const formatDate = (date: Date): string => {
-    return date.toLocaleDateString("en-US", {
+  const formatDate = (date: Date): string =>
+    formatDateUtil(date, {
       weekday: "short",
       month: "short",
       day: "numeric",
     })
-  }
 
-  const formatTime = (seconds: number): string => {
-    if (!seconds) return "N/A"
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const remainingSeconds = seconds % 60
-
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`
-    }
-    if (seconds >= 60) {
-      return remainingSeconds > 0
-        ? `${minutes}m ${remainingSeconds}s`
-        : `${minutes}m`
-    }
-    return `${seconds}s`
-  }
+  const formatTime = (seconds: number): string => formatDuration(seconds, "N/A")
 
   const formatSessionTime = (dateString: string | null | undefined): string => {
     if (!dateString) return ""
@@ -309,7 +297,7 @@ export default function HomeScreen({
             </Text>
           </View>
 
-          {selectedPerson && workoutData && (
+          {selectedSplit && workoutData && (
             <View
               style={[
                 styles.currentDayCard,
@@ -375,7 +363,7 @@ export default function HomeScreen({
             </View>
           )}
 
-          {selectedPerson && (
+          {selectedSplit && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📅 Workout History</Text>
 
@@ -418,7 +406,7 @@ export default function HomeScreen({
           showCancelButton={false}
           showConfirmButton={false}
         >
-          {workoutData?.days?.map((day) => {
+          {workoutData?.days?.map((day: WorkoutDay) => {
             const isLocked = isDayLocked(day.dayNumber)
             const isCurrent = day.dayNumber === currentDay
 

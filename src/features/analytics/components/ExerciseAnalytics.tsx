@@ -13,6 +13,7 @@ import {
 import UniversalCalendar from "@shared/components/UniversalCalendar"
 import ProgressChart from "@shared/components/ProgressChart"
 import ModalSheet from "@shared/components/ModalSheet"
+import { formatDate as formatDateUtil, formatClockTime } from "@utils/format"
 import type { ChartData } from "react-native-chart-kit/dist/HelperTypes"
 
 // Canonical shared + feature types — no local redefinitions.
@@ -49,7 +50,7 @@ type Session = Pick<
 interface ExerciseAnalyticsProps {
   sessions?: Session[]
   workoutData?: WorkoutData | null
-  selectedPerson?: string | null
+  selectedSplit?: string | null
   completedDays?: CompletedDays
   currentBodyWeight?: number | null
   isDemoMode?: boolean
@@ -66,7 +67,7 @@ interface ExerciseAnalyticsProps {
 export default function ExerciseAnalytics({
   sessions = [],
   workoutData = null,
-  selectedPerson = null,
+  selectedSplit = null,
   completedDays = {},
   currentBodyWeight = null,
   isDemoMode = false,
@@ -97,10 +98,10 @@ export default function ExerciseAnalytics({
 
   useEffect(() => {
     loadAvailableExercises()
-  }, [sessions, workoutData, selectedPerson, completedDays])
+  }, [sessions, workoutData, selectedSplit, completedDays])
   useEffect(() => {
     hasAutoSelected.current = false
-  }, [selectedPerson, sessions])
+  }, [selectedSplit, sessions])
   useEffect(() => {
     if (selectedExercise) loadExerciseData()
   }, [selectedExercise, completedDays, sessions])
@@ -117,14 +118,14 @@ export default function ExerciseAnalytics({
 
       if (
         workoutData?.days &&
-        selectedPerson &&
+        selectedSplit &&
         timing.exercise_index != null
       ) {
         const day = workoutData.days.find(
           (d) => d.dayNumber === session.day_number,
         )
         const exercise =
-          day?.people?.[selectedPerson]?.exercises?.[timing.exercise_index]
+          day?.people?.[selectedSplit]?.exercises?.[timing.exercise_index]
         if (exercise) {
           const ex = exercise as { machineName?: string; name: string }
           return ex.machineName ?? ex.name
@@ -135,15 +136,15 @@ export default function ExerciseAnalytics({
         ? `Exercise ${timing.exercise_index + 1}`
         : "Unknown Exercise"
     },
-    [workoutData, selectedPerson],
+    [workoutData, selectedSplit],
   )
 
   const loadAvailableExercises = () => {
     const exercisesMap = new Map<string, ExerciseMeta>()
 
-    if (workoutData?.days && selectedPerson) {
+    if (workoutData?.days && selectedSplit) {
       workoutData.days.forEach((day) => {
-        const personWorkout = day.people?.[selectedPerson]
+        const personWorkout = day.people?.[selectedSplit]
         ;(personWorkout?.exercises ?? []).forEach((exercise, exerciseIndex) => {
           const ex = exercise as {
             machineName?: string
@@ -256,14 +257,14 @@ export default function ExerciseAnalytics({
           let isAssisted = false
           if (
             workoutData?.days &&
-            selectedPerson &&
+            selectedSplit &&
             timing.exercise_index != null
           ) {
             const day = workoutData.days.find(
               (d) => d.dayNumber === session.day_number,
             )
             const exercise =
-              day?.people?.[selectedPerson]?.exercises?.[timing.exercise_index]
+              day?.people?.[selectedSplit]?.exercises?.[timing.exercise_index]
             if (exercise) {
               const ex = exercise as { name: string }
               isAssisted = ex.name.toLowerCase().includes("assisted")
@@ -292,7 +293,7 @@ export default function ExerciseAnalytics({
 
       if (
         workoutData?.days &&
-        selectedPerson &&
+        selectedSplit &&
         Object.keys(completedDays).length > 0
       ) {
         Object.keys(completedDays).forEach((dayNumber) => {
@@ -300,7 +301,7 @@ export default function ExerciseAnalytics({
             (d) => d.dayNumber === parseInt(dayNumber),
           )
           if (!day) return
-          const personWorkout = day.people?.[selectedPerson]
+          const personWorkout = day.people?.[selectedSplit]
           if (!personWorkout?.exercises) return
 
           personWorkout.exercises.forEach((exercise, exerciseIndex) => {
@@ -493,19 +494,14 @@ export default function ExerciseAnalytics({
   }
 
   const formatDate = (date: Date): string =>
-    date.toLocaleDateString("en-US", {
+    formatDateUtil(date, {
       weekday: "long",
       month: "long",
       day: "numeric",
       year: "numeric",
     })
 
-  const formatTime = (date: Date): string =>
-    date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    })
+  const formatTime = (date: Date): string => formatClockTime(date)
 
   const filteredExercises = availableExercises.filter((exercise) => {
     const matchesSearch =

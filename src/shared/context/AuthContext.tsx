@@ -6,9 +6,15 @@ import React, {
   useCallback,
   type ReactNode,
 } from "react"
-import { authService, onServerUrlChange } from "../../services/api"
+import { authService } from "@features/auth/services/index"
+import { onServerUrlChange } from "../services/config"
+import {
+  ensureAppModeLoaded,
+  isServerless,
+  onAppModeChange,
+} from "../services/appMode"
 import { Alert } from "react-native"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { tokenStorage } from "../services/tokenStorage"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +68,7 @@ export const useAuth = (): AuthContextValue => {
 /** Read the stored JWT without throwing. Returns empty string on failure. */
 const readStoredToken = async (): Promise<string> => {
   try {
-    return (await AsyncStorage.getItem("@auth_token")) ?? ""
+    return (await tokenStorage.get()) ?? ""
   } catch {
     return ""
   }
@@ -90,6 +96,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAuthToken("")
       setUser(null)
       setIsAuthenticated(false)
+    }
+  }, [])
+
+  // ── Offline auto-connect ────────────────────────────────────────────────────
+  /**
+   * In serverless ("off") mode there's no server to authenticate against, so
+   * we skip the login screen entirely: load (or create) the single local
+   * profile and mark the session authenticated. Safe to call repeatedly —
+   * the offline auth service just loads the existing local profile.
+   */
+  const autoConnectOffline = useCallback(async (): Promise<void> => {
+    try {
+      const data = (await authService.signin("Me", "")) as {
+        success: boolean
+        user?: User
+        token?: string
+      }
+      if (data.success && data.user) {
+        const token = data.token ?? (await readStoredToken())
+        setAuthToken(token)
+        setUser(data.user)
+        setIsAuthenticated(true)
+      }
+    } catch (error) {
+      console.error("Offline auto-connect failed:", error)
     }
   }, [])
 
@@ -144,6 +175,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void checkAuthStatus()
   }, [])
 
+  // React to runtime app-mode toggles (e.g. the Login screen's toggle):
+  // switching to offline auto-connects with no login; switching to server
+  // mode drops the local session so a real login is required.
+  useEffect(() => {
+    const unsubscribe = onAppModeChange((mode) => {
+      if (mode === "off") void autoConnectOffline()
+      else void logout()
+    })
+    return unsubscribe
+  }, [autoConnectOffline, logout])
+
   useEffect(() => {
     const unsubscribe = onServerUrlChange(() => {
       if (isAuthenticated) {
@@ -161,6 +203,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ── checkAuthStatus ───────────────────────────────────────────────────────
   const checkAuthStatus = useCallback(async (): Promise<void> => {
     try {
+      // Make sure the persisted app mode is loaded before we decide whether
+      // this is a serverless session (which never shows a login screen).
+      await ensureAppModeLoaded()
       const isAuth = await authService.isAuthenticated()
       if (isAuth) {
         try {
@@ -192,6 +237,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           }
         }
+      } else if (isServerless()) {
+        // Offline mode: connect automatically, no login screen.
+        await autoConnectOffline()
       } else {
         setAuthToken("")
         setUser(null)
@@ -205,7 +253,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false)
     }
-  }, [logout, refreshToken])
+  }, [logout, refreshToken, autoConnectOffline])
 
   // ── signup ────────────────────────────────────────────────────────────────
   const signup = async (
