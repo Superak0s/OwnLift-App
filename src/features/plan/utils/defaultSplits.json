@@ -1,0 +1,63 @@
+[
+  {
+    "id": "push-pull-legs",
+    "name": "Push Pull Legs",
+    "description": "Classic 3-day split organized by movement pattern. Repeat the cycle 2x/week for a 6-day split.",
+    "days": [
+      {
+        "dayTitle": "Day 1 — Push",
+        "muscleGroups": ["Chest", "Shoulders", "Triceps"]
+      },
+      {
+        "dayTitle": "Day 2 — Pull",
+        "muscleGroups": ["Back", "Biceps", "Rear Delts"]
+      },
+      {
+        "dayTitle": "Day 3 — Legs",
+        "muscleGroups": ["Quads", "Hamstrings", "Glutes", "Calves"]
+      }
+    ]
+  },
+  {
+    "id": "full-body",
+    "name": "Full Body",
+    "description": "3-day full-body split. Good for beginners or lower weekly training frequency.",
+    "days": [
+      {
+        "dayTitle": "Day 1 — Full Body A",
+        "muscleGroups": ["Chest", "Back", "Quads", "Shoulders"]
+      },
+      {
+        "dayTitle": "Day 2 — Full Body B",
+        "muscleGroups": ["Back", "Hamstrings", "Chest", "Arms"]
+      },
+      {
+        "dayTitle": "Day 3 — Full Body C",
+        "muscleGroups": ["Quads", "Shoulders", "Back", "Core"]
+      }
+    ]
+  },
+  {
+    "id": "upper-lower",
+    "name": "Upper / Lower",
+    "description": "4-day split alternating upper and lower body sessions.",
+    "days": [
+      {
+        "dayTitle": "Day 1 — Upper",
+        "muscleGroups": ["Chest", "Back", "Shoulders", "Arms"]
+      },
+      {
+        "dayTitle": "Day 2 — Lower",
+        "muscleGroups": ["Quads", "Hamstrings", "Glutes", "Calves"]
+      },
+      {
+        "dayTitle": "Day 3 — Upper",
+        "muscleGroups": ["Chest", "Back", "Shoulders", "Arms"]
+      },
+      {
+        "dayTitle": "Day 4 — Lower",
+        "muscleGroups": ["Quads", "Hamstrings", "Glutes", "Core"]
+      }
+    ]
+  }
+]
