@@ -151,6 +151,7 @@ export default function AnalyticsScreen(): React.JSX.Element {
         currentSessionId={currentSessionId}
         isLoading={isLoading}
         error={error}
+        userId={user?.id ?? null}
       />
       {AlertComponent}
     </SafeAreaView>

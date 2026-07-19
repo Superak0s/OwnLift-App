@@ -35,6 +35,17 @@ import {
 import * as Notifications from "expo-notifications"
 import { initializeSupplementNotifications } from "../../../tasks/supplementLocationTask"
 import { formatDate as formatDateUtil } from "@utils/format"
+import { useWidgets } from "@shared/context/hooks/useWidgets"
+import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull"
+import WidgetGallery from "@shared/components/widgets/WidgetGallery"
+import WidgetsPanel from "@shared/components/widgets/WidgetsPanel"
+import {
+  WORKOUT_WIDGET_REGISTRY,
+  DEFAULT_WORKOUT_WIDGETS,
+  WORKOUT_WIDGETS_STORAGE_KEY,
+  type WorkoutWidgetType,
+} from "./widgets"
+import type { WidgetInstance } from "@shared/types"
 import type { SetDetails, SimilarityMatch, PartnerBannerProps } from "./types"
 
 // ─── Unit helpers ─────────────────────────────────────────────────────────────
@@ -55,6 +66,14 @@ function displayToKg(value: string, unit: "kg" | "lbs"): number {
   if (!isFinite(n) || n <= 0) return 0
   return unit === "lbs" ? n * LBS_TO_KG : n
 }
+
+// ─── Widget group visuals ──────────────────────────────────────────────────
+// The four "day status" header widgets (day_number, total_sets, progress,
+// session_stats) are fused into one seamless card outside of edit mode —
+// see getWidgetCardStyleOverride below, which zeroes out the margin/border
+// between them and rounds only the group's outer corners. Kept as a
+// constant so every widget's corner radius agrees exactly.
+const WIDGET_GROUP_RADIUS = 14
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Partner banner – compact strip pinned to the very top of the screen
@@ -385,6 +404,46 @@ export default function WorkoutScreen(): React.JSX.Element {
     string,
     unknown
   > | null>(null)
+
+  // ── Header-card widgets ──────────────────────────────────────────────
+  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false)
+  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false)
+
+  const {
+    widgets,
+    isLoaded: widgetsLoaded,
+    availableToAdd,
+    addWidget,
+    removeWidget,
+    cycleWidgetSize,
+    reorderWidgets,
+  } = useWidgets<WorkoutWidgetType>(user?.id ?? null, {
+    registry: WORKOUT_WIDGET_REGISTRY,
+    defaults: DEFAULT_WORKOUT_WIDGETS,
+    storageKey: WORKOUT_WIDGETS_STORAGE_KEY,
+  })
+
+  // Two-finger pull brings up the "deploy" panel for adding widgets. To
+  // rearrange, resize, or remove widgets already on the screen, open that
+  // same panel and tap "Edit Widgets" — it closes the panel and switches
+  // this screen into edit mode.
+  const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
+    setShowWidgetGallery(true)
+  })
+
+  const handleEditWidgets = () => {
+    setShowWidgetGallery(false)
+    setWidgetEditMode(true)
+  }
+
+  const handleAddWidget = async (type: WorkoutWidgetType) => {
+    const result = await addWidget(type)
+    if (!result.success && result.error) {
+      alert("Can't Add Widget", result.error, [{ text: "OK" }], "error")
+      return
+    }
+    setShowWidgetGallery(false)
+  }
 
   const allExerciseNames = getAllExerciseNames(workoutData, selectedSplit)
   const allMuscleGroups = getAllMuscleGroups(workoutData, selectedSplit)
@@ -1224,6 +1283,92 @@ export default function WorkoutScreen(): React.JSX.Element {
     return new Set<string>(myExerciseNames.filter((n) => partnerSet.has(n)))
   }, [isInJointSession, jointSession?.participants, dayWorkout])
 
+  // Single source of truth for every header widget's tint (accent while
+  // active, success once complete, muted once locked), shared by both the
+  // card background (via WidgetsPanel's getCardBackgroundColor), the
+  // fused group's container background (via containerBackgroundColor —
+  // see the WidgetsPanel usage below), and the content rendered inside
+  // each widget, so the whole set of day-status widgets reads as one
+  // cohesive area even though each is its own card.
+  //
+  // NOTE: this (and the three useCallback hooks below) must be computed
+  // here, before the early "empty state" returns, not after them. Hooks
+  // can never be conditionally skipped — defining them after an early
+  // return meant they simply weren't called on renders that hit one of
+  // those returns, which is what caused the "Rendered more hooks than
+  // during the previous render" crash.
+  const allSetsCompleteForTint = areAllSetsComplete && !isCurrentDayLocked
+  const dayOverviewTint = isCurrentDayLocked
+    ? colors.textSecondary
+    : allSetsCompleteForTint
+      ? colors.success
+      : colors.accent
+
+  const getWidgetCardBackgroundColor = useCallback(
+    (): string | undefined => dayOverviewTint,
+    [dayOverviewTint],
+  )
+
+  const getWidgetHeaderTextColor = useCallback(
+    (): string | undefined => colors.surface,
+    [colors.surface],
+  )
+
+  // Zeroes out margin/border/shadow between the four day-status widgets and
+  // rounds only the group's outer corners, so they read as one continuous
+  // card instead of four separate cards with gaps. Only applied outside
+  // edit mode — editing needs the drag/resize affordances (dashed border,
+  // spacing) visible on each widget.
+  //
+  // NOTE: each margin edge is set individually (marginTop/Right/Bottom/Left)
+  // rather than via the `margin` shorthand. In React Native's layout engine,
+  // a specific edge from a later style always wins over an earlier style's
+  // shorthand, regardless of object key order — so `{ margin: 0 }` here
+  // would NOT beat `styles.widget`'s `marginBottom: 12`, and the widgets
+  // would keep a visible 12px gap between them. Setting `marginBottom: 0`
+  // explicitly is what actually removes it.
+  const getWidgetCardStyleOverride = useCallback(
+    (instance: WidgetInstance<WorkoutWidgetType>): object | undefined => {
+      if (widgetEditMode) return undefined
+      const base = {
+        marginTop: 0,
+        marginRight: 0,
+        marginBottom: 0,
+        marginLeft: 0,
+        borderWidth: 0,
+        shadowOpacity: 0,
+        elevation: 0,
+        borderRadius: 0,
+      }
+      switch (instance.type) {
+        case "day_number":
+          return {
+            ...base,
+            width: "50%",
+            borderTopLeftRadius: WIDGET_GROUP_RADIUS,
+          }
+        case "total_sets":
+          return {
+            ...base,
+            width: "50%",
+            borderTopRightRadius: WIDGET_GROUP_RADIUS,
+          }
+        case "progress":
+          return base
+        case "session_stats":
+          return {
+            ...base,
+            marginBottom: 12, // intentional — separates the fused group from the exercise list below
+            borderBottomLeftRadius: WIDGET_GROUP_RADIUS,
+            borderBottomRightRadius: WIDGET_GROUP_RADIUS,
+          }
+        default:
+          return undefined
+      }
+    },
+    [widgetEditMode],
+  )
+
   // ── empty states ─────────────────────────────────────────────────────
   if (!workoutData)
     return (
@@ -1272,9 +1417,160 @@ export default function WorkoutScreen(): React.JSX.Element {
     ? jointSession?.participants?.find((p) => p.userId !== user?.id)
     : null
 
+  // ── header-row widget content ────────────────────────────────────────
+  const renderWidgetContent = (
+    instance: WidgetInstance<WorkoutWidgetType>,
+  ): React.ReactNode => {
+    switch (instance.type) {
+      case "day_number":
+        return (
+          <View style={styles.dayNumberWidgetInner}>
+            <Text style={styles.dayNumberValue}>
+              {(dayWorkout as any).dayNumber}
+            </Text>
+            {isCurrentDayLocked && (
+              <View style={styles.dayNumberLockedTag}>
+                <Text style={styles.dayNumberLockedText}>🔒 Locked</Text>
+              </View>
+            )}
+          </View>
+        )
+
+      case "total_sets":
+        return (
+          <View style={styles.totalSetsWidgetInner}>
+            <Text style={styles.setsValue}>
+              {(dayWorkout as any).totalSets}
+            </Text>
+          </View>
+        )
+
+      case "progress":
+        return (
+          <View style={styles.headerCardInner}>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${progressPercentage}%` },
+                  ]}
+                />
+              </View>
+              <View style={styles.progressTextRow}>
+                <Text style={styles.progressText}>
+                  {completedSetsCount} / {totalSetsCount} sets completed
+                </Text>
+                {workoutStartTime &&
+                  estimatedRemaining != null &&
+                  estimatedRemaining > 0 &&
+                  !isCurrentDayLocked && (
+                    <Text style={styles.progressText}>
+                      ~{formatTime(estimatedRemaining)} left
+                    </Text>
+                  )}
+              </View>
+              {workoutStartTime &&
+                estimatedEnd &&
+                estimatedRemaining != null &&
+                estimatedRemaining > 0 &&
+                !isCurrentDayLocked && (
+                  <Text style={styles.endTimeText}>
+                    Estimated finish: {formatEndTime(estimatedEnd)}
+                  </Text>
+                )}
+            </View>
+            {(allSetsComplete || isCurrentDayLocked) && (
+              <View style={styles.completeMessage}>
+                <Text style={styles.completeMessageText}>
+                  {isCurrentDayLocked
+                    ? `🔒 Locked (${completedSetsCount}/${totalSetsCount} sets) - View Only`
+                    : "🎉 All sets complete! Great job!"}
+                </Text>
+              </View>
+            )}
+          </View>
+        )
+
+      case "session_stats": {
+        if (!workoutStartTime || isCurrentDayLocked || !sessionStats) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Starts once you begin a session.
+            </Text>
+          )
+        }
+        const currentRest = getCurrentRestTime()
+        return (
+          <View>
+            <View style={styles.sessionStatsRow}>
+              <View style={styles.sessionStat}>
+                <Text style={styles.sessionStatLabel}>⏱️ Total Time</Text>
+                <Text style={styles.sessionStatValue}>
+                  {formatTime(totalSessionTime)}
+                </Text>
+              </View>
+              <View style={styles.sessionStat}>
+                <Text style={styles.sessionStatLabel}>💤 Avg Rest/Set</Text>
+                <Text style={styles.sessionStatValue}>
+                  {formatTime(Math.round(sessionAvgRest))}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.sessionStat}
+                onPress={handleOpenRestReminderModal}
+              >
+                <Text style={styles.sessionStatLabel}>⏰ Reminder</Text>
+                <Text style={styles.sessionStatValue}>
+                  {restReminderEnabled && restReminderSeconds > 0
+                    ? formatTime(restReminderSeconds)
+                    : "Off"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {currentRest > 0 && (
+              <View style={styles.currentRestContainer}>
+                <Text style={styles.currentRestLabel}>
+                  Rest since last set:
+                </Text>
+                <Text
+                  style={[
+                    styles.currentRestValue,
+                    currentRest > sessionAvgRest && styles.currentRestOvertime,
+                  ]}
+                >
+                  {formatTime(currentRest)}
+                  {currentRest > sessionAvgRest && (
+                    <Text style={styles.overtimeText}>
+                      {" "}
+                      (+{formatTime(Math.round(currentRest - sessionAvgRest))})
+                    </Text>
+                  )}
+                </Text>
+              </View>
+            )}
+          </View>
+        )
+      }
+
+      default:
+        return null
+    }
+  }
+
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1 }} edges={["top"]} {...panHandlers}>
       <View style={styles.container}>
+        {isPulling && (
+          <View pointerEvents='none' style={styles.pullHint}>
+            <Text style={styles.pullHintText}>
+              {pullDistance > 90
+                ? "Release to add a widget ✨"
+                : "Pull to add a widget ↓"}
+            </Text>
+          </View>
+        )}
+
         {isInJointSession && (
           <PartnerBanner
             partnerProgress={partnerProgress as any}
@@ -1299,130 +1595,42 @@ export default function WorkoutScreen(): React.JSX.Element {
           </View>
         )}
 
-        {/* ── Header card ── */}
-        <View
-          style={[
-            styles.headerCard,
-            allSetsComplete && styles.headerCardComplete,
-            isCurrentDayLocked && styles.headerCardLocked,
-          ]}
-        >
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.dayNumber}>
-                Day {(dayWorkout as any).dayNumber}
-                {isCurrentDayLocked && " 🔒"}
-              </Text>
-            </View>
-            <View style={styles.setsInfo}>
-              <Text style={styles.setsLabel}>Total Sets</Text>
-              <Text style={styles.setsValue}>
-                {(dayWorkout as any).totalSets}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${progressPercentage}%` },
-                ]}
-              />
-            </View>
-            <View style={styles.progressTextRow}>
-              <Text style={styles.progressText}>
-                {completedSetsCount} / {totalSetsCount} sets completed
-              </Text>
-              {workoutStartTime &&
-                estimatedRemaining != null &&
-                estimatedRemaining > 0 &&
-                !isCurrentDayLocked && (
-                  <Text style={styles.progressText}>
-                    ~{formatTime(estimatedRemaining)} left
-                  </Text>
-                )}
-            </View>
-            {workoutStartTime &&
-              estimatedEnd &&
-              estimatedRemaining != null &&
-              estimatedRemaining > 0 &&
-              !isCurrentDayLocked && (
-                <Text style={styles.endTimeText}>
-                  Estimated finish: {formatEndTime(estimatedEnd)}
-                </Text>
-              )}
-          </View>
-          {workoutStartTime && !isCurrentDayLocked && sessionStats && (
-            <View style={styles.sessionStatsContainer}>
-              <View style={styles.sessionStatRow}>
-                <View style={styles.sessionStat}>
-                  <Text style={styles.sessionStatLabel}>⏱️ Total Time</Text>
-                  <Text style={styles.sessionStatValue}>
-                    {formatTime(totalSessionTime)}
-                  </Text>
-                </View>
-                <View style={styles.sessionStat}>
-                  <Text style={styles.sessionStatLabel}>💤 Avg Rest/Set</Text>
-                  <Text style={styles.sessionStatValue}>
-                    {formatTime(Math.round(sessionAvgRest))}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.sessionStat}
-                  onPress={handleOpenRestReminderModal}
-                >
-                  <Text style={styles.sessionStatLabel}>⏰ Reminder</Text>
-                  <Text style={styles.sessionStatValue}>
-                    {restReminderEnabled && restReminderSeconds > 0
-                      ? formatTime(restReminderSeconds)
-                      : "Off"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              {getCurrentRestTime() > 0 && (
-                <View style={styles.currentRestContainer}>
-                  <Text style={styles.currentRestLabel}>
-                    Rest since last set:
-                  </Text>
-                  <Text
-                    style={[
-                      styles.currentRestValue,
-                      getCurrentRestTime() > sessionAvgRest &&
-                        styles.currentRestOvertime,
-                    ]}
-                  >
-                    {formatTime(getCurrentRestTime())}
-                    {getCurrentRestTime() > sessionAvgRest && (
-                      <Text style={styles.overtimeText}>
-                        {" "}
-                        (+
-                        {formatTime(
-                          Math.round(getCurrentRestTime() - sessionAvgRest),
-                        )}
-                        )
-                      </Text>
-                    )}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-          {(allSetsComplete || isCurrentDayLocked) && (
-            <View style={styles.completeMessage}>
-              <Text style={styles.completeMessageText}>
-                {isCurrentDayLocked
-                  ? `🔒 Locked (${completedSetsCount}/${totalSetsCount} sets) - View Only`
-                  : "🎉 All sets complete! Great job!"}
-              </Text>
-            </View>
-          )}
-        </View>
-
         <ScrollView
           style={styles.exerciseList}
           contentContainerStyle={styles.exerciseListContent}
+          scrollEnabled={!isPulling}
         >
+          {widgetsLoaded && widgets.length > 0 && widgetEditMode && (
+            <View style={styles.widgetsSectionHeader}>
+              <Text style={styles.widgetsSectionTitle}>Editing Widgets</Text>
+              <TouchableOpacity
+                onPress={() => setWidgetEditMode(false)}
+                hitSlop={8}
+              >
+                <Text style={styles.widgetsEditToggle}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <WidgetsPanel
+            widgets={widgets}
+            isLoaded={widgetsLoaded}
+            editMode={widgetEditMode}
+            onCycleSize={cycleWidgetSize}
+            onRemove={removeWidget}
+            onReorder={reorderWidgets}
+            renderContent={renderWidgetContent}
+            registry={WORKOUT_WIDGET_REGISTRY}
+            getCardBackgroundColor={getWidgetCardBackgroundColor}
+            getHeaderTextColor={getWidgetHeaderTextColor}
+            getCardStyleOverride={getWidgetCardStyleOverride}
+            containerBackgroundColor={
+              !widgetEditMode ? dayOverviewTint : undefined
+            }
+            containerBorderRadius={
+              !widgetEditMode ? WIDGET_GROUP_RADIUS : undefined
+            }
+          />
+
           {((dayWorkout as any)?.exercises as any[]).map(
             (exercise: any, exerciseIndex: number) => {
               const completedSets = getExerciseCompletedSets(
@@ -2184,6 +2392,15 @@ export default function WorkoutScreen(): React.JSX.Element {
 
         {AlertComponent}
       </View>
+
+      <WidgetGallery
+        visible={showWidgetGallery}
+        onClose={() => setShowWidgetGallery(false)}
+        availableWidgets={availableToAdd}
+        onAddWidget={handleAddWidget}
+        hasPlacedWidgets={widgets.length > 0}
+        onEditWidgets={handleEditWidgets}
+      />
     </SafeAreaView>
   )
 }
@@ -2212,6 +2429,46 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: "center",
       lineHeight: 24,
     },
+    pullHint: {
+      position: "absolute",
+      top: 8,
+      left: 0,
+      right: 0,
+      alignItems: "center",
+      zIndex: 40,
+    },
+    pullHintText: {
+      backgroundColor: colors.accentDark,
+      color: colors.surface,
+      fontSize: 12,
+      fontWeight: "700",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+      overflow: "hidden",
+    },
+    widgetsSectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    widgetsSectionTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    widgetsEditToggle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.accent,
+    },
+    widgetLineMuted: {
+      fontSize: 13,
+      color: colors.surface,
+      opacity: 0.8,
+      fontStyle: "italic",
+    },
     lockedBanner: {
       backgroundColor: "#ff9800",
       flexDirection: "row",
@@ -2228,40 +2485,57 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 2,
     },
     lockedBannerText: { fontSize: 13, color: colors.surface, opacity: 0.95 },
-    headerCard: {
-      backgroundColor: colors.accent,
-      padding: 20,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 3,
-      paddingBottom: 10,
-      paddingTop: 10,
+    // ── Widget-hosted content. Each widget's own card background color
+    // (accent / success / locked) is painted by WidgetsPanel itself via
+    // getCardBackgroundColor, so these wrappers stay fully transparent and
+    // just provide layout — no seam between a widget's icon/title row and
+    // its content. ──────────────────────────────────────────────────────
+    headerCardInner: {
+      backgroundColor: "transparent",
     },
-    headerCardComplete: { backgroundColor: colors.success },
-    headerCardLocked: { backgroundColor: colors.textSecondary },
-    headerTop: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: 15,
+    // ── Day number / Total sets: the widget's own header row (icon +
+    // title, rendered by WidgetsPanel) already labels these ("📅 Day",
+    // "🔢 Total Sets"), so the content body deliberately shows ONLY the
+    // big value — repeating the label here just doubled up the text and
+    // is what made these two tiles look cluttered. Both are centered
+    // (rather than one left-aligned/one centered, as before) so the fused
+    // pair reads as a single, symmetrical stat row. ─────────────────────
+    dayNumberWidgetInner: {
+      backgroundColor: "transparent",
+      flexGrow: 1,
+      alignItems: "center",
+      justifyContent: "center",
     },
-    dayNumber: {
-      fontSize: 28,
-      fontWeight: "bold",
+    dayNumberValue: {
+      fontSize: 34,
+      fontWeight: "800",
       color: colors.surface,
-      marginBottom: 4,
+      letterSpacing: -0.5,
     },
-    setsInfo: { alignItems: "flex-end" },
-    setsLabel: {
-      fontSize: 12,
+    dayNumberLockedTag: {
+      marginTop: 4,
+    },
+    dayNumberLockedText: {
+      fontSize: 11,
+      fontWeight: "700",
       color: colors.surface,
       opacity: 0.8,
-      marginBottom: 2,
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
     },
-    setsValue: { fontSize: 32, fontWeight: "bold", color: colors.surface },
-    progressContainer: { marginTop: 10 },
+    totalSetsWidgetInner: {
+      backgroundColor: "transparent",
+      flexGrow: 1,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    setsValue: {
+      fontSize: 34,
+      fontWeight: "800",
+      color: colors.surface,
+      letterSpacing: -0.5,
+    },
+    progressContainer: { marginTop: 0 },
     progressBar: {
       height: 8,
       backgroundColor: "rgba(255,255,255,0.3)",
@@ -2286,22 +2560,15 @@ const makeStyles = (colors: ThemeColors) =>
       opacity: 0.8,
       marginTop: 4,
     },
-    sessionStatsContainer: {
-      marginTop: 15,
-      padding: 12,
-      backgroundColor: "rgba(255,255,255,0.15)",
-      borderRadius: 8,
-    },
-    sessionStatRow: {
+    sessionStatsRow: {
       flexDirection: "row",
       justifyContent: "space-around",
-      marginBottom: 10,
     },
     sessionStat: { alignItems: "center" },
     sessionStatLabel: {
       fontSize: 12,
       color: colors.surface,
-      opacity: 0.9,
+      opacity: 0.85,
       marginBottom: 4,
     },
     sessionStatValue: {
@@ -2313,14 +2580,15 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: "row",
       justifyContent: "center",
       alignItems: "center",
+      marginTop: 10,
       paddingTop: 10,
       borderTopWidth: 1,
-      borderTopColor: "rgba(255,255,255,0.2)",
+      borderTopColor: "rgba(255,255,255,0.25)",
     },
     currentRestLabel: {
       fontSize: 14,
       color: colors.surface,
-      opacity: 0.9,
+      opacity: 0.85,
       marginRight: 8,
     },
     currentRestValue: {
@@ -2328,8 +2596,8 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: "bold",
       color: colors.surface,
     },
-    currentRestOvertime: { color: colors.warning },
-    overtimeText: { fontSize: 14, color: colors.warning },
+    currentRestOvertime: { color: "#fde68a" }, // amber, readable on accent bg
+    overtimeText: { fontSize: 14, color: "#fde68a" },
     completeMessage: {
       marginTop: 15,
       padding: 12,

@@ -201,32 +201,53 @@ export const useSessionOperations = ({
       const day = workoutData?.days?.find((d) => d.dayNumber === currentDay)
       let newSessionId: string | null = null
 
-      if (day) {
-        const localSessionId = generateLocalSessionId()
-
-        try {
-          const sessionId = await workoutApi.startSession(
-            selectedSplit,
+      if (!day) {
+        // FIX: this used to be a silent no-op — the whole session-start
+        // attempt was skipped with zero logging, and callers just got back
+        // `null` with no way to tell why.
+        console.error(
+          "startWorkout: no matching day found for currentDay —",
+          "workoutData may not be loaded yet, or currentDay is stale.",
+          {
             currentDay,
-            day.dayTitle,
-            day.muscleGroups,
-            isDemoMode,
-            startTime,
-          )
+            hasWorkoutData: !!workoutData,
+            dayCount: workoutData?.days?.length,
+          },
+        )
+        setLastSetEndTime(null)
+        return null
+      }
 
-          if (sessionId) {
-            newSessionId = String(sessionId)
-            await saveToStorage(
-              STORAGE_KEYS.CURRENT_SESSION_ID,
-              newSessionId,
-              userId,
-            )
-            // FIX 1: setCurrentSessionId expects string | null — pass the value directly
-            setCurrentSessionId(newSessionId)
-            console.log("✓ Session started on server with ID:", newSessionId)
-          }
-        } catch (error) {
-          console.error("Failed to start session on server (offline):", error)
+      const localSessionId = generateLocalSessionId()
+
+      try {
+        const sessionId = await workoutApi.startSession(
+          selectedSplit,
+          currentDay,
+          day.dayTitle,
+          day.muscleGroups,
+          isDemoMode,
+          startTime,
+        )
+
+        if (sessionId) {
+          newSessionId = String(sessionId)
+          await saveToStorage(
+            STORAGE_KEYS.CURRENT_SESSION_ID,
+            newSessionId,
+            userId,
+          )
+          setCurrentSessionId(newSessionId)
+          console.log("✓ Session started on server with ID:", newSessionId)
+        } else {
+          // FIX: previously fell through silently when the server call
+          // resolved (no throw) but returned a falsy id. Now treat it the
+          // same way as an offline/failed start: fall back to a local
+          // session id and queue the sync so nothing is lost.
+          console.error(
+            "startSession resolved without a usable session ID — falling back to local session.",
+            { sessionId },
+          )
           newSessionId = localSessionId
           await saveToStorage(
             STORAGE_KEYS.CURRENT_SESSION_ID,
@@ -239,8 +260,6 @@ export const useSessionOperations = ({
             type: "startSession",
             localSessionId,
             data: {
-              // FIX 2: selectedSplit is string | null but StartSessionSyncData.person
-              // is string — coerce null to empty string with nullish coalescing.
               person: selectedSplit ?? "",
               dayNumber: currentDay,
               dayTitle: day.dayTitle,
@@ -249,8 +268,34 @@ export const useSessionOperations = ({
             },
             timestamp: startTime,
           })
-          console.log("⚠ Session queued for sync with local ID:", newSessionId)
+          console.log(
+            "⚠ Session queued for sync with local ID (no id from server):",
+            newSessionId,
+          )
         }
+      } catch (error) {
+        console.error("Failed to start session on server (offline):", error)
+        newSessionId = localSessionId
+        await saveToStorage(
+          STORAGE_KEYS.CURRENT_SESSION_ID,
+          newSessionId,
+          userId,
+        )
+        setCurrentSessionId(newSessionId)
+
+        await addPendingSync({
+          type: "startSession",
+          localSessionId,
+          data: {
+            person: selectedSplit ?? "",
+            dayNumber: currentDay,
+            dayTitle: day.dayTitle,
+            muscleGroups: day.muscleGroups,
+            isDemo: isDemoMode,
+          },
+          timestamp: startTime,
+        })
+        console.log("⚠ Session queued for sync with local ID:", newSessionId)
       }
 
       setLastSetEndTime(null)

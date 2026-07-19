@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Dimensions,
 } from "react-native"
+import * as Device from "expo-device"
 import UniversalCalendar from "@shared/components/UniversalCalendar"
 import ProgressChart from "@shared/components/ProgressChart"
 import ModalSheet from "@shared/components/ModalSheet"
@@ -20,8 +21,20 @@ import type {
   WorkoutData,
   SetTiming,
   FullSessionWithGroups,
+  WidgetInstance,
 } from "@shared/types"
 import { useTheme } from "@shared/context/ThemeContext"
+import type { ThemeColors } from "@shared/context/ThemeContext"
+import { useWidgets } from "@shared/context/hooks/useWidgets"
+import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull"
+import WidgetGallery from "@shared/components/widgets/WidgetGallery"
+import WidgetsPanel from "@shared/components/widgets/WidgetsPanel"
+import {
+  ANALYTICS_WIDGET_REGISTRY,
+  DEFAULT_ANALYTICS_WIDGETS,
+  ANALYTICS_WIDGETS_STORAGE_KEY,
+  type AnalyticsWidgetType,
+} from "../widgets"
 
 import type {
   CompletedDays,
@@ -31,6 +44,10 @@ import type {
 } from "../types"
 
 const { width: screenWidth } = Dimensions.get("window")
+// Extra horizontal padding a chart eats once it's nested inside a widget
+// card (the card itself pads 14 on each side) on top of the outer content
+// padding already subtracted from containerWidth.
+const WIDGET_CARD_PADDING = 28
 
 type Session = Pick<
   FullSessionWithGroups,
@@ -50,6 +67,8 @@ interface ExerciseAnalyticsProps {
   currentSessionId?: string | null
   isLoading?: boolean
   error?: string | null
+  /** Used to key widget layout persistence per-user, same as HomeScreen. */
+  userId?: string | number | null
 }
 
 export default function ExerciseAnalytics({
@@ -65,6 +84,7 @@ export default function ExerciseAnalytics({
   currentSessionId = null,
   isLoading = false,
   error = null,
+  userId = null,
 }: ExerciseAnalyticsProps) {
   const { colors } = useTheme()
   const styles = makeStyles(colors)
@@ -83,6 +103,48 @@ export default function ExerciseAnalytics({
   const [showDateSets, setShowDateSets] = useState(false)
   const hasAutoSelected = useRef(false)
   const [containerWidth, setContainerWidth] = useState(0)
+  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false)
+  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false)
+  const isEmulator = !Device.isDevice
+
+  // ─── Widgets ────────────────────────────────────────────────────────────
+  const {
+    widgets,
+    isLoaded: widgetsLoaded,
+    availableToAdd,
+    addWidget,
+    removeWidget,
+    cycleWidgetSize,
+    reorderWidgets,
+  } = useWidgets<AnalyticsWidgetType>(userId != null ? String(userId) : null, {
+    registry: ANALYTICS_WIDGET_REGISTRY,
+    defaults: DEFAULT_ANALYTICS_WIDGETS,
+    storageKey: ANALYTICS_WIDGETS_STORAGE_KEY,
+  })
+
+  // Two-finger pull brings up the "deploy" panel for adding widgets. To
+  // rearrange, resize, or remove widgets already on the screen, open that
+  // same panel and tap "Edit Widgets" — it closes the panel and switches
+  // this screen into edit mode.
+  const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
+    setShowWidgetGallery(true)
+  })
+
+  const handleEditWidgets = () => {
+    setShowWidgetGallery(false)
+    setWidgetEditMode(true)
+  }
+
+  const handleAddWidget = async (type: Parameters<typeof addWidget>[0]) => {
+    const result = await addWidget(type)
+    if (!result.success && result.error) {
+      // Widget-gallery failures are quiet by design here (no alert plumbing
+      // in this component) — the gallery just stays open.
+      console.error("Can't add widget:", result.error)
+      return
+    }
+    setShowWidgetGallery(false)
+  }
 
   useEffect(() => {
     loadAvailableExercises()
@@ -499,6 +561,256 @@ export default function ExerciseAnalytics({
     return matchesSearch && hasData
   })
 
+  const selectedExerciseMeta = availableExercises.find(
+    (e) => e.name === selectedExercise,
+  )
+  const chartWidth = (containerWidth || screenWidth - 40) - WIDGET_CARD_PADDING
+
+  const renderWidgetContent = (
+    instance: WidgetInstance<AnalyticsWidgetType>,
+  ): React.ReactNode => {
+    switch (instance.type) {
+      case "select_exercise": {
+        return (
+          <View>
+            {selectedExercise &&
+              selectedExerciseMeta?.name.toLowerCase().includes("assisted") &&
+              !currentBodyWeight && (
+                <View style={styles.warningBanner}>
+                  <Text style={styles.warningIcon}>⚠️</Text>
+                  <View style={styles.warningTextContainer}>
+                    <Text style={styles.warningTitle}>
+                      Body Weight Required
+                    </Text>
+                    <Text style={styles.warningText}>
+                      Body weight needed for accurate assisted exercise
+                      calculations
+                    </Text>
+                  </View>
+                </View>
+              )}
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setShowDropdown(true)}
+            >
+              <View style={styles.dropdownButtonContent}>
+                <View style={styles.dropdownButtonLeft}>
+                  <Text style={styles.dropdownButtonText}>
+                    {selectedExercise ?? "Select an exercise"}
+                  </Text>
+                  {selectedExercise && selectedExerciseMeta?.muscleGroup && (
+                    <Text style={styles.dropdownButtonSubtext}>
+                      {selectedExerciseMeta.muscleGroup}
+                    </Text>
+                  )}
+                </View>
+                <Text style={styles.dropdownArrow}>▼</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )
+      }
+
+      case "set_data": {
+        if (!selectedExercise) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Select an exercise to see its stats here.
+            </Text>
+          )
+        }
+        if (loading) {
+          return (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size='large' color={colors.accent} />
+              <Text style={styles.loadingText}>Loading data...</Text>
+            </View>
+          )
+        }
+        if (!exerciseData || exerciseData.length === 0) {
+          return (
+            <View style={styles.noDataContainer}>
+              <Text style={styles.noDataIcon}>📭</Text>
+              <Text style={styles.noDataTitle}>No Data Yet</Text>
+              <Text style={styles.noDataText}>
+                No completed sets for "{selectedExercise}"
+              </Text>
+            </View>
+          )
+        }
+        const s = getStats()
+        return (
+          <View>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{s.totalSets}</Text>
+                <Text style={styles.statLabel}>Total Sets</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{s.totalWorkouts}</Text>
+                <Text style={styles.statLabel}>Workouts</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{fmt(s.extremeWeight)}kg</Text>
+                <Text style={styles.statLabel}>{s.extremeWeightLabel}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{s.maxReps}</Text>
+                <Text style={styles.statLabel}>Max Reps</Text>
+              </View>
+            </View>
+
+            <View style={styles.statsRow}>
+              <View style={styles.statCardWide}>
+                <Text style={styles.statValueSmall}>{fmt(s.avgWeight)}kg</Text>
+                <Text style={styles.statLabel}>Avg Weight</Text>
+              </View>
+              <View style={styles.statCardWide}>
+                <Text style={styles.statValueSmall}>{fmt(s.avgReps)}</Text>
+                <Text style={styles.statLabel}>Avg Reps</Text>
+              </View>
+              <View style={styles.statCardWide}>
+                <Text style={styles.statValueSmall}>
+                  {fmt(s.totalVolume)}kg
+                </Text>
+                <Text style={styles.statLabel}>Total Volume</Text>
+              </View>
+            </View>
+          </View>
+        )
+      }
+
+      case "last_workout": {
+        if (!selectedExercise) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Select an exercise to see your last workout.
+            </Text>
+          )
+        }
+        if (loading) {
+          return (
+            <View style={styles.streakLoading}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          )
+        }
+        const s = getStats()
+        if (!s.lastWorkout) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              No workouts logged yet for "{selectedExercise}".
+            </Text>
+          )
+        }
+        return (
+          <View style={styles.lastWorkoutCardWidget}>
+            <Text style={styles.lastWorkoutDate}>
+              {s.lastWorkout.toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </Text>
+          </View>
+        )
+      }
+
+      case "workout_history": {
+        if (!selectedExercise) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Select an exercise to see its history here.
+            </Text>
+          )
+        }
+        if (loading) {
+          return (
+            <View style={styles.calendarLoading}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          )
+        }
+        if (!exerciseData || exerciseData.length === 0) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              No completed sets to show on the calendar yet.
+            </Text>
+          )
+        }
+        return (
+          <UniversalCalendar
+            hasDataOnDate={hasSetsOnDate}
+            onDatePress={handleDatePress}
+            initialView='week'
+            legendText={`Workout day for ${selectedExercise}`}
+            dotColor={colors.success}
+          />
+        )
+      }
+
+      case "weight_progress": {
+        if (!selectedExercise || !exerciseData?.length) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              No data yet to chart weight progress.
+            </Text>
+          )
+        }
+        return (
+          <ProgressChart
+            title='Weight Progress (kg)'
+            icon='💪'
+            data={getChartData("weight")}
+            yAxisSuffix='kg'
+            chartWidth={chartWidth}
+          />
+        )
+      }
+
+      case "volume_progress": {
+        if (!selectedExercise || !exerciseData?.length) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              No data yet to chart volume progress.
+            </Text>
+          )
+        }
+        return (
+          <ProgressChart
+            title='Volume Progress (kg)'
+            icon='📦'
+            data={getChartData("volume")}
+            yAxisSuffix='kg'
+            chartWidth={chartWidth}
+          />
+        )
+      }
+
+      case "reps_progress": {
+        if (!selectedExercise || !exerciseData?.length) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              No data yet to chart reps progress.
+            </Text>
+          )
+        }
+        return (
+          <ProgressChart
+            title='Reps Progress'
+            icon='🔢'
+            data={getChartData("reps")}
+            chartWidth={chartWidth}
+          />
+        )
+      }
+
+      default:
+        return <Text style={styles.widgetLineMuted}>Coming soon</Text>
+    }
+  }
+
   if (isLoading) {
     return (
       <View style={styles.emptyContainer}>
@@ -528,333 +840,236 @@ export default function ExerciseAnalytics({
     )
   }
 
-  const stats = getStats()
-
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ flexGrow: 1 }}
-      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width - 40)}
-      refreshControl={
-        onRefresh ? (
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.accent]}
-            tintColor={colors.accent}
-          />
-        ) : undefined
-      }
-    >
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>Track progress over time</Text>
-        </View>
-
-        {isDemoMode && (
-          <View style={styles.demoBanner}>
-            <Text style={styles.demoBannerIcon}>🧪</Text>
-            <Text style={styles.demoBannerText}>
-              Demo Mode - Showing sample data
-            </Text>
-          </View>
-        )}
-
-        {selectedExercise &&
-          availableExercises
-            .find((e) => e.name === selectedExercise)
-            ?.name.toLowerCase()
-            .includes("assisted") &&
-          !currentBodyWeight && (
-            <View style={styles.warningBanner}>
-              <Text style={styles.warningIcon}>⚠️</Text>
-              <View style={styles.warningTextContainer}>
-                <Text style={styles.warningTitle}>Body Weight Required</Text>
-                <Text style={styles.warningText}>
-                  Body weight needed for accurate assisted exercise calculations
-                </Text>
-              </View>
-            </View>
-          )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Exercise</Text>
-          <TouchableOpacity
-            style={styles.dropdownButton}
-            onPress={() => setShowDropdown(true)}
-          >
-            <View style={styles.dropdownButtonContent}>
-              <View style={styles.dropdownButtonLeft}>
-                <Text style={styles.dropdownButtonText}>
-                  {selectedExercise ?? "Select an exercise"}
-                </Text>
-                {selectedExercise &&
-                  availableExercises.find((e) => e.name === selectedExercise)
-                    ?.muscleGroup && (
-                    <Text style={styles.dropdownButtonSubtext}>
-                      {
-                        availableExercises.find(
-                          (e) => e.name === selectedExercise,
-                        )!.muscleGroup
-                      }
-                    </Text>
-                  )}
-              </View>
-              <Text style={styles.dropdownArrow}>▼</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size='large' color={colors.accent} />
-            <Text style={styles.loadingText}>Loading data...</Text>
-          </View>
-        ) : exerciseData && exerciseData.length > 0 ? (
-          <>
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{stats.totalSets}</Text>
-                <Text style={styles.statLabel}>Total Sets</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{stats.totalWorkouts}</Text>
-                <Text style={styles.statLabel}>Workouts</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>
-                  {fmt(stats.extremeWeight)}kg
-                </Text>
-                <Text style={styles.statLabel}>{stats.extremeWeightLabel}</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{stats.maxReps}</Text>
-                <Text style={styles.statLabel}>Max Reps</Text>
-              </View>
-            </View>
-
-            <View style={styles.statsRow}>
-              <View style={styles.statCardWide}>
-                <Text style={styles.statValueSmall}>
-                  {fmt(stats.avgWeight)}kg
-                </Text>
-                <Text style={styles.statLabel}>Avg Weight</Text>
-              </View>
-              <View style={styles.statCardWide}>
-                <Text style={styles.statValueSmall}>{fmt(stats.avgReps)}</Text>
-                <Text style={styles.statLabel}>Avg Reps</Text>
-              </View>
-              <View style={styles.statCardWide}>
-                <Text style={styles.statValueSmall}>
-                  {fmt(stats.totalVolume)}kg
-                </Text>
-                <Text style={styles.statLabel}>Total Volume</Text>
-              </View>
-            </View>
-
-            {stats.lastWorkout && (
-              <View style={styles.lastWorkoutCard}>
-                <Text style={styles.lastWorkoutLabel}>Last Workout</Text>
-                <Text style={styles.lastWorkoutDate}>
-                  {stats.lastWorkout.toLocaleDateString("en-US", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📅 Workout History</Text>
-              <UniversalCalendar
-                hasDataOnDate={hasSetsOnDate}
-                onDatePress={handleDatePress}
-                initialView='week'
-                legendText={`Workout day for ${selectedExercise}`}
-                dotColor={colors.success}
-              />
-            </View>
-
-            <ProgressChart
-              title='Weight Progress (kg)'
-              icon='💪'
-              data={getChartData("weight")}
-              yAxisSuffix='kg'
-              chartWidth={containerWidth || screenWidth - 40}
-            />
-            <ProgressChart
-              title='Volume Progress (kg)'
-              icon='📦'
-              data={getChartData("volume")}
-              yAxisSuffix='kg'
-              chartWidth={containerWidth || screenWidth - 40}
-            />
-            <ProgressChart
-              title='Reps Progress'
-              icon='🔢'
-              data={getChartData("reps")}
-              chartWidth={containerWidth || screenWidth - 40}
-            />
-          </>
-        ) : (
-          <View style={styles.noDataContainer}>
-            <Text style={styles.noDataIcon}>📭</Text>
-            <Text style={styles.noDataTitle}>No Data Yet</Text>
-            <Text style={styles.noDataText}>
-              No completed sets for "{selectedExercise}"
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <ModalSheet
-        visible={showDropdown}
-        onClose={() => {
-          setShowDropdown(false)
-          setSearchQuery("")
-        }}
-        title='Select Exercise'
-        showCancelButton={false}
-        showConfirmButton={false}
-        scrollable
-      >
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder='Search exercises...'
-            placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize='none'
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              style={styles.clearSearchButton}
-              onPress={() => setSearchQuery("")}
-            >
-              <Text style={styles.clearSearchText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setShowZeroSetExercises(!showZeroSetExercises)}
-          >
-            <Text style={styles.filterButtonText}>
-              {showZeroSetExercises ? "Hide" : "Show"} exercises with 0 sets
-            </Text>
-            <Text style={styles.filterButtonIcon}>
-              {showZeroSetExercises ? "👁️" : "👁️‍🗨️"}
-            </Text>
-          </TouchableOpacity>
-          <Text style={styles.filterHint}>
-            {availableExercises.filter((e) => e.totalSets === 0).length}{" "}
-            exercises hidden
+    <View style={{ flex: 1 }} {...panHandlers}>
+      {isPulling && (
+        <View pointerEvents='none' style={styles.pullHint}>
+          <Text style={styles.pullHintText}>
+            {pullDistance > 90
+              ? "Release to add a widget ✨"
+              : "Pull to add a widget ↓"}
           </Text>
         </View>
+      )}
+      {isEmulator && (
+        <TouchableOpacity
+          style={styles.emulatorWidgetButton}
+          onPress={() => setShowWidgetGallery(true)}
+        >
+          <Text style={styles.emulatorWidgetButtonText}>+ Widget</Text>
+        </TouchableOpacity>
+      )}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ flexGrow: 1 }}
+        scrollEnabled={!isPulling}
+        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width - 40)}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.accent]}
+              tintColor={colors.accent}
+            />
+          ) : undefined
+        }
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>Track progress over time</Text>
+          </View>
 
-        {filteredExercises.map((exercise) => (
-          <TouchableOpacity
-            key={exercise.name}
-            style={[
-              styles.dropdownItem,
-              selectedExercise === exercise.name && styles.dropdownItemSelected,
-            ]}
-            onPress={() => {
-              setSelectedExercise(exercise.name)
-              setShowDropdown(false)
-              setSearchQuery("")
-            }}
-          >
-            <View style={styles.dropdownItemContent}>
-              <Text
-                style={[
-                  styles.dropdownItemText,
-                  selectedExercise === exercise.name &&
-                    styles.dropdownItemTextSelected,
-                ]}
-              >
-                {exercise.name}
+          {isDemoMode && (
+            <View style={styles.demoBanner}>
+              <Text style={styles.demoBannerIcon}>🧪</Text>
+              <Text style={styles.demoBannerText}>
+                Demo Mode - Showing sample data
               </Text>
-              <View style={styles.dropdownItemMeta}>
-                {exercise.muscleGroup && (
-                  <Text style={styles.dropdownItemMuscle}>
-                    {exercise.muscleGroup}
-                  </Text>
-                )}
-                <Text style={styles.dropdownItemSets}>
-                  {exercise.totalSets} sets
-                </Text>
-              </View>
             </View>
-            {selectedExercise === exercise.name && (
-              <Text style={styles.dropdownItemCheck}>✓</Text>
-            )}
-          </TouchableOpacity>
-        ))}
+          )}
 
-        {filteredExercises.length === 0 && (
-          <View style={styles.noResultsContainer}>
-            <Text style={styles.noResultsText}>
-              {searchQuery.length > 0
-                ? `No exercises match "${searchQuery}"`
-                : "No exercises with data"}
+          {widgetsLoaded && widgets.length > 0 && widgetEditMode && (
+            <View style={styles.widgetsSectionHeader}>
+              <Text style={styles.widgetsSectionTitle}>Editing Widgets</Text>
+              <TouchableOpacity
+                onPress={() => setWidgetEditMode(false)}
+                hitSlop={8}
+              >
+                <Text style={styles.widgetsEditToggle}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <WidgetsPanel
+            widgets={widgets}
+            isLoaded={widgetsLoaded}
+            editMode={widgetEditMode}
+            onCycleSize={cycleWidgetSize}
+            onRemove={removeWidget}
+            onReorder={reorderWidgets}
+            renderContent={renderWidgetContent}
+            registry={ANALYTICS_WIDGET_REGISTRY}
+          />
+        </View>
+
+        <ModalSheet
+          visible={showDropdown}
+          onClose={() => {
+            setShowDropdown(false)
+            setSearchQuery("")
+          }}
+          title='Select Exercise'
+          showCancelButton={false}
+          showConfirmButton={false}
+          scrollable
+        >
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder='Search exercises...'
+              placeholderTextColor={colors.textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize='none'
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearSearchButton}
+                onPress={() => setSearchQuery("")}
+              >
+                <Text style={styles.clearSearchText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.filterContainer}>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowZeroSetExercises(!showZeroSetExercises)}
+            >
+              <Text style={styles.filterButtonText}>
+                {showZeroSetExercises ? "Hide" : "Show"} exercises with 0 sets
+              </Text>
+              <Text style={styles.filterButtonIcon}>
+                {showZeroSetExercises ? "👁️" : "👁️‍🗨️"}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.filterHint}>
+              {availableExercises.filter((e) => e.totalSets === 0).length}{" "}
+              exercises hidden
             </Text>
           </View>
-        )}
-      </ModalSheet>
 
-      <ModalSheet
-        visible={showDateSets}
-        onClose={() => setShowDateSets(false)}
-        title={selectedDate ? formatDate(selectedDate) : ""}
-        showCancelButton={false}
-        showConfirmButton={false}
-        scrollable
-      >
-        {selectedDate &&
-          getSetsForDate(selectedDate).map((set, index) => (
-            <View key={index} style={styles.setCard}>
-              <View style={styles.setCardHeader}>
-                <Text style={styles.setCardTitle}>Set {set.setNumber}</Text>
-                <Text style={styles.setCardTime}>{formatTime(set.date)}</Text>
-              </View>
-              <View style={styles.setCardStats}>
-                <View style={styles.setCardStat}>
-                  <Text style={styles.setCardStatValue}>
-                    {fmt(set.weight)}kg
+          {filteredExercises.map((exercise) => (
+            <TouchableOpacity
+              key={exercise.name}
+              style={[
+                styles.dropdownItem,
+                selectedExercise === exercise.name &&
+                  styles.dropdownItemSelected,
+              ]}
+              onPress={() => {
+                setSelectedExercise(exercise.name)
+                setShowDropdown(false)
+                setSearchQuery("")
+              }}
+            >
+              <View style={styles.dropdownItemContent}>
+                <Text
+                  style={[
+                    styles.dropdownItemText,
+                    selectedExercise === exercise.name &&
+                      styles.dropdownItemTextSelected,
+                  ]}
+                >
+                  {exercise.name}
+                </Text>
+                <View style={styles.dropdownItemMeta}>
+                  {exercise.muscleGroup && (
+                    <Text style={styles.dropdownItemMuscle}>
+                      {exercise.muscleGroup}
+                    </Text>
+                  )}
+                  <Text style={styles.dropdownItemSets}>
+                    {exercise.totalSets} sets
                   </Text>
-                  <Text style={styles.setCardStatLabel}>Weight</Text>
-                </View>
-                <View style={styles.setCardStat}>
-                  <Text style={styles.setCardStatValue}>{set.reps}</Text>
-                  <Text style={styles.setCardStatLabel}>Reps</Text>
-                </View>
-                <View style={styles.setCardStat}>
-                  <Text style={styles.setCardStatValue}>
-                    {fmt(set.weight * set.reps)}kg
-                  </Text>
-                  <Text style={styles.setCardStatLabel}>Volume</Text>
                 </View>
               </View>
-              <Text style={styles.setCardDay}>Day {set.dayNumber}</Text>
-            </View>
+              {selectedExercise === exercise.name && (
+                <Text style={styles.dropdownItemCheck}>✓</Text>
+              )}
+            </TouchableOpacity>
           ))}
-      </ModalSheet>
-    </ScrollView>
+
+          {filteredExercises.length === 0 && (
+            <View style={styles.noResultsContainer}>
+              <Text style={styles.noResultsText}>
+                {searchQuery.length > 0
+                  ? `No exercises match "${searchQuery}"`
+                  : "No exercises with data"}
+              </Text>
+            </View>
+          )}
+        </ModalSheet>
+
+        <ModalSheet
+          visible={showDateSets}
+          onClose={() => setShowDateSets(false)}
+          title={selectedDate ? formatDate(selectedDate) : ""}
+          showCancelButton={false}
+          showConfirmButton={false}
+          scrollable
+        >
+          {selectedDate &&
+            getSetsForDate(selectedDate).map((set, index) => (
+              <View key={index} style={styles.setCard}>
+                <View style={styles.setCardHeader}>
+                  <Text style={styles.setCardTitle}>Set {set.setNumber}</Text>
+                  <Text style={styles.setCardTime}>{formatTime(set.date)}</Text>
+                </View>
+                <View style={styles.setCardStats}>
+                  <View style={styles.setCardStat}>
+                    <Text style={styles.setCardStatValue}>
+                      {fmt(set.weight)}kg
+                    </Text>
+                    <Text style={styles.setCardStatLabel}>Weight</Text>
+                  </View>
+                  <View style={styles.setCardStat}>
+                    <Text style={styles.setCardStatValue}>{set.reps}</Text>
+                    <Text style={styles.setCardStatLabel}>Reps</Text>
+                  </View>
+                  <View style={styles.setCardStat}>
+                    <Text style={styles.setCardStatValue}>
+                      {fmt(set.weight * set.reps)}kg
+                    </Text>
+                    <Text style={styles.setCardStatLabel}>Volume</Text>
+                  </View>
+                </View>
+                <Text style={styles.setCardDay}>Day {set.dayNumber}</Text>
+              </View>
+            ))}
+        </ModalSheet>
+      </ScrollView>
+
+      <WidgetGallery
+        visible={showWidgetGallery}
+        onClose={() => setShowWidgetGallery(false)}
+        availableWidgets={availableToAdd}
+        onAddWidget={handleAddWidget}
+        hasPlacedWidgets={widgets.length > 0}
+        onEditWidgets={handleEditWidgets}
+      />
+    </View>
   )
 }
 
-const makeStyles = (colors: any) =>
+const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 20, paddingBottom: 40 },
+    content: { padding: 10, paddingBottom: 40 },
     header: { marginBottom: 25, alignItems: "center" },
     title: {
       fontSize: 32,
@@ -884,13 +1099,67 @@ const makeStyles = (colors: any) =>
       color: "#856404",
       fontWeight: "500",
     },
+    widgetsSectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    widgetsSectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    widgetsEditToggle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.accent,
+    },
+    widgetLineMuted: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    pullHint: {
+      position: "absolute",
+      top: 8,
+      left: 0,
+      right: 0,
+      alignItems: "center",
+      zIndex: 10,
+    },
+    pullHintText: {
+      backgroundColor: colors.accent,
+      color: colors.surface,
+      fontSize: 13,
+      fontWeight: "600",
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    emulatorWidgetButton: {
+      position: "absolute",
+      top: 8,
+      right: 12,
+      zIndex: 10,
+      backgroundColor: colors.accent,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+    },
+    emulatorWidgetButtonText: {
+      color: colors.surface,
+      fontSize: 13,
+      fontWeight: "600",
+    },
     warningBanner: {
       backgroundColor: "#fff3cd",
       borderRadius: 12,
       padding: 16,
       flexDirection: "row",
       alignItems: "flex-start",
-      marginBottom: 20,
+      marginBottom: 12,
       borderWidth: 1,
       borderColor: "#ffc107",
     },
@@ -903,13 +1172,6 @@ const makeStyles = (colors: any) =>
       marginBottom: 4,
     },
     warningText: { fontSize: 14, color: "#856404", lineHeight: 20 },
-    section: { marginBottom: 20 },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: colors.textPrimary,
-      marginBottom: 12,
-    },
     dropdownButton: {
       backgroundColor: colors.surface,
       borderRadius: 12,
@@ -1063,6 +1325,8 @@ const makeStyles = (colors: any) =>
     },
     loadingContainer: { padding: 40, alignItems: "center" },
     loadingText: { marginTop: 12, fontSize: 16, color: colors.textSecondary },
+    calendarLoading: { padding: 30, alignItems: "center" },
+    streakLoading: { padding: 20, alignItems: "center" },
     statsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -1093,7 +1357,7 @@ const makeStyles = (colors: any) =>
       color: colors.textSecondary,
       textAlign: "center",
     },
-    statsRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
+    statsRow: { flexDirection: "row", gap: 10 },
     statCardWide: {
       flex: 1,
       backgroundColor: colors.surface,
@@ -1112,19 +1376,8 @@ const makeStyles = (colors: any) =>
       color: colors.accent,
       marginBottom: 4,
     },
-    lastWorkoutCard: {
-      backgroundColor: colors.accentLight,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 20,
-      borderLeftWidth: 4,
-      borderLeftColor: colors.accent,
-    },
-    lastWorkoutLabel: {
-      fontSize: 13,
-      color: colors.accent,
-      fontWeight: "600",
-      marginBottom: 4,
+    lastWorkoutCardWidget: {
+      alignItems: "flex-start",
     },
     lastWorkoutDate: {
       fontSize: 16,
@@ -1156,7 +1409,7 @@ const makeStyles = (colors: any) =>
       alignItems: "center",
       backgroundColor: colors.surface,
       borderRadius: 16,
-      marginTop: 20,
+      marginTop: 4,
     },
     noDataIcon: { fontSize: 48, marginBottom: 16 },
     noDataTitle: {

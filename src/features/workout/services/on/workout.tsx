@@ -31,6 +31,45 @@ export interface RenameExerciseResult {
   updatedCount: number
 }
 
+// ─── Error type + response handling ─────────────────────────────────────────
+//
+// FIX: previously every endpoint here did `const data = await res.json();
+// return data.whatever` with no check on `res.ok` or `data.success`. A 4xx/5xx
+// response from the server (e.g. `{ success: false, error: "Invalid session
+// ID" }`) still parses as valid JSON, so callers were getting back
+// `undefined` on failure instead of a thrown error — every try/catch built
+// around these calls elsewhere in the app was dead code. parseApiResponse
+// centralizes the fix: it throws an ApiError whenever the call didn't
+// actually succeed, so failures are never silently swallowed.
+
+export class ApiError extends Error {
+  status: number
+  details?: unknown
+  constructor(message: string, status: number, details?: unknown) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+    this.details = details
+  }
+}
+
+async function parseApiResponse<T = any>(res: Response): Promise<T> {
+  let data: any
+  try {
+    data = await res.json()
+  } catch {
+    throw new ApiError(`Invalid JSON response (status ${res.status})`, res.status)
+  }
+
+  if (!res.ok || data?.success === false) {
+    const message =
+      data?.error || data?.message || `Request failed (status ${res.status})`
+    throw new ApiError(message, res.status, data?.details)
+  }
+
+  return data as T
+}
+
 // ─── API ────────────────────────────────────────────────────────────────────
 
 export const workoutApi = {
@@ -45,7 +84,7 @@ export const workoutApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ weeklyPlan, originalFilename }),
     })
-    return res.json()
+    return parseApiResponse(res)
   },
 
   pickWorkoutFile: async (): Promise<string | null> => {
@@ -74,7 +113,7 @@ export const workoutApi = {
       `/api/workout/plan?person=${encodeURIComponent(personName)}`,
       { method: "GET" },
     )
-    return res.json()
+    return parseApiResponse(res)
   },
 
   getDayWorkout: async (
@@ -84,12 +123,12 @@ export const workoutApi = {
     const res = await authenticatedFetch(`/api/workout/day/${dayNumber}`, {
       method: "GET",
     })
-    return res.json()
+    return parseApiResponse(res)
   },
 
   healthCheck: async (): Promise<unknown> => {
     const res = await authenticatedFetch("/api/health", { method: "GET" })
-    return res.json()
+    return parseApiResponse(res)
   },
 
   startSession: async (
@@ -113,8 +152,19 @@ export const workoutApi = {
       headers: { "Content-Type": "application/json" },
     })
     // Server responds with { success, session: { ...session, id } }.
-    const data = await res.json()
-    return data.session?.id
+    const data = await parseApiResponse<{ session?: { id?: number | string } }>(
+      res,
+    )
+    if (!data.session?.id) {
+      // FIX: previously returned `undefined` here with no error. Now
+      // throws, so callers' offline/pending-sync fallback actually fires
+      // instead of silently accepting a missing id.
+      throw new ApiError(
+        "startSession succeeded but response had no session.id",
+        res.status,
+      )
+    }
+    return data.session.id
   },
 
   recordSet: async (
@@ -145,7 +195,13 @@ export const workoutApi = {
       headers: { "Content-Type": "application/json" },
     })
     // Server responds with { success, timing }.
-    const data = await res.json()
+    const data = await parseApiResponse<{ timing?: SetTiming }>(res)
+    if (!data.timing) {
+      throw new ApiError(
+        "recordSet succeeded but response had no timing",
+        res.status,
+      )
+    }
     return data.timing
   },
 
@@ -155,7 +211,7 @@ export const workoutApi = {
     updates: UpdateSetParams,
   ): Promise<SetTiming> => {
     const res = await authenticatedFetch(
-          `/api/sessions/${sessionId}/sets/${setId}`,
+      `/api/sessions/${sessionId}/sets/${setId}`,
       {
         method: "PATCH",
         body: JSON.stringify(updates),
@@ -163,7 +219,13 @@ export const workoutApi = {
       },
     )
     // Server responds with { success, timing }.
-    const data = await res.json()
+    const data = await parseApiResponse<{ timing?: SetTiming }>(res)
+    if (!data.timing) {
+      throw new ApiError(
+        "updateSet succeeded but response had no timing",
+        res.status,
+      )
+    }
     return data.timing
   },
 
@@ -178,7 +240,7 @@ export const workoutApi = {
       headers: { "Content-Type": "application/json" },
     })
     // Server responds with { success, updatedCount }.
-    return res.json()
+    return parseApiResponse(res)
   },
 
   endSession: async (
@@ -191,7 +253,13 @@ export const workoutApi = {
       headers: { "Content-Type": "application/json" },
     })
     // Server responds with { success, session }.
-    const data = await res.json()
+    const data = await parseApiResponse<{ session?: WorkoutSession }>(res)
+    if (!data.session) {
+      throw new ApiError(
+        "endSession succeeded but response had no session",
+        res.status,
+      )
+    }
     return data.session
   },
 
@@ -207,7 +275,7 @@ export const workoutApi = {
       { method: "GET" },
     )
     // Server responds with { success, ...analytics }.
-    return res.json()
+    return parseApiResponse(res)
   },
 
   getSessionHistory: async (
@@ -225,7 +293,7 @@ export const workoutApi = {
       method: "GET",
     })
     // Server responds with { success, sessions, total }; callers expect the array.
-    const data = await res.json()
+    const data = await parseApiResponse<{ sessions?: WorkoutSession[] }>(res)
     return data.sessions ?? []
   },
 
@@ -236,7 +304,15 @@ export const workoutApi = {
       method: "GET",
     })
     // Server responds with { success, session }; callers expect the session.
-    const data = await res.json()
+    const data = await parseApiResponse<{ session?: FullSessionWithGroups }>(
+      res,
+    )
+    if (!data.session) {
+      throw new ApiError(
+        "getSession succeeded but response had no session",
+        res.status,
+      )
+    }
     return data.session
   },
 
@@ -244,7 +320,7 @@ export const workoutApi = {
     const res = await authenticatedFetch("/api/sessions/demo", {
       method: "DELETE",
     })
-    return res.json()
+    return parseApiResponse(res)
   },
 
   deleteAllSessions: async (): Promise<unknown> => {
@@ -254,15 +330,15 @@ export const workoutApi = {
       body: JSON.stringify({ confirmDelete: "DELETE_ALL_SESSIONS" }),
       headers: { "Content-Type": "application/json" },
     })
-    return res.json()
+    return parseApiResponse(res)
   },
 
   deleteAllSessionsForPerson: async (person: string): Promise<unknown> => {
     const res = await authenticatedFetch(
-          `/api/sessions/person/${encodeURIComponent(person)}`,
+      `/api/sessions/person/${encodeURIComponent(person)}`,
       { method: "DELETE" },
     )
-    return res.json()
+    return parseApiResponse(res)
   },
 
   deleteAllUserData: async (): Promise<unknown> => {
@@ -274,6 +350,6 @@ export const workoutApi = {
       body: JSON.stringify({ confirmDelete: "DELETE_ALL_DATA" }),
       headers: { "Content-Type": "application/json" },
     })
-    return res.json()
+    return parseApiResponse(res)
   },
 }

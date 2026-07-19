@@ -278,5 +278,37 @@ export type RootStackParamList = {
   Analytics: undefined
   Supplements: undefined
   Plan: undefined
-  // + any params any of these actually take, e.g. Tracking: { sessionId: string }
+}
+
+export type WidgetSize = "small" | "medium" | "large"
+
+/**
+ * Generic shape for a widget "kind" definition. Each screen that hosts
+ * widgets (Home, Tracking, ...) defines its own concrete widget-type union
+ * and its own registry of these — see e.g. features/home/widgets.ts — since
+ * the set of widgets, their copy, and their defaults are screen-specific.
+ * Only this shape, plus WidgetInstance and the placement/drag mechanics in
+ * WidgetsPanel/WidgetGallery/useWidgets, are shared.
+ */
+export interface WidgetDefinition<T extends string = string> {
+  type: T
+  title?: string
+  description: string
+  icon?: string
+  availableSizes: WidgetSize[]
+  defaultSize: WidgetSize
+  /** Only meaningful in server mode (e.g. friend-based widgets later) */
+  requiresServer?: boolean
+  /** If true, only one instance of this widget can be added */
+  singleton?: boolean
+}
+
+export const WIDGET_SIZE_ORDER: WidgetSize[] = ["small", "medium", "large"]
+
+export interface WidgetInstance<T extends string = string> {
+  /** stable unique id for this placed instance, not the widget type */
+  id: string
+  type: T
+  size: WidgetSize
+  order: number
 }

@@ -108,6 +108,14 @@ export const STORAGE_KEYS = {
   PENDING_SYNCS: "pendingSyncs",
   LAST_ACTIVITY_TIME: "lastActivityTime",
   WEIGHT_UNIT: "weight_unit",
+  HOME_WIDGETS: "homeWidgets",
+  WORKOUT_WIDGETS: "workoutWidgets",
+  PLAN_WIDGETS: "planWidgets",
+  ANALYTICS_WIDGETS: "analyticsWidgets",
+  WEIGHT_TAB_WIDGETS: "trackingScreen_weightWidgets",
+  PHOTOS_TAB_WIDGETS: "trackingScreen_photosWidgets",
+  MACROS_TAB_WIDGETS: "trackingScreen_macrosWidgets",
+  BODYFAT_TAB_WIDGETS: "trackingScreen_bodyfatWidgets",
 } as const
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]

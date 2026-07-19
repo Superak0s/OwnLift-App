@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import * as Device from "expo-device"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import {
   View,
@@ -25,7 +26,22 @@ import {
 } from "@utils/exerciseMatching"
 import { workoutApi } from "@features/workout/services/index"
 import { programApi } from "@features/plan/services/index"
-import type { WorkoutData, RootStackParamList, WorkoutDay } from "@shared/types"
+import { useWidgets } from "@shared/context/hooks/useWidgets"
+import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull"
+import WidgetGallery from "@shared/components/widgets/WidgetGallery"
+import WidgetsPanel from "@shared/components/widgets/WidgetsPanel"
+import {
+  PLAN_WIDGET_REGISTRY,
+  DEFAULT_PLAN_WIDGETS,
+  PLAN_WIDGETS_STORAGE_KEY,
+  type PlanWidgetType,
+} from "./widgets"
+import type {
+  WorkoutData,
+  RootStackParamList,
+  WorkoutDay,
+  WidgetInstance,
+} from "@shared/types"
 import {
   DEFAULT_SPLITS,
   createCustomSplitTemplate,
@@ -40,7 +56,7 @@ import {
   parseWorkoutFileClient,
   type SplitColumnCandidate,
 } from "@utils/clientWorkoutParser"
-import SplitColumnPicker from "./utils/SplitColumnPicker"
+import SplitColumnPicker from "./utils/splitColumnPicker"
 
 interface ExerciseDraft {
   name: string
@@ -73,11 +89,56 @@ export default function PlanScreen({
 }: PlanScreenProps): React.JSX.Element {
   const { colors } = useTheme()
   const styles = makeStyles(colors)
-  const { workoutData, selectedSplit, saveWorkoutData, saveSelectedSplit } =
-    useWorkout()
+  const {
+    workoutData,
+    selectedSplit,
+    saveWorkoutData,
+    saveSelectedSplit,
+    userId,
+  } = useWorkout()
   const { alert, AlertComponent } = useAlert()
   const [isUploading, setIsUploading] = useState<boolean>(false)
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null)
+  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false)
+  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false)
+  const isEmulator = !Device.isDevice
+
+  // ─── Widgets ────────────────────────────────────────────────────────────
+  const {
+    widgets,
+    isLoaded: widgetsLoaded,
+    availableToAdd,
+    addWidget,
+    removeWidget,
+    cycleWidgetSize,
+    reorderWidgets,
+  } = useWidgets<PlanWidgetType>(userId ?? null, {
+    registry: PLAN_WIDGET_REGISTRY,
+    defaults: DEFAULT_PLAN_WIDGETS,
+    storageKey: PLAN_WIDGETS_STORAGE_KEY,
+  })
+
+  // Two-finger pull brings up the "deploy" panel for adding widgets — same
+  // gesture as HomeScreen. Opening it and tapping "Edit Widgets" switches
+  // this screen into edit mode, where placed widgets can be resized,
+  // removed, or dragged to reorder.
+  const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
+    setShowWidgetGallery(true)
+  })
+
+  const handleEditWidgets = () => {
+    setShowWidgetGallery(false)
+    setWidgetEditMode(true)
+  }
+
+  const handleAddWidget = async (type: Parameters<typeof addWidget>[0]) => {
+    const result = await addWidget(type)
+    if (!result.success && result.error) {
+      alert("Can't Add Widget", result.error, [{ text: "OK" }])
+      return
+    }
+    setShowWidgetGallery(false)
+  }
 
   const [hiddenDays, setHiddenDays] = useState<Set<number>>(new Set())
   const [editingDayIdx, setEditingDayIdx] = useState<number | null>(null)
@@ -655,20 +716,13 @@ export default function PlanScreen({
   const programSplits: string[] = wd?.split ?? []
   const allOptions = ["All", ...programSplits]
 
-  return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-      <ScrollView style={styles.container} keyboardShouldPersistTaps='handled'>
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>📋 Workout Plan</Text>
-            <Text style={styles.subtitle}>
-              Upload your workout plan and choose your split
-            </Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Splits</Text>
-
+  const renderWidgetContent = (
+    instance: WidgetInstance<PlanWidgetType>,
+  ): React.ReactNode => {
+    switch (instance.type) {
+      case "create_split": {
+        return (
+          <View>
             <TouchableOpacity
               style={styles.secondaryButton}
               onPress={() =>
@@ -680,20 +734,6 @@ export default function PlanScreen({
               <Text style={styles.secondaryButtonText}>
                 {isCreatingSplit ? "✕ Cancel" : "＋ Create New Split"}
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.secondaryButton, { marginTop: 10 }]}
-              onPress={handleUploadFile}
-              disabled={isUploading}
-            >
-              {isUploading ? (
-                <ActivityIndicator color={colors.accent} size='small' />
-              ) : (
-                <Text style={styles.secondaryButtonText}>
-                  📁 Import New Workout
-                </Text>
-              )}
             </TouchableOpacity>
 
             {isCreatingSplit && (
@@ -791,254 +831,418 @@ export default function PlanScreen({
                 </View>
               </View>
             )}
+          </View>
+        )
+      }
 
-            <Text style={[styles.editFieldLabel, { marginTop: 16 }]}>
-              Or start from a default split
+      case "import_workout": {
+        return (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleUploadFile}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <ActivityIndicator color={colors.accent} size='small' />
+            ) : (
+              <Text style={styles.secondaryButtonText}>
+                📁 Import New Workout
+              </Text>
+            )}
+          </TouchableOpacity>
+        )
+      }
+
+      case "default_splits": {
+        return (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingVertical: 6 }}
+          >
+            {DEFAULT_SPLITS.map((template) => (
+              <TouchableOpacity
+                key={template.id}
+                style={styles.templateCard}
+                onPress={() => handlePickDefaultSplit(template)}
+                disabled={isApplyingTemplate}
+              >
+                <Text style={styles.templateCardTitle}>{template.name}</Text>
+                <Text style={styles.templateCardMeta}>
+                  {template.days.length} day
+                  {template.days.length === 1 ? "" : "s"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )
+      }
+
+      case "workout_plan_loaded": {
+        if (!workoutData) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Create a split or import a workout to see your plan summary here.
             </Text>
+          )
+        }
+        return (
+          <View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Total Days:</Text>
+              <Text style={styles.summaryValue}>
+                {workoutData?.totalDays ?? workoutData?.days?.length}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Splits:</Text>
+              <Text style={styles.summaryValue}>
+                {workoutData.split?.join(", ")}
+              </Text>
+            </View>
+            {hiddenDays.size > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Hidden days:</Text>
+                <TouchableOpacity onPress={() => setHiddenDays(new Set())}>
+                  <Text style={[styles.summaryValue, { color: colors.accent }]}>
+                    {hiddenDays.size} — Unhide all
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.exportButton}
+              onPress={handleExportProgram}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <ActivityIndicator color={colors.accent} size='small' />
+              ) : (
+                <Text style={styles.exportButtonText}>
+                  ⬆️ Export program &amp; split data
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )
+      }
+
+      case "select_split": {
+        if (!workoutData || !workoutData.split) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Create a split or import a workout to choose which one to train.
+            </Text>
+          )
+        }
+        return (
+          <View>
+            {workoutData.split.map((split: string) => {
+              const summary = getSplitWorkoutSummary(split)
+              const isSelected = selectedSplit === split
+              return (
+                <TouchableOpacity
+                  key={split}
+                  style={[
+                    styles.personCard,
+                    isSelected && styles.personCardSelected,
+                  ]}
+                  onPress={() => handleSelectSplit(split)}
+                >
+                  <View style={styles.personCardHeader}>
+                    <Text
+                      style={[
+                        styles.personName,
+                        isSelected && styles.personNameSelected,
+                      ]}
+                    >
+                      {split}
+                    </Text>
+                    {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  {summary && (
+                    <View style={styles.personStats}>
+                      <Text style={styles.personStat}>
+                        {summary?.totalDays} workout days
+                      </Text>
+                      <Text style={styles.personStat}> </Text>
+                      <Text style={styles.personStat}>
+                        {summary.totalSets} total sets
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        )
+      }
+
+      case "view_program": {
+        if (!workoutData || !wd?.days || wd.days.length === 0) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Create a split or import a workout to see your program here.
+            </Text>
+          )
+        }
+        return (
+          <View>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingVertical: 6 }}
+              contentContainerStyle={styles.peopleSelectorScroll}
+              style={styles.peopleSelectorContainer}
             >
-              {DEFAULT_SPLITS.map((template) => (
+              {allOptions.map((option) => (
                 <TouchableOpacity
-                  key={template.id}
-                  style={styles.templateCard}
-                  onPress={() => handlePickDefaultSplit(template)}
-                  disabled={isApplyingTemplate}
+                  key={option}
+                  style={[
+                    styles.peoplePill,
+                    (selectedProgram === option ||
+                      (option === "All" && !selectedProgram)) &&
+                      styles.peoplePillActive,
+                  ]}
+                  onPress={() =>
+                    setSelectedProgram(option === "All" ? null : option)
+                  }
                 >
-                  <Text style={styles.templateCardTitle}>{template.name}</Text>
-                  <Text style={styles.templateCardMeta}>
-                    {template.days.length} day
-                    {template.days.length === 1 ? "" : "s"}
+                  <Text
+                    style={[
+                      styles.peoplePillText,
+                      (selectedProgram === option ||
+                        (option === "All" && !selectedProgram)) &&
+                        styles.peoplePillTextActive,
+                    ]}
+                  >
+                    {option}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
 
-          {workoutData && (
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>📊 Workout Plan Loaded</Text>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Total Days:</Text>
-                <Text style={styles.summaryValue}>
-                  {workoutData?.totalDays ?? workoutData?.days?.length}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Splits:</Text>
-                <Text style={styles.summaryValue}>
-                  {workoutData.split?.join(", ")}
-                </Text>
-              </View>
-              {hiddenDays.size > 0 && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Hidden days:</Text>
-                  <TouchableOpacity onPress={() => setHiddenDays(new Set())}>
-                    <Text
-                      style={[styles.summaryValue, { color: colors.accent }]}
-                    >
-                      {hiddenDays.size} — Unhide all
+            {wd.days.map((day, dayIdx) => {
+              const exercises = Array.isArray(day.exercises)
+                ? day.exercises.filter(
+                    (ex) =>
+                      !selectedProgram ||
+                      (ex.setsByPerson?.[selectedProgram] ?? 0) > 0,
+                  )
+                : []
+
+              if (
+                selectedProgram &&
+                Array.isArray(day.exercises) &&
+                day.exercises.length > 0 &&
+                exercises.length === 0
+              ) {
+                return null
+              }
+
+              const isHidden = hiddenDays.has(dayIdx)
+              const isEditing = editingDayIdx === dayIdx
+
+              const dayLabel = `Day ${day.dayNumber ?? dayIdx + 1}`
+              const dayTitle = day.dayTitle
+                ? day.dayTitle.includes("—")
+                  ? day.dayTitle.split("—")[1].trim()
+                  : day.dayTitle
+                : ""
+
+              return (
+                <View key={dayIdx} style={styles.programDayCard}>
+                  <View style={styles.programDayHeader}>
+                    <Text style={styles.programDayNumber}>{dayLabel}</Text>
+                    <Text style={styles.programDayTitle} numberOfLines={2}>
+                      {dayTitle}
                     </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              <TouchableOpacity
-                style={styles.exportButton}
-                onPress={handleExportProgram}
-                disabled={isExporting}
-              >
-                {isExporting ? (
-                  <ActivityIndicator color={colors.accent} size='small' />
-                ) : (
-                  <Text style={styles.exportButtonText}>
-                    ⬆️ Export program &amp; split data
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
 
-          {workoutData && workoutData.split && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Select Your Split</Text>
-              {workoutData.split.map((split: string) => {
-                const summary = getSplitWorkoutSummary(split)
-                const isSelected = selectedSplit === split
-                return (
-                  <TouchableOpacity
-                    key={split}
-                    style={[
-                      styles.personCard,
-                      isSelected && styles.personCardSelected,
-                    ]}
-                    onPress={() => handleSelectSplit(split)}
-                  >
-                    <View style={styles.personCardHeader}>
-                      <Text
-                        style={[
-                          styles.personName,
-                          isSelected && styles.personNameSelected,
-                        ]}
-                      >
-                        {split}
-                      </Text>
-                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                    {summary && (
-                      <View style={styles.personStats}>
-                        <Text style={styles.personStat}>
-                          {summary?.totalDays} workout days
-                        </Text>
-                        <Text style={styles.personStat}> </Text>
-                        <Text style={styles.personStat}>
-                          {summary.totalSets} total sets
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-          )}
-
-          {workoutData && wd?.days && wd.days.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 View Program</Text>
-
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.peopleSelectorScroll}
-                style={styles.peopleSelectorContainer}
-              >
-                {allOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.peoplePill,
-                      (selectedProgram === option ||
-                        (option === "All" && !selectedProgram)) &&
-                        styles.peoplePillActive,
-                    ]}
-                    onPress={() =>
-                      setSelectedProgram(option === "All" ? null : option)
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.peoplePillText,
-                        (selectedProgram === option ||
-                          (option === "All" && !selectedProgram)) &&
-                          styles.peoplePillTextActive,
-                      ]}
-                    >
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {wd.days.map((day, dayIdx) => {
-                const exercises = Array.isArray(day.exercises)
-                  ? day.exercises.filter(
-                      (ex) =>
-                        !selectedProgram ||
-                        (ex.setsByPerson?.[selectedProgram] ?? 0) > 0,
-                    )
-                  : []
-
-                if (
-                  selectedProgram &&
-                  Array.isArray(day.exercises) &&
-                  day.exercises.length > 0 &&
-                  exercises.length === 0
-                ) {
-                  return null
-                }
-
-                const isHidden = hiddenDays.has(dayIdx)
-                const isEditing = editingDayIdx === dayIdx
-
-                const dayLabel = `Day ${day.dayNumber ?? dayIdx + 1}`
-                const dayTitle = day.dayTitle
-                  ? day.dayTitle.includes("—")
-                    ? day.dayTitle.split("—")[1].trim()
-                    : day.dayTitle
-                  : ""
-
-                return (
-                  <View key={dayIdx} style={styles.programDayCard}>
-                    <View style={styles.programDayHeader}>
-                      <Text style={styles.programDayNumber}>{dayLabel}</Text>
-                      <Text style={styles.programDayTitle} numberOfLines={2}>
-                        {dayTitle}
-                      </Text>
-
-                      {!isHidden && editingDayIdx === null && (
-                        <TouchableOpacity
-                          style={styles.iconBtn}
-                          onPress={() => startEditing(dayIdx)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Text style={styles.iconBtnText}>✏️</Text>
-                        </TouchableOpacity>
-                      )}
-
+                    {!isHidden && editingDayIdx === null && (
                       <TouchableOpacity
                         style={styles.iconBtn}
-                        onPress={() => toggleDayHidden(dayIdx)}
+                        onPress={() => startEditing(dayIdx)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Text style={styles.chevron}>
-                          {isHidden ? "›" : "‹"}
-                        </Text>
+                        <Text style={styles.iconBtnText}>✏️</Text>
                       </TouchableOpacity>
-                    </View>
-
-                    {!isHidden && !isEditing && exercises.length === 0 && (
-                      <Text style={styles.emptyDayText}>
-                        No exercises yet — tap ✏️ to add some.
-                      </Text>
                     )}
-                    {!isHidden &&
-                      !isEditing &&
-                      exercises.map((exercise, exIdx) => {
-                        const setsByPerson = exercise.setsByPerson ?? {}
-                        const personEntries: Array<[string, number]> =
-                          selectedProgram
-                            ? [
-                                [
-                                  selectedProgram,
-                                  setsByPerson[selectedProgram] ?? 0,
-                                ],
-                              ]
-                            : Object.entries(setsByPerson)
-                        return (
-                          <View key={exIdx} style={styles.programExerciseRow}>
-                            <View style={styles.programExerciseLeft}>
-                              <Text style={styles.programExerciseName}>
-                                {exercise.name ?? `Exercise ${exIdx + 1}`}
+
+                    <TouchableOpacity
+                      style={styles.iconBtn}
+                      onPress={() => toggleDayHidden(dayIdx)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.chevron}>{isHidden ? "›" : "‹"}</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {!isHidden && !isEditing && exercises.length === 0 && (
+                    <Text style={styles.emptyDayText}>
+                      No exercises yet — tap ✏️ to add some.
+                    </Text>
+                  )}
+                  {!isHidden &&
+                    !isEditing &&
+                    exercises.map((exercise, exIdx) => {
+                      const setsByPerson = exercise.setsByPerson ?? {}
+                      const personEntries: Array<[string, number]> =
+                        selectedProgram
+                          ? [
+                              [
+                                selectedProgram,
+                                setsByPerson[selectedProgram] ?? 0,
+                              ],
+                            ]
+                          : Object.entries(setsByPerson)
+                      return (
+                        <View key={exIdx} style={styles.programExerciseRow}>
+                          <View style={styles.programExerciseLeft}>
+                            <Text style={styles.programExerciseName}>
+                              {exercise.name ?? `Exercise ${exIdx + 1}`}
+                            </Text>
+                            {exercise.muscleGroup ? (
+                              <Text style={styles.programExerciseSets}>
+                                {exercise.muscleGroup}
                               </Text>
-                              {exercise.muscleGroup ? (
-                                <Text style={styles.programExerciseSets}>
-                                  {exercise.muscleGroup}
+                            ) : null}
+                          </View>
+                          <View style={styles.programSetsRow}>
+                            {personEntries.map(([person, count]) => (
+                              <View
+                                key={person}
+                                style={styles.programSetsBadge}
+                              >
+                                <Text style={styles.programSetsBadgeText}>
+                                  {count}
                                 </Text>
-                              ) : null}
-                            </View>
-                            <View style={styles.programSetsRow}>
-                              {personEntries.map(([person, count]) => (
-                                <View
-                                  key={person}
-                                  style={styles.programSetsBadge}
-                                >
-                                  <Text style={styles.programSetsBadgeText}>
-                                    {count}
-                                  </Text>
-                                  <Text style={styles.programSetsBadgeLabel}>
+                                <Text style={styles.programSetsBadgeLabel}>
+                                  {person}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      )
+                    })}
+
+                  {!isHidden && isEditing && dayDraft && (
+                    <View>
+                      <Text style={styles.editModeLabel}>
+                        Editing — tap fields to change
+                      </Text>
+
+                      {dayDraft.exercises.map((draft, exIdx) => {
+                        const personKeys = Object.keys(draft.setsByPerson)
+                        const showNameSuggestions =
+                          focusedNameIdx === exIdx &&
+                          (nameSuggestions[exIdx] ?? []).length > 0
+                        const showMgSuggestions =
+                          focusedMgIdx === exIdx &&
+                          (mgSuggestions[exIdx] ?? []).length > 0
+
+                        return (
+                          <View key={exIdx} style={styles.editExerciseBlock}>
+                            <TouchableOpacity
+                              style={styles.removeExerciseBtn}
+                              onPress={() => removeExercise(exIdx)}
+                              hitSlop={{
+                                top: 6,
+                                bottom: 6,
+                                left: 6,
+                                right: 6,
+                              }}
+                            >
+                              <Text style={styles.removeExerciseBtnText}>
+                                − Remove
+                              </Text>
+                            </TouchableOpacity>
+
+                            <Text style={styles.editFieldLabel}>
+                              Exercise name
+                            </Text>
+                            <TextInput
+                              style={styles.editInput}
+                              value={draft.name}
+                              onChangeText={(v) =>
+                                updateDraftExercise(exIdx, "name", v)
+                              }
+                              onFocus={() => setFocusedNameIdx(exIdx)}
+                              onBlur={() =>
+                                setTimeout(() => setFocusedNameIdx(null), 150)
+                              }
+                              placeholderTextColor={colors.textMuted}
+                              placeholder='Exercise name'
+                            />
+                            {showNameSuggestions && (
+                              <View style={styles.suggestionsBox}>
+                                {(nameSuggestions[exIdx] ?? []).map((s) => (
+                                  <TouchableOpacity
+                                    key={s}
+                                    style={styles.suggestionItem}
+                                    onPress={() =>
+                                      applySuggestion(exIdx, "name", s)
+                                    }
+                                  >
+                                    <Text style={styles.suggestionText}>
+                                      {s}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
+
+                            <Text style={styles.editFieldLabel}>
+                              Muscle group
+                            </Text>
+                            <TextInput
+                              style={styles.editInput}
+                              value={draft.muscleGroup}
+                              onChangeText={(v) =>
+                                updateDraftExercise(exIdx, "muscleGroup", v)
+                              }
+                              onFocus={() => setFocusedMgIdx(exIdx)}
+                              onBlur={() =>
+                                setTimeout(() => setFocusedMgIdx(null), 150)
+                              }
+                              placeholderTextColor={colors.textMuted}
+                              placeholder='Muscle group'
+                            />
+                            {showMgSuggestions && (
+                              <View style={styles.suggestionsBox}>
+                                {(mgSuggestions[exIdx] ?? []).map((s) => (
+                                  <TouchableOpacity
+                                    key={s}
+                                    style={styles.suggestionItem}
+                                    onPress={() =>
+                                      applySuggestion(exIdx, "muscleGroup", s)
+                                    }
+                                  >
+                                    <Text style={styles.suggestionText}>
+                                      {s}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
+
+                            <Text style={styles.editFieldLabel}>Sets</Text>
+                            <View style={styles.editSetsRow}>
+                              {personKeys.map((person) => (
+                                <View key={person} style={styles.editSetItem}>
+                                  <Text style={styles.editSetPersonLabel}>
                                     {person}
                                   </Text>
+                                  <TextInput
+                                    style={styles.editSetInput}
+                                    value={draft.setsByPerson[person]}
+                                    onChangeText={(v) =>
+                                      updateDraftSets(exIdx, person, v)
+                                    }
+                                    keyboardType='numeric'
+                                    maxLength={3}
+                                    placeholderTextColor={colors.textMuted}
+                                    placeholder='0'
+                                  />
                                 </View>
                               ))}
                             </View>
@@ -1046,172 +1250,108 @@ export default function PlanScreen({
                         )
                       })}
 
-                    {!isHidden && isEditing && dayDraft && (
-                      <View>
-                        <Text style={styles.editModeLabel}>
-                          Editing — tap fields to change
+                      <TouchableOpacity
+                        style={styles.addExerciseBtn}
+                        onPress={addExercise}
+                      >
+                        <Text style={styles.addExerciseBtnText}>
+                          + Add exercise
                         </Text>
+                      </TouchableOpacity>
 
-                        {dayDraft.exercises.map((draft, exIdx) => {
-                          const personKeys = Object.keys(draft.setsByPerson)
-                          const showNameSuggestions =
-                            focusedNameIdx === exIdx &&
-                            (nameSuggestions[exIdx] ?? []).length > 0
-                          const showMgSuggestions =
-                            focusedMgIdx === exIdx &&
-                            (mgSuggestions[exIdx] ?? []).length > 0
-
-                          return (
-                            <View key={exIdx} style={styles.editExerciseBlock}>
-                              <TouchableOpacity
-                                style={styles.removeExerciseBtn}
-                                onPress={() => removeExercise(exIdx)}
-                                hitSlop={{
-                                  top: 6,
-                                  bottom: 6,
-                                  left: 6,
-                                  right: 6,
-                                }}
-                              >
-                                <Text style={styles.removeExerciseBtnText}>
-                                  − Remove
-                                </Text>
-                              </TouchableOpacity>
-
-                              <Text style={styles.editFieldLabel}>
-                                Exercise name
-                              </Text>
-                              <TextInput
-                                style={styles.editInput}
-                                value={draft.name}
-                                onChangeText={(v) =>
-                                  updateDraftExercise(exIdx, "name", v)
-                                }
-                                onFocus={() => setFocusedNameIdx(exIdx)}
-                                onBlur={() =>
-                                  setTimeout(() => setFocusedNameIdx(null), 150)
-                                }
-                                placeholderTextColor={colors.textMuted}
-                                placeholder='Exercise name'
-                              />
-                              {showNameSuggestions && (
-                                <View style={styles.suggestionsBox}>
-                                  {(nameSuggestions[exIdx] ?? []).map((s) => (
-                                    <TouchableOpacity
-                                      key={s}
-                                      style={styles.suggestionItem}
-                                      onPress={() =>
-                                        applySuggestion(exIdx, "name", s)
-                                      }
-                                    >
-                                      <Text style={styles.suggestionText}>
-                                        {s}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
-                              )}
-
-                              <Text style={styles.editFieldLabel}>
-                                Muscle group
-                              </Text>
-                              <TextInput
-                                style={styles.editInput}
-                                value={draft.muscleGroup}
-                                onChangeText={(v) =>
-                                  updateDraftExercise(exIdx, "muscleGroup", v)
-                                }
-                                onFocus={() => setFocusedMgIdx(exIdx)}
-                                onBlur={() =>
-                                  setTimeout(() => setFocusedMgIdx(null), 150)
-                                }
-                                placeholderTextColor={colors.textMuted}
-                                placeholder='Muscle group'
-                              />
-                              {showMgSuggestions && (
-                                <View style={styles.suggestionsBox}>
-                                  {(mgSuggestions[exIdx] ?? []).map((s) => (
-                                    <TouchableOpacity
-                                      key={s}
-                                      style={styles.suggestionItem}
-                                      onPress={() =>
-                                        applySuggestion(exIdx, "muscleGroup", s)
-                                      }
-                                    >
-                                      <Text style={styles.suggestionText}>
-                                        {s}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
-                              )}
-
-                              <Text style={styles.editFieldLabel}>Sets</Text>
-                              <View style={styles.editSetsRow}>
-                                {personKeys.map((person) => (
-                                  <View key={person} style={styles.editSetItem}>
-                                    <Text style={styles.editSetPersonLabel}>
-                                      {person}
-                                    </Text>
-                                    <TextInput
-                                      style={styles.editSetInput}
-                                      value={draft.setsByPerson[person]}
-                                      onChangeText={(v) =>
-                                        updateDraftSets(exIdx, person, v)
-                                      }
-                                      keyboardType='numeric'
-                                      maxLength={3}
-                                      placeholderTextColor={colors.textMuted}
-                                      placeholder='0'
-                                    />
-                                  </View>
-                                ))}
-                              </View>
-                            </View>
-                          )
-                        })}
-
+                      <View style={styles.editActions}>
                         <TouchableOpacity
-                          style={styles.addExerciseBtn}
-                          onPress={addExercise}
+                          style={styles.cancelBtn}
+                          onPress={cancelEditing}
+                          disabled={isSubmitting}
                         >
-                          <Text style={styles.addExerciseBtnText}>
-                            + Add exercise
-                          </Text>
+                          <Text style={styles.cancelBtnText}>Cancel</Text>
                         </TouchableOpacity>
-
-                        <View style={styles.editActions}>
-                          <TouchableOpacity
-                            style={styles.cancelBtn}
-                            onPress={cancelEditing}
-                            disabled={isSubmitting}
-                          >
-                            <Text style={styles.cancelBtnText}>Cancel</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[
-                              styles.submitBtn,
-                              isSubmitting && { opacity: 0.6 },
-                            ]}
-                            onPress={handleSubmitEdits}
-                            disabled={isSubmitting}
-                          >
-                            {isSubmitting ? (
-                              <ActivityIndicator color='#fff' size='small' />
-                            ) : (
-                              <Text style={styles.submitBtnText}>
-                                Save changes
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity
+                          style={[
+                            styles.submitBtn,
+                            isSubmitting && { opacity: 0.6 },
+                          ]}
+                          onPress={handleSubmitEdits}
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? (
+                            <ActivityIndicator color='#fff' size='small' />
+                          ) : (
+                            <Text style={styles.submitBtnText}>
+                              Save changes
+                            </Text>
+                          )}
+                        </TouchableOpacity>
                       </View>
-                    )}
-                  </View>
-                )
-              })}
+                    </View>
+                  )}
+                </View>
+              )
+            })}
+          </View>
+        )
+      }
+
+      default:
+        return <Text style={styles.widgetLineMuted}>Coming soon</Text>
+    }
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1 }} edges={["top"]} {...panHandlers}>
+      {isPulling && (
+        <View pointerEvents='none' style={styles.pullHint}>
+          <Text style={styles.pullHintText}>
+            {pullDistance > 90
+              ? "Release to add a widget ✨"
+              : "Pull to add a widget ↓"}
+          </Text>
+        </View>
+      )}
+      {isEmulator && (
+        <TouchableOpacity
+          style={styles.emulatorWidgetButton}
+          onPress={() => setShowWidgetGallery(true)}
+        >
+          <Text style={styles.emulatorWidgetButtonText}>+ Widget</Text>
+        </TouchableOpacity>
+      )}
+      <ScrollView
+        style={styles.container}
+        scrollEnabled={!isPulling}
+        keyboardShouldPersistTaps='handled'
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>📋 Workout Plan</Text>
+            <Text style={styles.subtitle}>
+              Upload your workout plan and choose your split
+            </Text>
+          </View>
+
+          {widgetsLoaded && widgets.length > 0 && widgetEditMode && (
+            <View style={styles.widgetsSectionHeader}>
+              <Text style={styles.widgetsSectionTitle}>Editing Widgets</Text>
+              <TouchableOpacity
+                onPress={() => setWidgetEditMode(false)}
+                hitSlop={8}
+              >
+                <Text style={styles.widgetsEditToggle}>Done</Text>
+              </TouchableOpacity>
             </View>
           )}
+
+          <WidgetsPanel
+            widgets={widgets}
+            isLoaded={widgetsLoaded}
+            editMode={widgetEditMode}
+            onCycleSize={cycleWidgetSize}
+            onRemove={removeWidget}
+            onReorder={reorderWidgets}
+            renderContent={renderWidgetContent}
+            registry={PLAN_WIDGET_REGISTRY}
+          />
 
           {!workoutData && (
             <View style={styles.instructionsCard}>
@@ -1233,7 +1373,6 @@ export default function PlanScreen({
         </View>
       </ScrollView>
       {AlertComponent}
-
       <SplitColumnPicker
         visible={showColumnPicker}
         fileName={pendingImportName}
@@ -1247,6 +1386,15 @@ export default function PlanScreen({
         isImporting={isImportingColumns}
         colors={colors}
       />
+
+      <WidgetGallery
+        visible={showWidgetGallery}
+        onClose={() => setShowWidgetGallery(false)}
+        availableWidgets={availableToAdd}
+        onAddWidget={handleAddWidget}
+        hasPlacedWidgets={widgets.length > 0}
+        onEditWidgets={handleEditWidgets}
+      />
     </SafeAreaView>
   )
 }
@@ -1254,7 +1402,7 @@ export default function PlanScreen({
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
+    content: { padding: 10, paddingTop: 60, paddingBottom: 120 },
     header: { marginBottom: 30, alignItems: "center" },
     title: {
       fontSize: 32,
@@ -1266,6 +1414,60 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 16,
       color: colors.textSecondary,
       textAlign: "center",
+    },
+    widgetsSectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    widgetsSectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    widgetsEditToggle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.accent,
+    },
+    pullHint: {
+      position: "absolute",
+      top: 8,
+      left: 0,
+      right: 0,
+      alignItems: "center",
+      zIndex: 10,
+    },
+    pullHintText: {
+      backgroundColor: colors.accent,
+      color: colors.surface,
+      fontSize: 13,
+      fontWeight: "600",
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    widgetLineMuted: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    emulatorWidgetButton: {
+      position: "absolute",
+      top: 8,
+      right: 12,
+      zIndex: 10,
+      backgroundColor: colors.accent,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+    },
+    emulatorWidgetButtonText: {
+      color: colors.surface,
+      fontSize: 13,
+      fontWeight: "600",
     },
     summaryCard: {
       backgroundColor: colors.surface,

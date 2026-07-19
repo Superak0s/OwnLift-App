@@ -23,6 +23,29 @@ import ModalSheet from "@shared/components/ModalSheet"
 import ScrollTabBar from "@shared/components/ScrollTabBar"
 import { useAlert } from "@shared/components/CustomAlert"
 import { bodyTrackingApi, macrosTrackingApi, bodyFatApi } from "./services"
+import { useWidgets } from "@shared/context/hooks/useWidgets"
+import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull"
+import WidgetGallery from "@shared/components/widgets/WidgetGallery"
+import WidgetsPanel from "@shared/components/widgets/WidgetsPanel"
+import {
+  TRACKING_TABS,
+  WEIGHT_WIDGET_REGISTRY,
+  DEFAULT_WEIGHT_WIDGETS,
+  WEIGHT_WIDGETS_STORAGE_KEY,
+  type WeightWidgetType,
+  PHOTOS_WIDGET_REGISTRY,
+  DEFAULT_PHOTOS_WIDGETS,
+  PHOTOS_WIDGETS_STORAGE_KEY,
+  type PhotosWidgetType,
+  MACROS_WIDGET_REGISTRY,
+  DEFAULT_MACROS_WIDGETS,
+  MACROS_WIDGETS_STORAGE_KEY,
+  type MacrosWidgetType,
+  BODYFAT_WIDGET_REGISTRY,
+  DEFAULT_BODYFAT_WIDGETS,
+  BODYFAT_WIDGETS_STORAGE_KEY,
+  type BodyFatWidgetType,
+} from "./widgets"
 import type {
   WeightEntry,
   WeightHistoryResponse,
@@ -31,6 +54,7 @@ import type {
   DailyMacrosStats,
   ProgressPhoto,
   BodyFatEntry,
+  WidgetInstance,
 } from "@shared/types"
 import type {
   DayModalState,
@@ -43,13 +67,6 @@ import type {
 import type { ThemeColors } from "@shared/context/ThemeContext"
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window")
-
-const TRACKING_TABS = [
-  { key: "weight", icon: "⚖️", label: "Weight" },
-  { key: "photos", icon: "📸", label: "Photos" },
-  { key: "macros", icon: "🥗", label: "Macros" },
-  { key: "bodyfat", icon: "📐", label: "Body Fat" },
-]
 
 export async function getCurrentBodyWeight(
   userId: string | number,
@@ -91,6 +108,73 @@ export default function TrackingScreen(): React.JSX.Element {
   const [loading, setLoading] = useState<boolean>(true)
   const [refreshing, setRefreshing] = useState<boolean>(false)
   const [activeTab, setActiveTab] = useState<string>("weight")
+
+  // ─────────────────────────────────────────────────────────────
+  // WIDGETS — one independent board per tab
+  // ─────────────────────────────────────────────────────────────
+  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false)
+  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false)
+
+  // Reset the gallery/edit affordances when switching tabs so "Editing
+  // Widgets" from one tab doesn't linger, confusingly, on another.
+  useEffect(() => {
+    setShowWidgetGallery(false)
+    setWidgetEditMode(false)
+  }, [activeTab])
+
+  const weightBoard = useWidgets<WeightWidgetType>(user?.id ?? null, {
+    registry: WEIGHT_WIDGET_REGISTRY,
+    defaults: DEFAULT_WEIGHT_WIDGETS,
+    storageKey: WEIGHT_WIDGETS_STORAGE_KEY,
+  })
+  const photosBoard = useWidgets<PhotosWidgetType>(user?.id ?? null, {
+    registry: PHOTOS_WIDGET_REGISTRY,
+    defaults: DEFAULT_PHOTOS_WIDGETS,
+    storageKey: PHOTOS_WIDGETS_STORAGE_KEY,
+  })
+  const macrosBoard = useWidgets<MacrosWidgetType>(user?.id ?? null, {
+    registry: MACROS_WIDGET_REGISTRY,
+    defaults: DEFAULT_MACROS_WIDGETS,
+    storageKey: MACROS_WIDGETS_STORAGE_KEY,
+  })
+  const bodyFatBoard = useWidgets<BodyFatWidgetType>(user?.id ?? null, {
+    registry: BODYFAT_WIDGET_REGISTRY,
+    defaults: DEFAULT_BODYFAT_WIDGETS,
+    storageKey: BODYFAT_WIDGETS_STORAGE_KEY,
+  })
+
+  // Whichever tab is active, this is its widget board — the gallery and
+  // the "+ Widget" / "Edit Widgets" affordances all key off this.
+  const activeBoard =
+    activeTab === "weight"
+      ? weightBoard
+      : activeTab === "photos"
+        ? photosBoard
+        : activeTab === "macros"
+          ? macrosBoard
+          : bodyFatBoard
+
+  // Two-finger pull brings up the "deploy" panel for the active tab's
+  // widgets, same gesture as HomeScreen. To rearrange, resize, or remove
+  // widgets already on the tab, open that same panel and tap "Edit
+  // Widgets".
+  const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
+    setShowWidgetGallery(true)
+  })
+
+  const handleEditWidgets = () => {
+    setShowWidgetGallery(false)
+    setWidgetEditMode(true)
+  }
+
+  const handleAddWidget = async (type: string): Promise<void> => {
+    const result = await activeBoard.addWidget(type as never)
+    if (!result.success && result.error) {
+      alert("Can't Add Widget", result.error, [{ text: "OK" }])
+      return
+    }
+    setShowWidgetGallery(false)
+  }
 
   // ─────────────────────────────────────────────────────────────
   // WEIGHT TRACKING
@@ -788,10 +872,10 @@ export default function TrackingScreen(): React.JSX.Element {
   }
 
   useEffect(() => {
-    if (activeTab === "photos" && progressPhotos.length > 0) {
+    if (progressPhotos.length > 0) {
       progressPhotos.slice(0, 20).forEach((p) => fetchPhotoUri(p.id))
     }
-  }, [activeTab, progressPhotos])
+  }, [progressPhotos])
 
   // ─────────────────────────────────────────────────────────────
   // WEIGHT TREND
@@ -1582,12 +1666,534 @@ export default function TrackingScreen(): React.JSX.Element {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // RENDER HELPERS — WIDGET CONTENT
+  // ─────────────────────────────────────────────────────────────
+  // Everything that used to live statically behind each tab is now a
+  // widget within that tab's own board. This one function renders the
+  // body of any widget from any of the four registries (Weight / Photos /
+  // Macros / Body Fat) — WidgetsPanel handles the shared card chrome
+  // (icon, title, drag/resize/remove in edit mode); it's typed loosely
+  // here since it's shared across four differently-typed boards.
+  const renderWidgetContent = (
+    instance: WidgetInstance<string>,
+  ): React.ReactNode => {
+    switch (instance.type) {
+      case "weight_overview": {
+        return weightHistory.length > 0 ? (
+          <View style={styles.statsCard}>
+            <Text style={styles.statsTitle}>Current Weight</Text>
+            <Text style={styles.statsValue}>
+              {weightUnit === "kg"
+                ? `${Number(weightHistory[0].weight_kg).toFixed(1)} kg`
+                : `${(Number(weightHistory[0].weight_kg) * 2.20462).toFixed(1)} lbs`}
+            </Text>
+            <Text style={styles.statsDate}>
+              {new Date(weightHistory[0].recorded_at).toLocaleDateString()}
+            </Text>
+            {weightTrend && (
+              <View style={styles.trendContainer}>
+                <View
+                  style={[
+                    styles.trendBadge,
+                    weightTrend.direction === "up"
+                      ? styles.trendUp
+                      : weightTrend.direction === "down"
+                        ? styles.trendDown
+                        : styles.trendStable,
+                  ]}
+                >
+                  <Text style={styles.trendIcon}>
+                    {weightTrend.direction === "up"
+                      ? "↗"
+                      : weightTrend.direction === "down"
+                        ? "↘"
+                        : "→"}
+                  </Text>
+                  <Text style={styles.trendText}>
+                    {Math.abs(weightTrend.diff).toFixed(1)} {weightUnit}
+                  </Text>
+                  <Text style={styles.trendPercent}>
+                    ({weightTrend.percentChange > 0 ? "+" : ""}
+                    {weightTrend.percentChange.toFixed(1)}%)
+                  </Text>
+                </View>
+                <Text style={styles.trendSubtext}>
+                  vs. {weightTrend.daysCompared}-day average
+                </Text>
+                <View style={styles.trendSelector}>
+                  {[3, 7, 14, 30].map((days: number) => (
+                    <TouchableOpacity
+                      key={days}
+                      style={[
+                        styles.trendOption,
+                        trendAverageDays === days && styles.trendOptionActive,
+                      ]}
+                      onPress={() => setTrendAverageDays(days)}
+                    >
+                      <Text
+                        style={[
+                          styles.trendOptionText,
+                          trendAverageDays === days &&
+                            styles.trendOptionTextActive,
+                        ]}
+                      >
+                        {days}d
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                setSelectedLogDate(null)
+                setShowWeightModal(true)
+              }}
+            >
+              <Text style={styles.primaryButtonText}>+ Log Weight</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No weight data logged yet</Text>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                setSelectedLogDate(null)
+                setShowWeightModal(true)
+              }}
+            >
+              <Text style={styles.primaryButtonText}>+ Log Weight</Text>
+            </TouchableOpacity>
+          </View>
+        )
+      }
+
+      case "weight_calendar": {
+        return (
+          <UniversalCalendar
+            hasDataOnDate={hasWeightData}
+            onDatePress={(date: Date) =>
+              handleCalendarDatePress(date, "weight")
+            }
+            initialView='week'
+            legendText='Weight logged · tap any day to view/add'
+            dotColor='#667eea'
+          />
+        )
+      }
+
+      case "weight_history": {
+        if (weightHistory.length === 0) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Log a weight entry to see your history here.
+            </Text>
+          )
+        }
+        return (
+          <View>
+            {weightHistory.slice(0, weightEntriesShown).map((entry, index) => {
+              const val =
+                weightUnit === "kg"
+                  ? `${Number(entry.weight_kg).toFixed(1)} kg`
+                  : `${(Number(entry.weight_kg) * 2.20462).toFixed(1)} lbs`
+              const isLatest = index === 0
+              return (
+                <View
+                  key={entry.id ?? index}
+                  style={[
+                    styles.weightEntryRow,
+                    index <
+                      weightHistory.slice(0, weightEntriesShown).length - 1 &&
+                      styles.weightEntryRowBorder,
+                  ]}
+                >
+                  <View>
+                    <Text style={styles.weightEntryDate}>
+                      {new Date(entry.recorded_at).toLocaleDateString([], {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </Text>
+                    <Text style={styles.weightEntryTime}>
+                      {new Date(entry.recorded_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                  <View style={styles.weightEntryRight}>
+                    <View style={styles.weightEntryValueRow}>
+                      <Text
+                        style={[
+                          styles.weightEntryValue,
+                          isLatest && styles.weightEntryValueLatest,
+                        ]}
+                      >
+                        {val}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.deleteEntryBtn}
+                        onPress={() => deleteWeightEntry(entry)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.deleteEntryBtnText}>🗑</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {isLatest && (
+                      <Text style={styles.weightEntryLatestBadge}>latest</Text>
+                    )}
+                  </View>
+                </View>
+              )
+            })}
+            {weightEntriesShown < weightHistory.length && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={loadMoreWeightEntries}
+              >
+                <Text style={styles.loadMoreText}>
+                  View More ({weightHistory.length - weightEntriesShown} more)
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )
+      }
+
+      case "weight_chart": {
+        if (weightHistory.length <= 1) {
+          return (
+            <Text style={styles.widgetLineMuted}>
+              Log at least two weight entries to see a trend chart here.
+            </Text>
+          )
+        }
+        return (
+          <ProgressChart
+            title='Weight Trend'
+            icon='📈'
+            data={getWeightChartData()}
+            yAxisSuffix={weightUnit}
+          />
+        )
+      }
+
+      case "photos_calendar": {
+        return (
+          <UniversalCalendar
+            hasDataOnDate={hasPhotoData}
+            onDatePress={(date: Date) =>
+              handleCalendarDatePress(date, "photos")
+            }
+            initialView='week'
+            legendText='Photo taken · tap any day to view/add'
+            dotColor='#10b981'
+          />
+        )
+      }
+
+      case "photos_gallery": {
+        return (
+          <View>
+            {renderPhotoGrid()}
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => {
+                  setSelectedLogDate(null)
+                  takePhoto()
+                }}
+              >
+                <Text style={styles.primaryButtonText}>📷 Take Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => {
+                  setSelectedLogDate(null)
+                  pickPhotoFromGallery()
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>🖼️ Gallery</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )
+      }
+
+      case "macros_calendar": {
+        return (
+          <UniversalCalendar
+            hasDataOnDate={hasMacrosData}
+            onDatePress={(date: Date) =>
+              handleCalendarDatePress(date, "macros")
+            }
+            initialView='week'
+            legendText='Macros logged · tap any day to view/add'
+            dotColor='#ef4444'
+          />
+        )
+      }
+
+      case "macros_today": {
+        const todayStats = getDailyMacrosStats(new Date())
+        return (
+          <View>
+            <TouchableOpacity
+              style={styles.goalButton}
+              onPress={() => {
+                setMacrosGoalInput({
+                  protein: String(dailyMacrosGoals.protein),
+                  carbs: String(dailyMacrosGoals.carbs),
+                  fat: String(dailyMacrosGoals.fat),
+                  calories: String(dailyMacrosGoals.calories),
+                })
+                setShowMacrosGoalModal(true)
+              }}
+            >
+              <Text style={styles.goalButtonText}>
+                {dailyMacrosGoals.calories} kcal goal
+              </Text>
+            </TouchableOpacity>
+            {todayStats ? (
+              <View style={styles.macrosStatsCard}>
+                <Text style={styles.macrosStatsTitle}>Today's Intake</Text>
+                {[
+                  {
+                    key: "calories",
+                    label: "Calories",
+                    unit: "kcal",
+                    color: colors.warning,
+                  },
+                  {
+                    key: "protein",
+                    label: "Protein",
+                    unit: "g",
+                    color: colors.accent,
+                  },
+                  {
+                    key: "carbs",
+                    label: "Carbs",
+                    unit: "g",
+                    color: colors.success,
+                  },
+                  { key: "fat", label: "Fat", unit: "g", color: colors.error },
+                ]
+                  .filter(
+                    ({ key }) =>
+                      todayStats[key as keyof DailyMacrosStats] != null,
+                  )
+                  .map(({ key, label, unit, color }) => {
+                    const macro = todayStats[key as keyof DailyMacrosStats]!
+                    return (
+                      <View key={key} style={styles.macroRow}>
+                        <View style={styles.macroLabelRow}>
+                          <Text style={styles.macroLabel}>{label}</Text>
+                          <Text style={styles.macroValue}>
+                            {macro.total.toFixed(0)}
+                            {unit}
+                            <Text style={styles.macroRange}>
+                              {" "}
+                              ({macro.min.toFixed(0)}–{macro.max.toFixed(0)})
+                            </Text>
+                          </Text>
+                        </View>
+                        <View style={styles.macroProgressBar}>
+                          <View
+                            style={[
+                              styles.macroProgressFill,
+                              {
+                                width: `${Math.min(macro.percentage, 100)}%`,
+                                backgroundColor: color,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.macroProgressText}>
+                          {macro.percentage.toFixed(0)}% of {macro.goal}
+                          {unit} goal
+                        </Text>
+                      </View>
+                    )
+                  })}
+                <Text style={styles.macrosEntriesCount}>
+                  {todayStats.entries}{" "}
+                  {todayStats.entries === 1 ? "entry" : "entries"} logged
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>No macros logged today</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                setSelectedLogDate(null)
+                setShowMacrosModal(true)
+              }}
+            >
+              <Text style={styles.primaryButtonText}>+ Log Macros</Text>
+            </TouchableOpacity>
+          </View>
+        )
+      }
+
+      case "bodyfat_height": {
+        return (
+          <View style={styles.heightCard}>
+            {height && height.height_cm ? (
+              <View style={styles.heightDisplay}>
+                <View style={styles.heightInfo}>
+                  <Text style={styles.heightLabel}>Your Height</Text>
+                  <Text style={styles.heightValue}>
+                    {heightUnit === "cm"
+                      ? `${height.height_cm.toFixed(1)} cm`
+                      : `${Math.floor(height.height_cm / 2.54 / 12)}' ${Math.round((height.height_cm / 2.54) % 12)}"`}
+                  </Text>
+                  <Text style={styles.heightNote}>
+                    Required for body fat calculation
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.heightEditButton}
+                  onPress={() => {
+                    if (height?.height_cm) {
+                      if (heightUnit === "cm")
+                        setNewHeightCm(String(height.height_cm.toFixed(1)))
+                      else {
+                        const ti = height.height_cm / 2.54
+                        setNewHeightFt(String(Math.floor(ti / 12)))
+                        setNewHeightIn(String(Math.round(ti % 12)))
+                      }
+                    }
+                    setShowHeightModal(true)
+                  }}
+                >
+                  <Text style={styles.heightEditButtonText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.heightSetButton}
+                onPress={() => setShowHeightModal(true)}
+              >
+                <Text style={styles.heightSetIcon}>📏</Text>
+                <View style={styles.heightSetTextContainer}>
+                  <Text style={styles.heightSetTitle}>Set Your Height</Text>
+                  <Text style={styles.heightSetSubtitle}>
+                    Required to calculate body fat percentage
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          </View>
+        )
+      }
+
+      case "bodyfat_calendar": {
+        return (
+          <UniversalCalendar
+            hasDataOnDate={hasBodyFatData}
+            onDatePress={(date: Date) =>
+              handleCalendarDatePress(date, "bodyfat")
+            }
+            initialView='week'
+            legendText='Measurement taken · tap any day to view/add'
+            dotColor='#8b5cf6'
+          />
+        )
+      }
+
+      case "bodyfat_latest": {
+        return (
+          <View>
+            {bodyFatHistory.length > 0 ? (
+              <View style={styles.bodyFatCard}>
+                <Text style={styles.bodyFatLabel}>Latest Measurement</Text>
+                <Text style={styles.bodyFatValue}>
+                  {Number(
+                    bodyFatHistory[0].percentage ??
+                      (bodyFatHistory[0] as { body_fat_percentage?: number })
+                        .body_fat_percentage ??
+                      0,
+                  ).toFixed(1)}
+                  %
+                </Text>
+                <Text style={styles.bodyFatDate}>
+                  {new Date(
+                    bodyFatHistory[0].date ??
+                      bodyFatHistory[0].recorded_at ??
+                      "",
+                  ).toLocaleDateString()}
+                </Text>
+                <Text style={styles.bodyFatMethod}>US Navy Method</Text>
+                <TouchableOpacity
+                  style={styles.bodyFatDeleteBtn}
+                  onPress={() => deleteBodyFatEntry(bodyFatHistory[0])}
+                >
+                  <Text style={styles.bodyFatDeleteBtnText}>
+                    🗑 Delete this reading
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={styles.widgetLineMuted}>
+                No body fat measurements yet.
+              </Text>
+            )}
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={() => {
+                setSelectedLogDate(null)
+                setShowBodyFatModal(true)
+              }}
+            >
+              <Text style={styles.primaryButtonText}>
+                📐 Calculate Body Fat
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )
+      }
+
+      default:
+        return <Text style={styles.widgetLineMuted}>Coming soon</Text>
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────
+  // Which registry backs the currently-active tab — WidgetsPanel needs
+  // this alongside activeBoard's widgets/handlers to know each widget's
+  // icon, title, sizes, etc.
+  const activeRegistry =
+    activeTab === "weight"
+      ? WEIGHT_WIDGET_REGISTRY
+      : activeTab === "photos"
+        ? PHOTOS_WIDGET_REGISTRY
+        : activeTab === "macros"
+          ? MACROS_WIDGET_REGISTRY
+          : BODYFAT_WIDGET_REGISTRY
+
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1 }} edges={["top"]} {...panHandlers}>
+      {isPulling && (
+        <View pointerEvents='none' style={styles.pullHint}>
+          <Text style={styles.pullHintText}>
+            {pullDistance > 90
+              ? "Release to add a widget ✨"
+              : "Pull to add a widget ↓"}
+          </Text>
+        </View>
+      )}
       <ScrollView
         style={styles.container}
+        scrollEnabled={!isPulling}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1613,471 +2219,61 @@ export default function TrackingScreen(): React.JSX.Element {
             storageKey='trackingScreen_tabConfig'
           />
 
-          {/* ── WEIGHT TAB ── */}
-          {activeTab === "weight" && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Weight Tracking</Text>
-              <UniversalCalendar
-                hasDataOnDate={hasWeightData}
-                onDatePress={(date: Date) =>
-                  handleCalendarDatePress(date, "weight")
-                }
-                initialView='week'
-                legendText='Weight logged · tap any day to view/add'
-                dotColor='#667eea'
-              />
-              {weightHistory.length > 0 ? (
-                <View style={styles.statsCard}>
-                  <Text style={styles.statsTitle}>Current Weight</Text>
-                  <Text style={styles.statsValue}>
-                    {weightUnit === "kg"
-                      ? `${Number(weightHistory[0].weight_kg).toFixed(1)} kg`
-                      : `${(Number(weightHistory[0].weight_kg) * 2.20462).toFixed(1)} lbs`}
-                  </Text>
-                  <Text style={styles.statsDate}>
-                    {new Date(
-                      weightHistory[0].recorded_at,
-                    ).toLocaleDateString()}
-                  </Text>
-                  {weightTrend && (
-                    <View style={styles.trendContainer}>
-                      <View
-                        style={[
-                          styles.trendBadge,
-                          weightTrend.direction === "up"
-                            ? styles.trendUp
-                            : weightTrend.direction === "down"
-                              ? styles.trendDown
-                              : styles.trendStable,
-                        ]}
-                      >
-                        <Text style={styles.trendIcon}>
-                          {weightTrend.direction === "up"
-                            ? "↗"
-                            : weightTrend.direction === "down"
-                              ? "↘"
-                              : "→"}
-                        </Text>
-                        <Text style={styles.trendText}>
-                          {Math.abs(weightTrend.diff).toFixed(1)} {weightUnit}
-                        </Text>
-                        <Text style={styles.trendPercent}>
-                          ({weightTrend.percentChange > 0 ? "+" : ""}
-                          {weightTrend.percentChange.toFixed(1)}%)
-                        </Text>
-                      </View>
-                      <Text style={styles.trendSubtext}>
-                        vs. {weightTrend.daysCompared}-day average
-                      </Text>
-                      <View style={styles.trendSelector}>
-                        {[3, 7, 14, 30].map((days: number) => (
-                          <TouchableOpacity
-                            key={days}
-                            style={[
-                              styles.trendOption,
-                              trendAverageDays === days &&
-                                styles.trendOptionActive,
-                            ]}
-                            onPress={() => setTrendAverageDays(days)}
-                          >
-                            <Text
-                              style={[
-                                styles.trendOptionText,
-                                trendAverageDays === days &&
-                                  styles.trendOptionTextActive,
-                              ]}
-                            >
-                              {days}d
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>
-                    No weight data logged yet
-                  </Text>
-                </View>
-              )}
-              {weightHistory.length > 0 && (
-                <View style={styles.weightHistoryCard}>
-                  <Text style={styles.weightHistoryTitle}>Recent Entries</Text>
-                  {weightHistory
-                    .slice(0, weightEntriesShown)
-                    .map((entry, index) => {
-                      const val =
-                        weightUnit === "kg"
-                          ? `${Number(entry.weight_kg).toFixed(1)} kg`
-                          : `${(Number(entry.weight_kg) * 2.20462).toFixed(1)} lbs`
-                      const isLatest = index === 0
-                      return (
-                        <View
-                          key={entry.id ?? index}
-                          style={[
-                            styles.weightEntryRow,
-                            index <
-                              weightHistory.slice(0, weightEntriesShown)
-                                .length -
-                                1 && styles.weightEntryRowBorder,
-                          ]}
-                        >
-                          <View>
-                            <Text style={styles.weightEntryDate}>
-                              {new Date(entry.recorded_at).toLocaleDateString(
-                                [],
-                                {
-                                  weekday: "short",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )}
-                            </Text>
-                            <Text style={styles.weightEntryTime}>
-                              {new Date(entry.recorded_at).toLocaleTimeString(
-                                [],
-                                {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                },
-                              )}
-                            </Text>
-                          </View>
-                          <View style={styles.weightEntryRight}>
-                            <View style={styles.weightEntryValueRow}>
-                              <Text
-                                style={[
-                                  styles.weightEntryValue,
-                                  isLatest && styles.weightEntryValueLatest,
-                                ]}
-                              >
-                                {val}
-                              </Text>
-                              <TouchableOpacity
-                                style={styles.deleteEntryBtn}
-                                onPress={() => deleteWeightEntry(entry)}
-                                hitSlop={{
-                                  top: 8,
-                                  bottom: 8,
-                                  left: 8,
-                                  right: 8,
-                                }}
-                              >
-                                <Text style={styles.deleteEntryBtnText}>
-                                  🗑
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-                            {isLatest && (
-                              <Text style={styles.weightEntryLatestBadge}>
-                                latest
-                              </Text>
-                            )}
-                          </View>
-                        </View>
-                      )
-                    })}
-                  {weightEntriesShown < weightHistory.length && (
-                    <TouchableOpacity
-                      style={styles.loadMoreButton}
-                      onPress={loadMoreWeightEntries}
-                    >
-                      <Text style={styles.loadMoreText}>
-                        View More ({weightHistory.length - weightEntriesShown}{" "}
-                        more)
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-              {weightHistory.length > 1 && (
-                <ProgressChart
-                  title='Weight Trend'
-                  icon='📈'
-                  data={getWeightChartData()}
-                  yAxisSuffix={weightUnit}
-                />
-              )}
+          <View style={styles.widgetsSectionHeader}>
+            <Text style={styles.widgetsSectionTitle}>
+              {widgetEditMode ? "Editing Widgets" : " "}
+            </Text>
+            {widgetEditMode ? (
+              <TouchableOpacity
+                onPress={() => setWidgetEditMode(false)}
+                hitSlop={8}
+              >
+                <Text style={styles.widgetsEditToggle}>Done</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.addWidgetButton}
+                onPress={() => setShowWidgetGallery(true)}
+              >
+                <Text style={styles.addWidgetButtonText}>+ Widget</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {activeBoard.isLoaded && activeBoard.widgets.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No widgets on this tab yet</Text>
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={() => {
-                  setSelectedLogDate(null)
-                  setShowWeightModal(true)
-                }}
+                onPress={() => setShowWidgetGallery(true)}
               >
-                <Text style={styles.primaryButtonText}>+ Log Weight</Text>
+                <Text style={styles.primaryButtonText}>+ Add a Widget</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* ── PHOTOS TAB ── */}
-          {activeTab === "photos" && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Progress Photos</Text>
-              <UniversalCalendar
-                hasDataOnDate={hasPhotoData}
-                onDatePress={(date: Date) =>
-                  handleCalendarDatePress(date, "photos")
-                }
-                initialView='week'
-                legendText='Photo taken · tap any day to view/add'
-                dotColor='#10b981'
-              />
-              {renderPhotoGrid()}
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={styles.primaryButton}
-                  onPress={() => {
-                    setSelectedLogDate(null)
-                    takePhoto()
-                  }}
-                >
-                  <Text style={styles.primaryButtonText}>📷 Take Photo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.secondaryButton}
-                  onPress={() => {
-                    setSelectedLogDate(null)
-                    pickPhotoFromGallery()
-                  }}
-                >
-                  <Text style={styles.secondaryButtonText}>🖼️ Gallery</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* ── MACROS TAB ── */}
-          {activeTab === "macros" && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Macros Tracking</Text>
-                <TouchableOpacity
-                  style={styles.goalButton}
-                  onPress={() => {
-                    setMacrosGoalInput({
-                      protein: String(dailyMacrosGoals.protein),
-                      carbs: String(dailyMacrosGoals.carbs),
-                      fat: String(dailyMacrosGoals.fat),
-                      calories: String(dailyMacrosGoals.calories),
-                    })
-                    setShowMacrosGoalModal(true)
-                  }}
-                >
-                  <Text style={styles.goalButtonText}>
-                    {dailyMacrosGoals.calories} kcal goal
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <UniversalCalendar
-                hasDataOnDate={hasMacrosData}
-                onDatePress={(date: Date) =>
-                  handleCalendarDatePress(date, "macros")
-                }
-                initialView='week'
-                legendText='Macros logged · tap any day to view/add'
-                dotColor='#ef4444'
-              />
-              {(() => {
-                const todayStats = getDailyMacrosStats(new Date())
-                return todayStats ? (
-                  <View style={styles.macrosStatsCard}>
-                    <Text style={styles.macrosStatsTitle}>Today's Intake</Text>
-                    {[
-                      {
-                        key: "calories",
-                        label: "Calories",
-                        unit: "kcal",
-                        color: colors.warning,
-                      },
-                      {
-                        key: "protein",
-                        label: "Protein",
-                        unit: "g",
-                        color: colors.accent,
-                      },
-                      {
-                        key: "carbs",
-                        label: "Carbs",
-                        unit: "g",
-                        color: colors.success,
-                      },
-                      {
-                        key: "fat",
-                        label: "Fat",
-                        unit: "g",
-                        color: colors.error,
-                      },
-                    ]
-                      .filter(
-                        ({ key }) =>
-                          todayStats[key as keyof DailyMacrosStats] != null,
-                      )
-                      .map(({ key, label, unit, color }) => {
-                        const macro = todayStats[key as keyof DailyMacrosStats]!
-                        return (
-                          <View key={key} style={styles.macroRow}>
-                            <View style={styles.macroLabelRow}>
-                              <Text style={styles.macroLabel}>{label}</Text>
-                              <Text style={styles.macroValue}>
-                                {macro.total.toFixed(0)}
-                                {unit}
-                                <Text style={styles.macroRange}>
-                                  {" "}
-                                  ({macro.min.toFixed(0)}–{macro.max.toFixed(0)}
-                                  )
-                                </Text>
-                              </Text>
-                            </View>
-                            <View style={styles.macroProgressBar}>
-                              <View
-                                style={[
-                                  styles.macroProgressFill,
-                                  {
-                                    width: `${Math.min(macro.percentage, 100)}%`,
-                                    backgroundColor: color,
-                                  },
-                                ]}
-                              />
-                            </View>
-                            <Text style={styles.macroProgressText}>
-                              {macro.percentage.toFixed(0)}% of {macro.goal}
-                              {unit} goal
-                            </Text>
-                          </View>
-                        )
-                      })}
-                    <Text style={styles.macrosEntriesCount}>
-                      {todayStats.entries}{" "}
-                      {todayStats.entries === 1 ? "entry" : "entries"} logged
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>No macros logged today</Text>
-                  </View>
-                )
-              })()}
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => {
-                  setSelectedLogDate(null)
-                  setShowMacrosModal(true)
-                }}
-              >
-                <Text style={styles.primaryButtonText}>+ Log Macros</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ── BODY FAT TAB ── */}
-          {activeTab === "bodyfat" && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Body Fat %</Text>
-              <View style={styles.heightCard}>
-                {height && height.height_cm ? (
-                  <View style={styles.heightDisplay}>
-                    <View style={styles.heightInfo}>
-                      <Text style={styles.heightLabel}>Your Height</Text>
-                      <Text style={styles.heightValue}>
-                        {heightUnit === "cm"
-                          ? `${height.height_cm.toFixed(1)} cm`
-                          : `${Math.floor(height.height_cm / 2.54 / 12)}' ${Math.round((height.height_cm / 2.54) % 12)}"`}
-                      </Text>
-                      <Text style={styles.heightNote}>
-                        Required for body fat calculation
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.heightEditButton}
-                      onPress={() => {
-                        if (height?.height_cm) {
-                          if (heightUnit === "cm")
-                            setNewHeightCm(String(height.height_cm.toFixed(1)))
-                          else {
-                            const ti = height.height_cm / 2.54
-                            setNewHeightFt(String(Math.floor(ti / 12)))
-                            setNewHeightIn(String(Math.round(ti % 12)))
-                          }
-                        }
-                        setShowHeightModal(true)
-                      }}
-                    >
-                      <Text style={styles.heightEditButtonText}>Edit</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.heightSetButton}
-                    onPress={() => setShowHeightModal(true)}
-                  >
-                    <Text style={styles.heightSetIcon}>📏</Text>
-                    <View style={styles.heightSetTextContainer}>
-                      <Text style={styles.heightSetTitle}>Set Your Height</Text>
-                      <Text style={styles.heightSetSubtitle}>
-                        Required to calculate body fat percentage
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <UniversalCalendar
-                hasDataOnDate={hasBodyFatData}
-                onDatePress={(date: Date) =>
-                  handleCalendarDatePress(date, "bodyfat")
-                }
-                initialView='week'
-                legendText='Measurement taken · tap any day to view/add'
-                dotColor='#8b5cf6'
-              />
-              {bodyFatHistory.length > 0 && (
-                <View style={styles.bodyFatCard}>
-                  <Text style={styles.bodyFatLabel}>Latest Measurement</Text>
-                  {/* FIX: wrap with Number() before toFixed() to handle string | number */}
-                  <Text style={styles.bodyFatValue}>
-                    {Number(
-                      bodyFatHistory[0].percentage ??
-                        (bodyFatHistory[0] as { body_fat_percentage?: number })
-                          .body_fat_percentage ??
-                        0,
-                    ).toFixed(1)}
-                    %
-                  </Text>
-                  <Text style={styles.bodyFatDate}>
-                    {new Date(
-                      bodyFatHistory[0].date ??
-                        bodyFatHistory[0].recorded_at ??
-                        "",
-                    ).toLocaleDateString()}
-                  </Text>
-                  <Text style={styles.bodyFatMethod}>US Navy Method</Text>
-                  <TouchableOpacity
-                    style={styles.bodyFatDeleteBtn}
-                    onPress={() => deleteBodyFatEntry(bodyFatHistory[0])}
-                  >
-                    <Text style={styles.bodyFatDeleteBtnText}>
-                      🗑 Delete this reading
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => {
-                  setSelectedLogDate(null)
-                  setShowBodyFatModal(true)
-                }}
-              >
-                <Text style={styles.primaryButtonText}>
-                  📐 Calculate Body Fat
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <WidgetsPanel
+            key={activeTab}
+            widgets={activeBoard.widgets}
+            isLoaded={activeBoard.isLoaded}
+            editMode={widgetEditMode}
+            onCycleSize={activeBoard.cycleWidgetSize}
+            onRemove={activeBoard.removeWidget}
+            onReorder={activeBoard.reorderWidgets}
+            renderContent={renderWidgetContent}
+            registry={activeRegistry as any}
+          />
         </View>
       </ScrollView>
+
+      <WidgetGallery
+        visible={showWidgetGallery}
+        onClose={() => setShowWidgetGallery(false)}
+        availableWidgets={activeBoard.availableToAdd as any}
+        onAddWidget={handleAddWidget}
+        hasPlacedWidgets={activeBoard.widgets.length > 0}
+        onEditWidgets={handleEditWidgets}
+      />
 
       {/* ════════════════════════════════════════
           ALL MODALS — outside ScrollView
@@ -2541,6 +2737,56 @@ const makeStyles = (colors: ThemeColors) =>
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
     header: { marginBottom: 25, alignItems: "center" },
+    addWidgetButton: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 14,
+    },
+    addWidgetButtonText: {
+      color: colors.surface,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    widgetsSectionHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    widgetsSectionTitle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textSecondary,
+    },
+    widgetsEditToggle: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.accent,
+    },
+    pullHint: {
+      position: "absolute",
+      top: 8,
+      left: 0,
+      right: 0,
+      alignItems: "center",
+      zIndex: 10,
+    },
+    pullHintText: {
+      backgroundColor: colors.accent,
+      color: colors.surface,
+      fontSize: 13,
+      fontWeight: "600",
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+    widgetLineMuted: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
     title: {
       fontSize: 32,
       fontWeight: "bold",

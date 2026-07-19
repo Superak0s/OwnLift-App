@@ -78,6 +78,7 @@ type ServerAnalyticsType = WorkoutAnalytics | null
 
 interface WorkoutContextValue {
   socketLastMessage: WebSocketMessage | null
+  userId: string | null
   workoutData: WorkoutData | null
   selectedSplit: string | null
   currentDay: number
@@ -897,6 +898,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<WorkoutContextValue>(
     () => ({
       socketLastMessage: socket.lastMessage,
+      userId,
       workoutData,
       selectedSplit,
       currentDay,
@@ -977,6 +979,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     }),
     [
       socket.lastMessage,
+      userId,
       workoutData,
       selectedSplit,
       currentDay,

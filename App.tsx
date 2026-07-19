@@ -387,26 +387,26 @@ function UpdateChecker() {
         const latestVersion = release.tag_name.replace(/^v/, "").split("-")[0]!
         const currentVersion = Constants.expoConfig?.version
 
-        if (latestVersion !== currentVersion) {
-          const apkUrl = release.assets.find((a) =>
-            a.name.endsWith(".apk"),
-          )?.browser_download_url
+        // if (latestVersion !== currentVersion) {
+        //   const apkUrl = release.assets.find((a) =>
+        //     a.name.endsWith(".apk"),
+        //   )?.browser_download_url
 
-          alert(
-            "Update Available",
-            `Version ${latestVersion} is available. Do you want to download it?`,
-            [
-              { text: "Later", style: "cancel" },
-              {
-                text: "Download",
-                onPress: () => {
-                  if (apkUrl) void Linking.openURL(apkUrl)
-                },
-              },
-            ],
-            "info",
-          )
-        }
+        //   alert(
+        //     "Update Available",
+        //     `Version ${latestVersion} is available. Do you want to download it?`,
+        //     [
+        //       { text: "Later", style: "cancel" },
+        //       {
+        //         text: "Download",
+        //         onPress: () => {
+        //           if (apkUrl) void Linking.openURL(apkUrl)
+        //         },
+        //       },
+        //     ],
+        //     "info",
+        //   )
+        // }
       } catch (e) {
         console.log("Update check failed:", e)
       }
