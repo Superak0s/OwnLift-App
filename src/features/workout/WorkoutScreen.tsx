@@ -778,7 +778,7 @@ export default function WorkoutScreen(): React.JSX.Element {
       currentDay,
       exerciseIndex,
       setIndex,
-    ) as SetDetails | null;
+    ) as SetDetail | null;
     if (existing) {
       // Display weight in the user's preferred unit
       const displayWeight = existing.weight
