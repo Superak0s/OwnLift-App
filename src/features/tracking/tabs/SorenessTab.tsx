@@ -1,0 +1,568 @@
+// src/features/tracking/tabs/SorenessTab.tsx
+//
+// Muscle Recovery tab — interactive body map + continuous DOMS tracking +
+// injury history. Replaces the old flat "pick a muscle from a chip list,
+// log one intensity value" flow with:
+//
+//   1. An interactive front/back muscle map. Tapping a muscle opens a
+//      soreness-logging modal for just that muscle; the map stays open so
+//      several muscles can be logged in one session.
+//   2. A morning DOMS follow-up: every muscle currently marked sore is
+//      surfaced as a card ("Still sore" / "Better" / "Fully recovered")
+//      instead of one-off disconnected entries, so soreness is tracked
+//      continuously until the user marks it recovered.
+//   3. A recovery heatmap/analytics view (frequency, average recovery time,
+//      severity trend).
+//   4. An injury tracker, separate from day-to-day DOMS.
+//
+// Tapping a muscle anywhere (map, heatmap, top-sore-muscles list) opens the
+// muscle dashboard — the single hub for that muscle's soreness history,
+// photos, injuries, and recovery stats.
+
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+} from "react-native";
+import { MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
+import { STORAGE_KEYS } from "@shared/services/storage";
+import type { WidgetDefinition, WidgetInstance } from "@shared/types";
+import { useTheme } from "@shared/context/ThemeContext";
+import { domsApi } from "../services";
+import type { ActiveSoreness, MuscleGroup } from "../types/muscleRecovery";
+
+import MuscleMap from "../components/MuscleMap";
+import { MuscleSorenessModal } from "../components/MuscleSorenessModal";
+import { DOMSFollowUp } from "../components/DOMSFollowUp";
+import { DOMSHeatmap } from "../components/DOMSHeatmap";
+import { InjuryTracker } from "../components/InjuryTracker";
+import { LogInjuryModal } from "../components/LogInjuryModal";
+import { MuscleDashboard } from "../components/MuscleDashboard";
+
+// ─── Widget types ───────────────────────────────────────────────────────────
+
+export type SorenessWidgetType =
+  | "muscle_map"
+  | "doms_followup"
+  | "doms_heatmap"
+  | "injury_tracker";
+
+export const SORENESS_WIDGET_REGISTRY: Record<
+  SorenessWidgetType,
+  WidgetDefinition<SorenessWidgetType>
+> = {
+  muscle_map: {
+    type: "muscle_map",
+    title: "Muscle Map",
+    description: "Tap any muscle to log soreness — front and back views",
+    icon: "🧍",
+    availableSizes: ["large"],
+    defaultSize: "large",
+    singleton: true,
+  },
+  doms_followup: {
+    type: "doms_followup",
+    title: "Morning Recovery Check",
+    description: "Follow up on muscles that are currently sore",
+    icon: "☀️",
+    availableSizes: ["medium", "large"],
+    defaultSize: "large",
+    singleton: true,
+  },
+  doms_heatmap: {
+    type: "doms_heatmap",
+    title: "Recovery Analytics",
+    description: "Frequency, recovery time, and severity trends by muscle",
+    icon: "📈",
+    availableSizes: ["large"],
+    defaultSize: "large",
+    singleton: true,
+  },
+  injury_tracker: {
+    type: "injury_tracker",
+    title: "Injury History",
+    description: "Track injuries separately from everyday soreness",
+    icon: "🏥",
+    availableSizes: ["large"],
+    defaultSize: "large",
+    singleton: true,
+  },
+};
+
+export const DEFAULT_SORENESS_WIDGETS: WidgetInstance<SorenessWidgetType>[] = [
+  { id: "default-muscle-map", type: "muscle_map", size: "large", order: 0 },
+  {
+    id: "default-doms-followup",
+    type: "doms_followup",
+    size: "large",
+    order: 1,
+  },
+];
+
+export const SORENESS_WIDGETS_STORAGE_KEY = STORAGE_KEYS.SORENESS_TAB_WIDGETS;
+
+export const SORENESS_TAB_CONFIG = {
+  key: "soreness",
+  icon: "💪",
+  label: "Recovery",
+};
+
+// ─── Shared helper: build a muscle -> intensity map from active soreness ──
+
+function buildSorenessMap(
+  activeSoreness: ActiveSoreness[],
+): Partial<Record<MuscleGroup, number>> {
+  const map: Partial<Record<MuscleGroup, number>> = {};
+  for (const s of activeSoreness) {
+    // If a muscle somehow has more than one active record, keep the higher
+    // intensity so the map reflects the worse of the two.
+    if (!map[s.muscleGroup] || map[s.muscleGroup]! < s.intensity) {
+      map[s.muscleGroup] = s.intensity;
+    }
+  }
+  return map;
+}
+
+// A muscle dashboard overlay used by every widget below — kept as a small
+// local component so each widget can drill into a muscle without needing
+// screen-level navigation state.
+function MuscleDashboardOverlay({
+  muscle,
+  onClose,
+}: {
+  muscle: MuscleGroup | null;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={!!muscle} animationType='slide' onRequestClose={onClose}>
+      {muscle && <MuscleDashboard muscleGroup={muscle} onClose={onClose} />}
+    </Modal>
+  );
+}
+
+// ─── Widget: Muscle Map ─────────────────────────────────────────────────────
+
+// export function MuscleMapWidget() {
+//   const { colors } = useTheme();
+//   const [view, setView] = useState<"front" | "back">("front");
+//   const [activeSoreness, setActiveSoreness] = useState<ActiveSoreness[]>([]);
+//   const [tappedMuscle, setTappedMuscle] = useState<MuscleGroup | null>(null);
+//   const [dashboardMuscle, setDashboardMuscle] = useState<MuscleGroup | null>(
+//     null,
+//   );
+//   const [loading, setLoading] = useState(true);
+//   // Multi-muscle session tracking
+//   const [sessionMuscles, setSessionMuscles] = useState<Set<MuscleGroup>>(
+//     new Set(),
+//   );
+
+//   const refresh = useCallback(async () => {
+//     try {
+//       const response = await domsApi.getActiveSoreness();
+//       setActiveSoreness(response?.data ?? []);
+//     } catch (error) {
+//       console.error("Failed to load active soreness for muscle map:", error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, []);
+
+//   useEffect(() => {
+//     refresh();
+//   }, [refresh]);
+
+//   const sorenessMap = buildSorenessMap(activeSoreness);
+
+//   const handleMuscleLogged = useCallback(() => {
+//     refresh();
+//   }, [refresh]);
+
+//   const handleDoneSession = useCallback(() => {
+//     setSessionMuscles(new Set());
+//   }, []);
+
+//   const handlePressMuscle = useCallback((muscle: MuscleGroup) => {
+//     setTappedMuscle(muscle);
+//     setSessionMuscles((prev) => new Set(prev).add(muscle));
+//   }, []);
+
+//   return (
+//     <View>
+//       <View style={styles.mapHeaderRow}>
+//         <View style={styles.viewToggle}>
+//           {(["front", "back"] as const).map((v) => (
+//             <TouchableOpacity
+//               key={v}
+//               style={[
+//                 styles.viewToggleBtn,
+//                 { backgroundColor: view === v ? colors.accent : "transparent" },
+//               ]}
+//               onPress={() => setView(v)}
+//             >
+//               <Text
+//                 style={{
+//                   color: view === v ? "white" : colors.textSecondary,
+//                   fontSize: 12,
+//                   fontWeight: "700",
+//                 }}
+//               >
+//                 {v === "front" ? "Front" : "Back"}
+//               </Text>
+//             </TouchableOpacity>
+//           ))}
+//         </View>
+//         <Text style={[styles.mapHint, { color: colors.textSecondary }]}>
+//           Tap a muscle to log soreness
+//         </Text>
+//       </View>
+
+//       <MuscleMap
+//         view={view}
+//         selectedMuscles={sessionMuscles}
+//         sorenessMap={sorenessMap as Record<MuscleGroup, number>}
+//         onPressMuscle={handlePressMuscle}
+//         showLabels
+//       />
+
+//       {/* Session summary - shows muscles logged in current session */}
+//       {sessionMuscles.size > 0 && (
+//         <View style={styles.sessionSummary}>
+//           <View style={styles.sessionHeader}>
+//             <Text style={[styles.sessionTitle, { color: colors.textPrimary }]}>
+//               Session ({sessionMuscles.size} muscle
+//               {sessionMuscles.size > 1 ? "s" : ""})
+//             </Text>
+//             <TouchableOpacity onPress={handleDoneSession}>
+//               <Text style={[styles.sessionDone, { color: colors.accent }]}>
+//                 Done ✓
+//               </Text>
+//             </TouchableOpacity>
+//           </View>
+//           <ScrollView
+//             horizontal
+//             showsHorizontalScrollIndicator={false}
+//             style={styles.sessionMusclesRow}
+//           >
+//             {Array.from(sessionMuscles).map((muscle) => (
+//               <TouchableOpacity
+//                 key={muscle}
+//                 style={[
+//                   styles.sessionMuscleChip,
+//                   {
+//                     backgroundColor: colors.accent + "22",
+//                     borderColor: colors.accent,
+//                   },
+//                 ]}
+//                 onPress={() => setDashboardMuscle(muscle)}
+//               >
+//                 <Text
+//                   style={[styles.sessionMuscleText, { color: colors.accent }]}
+//                 >
+//                   {MUSCLE_GROUP_LABELS[muscle]?.split(" ")[0] || muscle}
+//                 </Text>
+//               </TouchableOpacity>
+//             ))}
+//           </ScrollView>
+//         </View>
+//       )}
+
+//       {Object.keys(sorenessMap).length > 0 && sessionMuscles.size === 0 && (
+//         <View style={styles.currentlySoreRow}>
+//           {Object.entries(sorenessMap).map(([muscle, intensity]) => (
+//             <TouchableOpacity
+//               key={muscle}
+//               style={[styles.soreChip, { borderColor: colors.inputBorder }]}
+//               onPress={() => setDashboardMuscle(muscle as MuscleGroup)}
+//             >
+//               <Text
+//                 style={{
+//                   color: colors.textPrimary,
+//                   fontSize: 12,
+//                   fontWeight: "600",
+//                 }}
+//               >
+//                 {muscle.replace(/_/g, " ")} · {intensity}/10
+//               </Text>
+//             </TouchableOpacity>
+//           ))}
+//         </View>
+//       )}
+
+//       {tappedMuscle && (
+//         <MuscleSorenessModal
+//           visible={!!tappedMuscle}
+//           muscleGroup={tappedMuscle}
+//           onClose={() => setTappedMuscle(null)}
+//           onSuccess={handleMuscleLogged}
+//           stayOpen={true}
+//         />
+//       )}
+
+//       <MuscleDashboardOverlay
+//         muscle={dashboardMuscle}
+//         onClose={() => setDashboardMuscle(null)}
+//       />
+//     </View>
+//   );
+// }
+
+// ─── Widget: Morning DOMS Follow-up ─────────────────────────────────────────
+
+export function DOMSFollowUpWidget() {
+  const [dashboardMuscle, setDashboardMuscle] = useState<MuscleGroup | null>(
+    null,
+  );
+
+  return (
+    <View>
+      <DOMSFollowUp
+        onNavigateToMuscleDashboard={(muscle) =>
+          setDashboardMuscle(muscle as MuscleGroup)
+        }
+      />
+      <MuscleDashboardOverlay
+        muscle={dashboardMuscle}
+        onClose={() => setDashboardMuscle(null)}
+      />
+    </View>
+  );
+}
+
+// ─── Widget: Recovery Analytics / Heatmap ───────────────────────────────────
+
+export function DOMSHeatmapWidget() {
+  const [dashboardMuscle, setDashboardMuscle] = useState<MuscleGroup | null>(
+    null,
+  );
+
+  return (
+    <View>
+      <DOMSHeatmap
+        onSelectMuscle={(muscle) => setDashboardMuscle(muscle as MuscleGroup)}
+      />
+      <MuscleDashboardOverlay
+        muscle={dashboardMuscle}
+        onClose={() => setDashboardMuscle(null)}
+      />
+    </View>
+  );
+}
+
+// ─── Widget: Injury Tracker ──────────────────────────────────────────────────
+
+export function InjuryTrackerWidget() {
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  return (
+    <View>
+      <InjuryTracker
+        key={refreshKey}
+        onLogInjury={() => setShowLogModal(true)}
+      />
+      <LogInjuryModal
+        visible={showLogModal}
+        onClose={() => setShowLogModal(false)}
+        onSuccess={() => setRefreshKey((k) => k + 1)}
+      />
+    </View>
+  );
+}
+
+// ─── Backward-compatible global "quick log" modal ──────────────────────────
+//
+// TrackingScreen wires several existing entry points (calendar day-taps,
+// hero-card "+ Log Soreness" buttons) to a `LogSorenessModal` component with
+// this exact `{ visible, onClose, onSuccess }` shape. Rather than requiring
+// call-site changes throughout that file, this keeps the same contract but
+// replaces the old flat muscle-chip picker with the same interactive map
+// used everywhere else in this tab, so soreness logging is consistently
+// "tap a muscle" rather than "pick from a list" no matter where it's opened
+// from.
+
+interface LogSorenessModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess?: (data: any) => void;
+}
+
+export function LogSorenessModal({
+  visible,
+  onClose,
+  onSuccess,
+}: LogSorenessModalProps) {
+  const { colors } = useTheme();
+  const [view, setView] = useState<"front" | "back">("front");
+  const [tappedMuscle, setTappedMuscle] = useState<MuscleGroup | null>(null);
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType='slide'
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={styles.quickLogBackdrop}>
+        <View
+          style={[styles.quickLogSheet, { backgroundColor: colors.background }]}
+        >
+          <View style={styles.quickLogHeader}>
+            <Text style={[styles.quickLogTitle, { color: colors.textPrimary }]}>
+              Tap a muscle to log soreness
+            </Text>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={[styles.quickLogClose, { color: colors.accent }]}>
+                Done
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.viewToggle}>
+            {(["front", "back"] as const).map((v) => (
+              <TouchableOpacity
+                key={v}
+                style={[
+                  styles.viewToggleBtn,
+                  {
+                    backgroundColor: view === v ? colors.accent : "transparent",
+                  },
+                ]}
+                onPress={() => setView(v)}
+              >
+                <Text
+                  style={{
+                    color: view === v ? "white" : colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: "700",
+                  }}
+                >
+                  {v === "front" ? "Front" : "Back"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <MuscleMap
+            view={view}
+            selectedMuscles={new Set()}
+            sorenessMap={{} as Record<MuscleGroup, number>}
+            onPressMuscle={(muscle) => setTappedMuscle(muscle)}
+            showLabels
+          />
+        </View>
+      </View>
+
+      {tappedMuscle && (
+        <MuscleSorenessModal
+          visible={!!tappedMuscle}
+          muscleGroup={tappedMuscle}
+          onClose={() => setTappedMuscle(null)}
+          onSuccess={() => {}}
+        />
+      )}
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  quickLogBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  quickLogSheet: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    maxHeight: "85%",
+  },
+  quickLogHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  quickLogTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  quickLogClose: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  mapHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  viewToggle: {
+    flexDirection: "row",
+    gap: 4,
+    backgroundColor: "#00000010",
+    borderRadius: 8,
+    padding: 2,
+  },
+  viewToggleBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  mapHint: {
+    fontSize: 12,
+    fontStyle: "italic",
+  },
+  currentlySoreRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  soreChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  sessionSummary: {
+    marginTop: 12,
+    paddingHorizontal: 4,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    borderRadius: 12,
+    padding: 12,
+  },
+  sessionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  sessionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  sessionDone: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  sessionMusclesRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  sessionMuscleChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  sessionMuscleText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+});

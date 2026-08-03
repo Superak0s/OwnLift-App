@@ -1,0 +1,426 @@
+/**
+ * Shared types for the workout application
+ */
+
+// ─── User / Auth ──────────────────────────────────────────────────────────────
+
+export interface User {
+  id: string
+  username: string
+  email?: string
+  name?: string
+  [key: string]: unknown
+}
+
+// ─── Core workout data ────────────────────────────────────────────────────────
+
+export interface Exercise {
+  name: string
+  muscleGroup?: string
+  sets: number
+}
+
+export interface PersonWorkout {
+  exercises: Exercise[]
+  totalSets: number
+}
+export interface ExerciseWithSets {
+  name: string
+  muscleGroup: string
+  setsByPerson: Record<string, number>
+}
+export interface WorkoutDay {
+  dayNumber: number
+  dayTitle?: string
+  exercises?: ExerciseWithSets[]
+  muscleGroups?: string[]
+  split: Record<string, PersonWorkout>
+}
+
+export interface WorkoutData {
+  days: WorkoutDay[]
+  /** Total number of days — may be present on the object returned by uploadAndSave */
+  totalDays?: number
+  /** Splits listed in the program — may be present on the object returned by uploadAndSave */
+  split?: string[]
+}
+
+// ─── Session completion tracking ──────────────────────────────────────────────
+
+export interface SetDetail {
+  weight: number
+  reps: number
+  completedAt: string
+  note: string
+  isWarmup: boolean
+  source?: string
+}
+
+export type CompletedSets = Record<number, SetDetail>
+export type CompletedExercises = Record<number, CompletedSets>
+export type CompletedDays = Record<number, CompletedExercises>
+export type LockedDays = Record<number, boolean>
+
+// ─── Session statistics ───────────────────────────────────────────────────────
+
+export interface SessionStatistics {
+  totalTime: number
+  averageRest: number
+  currentRest: number
+  completedSets: number
+  totalSets: number
+}
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+export interface ServerAnalytics {
+  averageTimeBetweenSets?: number
+}
+
+// ─── Server session shapes ────────────────────────────────────────────────────
+
+/** Lightweight session row returned by getSessionHistory */
+export interface WorkoutSession {
+  id: string | number
+  day_number?: number
+  start_time?: string
+  created_at?: string
+  end_time?: string
+  /** May be present on summary rows */
+  set_count?: number // already there — check your import, might be using a stale type
+  total_duration?: number
+  completed_sets?: number
+  day_title?: string
+  muscle_groups?: string[]
+}
+
+/** Full session detail returned by getSession */
+export interface SetTiming {
+  id?: string | number
+  exercise_name?: string
+  set_index: number
+  start_time?: string
+  end_time: string
+  weight?: number
+  reps?: number
+  note?: string
+  is_warmup?: boolean
+  /** Duration in seconds for the set */
+  set_duration?: number
+  exercise_id?: string | number
+  exercise_index?: number
+  exercise_muscle_group?: string
+}
+
+export interface FullSession {
+  id: string | number
+  day_number: number
+  end_time?: string
+  set_timings?: SetTiming[]
+}
+
+/** Enriched session detail with grouped exercises — built client-side */
+export interface GroupedExercise {
+  exerciseName: string
+  muscleGroup?: string
+  sets: SetTiming[]
+}
+
+export interface FullSessionWithGroups extends FullSession {
+  groupedExercises?: GroupedExercise[]
+  start_time?: string
+  total_duration?: number
+  completed_sets?: number
+  day_title?: string
+  muscle_groups?: string[]
+}
+
+/** Server-side workout day shape returned by programApi.fetchSavedProgram */
+export interface ServerDay {
+  dayNumber: number
+  split: Record<string, PersonWorkout>
+}
+
+/**
+ * Program as persisted/returned by programApi.fetchSavedProgram (both the
+ * server and the offline store build this exact shape). `days` holds full
+ * WorkoutDay objects.
+ */
+export interface SavedProgram {
+  success: boolean
+  totalDays: number
+  split: string[]
+  days: WorkoutDay[]
+  originalFilename?: string
+  uploadedAt?: string
+}
+
+// ─── Reminder location ────────────────────────────────────────────────────────
+
+export interface ReminderLocation {
+  lat: number
+  lng: number
+  address: string
+  radius: number
+}
+
+// ─── Body tracking ────────────────────────────────────────────────────────────
+
+export interface WeightEntry {
+  id: string | number
+  weight_kg: string | number
+  recorded_at: string
+  unit?: string
+}
+
+export interface WeightHistoryResponse {
+  entries: WeightEntry[]
+}
+
+export interface HeightData {
+  height_cm: number
+  unit?: string
+}
+
+export interface MacrosEntry {
+  id: string | number
+  protein?: number | null
+  carbs?: number | null
+  fat?: number | null
+  calories?: number | null
+  logged_at?: string
+  name?: string
+  meal_error_margin?: number | null
+}
+
+// NOTE: MacrosGoals is defined in features/tracking/types.ts (the only
+// consumer). It is intentionally NOT duplicated here.
+
+export interface MacrosStat {
+  value: number | null
+  goal: number | null
+  percent: number | null
+}
+
+export interface DailyMacrosStats {
+  protein: MacrosStat
+  carbs: MacrosStat
+  fat: MacrosStat
+  calories: MacrosStat
+}
+
+export interface BodyFatEntry {
+  id: string | number
+  body_fat_percentage?: number
+  date?: string
+  waist_cm?: number
+  neck_cm?: number
+  hip_cm?: number
+  measurement_unit?: string
+  gender?: string
+}
+
+export interface ProgressPhoto {
+  id: string | number
+  takenAt?: string
+  taken_at?: string
+  uri?: string
+}
+
+// ─── Pending sync — discriminated union ───────────────────────────────────────
+
+export interface StartSessionSyncData {
+  person: string
+  dayNumber: number
+  dayTitle?: string
+  muscleGroups?: string[]
+  isDemo: boolean
+}
+
+export interface RecordSetSyncData {
+  sessionId: string | number
+  exerciseName?: string
+  exerciseIndex?: number
+  muscleGroup?: string
+  setIndex: number
+  startTime: string
+  endTime: string
+  weight: number
+  reps: number
+  note?: string
+  isWarmup?: boolean
+}
+
+export interface EndSessionSyncData {
+  sessionId: string | number
+}
+
+export type PendingSync =
+  | {
+      type: "startSession"
+      localSessionId?: string
+      data: StartSessionSyncData
+      timestamp: string
+    }
+  | {
+      type: "recordSet"
+      localSessionId?: string
+      data: RecordSetSyncData
+      timestamp: string
+    }
+  | {
+      type: "endSession"
+      localSessionId?: string
+      data: EndSessionSyncData
+      timestamp: string
+    }
+
+// app/types.ts
+export type RootStackParamList = {
+  Home: undefined
+  Login: undefined
+  Signup: undefined
+  Workout: undefined
+  Tracking: undefined
+  Friends: undefined
+  Settings: undefined
+  Analytics: undefined
+  Supplements: undefined
+  Plan: undefined
+}
+
+export type WidgetSize = "small" | "medium" | "large"
+
+/**
+ * Generic shape for a widget "kind" definition. Each screen that hosts
+ * widgets (Home, Tracking, ...) defines its own concrete widget-type union
+ * and its own registry of these — see e.g. features/home/widgets.ts — since
+ * the set of widgets, their copy, and their defaults are screen-specific.
+ * Only this shape, plus WidgetInstance and the placement/drag mechanics in
+ * WidgetsPanel/WidgetGallery/useWidgets, are shared.
+ */
+export interface WidgetDefinition<T extends string = string> {
+  type: T
+  title?: string
+  description: string
+  icon?: string
+  availableSizes: WidgetSize[]
+  defaultSize: WidgetSize
+  /** Only meaningful in server mode (e.g. friend-based widgets later) */
+  requiresServer?: boolean
+  /** If true, only one instance of this widget can be added */
+  singleton?: boolean
+}
+
+export const WIDGET_SIZE_ORDER: WidgetSize[] = ["small", "medium", "large"]
+
+export interface WidgetInstance<T extends string = string> {
+  /** stable unique id for this placed instance, not the widget type */
+  id: string
+  type: T
+  size: WidgetSize
+  order: number
+}
+
+// ─── Muscle Group Taxonomy Bridge ─────────────────────────────────────────────
+//
+// Two taxonomies exist in the codebase:
+//   1. exerciseMatching.tsx  — Title Case, 32 groups ("Chest", "Upper Back", ...)
+//   2. muscleRecovery.ts     — snake_case, 25 groups ("chest_upper", "back_upper", ...)
+//
+// This bridge normalizes any muscle group string into a canonical snake_case
+// form so DOMS/injury/soreness services can match against the recovery taxonomy
+// regardless of where the input came from.
+
+/**
+ * Canonical muscle groups used by DOMS/injury/soreness tracking (snake_case).
+ */
+export const RECOVERY_MUSCLE_GROUPS = [
+  "chest_upper",
+  "chest_lower",
+  "back_upper",
+  "back_lower",
+  "lats",
+  "traps",
+  "neck",
+  "shoulders_front",
+  "shoulders_side",
+  "shoulders_rear",
+  "biceps",
+  "triceps",
+  "forearms",
+  "abs_upper",
+  "abs_lower",
+  "obliques",
+  "lower_back",
+  "glutes",
+  "quads",
+  "hamstrings",
+  "calves",
+  "adductors",
+  "abductors",
+  "hip_flexors",
+] as const
+
+export type RecoveryMuscleGroup = (typeof RECOVERY_MUSCLE_GROUPS)[number]
+
+/**
+ * Lookup map from Title Case names (exerciseMatching taxonomy) to snake_case
+ * recovery taxonomy names. Covers the overlap; non-overlapping groups fall
+ * through to the best generic match.
+ */
+const TITLE_TO_SNAKE: Record<string, RecoveryMuscleGroup> = {
+  "Upper Chest": "chest_upper",
+  "Lower Chest": "chest_lower",
+  "Upper Back": "back_upper",
+  "Lower Back": "lower_back",
+  "Back": "back_upper",
+  "Chest": "chest_upper",
+  "Lats": "lats",
+  "Traps": "traps",
+  "Neck": "neck",
+  "Front Delts": "shoulders_front",
+  "Rear Delts": "shoulders_rear",
+  "Side Delts": "shoulders_side",
+  "Shoulders": "shoulders_front",
+  "Biceps": "biceps",
+  "Triceps": "triceps",
+  "Forearms": "forearms",
+  "Upper Abs": "abs_upper",
+  "Lower Abs": "abs_lower",
+  "Abs": "abs_upper",
+  "Core": "abs_upper",
+  "Obliques": "obliques",
+  "Glutes": "glutes",
+  "Quads": "quads",
+  "Hamstrings": "hamstrings",
+  "Calves": "calves",
+  "Adductors": "adductors",
+  "Abductors": "abductors",
+  "Hip Flexors": "hip_flexors",
+  "Arms": "biceps",
+  "Legs": "quads",
+  "Rhomboids": "back_upper",
+  "Full Body": "chest_upper",
+  "Push": "chest_upper",
+  "Pull": "back_upper",
+  "Inner Chest": "chest_upper",
+} as const
+
+/**
+ * Normalize a muscle group string (Title Case or snake_case) to the canonical
+ * recovery taxonomy (snake_case). Returns `null` if no mapping is found.
+ */
+export const normalizeMuscleGroup = (
+  muscleGroup: string | null | undefined,
+): RecoveryMuscleGroup | null => {
+  if (!muscleGroup) return null
+  const trimmed = muscleGroup.trim()
+
+  // Already in recovery taxonomy
+  if (RECOVERY_MUSCLE_GROUPS.includes(trimmed as RecoveryMuscleGroup))
+    return trimmed as RecoveryMuscleGroup
+
+  // Try Title Case → snake_case lookup
+  return TITLE_TO_SNAKE[trimmed] ?? null
+}
