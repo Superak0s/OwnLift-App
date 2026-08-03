@@ -2,7 +2,7 @@
   "expo": {
     "name": "OwnLift",
     "slug": "ownlift",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/adaptive-icon.png",
     "plugins": [
@@ -48,7 +48,9 @@
       "./plugins/withGradleTuning.js"
     ],
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ownlift.app"
