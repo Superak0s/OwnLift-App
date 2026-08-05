@@ -3,19 +3,19 @@
  * Handles day completion checks and validations
  */
 
-import type { WorkoutData } from "@shared/types"
 import type {
   CompletedDays,
   CompletedExercises,
   LockedDays,
   SetDetail,
-} from "@shared/types"
+  WorkoutData,
+} from "@shared/types";
 
 // Single source of truth lives in @shared/types. These re-exports keep
 // the historical names this module (and its importers) have always used:
 //   • CompletedSets = the per-day exercise→set map (shared CompletedExercises)
-export type { CompletedDays, LockedDays, SetDetail }
-export type CompletedSets = CompletedExercises
+export type { CompletedDays, LockedDays, SetDetail };
+export type CompletedSets = CompletedExercises;
 
 /**
  * Check if a specific set is complete
@@ -26,8 +26,8 @@ export const isSetComplete = (
   exerciseIndex: number,
   setIndex: number,
 ): boolean => {
-  return !!completedDays[dayNumber]?.[exerciseIndex]?.[setIndex]
-}
+  return !!completedDays[dayNumber]?.[exerciseIndex]?.[setIndex];
+};
 
 /**
  * Get details of a specific set
@@ -38,8 +38,8 @@ export const getSetDetails = (
   exerciseIndex: number,
   setIndex: number,
 ): SetDetail | null => {
-  return completedDays[dayNumber]?.[exerciseIndex]?.[setIndex] || null
-}
+  return completedDays[dayNumber]?.[exerciseIndex]?.[setIndex] || null;
+};
 
 /**
  * Get count of completed sets for an exercise
@@ -49,8 +49,8 @@ export const getExerciseCompletedSets = (
   dayNumber: number,
   exerciseIndex: number,
 ): number => {
-  return Object.keys(completedDays[dayNumber]?.[exerciseIndex] || {}).length
-}
+  return Object.keys(completedDays[dayNumber]?.[exerciseIndex] || {}).length;
+};
 
 /**
  * Check if all exercises in a day are complete
@@ -61,24 +61,24 @@ export const areAllExercisesComplete = (
   dayNumber: number,
   completedDays: CompletedDays,
 ): boolean => {
-  if (!workoutData?.days || !selectedSplit) return false
+  if (!workoutData?.days || !selectedSplit) return false;
 
-  const day = workoutData.days.find((d) => d.dayNumber === dayNumber)
-  if (!day || !day.split[selectedSplit]) return false
+  const day = workoutData.days.find((d) => d.dayNumber === dayNumber);
+  if (!day?.split[selectedSplit]) return false;
 
-  const exercises = day.split[selectedSplit].exercises || []
-  if (exercises.length === 0) return false
+  const exercises = day.split[selectedSplit].exercises || [];
+  if (exercises.length === 0) return false;
 
   for (let i = 0; i < exercises.length; i++) {
-    const exercise = exercises[i]
-    const completedSets = getExerciseCompletedSets(completedDays, dayNumber, i)
+    const exercise = exercises[i];
+    const completedSets = getExerciseCompletedSets(completedDays, dayNumber, i);
     if (completedSets < exercise.sets) {
-      return false
+      return false;
     }
   }
 
-  return true
-}
+  return true;
+};
 
 /**
  * Check if a day is complete (locked or all sets done)
@@ -91,7 +91,7 @@ export const isDayComplete = (
   completedDays: CompletedDays,
 ): boolean => {
   if (lockedDays[dayNumber]) {
-    return true
+    return true;
   }
 
   return areAllExercisesComplete(
@@ -99,8 +99,8 @@ export const isDayComplete = (
     selectedSplit,
     dayNumber,
     completedDays,
-  )
-}
+  );
+};
 
 /**
  * Check if a day is locked
@@ -109,8 +109,8 @@ export const isDayLocked = (
   lockedDays: LockedDays,
   dayNumber: number,
 ): boolean => {
-  return !!lockedDays[dayNumber]
-}
+  return !!lockedDays[dayNumber];
+};
 
 /**
  * Check Monday reset condition
@@ -118,23 +118,23 @@ export const isDayLocked = (
 export const shouldResetForMonday = (
   lastResetDate: string | null,
 ): string | null => {
-  const today = new Date()
-  const dayOfWeek = today.getDay()
+  const today = new Date();
+  const dayOfWeek = today.getDay();
 
-  const thisMonday = new Date(today)
-  const daysFromMonday = (dayOfWeek + 6) % 7
-  thisMonday.setDate(today.getDate() - daysFromMonday)
-  thisMonday.setHours(0, 0, 0, 0)
+  const thisMonday = new Date(today);
+  const daysFromMonday = (dayOfWeek + 6) % 7;
+  thisMonday.setDate(today.getDate() - daysFromMonday);
+  thisMonday.setHours(0, 0, 0, 0);
 
-  const thisMondayString = thisMonday.toISOString().split("T")[0]
+  const thisMondayString = thisMonday.toISOString().split("T")[0];
 
   // Reset whenever we've crossed into a new week (i.e. the most recent Monday
   // is newer than the last reset), regardless of which day the app is opened.
   // Guarding on `dayOfWeek === 1` meant the reset only fired if the app was
   // opened *on* Monday — miss that day and everything stayed locked all week.
   if (!lastResetDate || lastResetDate < thisMondayString) {
-    return thisMondayString
+    return thisMondayString;
   }
 
-  return null
-}
+  return null;
+};

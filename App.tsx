@@ -114,7 +114,9 @@ const hideNavBar = async () => {
   if (Platform.OS === "android") {
     try {
       await NavigationBar.setVisibilityAsync("hidden");
-    } catch (_) {}
+    } catch (error) {
+      console.log("Failed to hide navigation bar:", (error as Error).message);
+    }
   }
 };
 
@@ -123,7 +125,9 @@ const showNavBarTemporarily = async (ms = 3000) => {
   try {
     await NavigationBar.setVisibilityAsync("visible");
     setTimeout(() => void hideNavBar(), ms);
-  } catch (_) {}
+  } catch (error) {
+    console.log("Failed to show navigation bar:", (error as Error).message);
+  }
 };
 
 // ─── Tab Icon ─────────────────────────────────────────────────────────────────
@@ -248,7 +252,7 @@ const CustomTabBar = ({
           style={styles.scrollView}
         >
           {state.routes.map((route, index) => {
-            const { options } = descriptors[route.key]!;
+            const { options } = descriptors[route.key];
             const isFocused = state.index === index;
 
             const onPress = () => {
@@ -308,7 +312,64 @@ const CustomTabBar = ({
   );
 };
 
+// ─── Tab bar render helpers ───────────────────────────────────────────────────
+// Defined once at module scope instead of inline in JSX, so React Navigation
+// isn't handed a brand-new component definition on every MainTabs render.
+
+const renderCustomTabBar = (props: Record<string, unknown>) => (
+  <CustomTabBar {...(props as unknown as CustomTabBarProps)} />
+);
+
+const createTabBarIcon =
+  (icon: string, label: string) =>
+  ({ focused }: { focused: boolean }) => (
+    <TabIcon icon={icon} label={label} focused={focused} />
+  );
+
+const HomeTabBarIcon = createTabBarIcon("🏠", "Home");
+const WorkoutTabBarIcon = createTabBarIcon("💪", "Workout");
+const PlanTabBarIcon = createTabBarIcon("📋", "Plan");
+const AnalyticsTabBarIcon = createTabBarIcon("📊", "Progress");
+const TrackingTabBarIcon = createTabBarIcon("📈", "Track");
+const SupplementsTabBarIcon = createTabBarIcon("💊", "Supps");
+const FriendsTabBarIcon = createTabBarIcon("👥", "Friends");
+const SettingsTabBarIcon = createTabBarIcon("⚙️", "Settings");
+
 // ─── Notification Listener ────────────────────────────────────────────────────
+
+interface SupplementReminderConfig {
+  supplementId: number;
+  name: string;
+  unit: string;
+  defaultAmount: number;
+  reminderTime: string;
+  timeBasedEnabled: boolean;
+}
+
+async function handleSupplementTimeReminderNotification(
+  data: Record<string, unknown>,
+  userId: string,
+) {
+  const supplementId = data.supplementId as number | undefined;
+  if (!supplementId) return;
+
+  const configsKey = `supplementReminderConfigs_user_${userId}`;
+  const raw = await AsyncStorage.getItem(configsKey);
+  if (!raw) return;
+
+  const configs = JSON.parse(raw) as SupplementReminderConfig[];
+  const config = configs.find((c) => c.supplementId === supplementId);
+  if (!config?.timeBasedEnabled) return;
+
+  await scheduleTimeReminder(
+    userId,
+    config.supplementId,
+    config.name,
+    config.defaultAmount,
+    config.unit,
+    config.reminderTime,
+  );
+}
 
 function NotificationListener() {
   const { user } = useAuth();
@@ -323,35 +384,13 @@ function NotificationListener() {
       if (!Notifications || cancelled) return;
 
       subscription = Notifications.addNotificationResponseReceivedListener(
-        async (response) => {
+        (response) => {
           const data = response.notification.request.content.data as Record<
             string,
             unknown
           >;
           if (data?.type === "supplement_time_reminder" && user?.id) {
-            const supplementId = data.supplementId as number | undefined;
-            if (!supplementId) return;
-            const configsKey = `supplementReminderConfigs_user_${user.id}`;
-            const raw = await AsyncStorage.getItem(configsKey);
-            if (!raw) return;
-            const configs = JSON.parse(raw) as Array<{
-              supplementId: number;
-              name: string;
-              unit: string;
-              defaultAmount: number;
-              reminderTime: string;
-              timeBasedEnabled: boolean;
-            }>;
-            const config = configs.find((c) => c.supplementId === supplementId);
-            if (!config || !config.timeBasedEnabled) return;
-            await scheduleTimeReminder(
-              user.id,
-              config.supplementId,
-              config.name,
-              config.defaultAmount,
-              config.unit,
-              config.reminderTime,
-            );
+            void handleSupplementTimeReminderNotification(data, user.id);
           }
         },
       );
@@ -361,11 +400,8 @@ function NotificationListener() {
 
     return () => {
       cancelled = true;
-      if (
-        subscription &&
-        typeof (subscription as { remove?: () => void }).remove === "function"
-      ) {
-        (subscription as { remove: () => void }).remove();
+      if (subscription && typeof subscription.remove === "function") {
+        subscription.remove();
       }
     };
   }, [user?.id]);
@@ -376,7 +412,7 @@ function NotificationListener() {
 // ─── Update Checker ───────────────────────────────────────────────────────────
 
 function UpdateChecker() {
-  const { alert, AlertComponent } = useAlert();
+  const { AlertComponent } = useAlert();
 
   // useEffect(() => {
   //   const checkForUpdate = async () => {
@@ -426,7 +462,7 @@ function UpdateChecker() {
 
 function MainTabs() {
   const { user } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
@@ -505,81 +541,47 @@ function MainTabs() {
           tabBarInactiveTintColor: colors.textMuted,
           tabBarShowLabel: false,
         }}
-        tabBar={(props) => (
-          <CustomTabBar {...(props as unknown as CustomTabBarProps)} />
-        )}
+        tabBar={renderCustomTabBar}
       >
         <Tab.Screen
           name='Home'
           component={HomeScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='🏠' label='Home' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: HomeTabBarIcon }}
         />
         <Tab.Screen
           name='Workout'
           component={WorkoutScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='💪' label='Workout' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: WorkoutTabBarIcon }}
         />
         <Tab.Screen
           name='Plan'
           component={PlanScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='📋' label='Plan' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: PlanTabBarIcon }}
         />
         <Tab.Screen
           name='Analytics'
           component={AnalyticsScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='📊' label='Progress' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: AnalyticsTabBarIcon }}
         />
         <Tab.Screen
           name='Tracking'
           component={TrackingScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='📈' label='Track' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: TrackingTabBarIcon }}
         />
         <Tab.Screen
           name='Supplements'
           component={SupplementsScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='💊' label='Supps' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: SupplementsTabBarIcon }}
         />
         <Tab.Screen
           name='Friends'
           component={FriendsScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='👥' label='Friends' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: FriendsTabBarIcon }}
         />
         <Tab.Screen
           name='Settings'
           component={SettingsScreen}
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <TabIcon icon='⚙️' label='Settings' focused={focused} />
-            ),
-          }}
+          options={{ tabBarIcon: SettingsTabBarIcon }}
         />
       </Tab.Navigator>
     </View>

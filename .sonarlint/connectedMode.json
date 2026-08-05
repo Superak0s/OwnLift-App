@@ -1,0 +1,4 @@
+{
+    "sonarQubeUri": "http://192.168.10.12:8999",
+    "projectKey": "OwnLift-App"
+}

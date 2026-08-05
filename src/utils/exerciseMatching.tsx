@@ -1,66 +1,66 @@
 // Utility functions for exercise name matching and suggestions
 
-import type { WorkoutData } from "@shared/types"
+import type { WorkoutData } from "@shared/types";
 
 export interface SimilarityMatch {
-  name: string
-  similarity: number
+  name: string;
+  similarity: number;
 }
 
 export interface TypoCheckResult {
-  isLikelyTypo: boolean
-  suggestions: SimilarityMatch[]
-  exactMatch?: string | null
+  isLikelyTypo: boolean;
+  suggestions: SimilarityMatch[];
+  exactMatch?: string | null;
 }
 
 /**
  * Calculate Levenshtein distance between two strings
  */
 export const levenshteinDistance = (str1: string, str2: string): number => {
-  const s1 = str1.toLowerCase().trim()
-  const s2 = str2.toLowerCase().trim()
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
 
-  const matrix: number[][] = []
+  const matrix: number[][] = [];
 
   for (let i = 0; i <= s2.length; i++) {
-    matrix[i] = [i]
+    matrix[i] = [i];
   }
 
   for (let j = 0; j <= s1.length; j++) {
-    matrix[0][j] = j
+    matrix[0][j] = j;
   }
 
   for (let i = 1; i <= s2.length; i++) {
     for (let j = 1; j <= s1.length; j++) {
       if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1]
+        matrix[i][j] = matrix[i - 1][j - 1];
       } else {
         matrix[i][j] = Math.min(
           matrix[i - 1][j - 1] + 1,
           matrix[i][j - 1] + 1,
           matrix[i - 1][j] + 1,
-        )
+        );
       }
     }
   }
 
-  return matrix[s2.length][s1.length]
-}
+  return matrix[s2.length][s1.length];
+};
 
 /**
  * Calculate similarity score between two strings (0-1 range)
  */
 export const calculateSimilarity = (str1: string, str2: string): number => {
-  const s1 = str1.toLowerCase().trim()
-  const s2 = str2.toLowerCase().trim()
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
 
-  if (s1 === s2) return 1.0
+  if (s1 === s2) return 1;
 
-  const distance = levenshteinDistance(s1, s2)
-  const maxLength = Math.max(s1.length, s2.length)
+  const distance = levenshteinDistance(s1, s2);
+  const maxLength = Math.max(s1.length, s2.length);
 
-  return 1 - distance / maxLength
-}
+  return 1 - distance / maxLength;
+};
 
 /**
  * Find all unique exercise names from workout data
@@ -69,23 +69,23 @@ export const getAllExerciseNames = (
   workoutData: WorkoutData | null | undefined,
   selectedSplit: string | null,
 ): string[] => {
-  const exerciseNames = new Set<string>()
+  const exerciseNames = new Set<string>();
 
-  if (!workoutData?.days || !selectedSplit) return []
+  if (!workoutData?.days || !selectedSplit) return [];
 
   workoutData.days.forEach((day) => {
-    const personWorkout = day.split[selectedSplit]
+    const personWorkout = day.split[selectedSplit];
     if (personWorkout?.exercises) {
       personWorkout.exercises.forEach((exercise) => {
         if (exercise.name) {
-          exerciseNames.add(exercise.name.trim())
+          exerciseNames.add(exercise.name.trim());
         }
-      })
+      });
     }
-  })
+  });
 
-  return Array.from(exerciseNames)
-}
+  return Array.from(exerciseNames);
+};
 
 /**
  * Find all unique muscle groups from workout data for a person.
@@ -94,23 +94,23 @@ export const getAllMuscleGroups = (
   workoutData: WorkoutData | null | undefined,
   selectedSplit: string | null,
 ): string[] => {
-  const groups = new Set<string>(CANONICAL_MUSCLE_GROUPS)
+  const groups = new Set<string>(CANONICAL_MUSCLE_GROUPS);
 
   if (workoutData?.days && selectedSplit) {
     workoutData.days.forEach((day) => {
-      const personWorkout = day.split?.[selectedSplit]
+      const personWorkout = day.split?.[selectedSplit];
       if (personWorkout?.exercises) {
         personWorkout.exercises.forEach((exercise) => {
           if (exercise.muscleGroup?.trim()) {
-            groups.add(exercise.muscleGroup.trim())
+            groups.add(exercise.muscleGroup.trim());
           }
-        })
+        });
       }
-    })
+    });
   }
 
-  return Array.from(groups)
-}
+  return Array.from(groups);
+};
 
 /**
  * Canonical list of common muscle group names.
@@ -147,14 +147,14 @@ export const CANONICAL_MUSCLE_GROUPS: readonly string[] = [
   "Arms",
   "Push",
   "Pull",
-]
+];
 
 /**
  * Normalize an exercise name for case-insensitive matching / keying.
  * Single source of truth so session set-matching stays consistent everywhere.
  */
 export const normalizeExerciseName = (name: string): string =>
-  name.trim().toLowerCase()
+  name.trim().toLowerCase();
 
 /**
  * Find exact match for a name (case-insensitive)
@@ -163,9 +163,9 @@ export const findExactMatch = (
   name: string,
   allNames: string[],
 ): string | undefined => {
-  const normalized = normalizeExerciseName(name)
-  return allNames.find((n) => normalizeExerciseName(n) === normalized)
-}
+  const normalized = normalizeExerciseName(name);
+  return allNames.find((n) => normalizeExerciseName(n) === normalized);
+};
 
 /**
  * Find similar names based on fuzzy matching.
@@ -176,24 +176,24 @@ export const findSimilarNames = (
   threshold: number = 0.6,
   maxResults: number = 3,
 ): SimilarityMatch[] => {
-  if (!name || name.trim().length < 3) return []
+  if (!name || name.trim().length < 3) return [];
 
-  const normalized = normalizeExerciseName(name)
+  const normalized = normalizeExerciseName(name);
 
   return allNames
     .map((n) => {
-      const candidate = normalizeExerciseName(n)
-      const similarity = calculateSimilarity(name, n)
-      const isPrefix = candidate.startsWith(normalized)
+      const candidate = normalizeExerciseName(n);
+      const similarity = calculateSimilarity(name, n);
+      const isPrefix = candidate.startsWith(normalized);
       return {
         name: n,
         similarity: isPrefix ? Math.max(similarity, 0.8) : similarity,
-      }
+      };
     })
-    .filter((match) => match.similarity >= threshold && match.similarity < 1.0)
+    .filter((match) => match.similarity >= threshold && match.similarity < 1)
     .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, maxResults)
-}
+    .slice(0, maxResults);
+};
 
 /**
  * Find similar exercise names based on fuzzy matching
@@ -205,7 +205,7 @@ export const findSimilarExercises = (
   threshold: number = 0.6,
   maxResults: number = 3,
 ): SimilarityMatch[] =>
-  findSimilarNames(exerciseName, allExercises, threshold, maxResults)
+  findSimilarNames(exerciseName, allExercises, threshold, maxResults);
 
 /**
  * Check if exercise name is a typo and suggest corrections.
@@ -214,20 +214,20 @@ export const checkForTypo = (
   exerciseName: string,
   allExercises: string[],
 ): TypoCheckResult => {
-  if (!exerciseName || !exerciseName.trim()) {
-    return { isLikelyTypo: false, suggestions: [] }
+  if (!exerciseName?.trim()) {
+    return { isLikelyTypo: false, suggestions: [] };
   }
 
-  const exactMatch = findExactMatch(exerciseName, allExercises)
+  const exactMatch = findExactMatch(exerciseName, allExercises);
   if (exactMatch) {
-    return { isLikelyTypo: false, suggestions: [], exactMatch }
+    return { isLikelyTypo: false, suggestions: [], exactMatch };
   }
 
-  const suggestions = findSimilarNames(exerciseName, allExercises, 0.7, 3)
-  const isLikelyTypo = suggestions.some((s) => s.similarity > 0.75)
+  const suggestions = findSimilarNames(exerciseName, allExercises, 0.7, 3);
+  const isLikelyTypo = suggestions.some((s) => s.similarity > 0.75);
 
-  return { isLikelyTypo, suggestions, exactMatch: null }
-}
+  return { isLikelyTypo, suggestions, exactMatch: null };
+};
 
 /**
  * Check if muscle group is a typo and suggest corrections.
@@ -236,20 +236,20 @@ export const checkMuscleGroupForTypo = (
   muscleGroup: string,
   allMuscleGroups: string[],
 ): TypoCheckResult => {
-  if (!muscleGroup || !muscleGroup.trim()) {
-    return { isLikelyTypo: false, suggestions: [] }
+  if (!muscleGroup?.trim()) {
+    return { isLikelyTypo: false, suggestions: [] };
   }
 
-  const exactMatch = findExactMatch(muscleGroup, allMuscleGroups)
+  const exactMatch = findExactMatch(muscleGroup, allMuscleGroups);
   if (exactMatch) {
-    return { isLikelyTypo: false, suggestions: [], exactMatch }
+    return { isLikelyTypo: false, suggestions: [], exactMatch };
   }
 
-  const suggestions = findSimilarNames(muscleGroup, allMuscleGroups, 0.7, 3)
-  const isLikelyTypo = suggestions.some((s) => s.similarity > 0.75)
+  const suggestions = findSimilarNames(muscleGroup, allMuscleGroups, 0.7, 3);
+  const isLikelyTypo = suggestions.some((s) => s.similarity > 0.75);
 
-  return { isLikelyTypo, suggestions, exactMatch: null }
-}
+  return { isLikelyTypo, suggestions, exactMatch: null };
+};
 
 /**
  * Get canonical exercise name (handles case-insensitive matching).
@@ -258,9 +258,9 @@ export const getCanonicalName = (
   exerciseName: string,
   allExercises: string[],
 ): string => {
-  const exactMatch = findExactMatch(exerciseName, allExercises)
-  return exactMatch || exerciseName
-}
+  const exactMatch = findExactMatch(exerciseName, allExercises);
+  return exactMatch || exerciseName;
+};
 
 /**
  * Get canonical muscle group name (handles case-insensitive matching).
@@ -269,6 +269,6 @@ export const getCanonicalMuscleGroup = (
   muscleGroup: string,
   allMuscleGroups: string[],
 ): string => {
-  const exactMatch = findExactMatch(muscleGroup, allMuscleGroups)
-  return exactMatch || muscleGroup
-}
+  const exactMatch = findExactMatch(muscleGroup, allMuscleGroups);
+  return exactMatch || muscleGroup;
+};
