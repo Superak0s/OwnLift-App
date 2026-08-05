@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react"
-import * as Device from "expo-device"
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
+import React, { useState, useEffect, useMemo } from "react";
+import * as Device from "expo-device";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   View,
   Text,
@@ -11,47 +11,428 @@ import {
   ScrollView,
   Modal,
   RefreshControl,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { useWorkout } from "@shared/context/WorkoutContext"
-import { useTheme } from "@shared/context/ThemeContext"
-import type { ThemeColors } from "@shared/context/ThemeContext"
-import UniversalCalendar from "@shared/components/UniversalCalendar"
-import ModalSheet from "@shared/components/ModalSheet"
-import { useAlert } from "@shared/components/CustomAlert"
-import { workoutApi } from "@features/workout/services/index"
-import { programApi } from "@features/plan/services/index"
-import { formatTime as formatDuration } from "@utils/timeEstimation"
-import { formatDate as formatDateUtil } from "@utils/format"
-import { useWidgets } from "@shared/context/hooks/useWidgets"
-import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull"
-import WidgetGallery from "@shared/components/widgets/WidgetGallery"
-import WidgetsPanel from "@shared/components/widgets/WidgetsPanel"
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useWorkout } from "@shared/context/WorkoutContext";
+import { useTheme } from "@shared/context/ThemeContext";
+import type { ThemeColors } from "@shared/context/ThemeContext";
+import UniversalCalendar from "@shared/components/UniversalCalendar";
+import ModalSheet from "@shared/components/ModalSheet";
+import { useAlert } from "@shared/components/CustomAlert";
+import { workoutApi } from "@features/workout/services/index";
+import { programApi } from "@features/plan/services/index";
+import { formatTime as formatDuration } from "@utils/timeEstimation";
+import { formatDate as formatDateUtil } from "@utils/format";
+import { useWidgets } from "@shared/context/hooks/useWidgets";
+import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull";
+import WidgetGallery from "@shared/components/widgets/WidgetGallery";
+import WidgetsPanel from "@shared/components/widgets/WidgetsPanel";
 import {
   HOME_WIDGET_REGISTRY,
   DEFAULT_HOME_WIDGETS,
   HOME_WIDGETS_STORAGE_KEY,
   type HomeWidgetType,
-} from "./widgets"
+} from "./widgets";
 import type {
   WorkoutData,
   WorkoutDay,
   WorkoutSession,
   FullSessionWithGroups,
   WidgetInstance,
-} from "@shared/types"
-import type { SetTiming, GroupedExercise } from "@shared/types"
-import type { RootStackParamList } from "@shared/types"
+} from "@shared/types";
+import type { SetTiming, GroupedExercise } from "@shared/types";
+import type { RootStackParamList } from "@shared/types";
 
 type HomeScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, "Home">
+  navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
+};
+
+// ─── Widget content components ───────────────────────────────────────────
+// Each home-screen widget used to be a case inside one giant switch/render
+// function, with its own conditionals and JSX nested straight inside it.
+// That's what was driving the Cognitive Complexity violation (35 vs the
+// allowed 15) — every branch inside every case added to the *same*
+// function's score. Pulling each case out into its own component means
+// each one is scored on its own, and the switch that dispatches between
+// them stays flat and trivial to read.
+
+type NextWorkoutWidgetProps = {
+  selectedSplit: unknown;
+  workoutData: WorkoutData | null;
+  currentDay: number;
+  isDayLocked: (day: number) => boolean;
+  hasActiveSession: () => boolean;
+  onChangeDay: () => void;
+  onGoToWorkout: () => void;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+function NextWorkoutWidget({
+  selectedSplit,
+  workoutData,
+  currentDay,
+  isDayLocked,
+  hasActiveSession,
+  onChangeDay,
+  onGoToWorkout,
+  styles,
+}: NextWorkoutWidgetProps): React.JSX.Element {
+  if (!selectedSplit || !workoutData) {
+    return (
+      <Text style={styles.widgetLineMuted}>
+        Upload a workout plan to see today's session here.
+      </Text>
+    );
+  }
+
+  const dayTitle = getDayTitle(workoutData, currentDay);
+  const locked = isDayLocked(currentDay);
+
+  return (
+    <View
+      style={[styles.currentDayCard, locked && styles.currentDayCardLocked]}
+    >
+      <Text style={styles.currentDayText}>
+        Day {currentDay} - {dayTitle}
+      </Text>
+      {locked ? (
+        <View style={styles.lockedBadge}>
+          <Text style={styles.lockedBadgeText}>✓ Locked</Text>
+        </View>
+      ) : (
+        <View style={styles.completeBadge}>
+          <Text style={styles.completeBadgeText}>In Progress</Text>
+        </View>
+      )}
+      <View style={styles.dayActions}>
+        <TouchableOpacity
+          style={[
+            styles.changeDayButton,
+            hasActiveSession() && styles.changeDayButtonDisabled,
+          ]}
+          onPress={onChangeDay}
+        >
+          <Text style={styles.changeDayButtonText}>
+            {hasActiveSession() ? "🔒 Session Active" : "📅 Change Day"}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.goToWorkoutButton,
+            locked && styles.goToWorkoutButtonLocked,
+          ]}
+          onPress={onGoToWorkout}
+        >
+          <Text
+            style={[
+              styles.goToWorkoutButtonText,
+              locked && styles.goToWorkoutButtonTextLocked,
+            ]}
+          >
+            {locked ? "View Workout 👁️" : "Start Workout →"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+      {locked && (
+        <Text style={styles.lockedHintText}>
+          💡 This day is view-only. Select another day to continue training.
+        </Text>
+      )}
+    </View>
+  );
+}
+
+type WeeklyProgressWidgetProps = {
+  selectedSplit: unknown;
+  workoutData: WorkoutData | null;
+  currentDay: number;
+  isDayLocked: (day: number) => boolean;
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+function WeeklyProgressWidget({
+  selectedSplit,
+  workoutData,
+  currentDay,
+  isDayLocked,
+  colors,
+  styles,
+}: WeeklyProgressWidgetProps): React.JSX.Element {
+  if (!selectedSplit || !workoutData?.days?.length) {
+    return (
+      <Text style={styles.widgetLineMuted}>
+        Start a program to see this week's progress here.
+      </Text>
+    );
+  }
+
+  const days = workoutData.days;
+  const total = days.length;
+  const lockedCount = days.filter((d) => isDayLocked(d.dayNumber)).length;
+  const percent = total > 0 ? Math.round((lockedCount / total) * 100) : 0;
+
+  return (
+    <View style={styles.weeklyProgressWrap}>
+      <View style={styles.weeklyProgressHeaderRow}>
+        <Text style={styles.weeklyProgressPercent}>{percent}%</Text>
+        <Text style={styles.weeklyProgressCount}>
+          {lockedCount}/{total} days done
+        </Text>
+      </View>
+      <View style={styles.weeklyProgressTrack}>
+        <View
+          style={[
+            styles.weeklyProgressFill,
+            {
+              width: `${percent}%`,
+              backgroundColor: percent === 100 ? colors.success : colors.accent,
+            },
+          ]}
+        />
+      </View>
+      <View style={styles.weeklyProgressDots}>
+        {days.map((day) => (
+          <WeeklyProgressDot
+            key={day.dayNumber}
+            done={isDayLocked(day.dayNumber)}
+            isToday={day.dayNumber === currentDay}
+            styles={styles}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function WeeklyProgressDot({
+  done,
+  isToday,
+  styles,
+}: {
+  done: boolean;
+  isToday: boolean;
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <View
+      style={[
+        styles.weeklyProgressDot,
+        done && styles.weeklyProgressDotDone,
+        isToday && !done && styles.weeklyProgressDotToday,
+      ]}
+    >
+      {done && <Text style={styles.weeklyProgressDotCheck}>✓</Text>}
+    </View>
+  );
+}
+
+type WorkoutStreakWidgetProps = {
+  selectedSplit: unknown;
+  loadingHistory: boolean;
+  sessionHistory: WorkoutSession[];
+  weeklyStreak: { count: number; currentWeekLogged: boolean };
+  colors: ThemeColors;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+function WorkoutStreakWidget({
+  selectedSplit,
+  loadingHistory,
+  sessionHistory,
+  weeklyStreak,
+  colors,
+  styles,
+}: WorkoutStreakWidgetProps): React.JSX.Element {
+  if (!selectedSplit) {
+    return (
+      <Text style={styles.widgetLineMuted}>
+        Start a program to build your streak.
+      </Text>
+    );
+  }
+
+  if (loadingHistory && sessionHistory.length === 0) {
+    return (
+      <View style={styles.streakLoading}>
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
+  }
+
+  const subtitle = weeklyStreak.currentWeekLogged
+    ? "Logged this week 💪"
+    : weeklyStreak.count > 0
+      ? "Log a workout this week to keep it going"
+      : "Complete a workout to start your streak";
+
+  return (
+    <View style={styles.streakWrap}>
+      <Text style={styles.streakEmoji}>
+        {weeklyStreak.count > 0 ? "🔥" : "🕯️"}
+      </Text>
+      <Text style={styles.streakNumber}>{weeklyStreak.count}</Text>
+      <Text style={styles.streakLabel}>week streak</Text>
+      <Text style={styles.streakSub}>{subtitle}</Text>
+    </View>
+  );
+}
+
+type WorkoutCalendarWidgetProps = {
+  selectedSplit: unknown;
+  loadingHistory: boolean;
+  hasSessionOnDate: (date: Date) => boolean;
+  onDatePress: (date: Date) => void;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+function WorkoutCalendarWidget({
+  selectedSplit,
+  loadingHistory,
+  hasSessionOnDate,
+  onDatePress,
+  styles,
+}: WorkoutCalendarWidgetProps): React.JSX.Element {
+  if (!selectedSplit) {
+    return (
+      <Text style={styles.widgetLineMuted}>
+        Start a program to track your workout history here.
+      </Text>
+    );
+  }
+
+  if (loadingHistory) {
+    return (
+      <View style={styles.calendarLoading}>
+        <ActivityIndicator color='#667eea' />
+      </View>
+    );
+  }
+
+  return (
+    <UniversalCalendar
+      hasDataOnDate={hasSessionOnDate}
+      onDatePress={onDatePress}
+      initialView='week'
+      legendText='Workout day'
+      dotColor='#10b981'
+    />
+  );
+}
+
+function GettingStartedWidget({
+  styles,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <View style={styles.instructionsCard}>
+      <Text style={styles.instructionsTitle}>📝 How to get started:</Text>
+      <Text style={styles.instructionStep}>
+        1. Select which day you want to do
+      </Text>
+      <Text style={styles.instructionStep}>
+        2. Go to the Workout tab to start!
+      </Text>
+      <Text style={styles.instructionStep}>
+        3. Pull down with two fingers anytime to add widgets
+      </Text>
+    </View>
+  );
+}
+
+// Shared by NextWorkoutWidget (and available for reuse anywhere day titles
+// are needed) — kept as a plain helper rather than a hook since it derives
+// its result purely from its arguments.
+function getDayTitle(
+  workoutData: WorkoutData | null,
+  dayNumber: number,
+): string {
+  const day = workoutData?.days?.find(
+    (d: WorkoutDay) => d.dayNumber === dayNumber,
+  );
+  return day?.muscleGroups?.join("/") || `Day ${dayNumber}`;
+}
+
+// ─── Session details helpers ──────────────────────────────────────────────
+// These used to be inlined as an immediately-invoked arrow function inside
+// the JSX (`{(() => { ... })()}`) which is exactly the kind of nesting the
+// linter penalizes. Pulling them out to top-level functions removes that
+// nesting entirely and makes them independently testable.
+
+function formatSetVolume(weight: unknown, reps: unknown): string {
+  const w = parseFloat(String(weight ?? 0));
+  const r = parseInt(String(reps ?? 0));
+  const volume = w * r;
+  const displayVolume = Number.isInteger(volume)
+    ? `${volume}`
+    : volume.toFixed(1);
+  return `${w}kg × ${r} = ${displayVolume}kg`;
+}
+
+function formatSetDuration(durationSeconds: number): string {
+  if (durationSeconds < 60) return `${durationSeconds}s`;
+  const minutes = Math.floor(durationSeconds / 60);
+  const remainderSeconds = durationSeconds % 60;
+  return remainderSeconds > 0
+    ? `${minutes}m ${remainderSeconds}s`
+    : `${minutes}m`;
+}
+
+function groupSetTimingsByExercise(
+  setTimings: SetTiming[] | undefined,
+): GroupedExercise[] {
+  if (!setTimings || setTimings.length === 0) return [];
+
+  const exerciseMap = new Map<string, GroupedExercise>();
+  setTimings.forEach((timing) => {
+    const key = timing.exercise_name || `Exercise ${timing.exercise_id ?? "?"}`;
+    if (!exerciseMap.has(key)) {
+      exerciseMap.set(key, { exerciseName: key, sets: [] });
+    }
+    exerciseMap.get(key)!.sets.push(timing);
+  });
+
+  exerciseMap.forEach((exercise) => {
+    exercise.sets.sort(
+      (a: SetTiming, b: SetTiming) => a.set_index - b.set_index,
+    );
+  });
+
+  return Array.from(exerciseMap.values());
+}
+
+// ─── Date helpers ──────────────────────────────────────────────────────────
+// Pure functions, no reason for them to live inside the component and be
+// recreated every render.
+
+function toLocalDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function dateStrPlusDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return toLocalDateStr(date);
+}
+
+function mondayOfWeek(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const dayOfWeek = date.getDay(); // 0 = Sun ... 6 = Sat
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  return dateStrPlusDays(dateStr, diffToMonday);
 }
 
 export default function HomeScreen({
   navigation,
 }: HomeScreenProps): React.JSX.Element {
-  const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const {
     workoutData,
     selectedSplit,
@@ -62,19 +443,19 @@ export default function HomeScreen({
     fetchSessionHistory,
     hasActiveSession,
     userId,
-  } = useWorkout()
-  const { alert, AlertComponent } = useAlert()
-  const [showDayPicker, setShowDayPicker] = useState<boolean>(false)
-  const [sessionHistory, setSessionHistory] = useState<WorkoutSession[]>([])
-  const [loadingHistory, setLoadingHistory] = useState<boolean>(false)
+  } = useWorkout();
+  const { alert, AlertComponent } = useAlert();
+  const [showDayPicker, setShowDayPicker] = useState<boolean>(false);
+  const [sessionHistory, setSessionHistory] = useState<WorkoutSession[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
   const [selectedSession, setSelectedSession] =
-    useState<FullSessionWithGroups | null>(null)
-  const [showSessionDetails, setShowSessionDetails] = useState<boolean>(false)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [refreshing, setRefreshing] = useState<boolean>(false)
-  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false)
-  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false)
-  const isEmulator = !Device.isDevice
+    useState<FullSessionWithGroups | null>(null);
+  const [showSessionDetails, setShowSessionDetails] = useState<boolean>(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
+  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
+  const isEmulator = !Device.isDevice;
 
   // ─── Widgets ────────────────────────────────────────────────────────────
   const {
@@ -89,286 +470,121 @@ export default function HomeScreen({
     registry: HOME_WIDGET_REGISTRY,
     defaults: DEFAULT_HOME_WIDGETS,
     storageKey: HOME_WIDGETS_STORAGE_KEY,
-  })
+  });
 
   // Two-finger pull brings up the "deploy" panel for adding widgets. To
   // rearrange, resize, or remove widgets already on the screen, open that
   // same panel and tap "Edit Widgets" — it closes the panel and switches
   // the home screen into edit mode.
   const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
-    setShowWidgetGallery(true)
-  })
+    setShowWidgetGallery(true);
+  });
 
   const handleEditWidgets = () => {
-    setShowWidgetGallery(false)
-    setWidgetEditMode(true)
-  }
+    setShowWidgetGallery(false);
+    setWidgetEditMode(true);
+  };
 
   const handleAddWidget = async (type: Parameters<typeof addWidget>[0]) => {
-    const result = await addWidget(type)
+    const result = await addWidget(type);
     if (!result.success && result.error) {
-      alert("Can't Add Widget", result.error, [{ text: "OK" }])
-      return
+      alert("Can't Add Widget", result.error, [{ text: "OK" }]);
+      return;
     }
-    setShowWidgetGallery(false)
-  }
+    setShowWidgetGallery(false);
+  };
 
+  // The switch itself now just dispatches to a component per widget type —
+  // no branching logic lives here anymore, so it barely contributes to
+  // cognitive complexity.
   const renderWidgetContent = (
     instance: WidgetInstance<HomeWidgetType>,
   ): React.ReactNode => {
     switch (instance.type) {
-      case "next_workout": {
-        if (!selectedSplit || !workoutData) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Upload a workout plan to see today's session here.
-            </Text>
-          )
-        }
+      case "next_workout":
         return (
-          <View
-            style={[
-              styles.currentDayCard,
-              isDayLocked(currentDay) && styles.currentDayCardLocked,
-            ]}
-          >
-            <Text style={styles.currentDayText}>
-              Day {currentDay} - {getDayTitle(currentDay)}
-            </Text>
-            {isDayLocked(currentDay) ? (
-              <View style={styles.lockedBadge}>
-                <Text style={styles.lockedBadgeText}>✓ Locked</Text>
-              </View>
-            ) : (
-              <View style={styles.completeBadge}>
-                <Text style={styles.completeBadgeText}>In Progress</Text>
-              </View>
-            )}
-            <View style={styles.dayActions}>
-              <TouchableOpacity
-                style={[
-                  styles.changeDayButton,
-                  hasActiveSession() && styles.changeDayButtonDisabled,
-                ]}
-                onPress={() => setShowDayPicker(true)}
-              >
-                <Text style={styles.changeDayButtonText}>
-                  {hasActiveSession() ? "🔒 Session Active" : "📅 Change Day"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.goToWorkoutButton,
-                  isDayLocked(currentDay) && styles.goToWorkoutButtonLocked,
-                ]}
-                onPress={() => navigation.navigate("Workout")}
-              >
-                <Text
-                  style={[
-                    styles.goToWorkoutButtonText,
-                    isDayLocked(currentDay) &&
-                      styles.goToWorkoutButtonTextLocked,
-                  ]}
-                >
-                  {isDayLocked(currentDay)
-                    ? "View Workout 👁️"
-                    : "Start Workout →"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {isDayLocked(currentDay) && (
-              <Text style={styles.lockedHintText}>
-                💡 This day is view-only. Select another day to continue
-                training.
-              </Text>
-            )}
-          </View>
-        )
-      }
-      case "weekly_progress": {
-        if (!selectedSplit || !workoutData?.days?.length) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Start a program to see this week's progress here.
-            </Text>
-          )
-        }
-        const days = workoutData.days
-        const total = days.length
-        const lockedCount = days.filter((d) => isDayLocked(d.dayNumber)).length
-        const percent = total > 0 ? Math.round((lockedCount / total) * 100) : 0
-        return (
-          <View style={styles.weeklyProgressWrap}>
-            <View style={styles.weeklyProgressHeaderRow}>
-              <Text style={styles.weeklyProgressPercent}>{percent}%</Text>
-              <Text style={styles.weeklyProgressCount}>
-                {lockedCount}/{total} days done
-              </Text>
-            </View>
-            <View style={styles.weeklyProgressTrack}>
-              <View
-                style={[
-                  styles.weeklyProgressFill,
-                  {
-                    width: `${percent}%`,
-                    backgroundColor:
-                      percent === 100 ? colors.success : colors.accent,
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.weeklyProgressDots}>
-              {days.map((day) => {
-                const done = isDayLocked(day.dayNumber)
-                const isToday = day.dayNumber === currentDay
-                return (
-                  <View
-                    key={day.dayNumber}
-                    style={[
-                      styles.weeklyProgressDot,
-                      done && styles.weeklyProgressDotDone,
-                      isToday && !done && styles.weeklyProgressDotToday,
-                    ]}
-                  >
-                    {done && (
-                      <Text style={styles.weeklyProgressDotCheck}>✓</Text>
-                    )}
-                  </View>
-                )
-              })}
-            </View>
-          </View>
-        )
-      }
-      case "workout_streak": {
-        if (!selectedSplit) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Start a program to build your streak.
-            </Text>
-          )
-        }
-        if (loadingHistory && sessionHistory.length === 0) {
-          return (
-            <View style={styles.streakLoading}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          )
-        }
-        const subtitle = weeklyStreak.currentWeekLogged
-          ? "Logged this week 💪"
-          : weeklyStreak.count > 0
-            ? "Log a workout this week to keep it going"
-            : "Complete a workout to start your streak"
-        return (
-          <View style={styles.streakWrap}>
-            <Text style={styles.streakEmoji}>
-              {weeklyStreak.count > 0 ? "🔥" : "🕯️"}
-            </Text>
-            <Text style={styles.streakNumber}>{weeklyStreak.count}</Text>
-            <Text style={styles.streakLabel}>week streak</Text>
-            <Text style={styles.streakSub}>{subtitle}</Text>
-          </View>
-        )
-      }
-      case "workout_calendar": {
-        if (!selectedSplit) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Start a program to track your workout history here.
-            </Text>
-          )
-        }
-        // UniversalCalendar is a generic, reusable component (used all over
-        // the app already) — dropping it into a widget body needs no special
-        // handling, same as any other widget's content.
-        return loadingHistory ? (
-          <View style={styles.calendarLoading}>
-            <ActivityIndicator color='#667eea' />
-          </View>
-        ) : (
-          <UniversalCalendar
-            hasDataOnDate={hasSessionOnDate}
-            onDatePress={handleDatePress}
-            initialView='week'
-            legendText='Workout day'
-            dotColor='#10b981'
+          <NextWorkoutWidget
+            selectedSplit={selectedSplit}
+            workoutData={workoutData}
+            currentDay={currentDay}
+            isDayLocked={isDayLocked}
+            hasActiveSession={hasActiveSession}
+            onChangeDay={() => setShowDayPicker(true)}
+            onGoToWorkout={() => navigation.navigate("Workout")}
+            styles={styles}
           />
-        )
-      }
-      case "getting_started": {
+        );
+      case "weekly_progress":
         return (
-          <View style={styles.instructionsCard}>
-            <Text style={styles.instructionsTitle}>📝 How to get started:</Text>
-            <Text style={styles.instructionStep}>
-              1. Select which day you want to do
-            </Text>
-            <Text style={styles.instructionStep}>
-              2. Go to the Workout tab to start!
-            </Text>
-            <Text style={styles.instructionStep}>
-              3. Pull down with two fingers anytime to add widgets
-            </Text>
-          </View>
-        )
-      }
+          <WeeklyProgressWidget
+            selectedSplit={selectedSplit}
+            workoutData={workoutData}
+            currentDay={currentDay}
+            isDayLocked={isDayLocked}
+            colors={colors}
+            styles={styles}
+          />
+        );
+      case "workout_streak":
+        return (
+          <WorkoutStreakWidget
+            selectedSplit={selectedSplit}
+            loadingHistory={loadingHistory}
+            sessionHistory={sessionHistory}
+            weeklyStreak={weeklyStreak}
+            colors={colors}
+            styles={styles}
+          />
+        );
+      case "workout_calendar":
+        return (
+          <WorkoutCalendarWidget
+            selectedSplit={selectedSplit}
+            loadingHistory={loadingHistory}
+            hasSessionOnDate={hasSessionOnDate}
+            onDatePress={handleDatePress}
+            styles={styles}
+          />
+        );
+      case "getting_started":
+        return <GettingStartedWidget styles={styles} />;
       default:
-        return <Text style={styles.widgetLineMuted}>Coming soon</Text>
+        return <Text style={styles.widgetLineMuted}>Coming soon</Text>;
     }
-  }
-
-  const toLocalDateStr = (date: Date): string => {
-    const y = date.getFullYear()
-    const m = String(date.getMonth() + 1).padStart(2, "0")
-    const d = String(date.getDate()).padStart(2, "0")
-    return `${y}-${m}-${d}`
-  }
+  };
 
   // ─── Streak ───────────────────────────────────────────────────────────────
   // "Streak" = consecutive Monday-start weeks with at least one logged
   // session, counting back from the current week. The current week doesn't
   // break the streak just for being in progress — it only starts counting
   // once a session has actually been logged in it.
-  const dateStrPlusDays = (dateStr: string, days: number): string => {
-    const [y, m, d] = dateStr.split("-").map(Number)
-    const date = new Date(y, m - 1, d)
-    date.setDate(date.getDate() + days)
-    return toLocalDateStr(date)
-  }
-
-  const mondayOfWeek = (dateStr: string): string => {
-    const [y, m, d] = dateStr.split("-").map(Number)
-    const date = new Date(y, m - 1, d)
-    const dayOfWeek = date.getDay() // 0 = Sun ... 6 = Sat
-    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-    return dateStrPlusDays(dateStr, diffToMonday)
-  }
-
   const weeksWithSessions = useMemo(() => {
-    const set = new Set<string>()
+    const set = new Set<string>();
     sessionHistory.forEach((session) => {
-      if (!session.start_time) return
-      const dateStr = String(session.start_time).replace("T", " ").split(" ")[0]
-      set.add(mondayOfWeek(dateStr))
-    })
-    return set
-  }, [sessionHistory])
+      if (!session.start_time) return;
+      const dateStr = String(session.start_time)
+        .replace("T", " ")
+        .split(" ")[0];
+      set.add(mondayOfWeek(dateStr));
+    });
+    return set;
+  }, [sessionHistory]);
 
   const weeklyStreak = useMemo(() => {
-    const todayMonday = mondayOfWeek(toLocalDateStr(new Date()))
-    const currentWeekLogged = weeksWithSessions.has(todayMonday)
+    const todayMonday = mondayOfWeek(toLocalDateStr(new Date()));
+    const currentWeekLogged = weeksWithSessions.has(todayMonday);
 
     // Only fully elapsed weeks count toward the streak — the current week
     // hasn't "gone" yet, so even if it already has a session logged, it's
     // surfaced separately via currentWeekLogged rather than added to count.
-    let cursor = dateStrPlusDays(todayMonday, -7)
-    let count = 0
+    let cursor = dateStrPlusDays(todayMonday, -7);
+    let count = 0;
     while (weeksWithSessions.has(cursor)) {
-      count++
-      cursor = dateStrPlusDays(cursor, -7)
+      count++;
+      cursor = dateStrPlusDays(cursor, -7);
     }
-    return { count, currentWeekLogged }
-  }, [weeksWithSessions])
+    return { count, currentWeekLogged };
+  }, [weeksWithSessions]);
 
   useEffect(() => {
     if (selectedSplit) {
@@ -384,65 +600,65 @@ export default function HomeScreen({
                   navigation.reset({
                     index: 0,
                     routes: [{ name: "Login" }],
-                  })
+                  });
                 },
               },
             ],
             "warning",
-          )
+          );
         }
-      })
+      });
     }
-  }, [selectedSplit])
+  }, [selectedSplit]);
 
   useEffect(() => {
     const restoreProgram = async () => {
-      if (workoutData) return
+      if (workoutData) return;
 
       try {
-        const saved = await programApi.fetchSavedProgram()
+        const saved = await programApi.fetchSavedProgram();
         if (saved && (saved as unknown as { success?: boolean }).success) {
-          await saveWorkoutData(saved as unknown as WorkoutData)
+          await saveWorkoutData(saved as unknown as WorkoutData);
         }
       } catch (error) {
         if ((error as Error)?.message === "SESSION_EXPIRED") {
-          navigation.reset({ index: 0, routes: [{ name: "Login" }] })
+          navigation.reset({ index: 0, routes: [{ name: "Login" }] });
         }
       }
-    }
+    };
 
-    restoreProgram()
-  }, [])
+    restoreProgram();
+  }, []);
 
   const loadSessionHistory = async (): Promise<void> => {
-    setLoadingHistory(true)
+    setLoadingHistory(true);
     try {
-      const limit = 60
-      const sessions = await fetchSessionHistory(limit)
-      setSessionHistory(sessions as WorkoutSession[])
+      const limit = 60;
+      const sessions = await fetchSessionHistory(limit);
+      setSessionHistory(sessions as WorkoutSession[]);
     } catch (error) {
       if ((error as Error)?.message === "SESSION_EXPIRED") {
-        throw error
+        throw error;
       }
     } finally {
-      setLoadingHistory(false)
+      setLoadingHistory(false);
     }
-  }
+  };
 
   const onRefresh = async (): Promise<void> => {
-    setRefreshing(true)
+    setRefreshing(true);
     try {
-      await loadSessionHistory()
+      await loadSessionHistory();
     } catch (error) {
       if ((error as Error)?.message === "SESSION_EXPIRED") {
-        throw error
+        throw error;
       } else {
-        alert("Error", "Failed to refresh session history", [{ text: "OK" }])
+        alert("Error", "Failed to refresh session history", [{ text: "OK" }]);
       }
     } finally {
-      setRefreshing(false)
+      setRefreshing(false);
     }
-  }
+  };
 
   const handleSelectDay = (day: number): void => {
     if (hasActiveSession()) {
@@ -451,8 +667,8 @@ export default function HomeScreen({
         "You have an active workout session in progress. Please complete or end your current workout before selecting a different day.",
         [{ text: "OK" }],
         "warning",
-      )
-      return
+      );
+      return;
     }
 
     if (isDayLocked(day)) {
@@ -464,114 +680,85 @@ export default function HomeScreen({
           {
             text: "View Day",
             onPress: () => {
-              saveCurrentDay(day)
-              setShowDayPicker(false)
+              saveCurrentDay(day);
+              setShowDayPicker(false);
             },
           },
         ],
         "lock",
-      )
-      return
+      );
+      return;
     }
 
-    saveCurrentDay(day)
-    setShowDayPicker(false)
-  }
+    saveCurrentDay(day);
+    setShowDayPicker(false);
+  };
 
   const handleDatePress = (date: Date): void => {
-    const sessionsOnDate = getSessionsForDate(date)
+    const sessionsOnDate = getSessionsForDate(date);
     if (sessionsOnDate.length > 0) {
-      setSelectedDate(date)
+      setSelectedDate(date);
     }
-  }
+  };
 
   const handleSessionPress = async (session: WorkoutSession): Promise<void> => {
     try {
       const details = (await workoutApi.getSession(
         session.id,
-      )) as FullSessionWithGroups
+      )) as FullSessionWithGroups;
 
-      if (details.set_timings && details.set_timings.length > 0) {
-        const exerciseMap = new Map()
+      details.groupedExercises = groupSetTimingsByExercise(details.set_timings);
 
-        details.set_timings.forEach((timing) => {
-          const key =
-            timing.exercise_name || `Exercise ${timing.exercise_id ?? "?"}`
-          if (!exerciseMap.has(key)) {
-            exerciseMap.set(key, {
-              exerciseName: key,
-              sets: [],
-            })
-          }
-          exerciseMap.get(key).sets.push(timing)
-        })
-
-        exerciseMap.forEach((exercise) => {
-          exercise.sets.sort(
-            (a: SetTiming, b: SetTiming) => a.set_index - b.set_index,
-          )
-        })
-
-        details.groupedExercises = Array.from(exerciseMap.values())
-      } else {
-        details.groupedExercises = []
-      }
-
-      setSelectedSession(details)
-      setShowSessionDetails(true)
-      setSelectedDate(null)
+      setSelectedSession(details);
+      setShowSessionDetails(true);
+      setSelectedDate(null);
     } catch (error) {
-      alert("Error", "Failed to load session details")
+      alert("Error", "Failed to load session details");
     }
-  }
+  };
 
-  const getDayTitle = (dayNumber: number): string => {
-    const day = workoutData?.days?.find(
-      (d: WorkoutDay) => d.dayNumber === dayNumber,
-    )
-    return day?.muscleGroups?.join("/") || `Day ${dayNumber}`
-  }
   const getSessionTitle = (session: WorkoutSession): string => {
-    if (!session?.day_title) return `Day ${session?.day_number ?? ""}`
-    const parts = session.day_title.split("—")
-    return parts.length > 1 ? parts[1].trim() : session.day_title
-  }
+    if (!session?.day_title) return `Day ${session?.day_number ?? ""}`;
+    const parts = session.day_title.split("—");
+    return parts.length > 1 ? parts[1].trim() : session.day_title;
+  };
 
   const getSessionsForDate = (date: Date): WorkoutSession[] => {
-    const targetStr = toLocalDateStr(date)
+    const targetStr = toLocalDateStr(date);
 
     return sessionHistory.filter((session) => {
       const sessionDateStr = String(session.start_time)
         .replace("T", " ")
-        .split(" ")[0]
-      return sessionDateStr === targetStr
-    })
-  }
+        .split(" ")[0];
+      return sessionDateStr === targetStr;
+    });
+  };
 
   const hasSessionOnDate = (date: Date): boolean => {
-    return getSessionsForDate(date).length > 0
-  }
+    return getSessionsForDate(date).length > 0;
+  };
 
   const formatDate = (date: Date): string =>
     formatDateUtil(date, {
       weekday: "short",
       month: "short",
       day: "numeric",
-    })
+    });
 
-  const formatTime = (seconds: number): string => formatDuration(seconds, "N/A")
+  const formatTime = (seconds: number): string =>
+    formatDuration(seconds, "N/A");
 
   const formatSessionTime = (dateString: string | null | undefined): string => {
-    if (!dateString) return ""
+    if (!dateString) return "";
 
-    const timePart = String(dateString).replace("T", " ").split(" ")[1] || ""
-    const [hourStr, minuteStr] = timePart.split(":")
-    const hour = parseInt(hourStr)
-    const minute = minuteStr || "00"
-    const ampm = hour >= 12 ? "PM" : "AM"
-    const hour12 = hour % 12 || 12
-    return `${hour12}:${minute} ${ampm}`
-  }
+    const timePart = String(dateString).replace("T", " ").split(" ")[1] || "";
+    const [hourStr, minuteStr] = timePart.split(":");
+    const hour = parseInt(hourStr);
+    const minute = minuteStr || "00";
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minute} ${ampm}`;
+  };
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]} {...panHandlers}>
@@ -645,52 +832,16 @@ export default function HomeScreen({
           showCancelButton={false}
           showConfirmButton={false}
         >
-          {workoutData?.days?.map((day: WorkoutDay) => {
-            const isLocked = isDayLocked(day.dayNumber)
-            const isCurrent = day.dayNumber === currentDay
-
-            return (
-              <TouchableOpacity
-                key={day.dayNumber}
-                style={[
-                  styles.dayOption,
-                  isCurrent && styles.dayOptionCurrent,
-                  isLocked && styles.dayOptionComplete,
-                ]}
-                onPress={() => handleSelectDay(day.dayNumber)}
-              >
-                <View style={styles.dayOptionLeft}>
-                  <Text
-                    style={[
-                      styles.dayOptionNumber,
-                      isCurrent && styles.dayOptionTextCurrent,
-                      isLocked && styles.dayOptionTextComplete,
-                    ]}
-                  >
-                    {`Day ${day.dayNumber}${isLocked ? " 🔒" : ""}`}
-                  </Text>
-                  <Text style={styles.dayOptionMuscles}>
-                    {(day.muscleGroups ?? []).join(", ")}
-                  </Text>
-                  {isLocked && (
-                    <Text style={styles.lockedText}>Locked - Tap to View</Text>
-                  )}
-                </View>
-                <View style={styles.dayOptionRight}>
-                  {isLocked && (
-                    <View style={styles.completeIcon}>
-                      <Text style={styles.completeIconText}>✓</Text>
-                    </View>
-                  )}
-                  {isCurrent && !isLocked && (
-                    <View style={styles.currentBadge}>
-                      <Text style={styles.currentBadgeText}>Current</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            )
-          })}
+          {workoutData?.days?.map((day: WorkoutDay) => (
+            <DayOptionRow
+              key={day.dayNumber}
+              day={day}
+              isCurrent={day.dayNumber === currentDay}
+              isLocked={isDayLocked(day.dayNumber)}
+              onPress={() => handleSelectDay(day.dayNumber)}
+              styles={styles}
+            />
+          ))}
           <View style={styles.modalFooter}>
             <Text style={styles.modalFooterText}>
               🔒 Locked days can be viewed in read-only mode • Resets every
@@ -708,31 +859,15 @@ export default function HomeScreen({
         >
           {selectedDate &&
             getSessionsForDate(selectedDate).map((session) => (
-              <TouchableOpacity
+              <SessionListItem
                 key={session.id}
-                style={styles.sessionListItem}
+                session={session}
+                title={getSessionTitle(session)}
+                formatSessionTime={formatSessionTime}
+                formatTime={formatTime}
                 onPress={() => handleSessionPress(session)}
-              >
-                <View style={styles.sessionListLeft}>
-                  <Text style={styles.sessionListTitle}>
-                    {`Day ${session.day_number} - ${getSessionTitle(session)}`}
-                  </Text>
-                  <View style={styles.sessionListMeta}>
-                    <Text style={styles.sessionListTime}>
-                      {`⏱️ ${formatSessionTime(session.start_time)}`}
-                    </Text>
-                    {!!session.total_duration && (
-                      <Text style={styles.sessionListDuration}>
-                        {` • ${formatTime(session.total_duration)}`}
-                      </Text>
-                    )}
-                    <Text style={styles.sessionListSets}>
-                      {` • ${session.completed_sets} sets`}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.sessionListArrow}>›</Text>
-              </TouchableOpacity>
+                styles={styles}
+              />
             ))}
         </ModalSheet>
 
@@ -745,135 +880,12 @@ export default function HomeScreen({
           scrollable={true}
         >
           {selectedSession && (
-            <>
-              <View style={styles.detailSection}>
-                <Text style={styles.detailTitle}>
-                  {`Day ${selectedSession.day_number}`}
-                </Text>
-                <Text style={styles.detailSubtitle}>
-                  {selectedSession.day_title ?? ""}
-                </Text>
-                {Array.isArray(selectedSession.muscle_groups) &&
-                  selectedSession.muscle_groups.length > 0 && (
-                    <View style={styles.muscleGroupsRow}>
-                      {selectedSession.muscle_groups.map(
-                        (group: string, idx: number) => (
-                          <View key={idx} style={styles.muscleTag}>
-                            <Text style={styles.muscleTagText}>
-                              {String(group)}
-                            </Text>
-                          </View>
-                        ),
-                      )}
-                    </View>
-                  )}
-              </View>
-
-              <View style={styles.detailSection}>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Date</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedSession.start_time
-                      ? new Date(selectedSession.start_time).toLocaleDateString(
-                          "en-US",
-                          {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          },
-                        )
-                      : "—"}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Start Time</Text>
-                  <Text style={styles.detailValue}>
-                    {formatSessionTime(selectedSession.start_time)}
-                  </Text>
-                </View>
-                {!!selectedSession.end_time && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>End Time</Text>
-                    <Text style={styles.detailValue}>
-                      {formatSessionTime(selectedSession.end_time)}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Duration</Text>
-                  <Text style={styles.detailValue}>
-                    {formatTime(selectedSession.total_duration as number)}
-                  </Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Sets Completed</Text>
-                  <Text style={styles.detailValue}>
-                    {`${selectedSession.completed_sets ?? 0}`}
-                  </Text>
-                </View>
-              </View>
-
-              {Array.isArray(selectedSession.groupedExercises) &&
-                selectedSession.groupedExercises.length > 0 && (
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>Exercises</Text>
-                    {selectedSession.groupedExercises.map(
-                      (exercise: GroupedExercise, exerciseIdx: number) => (
-                        <View key={exerciseIdx} style={styles.exerciseCard}>
-                          <View style={styles.exerciseHeader}>
-                            {/* exercise_name comes directly from the server JOIN */}
-                            <Text style={styles.exerciseName}>
-                              {exercise.exerciseName}
-                            </Text>
-                            <Text style={styles.exerciseSetsCount}>
-                              {`${exercise.sets.length} sets`}
-                            </Text>
-                          </View>
-
-                          {exercise.sets.map(
-                            (set: SetTiming, setIdx: number) => (
-                              <View key={setIdx} style={styles.setTimingCard}>
-                                <View style={styles.setTimingHeader}>
-                                  <Text style={styles.setTimingTitle}>
-                                    {`Set ${set.set_index + 1}`}
-                                  </Text>
-                                </View>
-                                <View style={styles.setTimingDetails}>
-                                  <Text style={styles.setTimingDetail}>
-                                    {(() => {
-                                      const w = parseFloat(
-                                        String(set.weight ?? 0),
-                                      )
-                                      const r = parseInt(String(set.reps ?? 0))
-                                      const volume = w * r
-                                      const displayVolume = Number.isInteger(
-                                        volume,
-                                      )
-                                        ? `${volume}`
-                                        : `${volume.toFixed(1)}`
-                                      return `${w}kg × ${r} = ${displayVolume}kg`
-                                    })()}
-                                  </Text>
-                                  {!!set.set_duration && (
-                                    <Text style={styles.setTimingDetail}>
-                                      {`Duration: ${
-                                        set.set_duration >= 60
-                                          ? `${Math.floor(set.set_duration / 60)}m${set.set_duration % 60 > 0 ? ` ${set.set_duration % 60}s` : ""}`
-                                          : `${set.set_duration}s`
-                                      }`}
-                                    </Text>
-                                  )}
-                                </View>
-                              </View>
-                            ),
-                          )}
-                        </View>
-                      ),
-                    )}
-                  </View>
-                )}
-            </>
+            <SessionDetails
+              session={selectedSession}
+              formatSessionTime={formatSessionTime}
+              formatTime={formatTime}
+              styles={styles}
+            />
           )}
         </ModalSheet>
       </ScrollView>
@@ -889,7 +901,246 @@ export default function HomeScreen({
 
       {AlertComponent}
     </SafeAreaView>
-  )
+  );
+}
+
+// ─── Modal row components ─────────────────────────────────────────────────
+// Same idea as the widgets above: these were `.map()` callbacks with
+// multi-branch JSX built directly inline in the parent render. Extracting
+// them removes that nesting from HomeScreen entirely.
+
+function DayOptionRow({
+  day,
+  isCurrent,
+  isLocked,
+  onPress,
+  styles,
+}: {
+  day: WorkoutDay;
+  isCurrent: boolean;
+  isLocked: boolean;
+  onPress: () => void;
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <TouchableOpacity
+      style={[
+        styles.dayOption,
+        isCurrent && styles.dayOptionCurrent,
+        isLocked && styles.dayOptionComplete,
+      ]}
+      onPress={onPress}
+    >
+      <View style={styles.dayOptionLeft}>
+        <Text
+          style={[
+            styles.dayOptionNumber,
+            isCurrent && styles.dayOptionTextCurrent,
+            isLocked && styles.dayOptionTextComplete,
+          ]}
+        >
+          {`Day ${day.dayNumber}${isLocked ? " 🔒" : ""}`}
+        </Text>
+        <Text style={styles.dayOptionMuscles}>
+          {(day.muscleGroups ?? []).join(", ")}
+        </Text>
+        {isLocked && (
+          <Text style={styles.lockedText}>Locked - Tap to View</Text>
+        )}
+      </View>
+      <View style={styles.dayOptionRight}>
+        {isLocked && (
+          <View style={styles.completeIcon}>
+            <Text style={styles.completeIconText}>✓</Text>
+          </View>
+        )}
+        {isCurrent && !isLocked && (
+          <View style={styles.currentBadge}>
+            <Text style={styles.currentBadgeText}>Current</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function SessionListItem({
+  session,
+  title,
+  formatSessionTime,
+  formatTime,
+  onPress,
+  styles,
+}: {
+  session: WorkoutSession;
+  title: string;
+  formatSessionTime: (dateString: string | null | undefined) => string;
+  formatTime: (seconds: number) => string;
+  onPress: () => void;
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <TouchableOpacity style={styles.sessionListItem} onPress={onPress}>
+      <View style={styles.sessionListLeft}>
+        <Text style={styles.sessionListTitle}>
+          {`Day ${session.day_number} - ${title}`}
+        </Text>
+        <View style={styles.sessionListMeta}>
+          <Text style={styles.sessionListTime}>
+            {`⏱️ ${formatSessionTime(session.start_time)}`}
+          </Text>
+          {!!session.total_duration && (
+            <Text style={styles.sessionListDuration}>
+              {` • ${formatTime(session.total_duration)}`}
+            </Text>
+          )}
+          <Text style={styles.sessionListSets}>
+            {` • ${session.completed_sets} sets`}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.sessionListArrow}>›</Text>
+    </TouchableOpacity>
+  );
+}
+
+function SessionDetails({
+  session,
+  formatSessionTime,
+  formatTime,
+  styles,
+}: {
+  session: FullSessionWithGroups;
+  formatSessionTime: (dateString: string | null | undefined) => string;
+  formatTime: (seconds: number) => string;
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <>
+      <View style={styles.detailSection}>
+        <Text style={styles.detailTitle}>{`Day ${session.day_number}`}</Text>
+        <Text style={styles.detailSubtitle}>{session.day_title ?? ""}</Text>
+        {Array.isArray(session.muscle_groups) &&
+          session.muscle_groups.length > 0 && (
+            <View style={styles.muscleGroupsRow}>
+              {session.muscle_groups.map((group: string, idx: number) => (
+                <View key={idx} style={styles.muscleTag}>
+                  <Text style={styles.muscleTagText}>{String(group)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+      </View>
+
+      <View style={styles.detailSection}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Date</Text>
+          <Text style={styles.detailValue}>
+            {session.start_time
+              ? new Date(session.start_time).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })
+              : "—"}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Start Time</Text>
+          <Text style={styles.detailValue}>
+            {formatSessionTime(session.start_time)}
+          </Text>
+        </View>
+        {!!session.end_time && (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>End Time</Text>
+            <Text style={styles.detailValue}>
+              {formatSessionTime(session.end_time)}
+            </Text>
+          </View>
+        )}
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Duration</Text>
+          <Text style={styles.detailValue}>
+            {formatTime(session.total_duration as number)}
+          </Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Sets Completed</Text>
+          <Text
+            style={styles.detailValue}
+          >{`${session.completed_sets ?? 0}`}</Text>
+        </View>
+      </View>
+
+      {Array.isArray(session.groupedExercises) &&
+        session.groupedExercises.length > 0 && (
+          <View style={styles.detailSection}>
+            <Text style={styles.detailSectionTitle}>Exercises</Text>
+            {session.groupedExercises.map(
+              (exercise: GroupedExercise, exerciseIdx: number) => (
+                <ExerciseCard
+                  key={exerciseIdx}
+                  exercise={exercise}
+                  styles={styles}
+                />
+              ),
+            )}
+          </View>
+        )}
+    </>
+  );
+}
+
+function ExerciseCard({
+  exercise,
+  styles,
+}: {
+  exercise: GroupedExercise;
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <View style={styles.exerciseCard}>
+      <View style={styles.exerciseHeader}>
+        {/* exercise_name comes directly from the server JOIN */}
+        <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+        <Text
+          style={styles.exerciseSetsCount}
+        >{`${exercise.sets.length} sets`}</Text>
+      </View>
+
+      {exercise.sets.map((set: SetTiming, setIdx: number) => (
+        <SetTimingCard key={setIdx} set={set} styles={styles} />
+      ))}
+    </View>
+  );
+}
+
+function SetTimingCard({
+  set,
+  styles,
+}: {
+  set: SetTiming;
+  styles: ReturnType<typeof makeStyles>;
+}): React.JSX.Element {
+  return (
+    <View style={styles.setTimingCard}>
+      <View style={styles.setTimingHeader}>
+        <Text style={styles.setTimingTitle}>{`Set ${set.set_index + 1}`}</Text>
+      </View>
+      <View style={styles.setTimingDetails}>
+        <Text style={styles.setTimingDetail}>
+          {formatSetVolume(set.weight, set.reps)}
+        </Text>
+        {!!set.set_duration && (
+          <Text style={styles.setTimingDetail}>
+            {`Duration: ${formatSetDuration(set.set_duration)}`}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
 }
 
 const makeStyles = (colors: ThemeColors) =>
@@ -1462,4 +1713,4 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 13,
       fontWeight: "600",
     },
-  })
+  });

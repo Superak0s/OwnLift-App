@@ -82,6 +82,246 @@ function displayToKg(value: string, unit: "kg" | "lbs"): number {
 // constant so every widget's corner radius agrees exactly.
 const WIDGET_GROUP_RADIUS = 14;
 
+// ─── Pure helpers extracted out of WorkoutScreen ───────────────────────────
+// Pulling these out as plain functions (rather than leaving the logic
+// inline in the component) keeps WorkoutScreen's own Cognitive Complexity
+// under the SonarQube threshold — every branch below lives in its own
+// function scope instead of adding to the component's score.
+
+type EmptyStateInfo = { icon: string; title: string; text: string };
+
+function getEmptyStateInfo(
+  workoutData: unknown,
+  selectedSplit: string | null,
+  dayWorkout: unknown,
+  currentDay: number,
+): EmptyStateInfo | null {
+  if (!workoutData) {
+    return {
+      icon: "📁",
+      title: "No Workout Plan",
+      text: "Go to the Home tab to upload your workout file",
+    };
+  }
+  if (!selectedSplit) {
+    return {
+      icon: "👤",
+      title: "No Split Selected",
+      text: "Go to the Plan tab to select your split",
+    };
+  }
+  if (!dayWorkout) {
+    return {
+      icon: "🤷",
+      title: "No Workout for This Day",
+      text: `${selectedSplit} has no exercises scheduled for Day ${currentDay}`,
+    };
+  }
+  return null;
+}
+
+function getDayOverviewTint(
+  colors: ThemeColors,
+  isCurrentDayLocked: boolean,
+  setsCompleteAndUnlocked: boolean,
+): string {
+  if (isCurrentDayLocked) return colors.textSecondary;
+  return setsCompleteAndUnlocked ? colors.success : colors.accent;
+}
+
+function computeProgressPercentage(
+  completedSetsCount: number,
+  totalSetsCount: number,
+): number {
+  return totalSetsCount > 0 ? (completedSetsCount / totalSetsCount) * 100 : 0;
+}
+
+function getPullHintText(pullDistance: number): string {
+  return pullDistance > 90
+    ? "Release to add a widget ✨"
+    : "Pull to add a widget ↓";
+}
+
+function getWidgetContainerStyle(
+  widgetEditMode: boolean,
+  dayOverviewTint: string,
+): { backgroundColor?: string; borderRadius?: number } {
+  if (widgetEditMode) return {};
+  return {
+    backgroundColor: dayOverviewTint,
+    borderRadius: WIDGET_GROUP_RADIUS,
+  };
+}
+
+function getAddingSetsSubtitle(
+  addingSetsExercise: Record<string, unknown> | null,
+): string | undefined {
+  if (!addingSetsExercise) return undefined;
+  const exercise = addingSetsExercise.exercise as { name: string };
+  return `Adding sets to: ${exercise.name}`;
+}
+
+function checkIsSelectedSetAssisted(
+  selectedSet: { exerciseIndex: number; setIndex: number } | null,
+  dayWorkout: Record<string, unknown> | null,
+): boolean {
+  if (!selectedSet || !dayWorkout) return false;
+  const exercises = dayWorkout.exercises as Array<{ name: string }> | undefined;
+  const exercise = exercises?.[selectedSet.exerciseIndex];
+  if (!exercise) return false;
+  return exercise.name.toLowerCase().includes("assisted");
+}
+
+// ─── Performance-history collection helpers ────────────────────────────────
+// Split out of loadPerformanceHistory so no single function nests more than
+// a couple of levels deep (SonarQube flagged the previous inline version
+// for both excess Cognitive Complexity and >4 levels of function nesting).
+
+type PerformanceEntry = {
+  date: Date;
+  weight: number;
+  reps: number;
+  volume: number;
+  note: string;
+  isWarmup: boolean;
+};
+
+function toPerformanceEntry(
+  completedAt: string | number | Date | undefined,
+  weight: number | undefined,
+  reps: number | undefined,
+  note: string | undefined,
+  isWarmup: boolean | undefined,
+): PerformanceEntry {
+  const w = weight ?? 0;
+  const r = reps ?? 0;
+  return {
+    date: new Date(completedAt ?? Date.now()),
+    weight: isFinite(w) ? w : 0,
+    reps: isFinite(r) ? r : 0,
+    volume: isFinite(w * r) ? w * r : 0,
+    note: note || "",
+    isWarmup: Boolean(isWarmup),
+  };
+}
+
+function collectSetsForExercise(
+  sets:
+    | Record<
+        string,
+        {
+          weight?: number;
+          reps?: number;
+          completedAt?: string;
+          note?: string;
+          isWarmup?: boolean;
+        }
+      >
+    | undefined,
+): PerformanceEntry[] {
+  if (!sets) return [];
+  return Object.keys(sets).map((si) => {
+    const s = sets[si];
+    return toPerformanceEntry(
+      s.completedAt,
+      s.weight,
+      s.reps,
+      s.note,
+      s.isWarmup,
+    );
+  });
+}
+
+function getLocalHistoryEntries(
+  completedDays: Record<string, Record<number, Record<string, unknown>>>,
+  workoutData: { days: Array<Record<string, any>> } | null | undefined,
+  selectedSplit: string | null,
+  canonicalName: string,
+  allExerciseNames: string[],
+): PerformanceEntry[] {
+  const history: PerformanceEntry[] = [];
+  Object.keys(completedDays).forEach((dayNumber) => {
+    const day = workoutData?.days.find(
+      (d) => d.dayNumber === parseInt(dayNumber),
+    );
+    const pw = day && selectedSplit ? day.split[selectedSplit] : null;
+    if (!pw?.exercises) return;
+    pw.exercises.forEach((ex: { name: string }, exerciseIndex: number) => {
+      const matches =
+        getCanonicalName(ex.name, allExerciseNames).toLowerCase() ===
+        canonicalName.toLowerCase();
+      if (!matches) return;
+      const sets = completedDays[dayNumber]?.[exerciseIndex] as
+        | Record<
+            string,
+            {
+              weight?: number;
+              reps?: number;
+              completedAt?: string;
+              note?: string;
+              isWarmup?: boolean;
+            }
+          >
+        | undefined;
+      history.push(...collectSetsForExercise(sets));
+    });
+  });
+  return history;
+}
+
+function collectSessionTimings(
+  session: any,
+  exerciseName: string,
+  canonicalName: string,
+  allExerciseNames: string[],
+): PerformanceEntry[] {
+  if (!session?.set_timings) return [];
+  return session.set_timings
+    .filter((t: any) => {
+      const timingName = t.exercise_name || exerciseName || "";
+      return (
+        getCanonicalName(timingName, allExerciseNames).toLowerCase() ===
+        canonicalName.toLowerCase()
+      );
+    })
+    .map((t: any) =>
+      toPerformanceEntry(
+        t.end_time ?? session.end_time ?? session.start_time,
+        t.weight,
+        t.reps,
+        t.note,
+        t.is_warmup,
+      ),
+    );
+}
+
+async function getServerHistoryEntries(
+  fetchSessionHistory: (limit: number, flag: boolean) => Promise<any[]>,
+  exerciseName: string,
+  canonicalName: string,
+  allExerciseNames: string[],
+): Promise<PerformanceEntry[]> {
+  try {
+    const sessions = (await fetchSessionHistory(50, true)) as any[];
+    if (!sessions?.length) return [];
+    return sessions.flatMap((session) =>
+      collectSessionTimings(
+        session,
+        exerciseName,
+        canonicalName,
+        allExerciseNames,
+      ),
+    );
+  } catch (err) {
+    // ignore server lookup failures — we simply won't show history
+    console.warn(
+      "Failed to fetch server session history for performance:",
+      err,
+    );
+    return [];
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Partner banner – compact strip pinned to the very top of the screen
 // ─────────────────────────────────────────────────────────────────────────────

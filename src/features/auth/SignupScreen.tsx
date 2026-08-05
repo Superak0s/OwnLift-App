@@ -1,4 +1,10 @@
-import React, { useState, useMemo, useCallback, useRef, useEffect } from "react"
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -9,180 +15,192 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from "react-native"
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { useAuth } from "@shared/context/AuthContext"
-import { useTheme } from "@shared/context/ThemeContext"
-import { useAlert } from "@shared/components/CustomAlert"
-import type { RootStackParamList } from "./types"
+} from "react-native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "@shared/context/AuthContext";
+import { useTheme } from "@shared/context/ThemeContext";
+import { useAlert } from "@shared/components/CustomAlert";
+import type { RootStackParamList } from "./types";
 
 interface PasswordStrength {
-  score: number
-  label: string
-  color: string
-  feedback: string[]
+  score: number;
+  label: string;
+  color: string;
+  feedback: string[];
 }
 
 type SignupScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, "Signup">
+  navigation: NativeStackNavigationProp<RootStackParamList, "Signup">;
+};
+
+const STRENGTH_LEVELS: { label: string; color: string }[] = [
+  { label: "Very Weak", color: "#ff4444" },
+  { label: "Weak", color: "#ff8800" },
+  { label: "Fair", color: "#ffbb00" },
+  { label: "Good", color: "#88cc00" },
+  { label: "Strong", color: "#00cc44" },
+];
+
+const COMMON_WEAK_WORDS = ["password", "123456", "qwerty", "abc123", "letmein"];
+
+function scorePasswordRules(value: string): {
+  score: number;
+  feedback: string[];
+} {
+  let score = 0;
+  const feedback: string[] = [];
+
+  if (value.length >= 8) score++;
+  else feedback.push("Use at least 8 characters");
+
+  if (value.length >= 12) score++;
+
+  if (/[a-z]/.test(value) && /[A-Z]/.test(value)) {
+    score++;
+  } else {
+    feedback.push("Mix uppercase and lowercase letters");
+  }
+
+  if (/\d/.test(value)) {
+    score++;
+  } else {
+    feedback.push("Include at least one number");
+  }
+
+  if (/[^a-zA-Z0-9]/.test(value)) {
+    score++;
+  } else {
+    feedback.push("Add a special character (!@#$%^&*)");
+  }
+
+  return { score, feedback };
+}
+
+function applyPasswordPenalties(
+  value: string,
+  score: number,
+  feedback: string[],
+): { score: number; feedback: string[] } {
+  let penalizedScore = score;
+  const penalizedFeedback = [...feedback];
+
+  if (/^[a-z]+$/.test(value) || /^[A-Z]+$/.test(value)) {
+    penalizedScore = Math.max(0, penalizedScore - 1);
+    penalizedFeedback.push("Avoid using only letters");
+  }
+
+  if (/^[0-9]+$/.test(value)) {
+    penalizedScore = Math.max(0, penalizedScore - 2);
+    penalizedFeedback.push("Avoid using only numbers");
+  }
+
+  if (/(.)\1{2,}/.test(value)) {
+    penalizedScore = Math.max(0, penalizedScore - 1);
+    penalizedFeedback.push("Avoid repeating characters");
+  }
+
+  if (COMMON_WEAK_WORDS.some((word) => value.toLowerCase().includes(word))) {
+    penalizedScore = Math.max(0, penalizedScore - 2);
+    penalizedFeedback.push("Avoid common words and patterns");
+  }
+
+  return { score: penalizedScore, feedback: penalizedFeedback };
+}
+
+function getStrengthLevel(normalizedScore: number): {
+  label: string;
+  color: string;
+} {
+  return STRENGTH_LEVELS[normalizedScore] ?? STRENGTH_LEVELS[0];
+}
+
+function calculatePasswordStrength(value: string): PasswordStrength {
+  if (!value) {
+    return {
+      score: 0,
+      label: "No password",
+      color: "#999",
+      feedback: ["Enter a password"],
+    };
+  }
+
+  const base = scorePasswordRules(value);
+  const { score, feedback } = applyPasswordPenalties(
+    value,
+    base.score,
+    base.feedback,
+  );
+
+  const normalizedScore = Math.min(4, Math.floor(score / 1.2));
+  const { label, color } = getStrengthLevel(normalizedScore);
+
+  return {
+    score: normalizedScore,
+    label,
+    color,
+    feedback: feedback.length > 0 ? feedback.slice(0, 2) : ["Great password!"],
+  };
 }
 
 export default function SignupScreen({
   navigation,
 }: SignupScreenProps): React.JSX.Element {
-  const { colors } = useTheme()
-  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [username, setUsername] = useState<string>("")
-  const [email, setEmail] = useState<string>("")
-  const [name, setName] = useState<string>("")
-  const [password, setPassword] = useState<string>("")
-  const [confirmPassword, setConfirmPassword] = useState<string>("")
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [showPassword, setShowPassword] = useState<boolean>(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false)
+  const [username, setUsername] = useState<string>("");
+  const [email, setEmail] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] =
+    useState<boolean>(false);
   const [passwordStrength, setPasswordStrength] =
-    useState<PasswordStrength | null>(null)
+    useState<PasswordStrength | null>(null);
 
-  const { signup } = useAuth()
-  const { alert, AlertComponent } = useAlert()
+  const { signup } = useAuth();
+  const { alert, AlertComponent } = useAlert();
 
-  const isMountedRef = useRef<boolean>(true)
+  const isMountedRef = useRef<boolean>(true);
 
   useEffect(() => {
     return () => {
-      isMountedRef.current = false
-    }
-  }, [])
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const clearSensitiveData = useCallback(() => {
-    setPassword("")
-    setConfirmPassword("")
-  }, [])
+    setPassword("");
+    setConfirmPassword("");
+  }, []);
 
   const validateEmail = useCallback((value: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(value)
-  }, [])
+    if (!value || value.length > 254) return false;
+    // No overlapping character classes -> no catastrophic backtracking.
+    const emailRegex = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+    return emailRegex.test(value);
+  }, []);
 
   const validateUsername = useCallback((value: string): boolean => {
-    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
-    return usernameRegex.test(value)
-  }, [])
+    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+    return usernameRegex.test(value);
+  }, []);
 
-  const calculatePasswordStrength = useCallback(
-    (value: string): PasswordStrength => {
-      if (!value) {
-        return {
-          score: 0,
-          label: "No password",
-          color: "#999",
-          feedback: ["Enter a password"],
-        }
-      }
-
-      let score = 0
-      const feedback: string[] = []
-
-      if (value.length >= 8) score++
-      else feedback.push("Use at least 8 characters")
-
-      if (value.length >= 12) score++
-
-      if (/[a-z]/.test(value) && /[A-Z]/.test(value)) {
-        score++
-      } else {
-        feedback.push("Mix uppercase and lowercase letters")
-      }
-
-      if (/\d/.test(value)) {
-        score++
-      } else {
-        feedback.push("Include at least one number")
-      }
-
-      if (/[^a-zA-Z0-9]/.test(value)) {
-        score++
-      } else {
-        feedback.push("Add a special character (!@#$%^&*)")
-      }
-
-      if (/^[a-z]+$/.test(value) || /^[A-Z]+$/.test(value)) {
-        score = Math.max(0, score - 1)
-        feedback.push("Avoid using only letters")
-      }
-
-      if (/^[0-9]+$/.test(value)) {
-        score = Math.max(0, score - 2)
-        feedback.push("Avoid using only numbers")
-      }
-
-      if (/(.)\1{2,}/.test(value)) {
-        score = Math.max(0, score - 1)
-        feedback.push("Avoid repeating characters")
-      }
-
-      const commonWords = ["password", "123456", "qwerty", "abc123", "letmein"]
-      if (commonWords.some((word) => value.toLowerCase().includes(word))) {
-        score = Math.max(0, score - 2)
-        feedback.push("Avoid common words and patterns")
-      }
-
-      const normalizedScore = Math.min(4, Math.floor(score / 1.2))
-
-      let label = ""
-      let color = ""
-
-      switch (normalizedScore) {
-        case 0:
-          label = "Very Weak"
-          color = "#ff4444"
-          break
-        case 1:
-          label = "Weak"
-          color = "#ff8800"
-          break
-        case 2:
-          label = "Fair"
-          color = "#ffbb00"
-          break
-        case 3:
-          label = "Good"
-          color = "#88cc00"
-          break
-        case 4:
-          label = "Strong"
-          color = "#00cc44"
-          break
-      }
-
-      return {
-        score: normalizedScore,
-        label,
-        color,
-        feedback:
-          feedback.length > 0 ? feedback.slice(0, 2) : ["Great password!"],
-      }
-    },
-    [],
-  )
-
-  const handlePasswordChange = useCallback(
-    (value: string) => {
-      setPassword(value)
-      const strength = calculatePasswordStrength(value)
-      setPasswordStrength(strength)
-    },
-    [calculatePasswordStrength],
-  )
+  const handlePasswordChange = useCallback((value: string) => {
+    setPassword(value);
+    const strength = calculatePasswordStrength(value);
+    setPasswordStrength(strength);
+  }, []);
 
   const validateForm = useCallback((): { valid: boolean; message?: string } => {
     if (!username || !email || !password || !confirmPassword) {
       return {
         valid: false,
         message: "Please fill in all required fields",
-      }
+      };
     }
 
     if (!validateUsername(username)) {
@@ -190,42 +208,42 @@ export default function SignupScreen({
         valid: false,
         message:
           "Username must be 3-20 characters long and contain only letters, numbers, and underscores",
-      }
+      };
     }
 
     if (!validateEmail(email)) {
       return {
         valid: false,
         message: "Please enter a valid email address",
-      }
+      };
     }
 
     if (password.length < 8) {
       return {
         valid: false,
         message: "Password must be at least 8 characters long",
-      }
+      };
     }
 
     if (!/[a-z]/.test(password) || !/[A-Z]/.test(password)) {
       return {
         valid: false,
         message: "Password must contain both uppercase and lowercase letters",
-      }
+      };
     }
 
     if (!/\d/.test(password)) {
       return {
         valid: false,
         message: "Password must contain at least one number",
-      }
+      };
     }
 
     if (password !== confirmPassword) {
       return {
         valid: false,
         message: "Passwords do not match",
-      }
+      };
     }
 
     if (
@@ -236,10 +254,10 @@ export default function SignupScreen({
       return {
         valid: false,
         message: "For better security, add a special character (!@#$%^&*)",
-      }
+      };
     }
 
-    return { valid: true }
+    return { valid: true };
   }, [
     username,
     email,
@@ -248,10 +266,10 @@ export default function SignupScreen({
     validateUsername,
     validateEmail,
     passwordStrength,
-  ])
+  ]);
 
   const handleSignup = async (): Promise<void> => {
-    const validation = validateForm()
+    const validation = validateForm();
 
     if (!validation.valid) {
       alert(
@@ -259,11 +277,11 @@ export default function SignupScreen({
         validation.message || "Please check your input",
         [{ text: "OK" }],
         "error",
-      )
-      return
+      );
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       const result = await signup(
@@ -271,41 +289,41 @@ export default function SignupScreen({
         email.trim().toLowerCase(),
         password,
         name.trim() || "",
-      )
+      );
 
       if (isMountedRef.current) {
-        setIsLoading(false)
+        setIsLoading(false);
 
         if (result.success) {
-          clearSensitiveData()
+          clearSensitiveData();
         } else {
-          clearSensitiveData()
+          clearSensitiveData();
 
           const errorMessage =
             result.error?.toLowerCase().includes("username") ||
             result.error?.toLowerCase().includes("email") ||
             result.error?.toLowerCase().includes("exists")
               ? "Unable to create account with these credentials. Please try different ones."
-              : result.error || "Could not create account. Please try again."
+              : result.error || "Could not create account. Please try again.";
 
-          alert("Signup Failed", errorMessage, [{ text: "OK" }], "error")
+          alert("Signup Failed", errorMessage, [{ text: "OK" }], "error");
         }
       }
     } catch (error) {
       if (isMountedRef.current) {
-        setIsLoading(false)
-        clearSensitiveData()
-        console.error("Signup error:", error)
+        setIsLoading(false);
+        clearSensitiveData();
+        console.error("Signup error:", error);
 
         alert(
           "Error",
           "An unexpected error occurred. Please check your connection and try again.",
           [{ text: "OK" }],
           "error",
-        )
+        );
       }
     }
-  }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -516,7 +534,7 @@ export default function SignupScreen({
       </KeyboardAvoidingView>
       {AlertComponent}
     </SafeAreaView>
-  )
+  );
 }
 
 const makeStyles = (colors: any) =>
@@ -650,4 +668,4 @@ const makeStyles = (colors: any) =>
     },
     loginText: { fontSize: 15, color: colors.textSecondary },
     loginLink: { fontSize: 15, color: colors.accent, fontWeight: "bold" },
-  })
+  });

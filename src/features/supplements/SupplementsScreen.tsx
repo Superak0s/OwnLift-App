@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,22 +8,22 @@ import {
   TextInput,
   ActivityIndicator,
   RefreshControl,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { supplementsApi } from "./services"
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { supplementsApi } from "./services";
 import type {
   SupplementSummary,
   SupplementEntry,
   CreateSupplementParams,
-} from "./services"
-import QuickLogSupplement from "./components/QuickLogSupplement"
-import SupplementSettingsModal from "./components/SupplementSettingsModal"
-import ModalSheet from "@shared/components/ModalSheet"
-import { useAlert } from "@shared/components/CustomAlert"
-import { useTheme } from "@shared/context/ThemeContext"
-import type { ThemeColors } from "@shared/context/ThemeContext"
-import type { SupplementTemplate } from "./types"
-import { formatDate as formatDateUtil, formatClockTime } from "@utils/format"
+} from "./services";
+import QuickLogSupplement from "./components/QuickLogSupplement";
+import SupplementSettingsModal from "./components/SupplementSettingsModal";
+import ModalSheet from "@shared/components/ModalSheet";
+import { useAlert } from "@shared/components/CustomAlert";
+import { useTheme } from "@shared/context/ThemeContext";
+import type { ThemeColors } from "@shared/context/ThemeContext";
+import type { SupplementTemplate } from "./types";
+import { formatDate as formatDateUtil, formatClockTime } from "@utils/format";
 
 const DEFAULT_SUPPLEMENT_TEMPLATES: SupplementTemplate[] = [
   {
@@ -90,61 +90,63 @@ const DEFAULT_SUPPLEMENT_TEMPLATES: SupplementTemplate[] = [
     color: "#65a30d",
     description: "Stress & cortisol support",
   },
-]
+];
 
 export default function SupplementsScreen(): React.JSX.Element {
-  const { colors } = useTheme()
-  const styles = makeStyles(colors)
-  const { alert, AlertComponent } = useAlert()
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+  const { alert, AlertComponent } = useAlert();
 
-  const [supplements, setSupplements] = useState<SupplementSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  const [supplements, setSupplements] = useState<SupplementSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [showAddSheet, setShowAddSheet] = useState(false)
-  const [showTemplateSheet, setShowTemplateSheet] = useState(false)
+  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [showTemplateSheet, setShowTemplateSheet] = useState(false);
 
-  const [newName, setNewName] = useState("")
-  const [newUnit, setNewUnit] = useState("g")
-  const [newAmount, setNewAmount] = useState("5")
-  const [newIcon, setNewIcon] = useState("💊")
-  const [saving, setSaving] = useState(false)
+  const [newName, setNewName] = useState("");
+  const [newUnit, setNewUnit] = useState("g");
+  const [newAmount, setNewAmount] = useState("5");
+  const [newIcon, setNewIcon] = useState("💊");
+  const [saving, setSaving] = useState(false);
 
   const [quickLogSupplement, setQuickLogSupplement] =
-    useState<SupplementSummary | null>(null)
+    useState<SupplementSummary | null>(null);
 
   const [settingsSupplement, setSettingsSupplement] =
-    useState<SupplementSummary | null>(null)
+    useState<SupplementSummary | null>(null);
 
-  const [historySupp, setHistorySupp] = useState<SupplementSummary | null>(null)
-  const [history, setHistory] = useState<SupplementEntry[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
-  const [showHistorySheet, setShowHistorySheet] = useState(false)
+  const [historySupp, setHistorySupp] = useState<SupplementSummary | null>(
+    null,
+  );
+  const [history, setHistory] = useState<SupplementEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showHistorySheet, setShowHistorySheet] = useState(false);
 
   const loadSupplements = useCallback(async (quiet = false) => {
-    if (!quiet) setLoading(true)
+    if (!quiet) setLoading(true);
     try {
-      const res = await supplementsApi.list()
-      setSupplements(res.supplements)
+      const res = await supplementsApi.list();
+      setSupplements(res.supplements);
     } catch (err) {
-      console.error("Failed to load supplements:", err)
+      console.error("Failed to load supplements:", err);
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      setLoading(false);
+      setRefreshing(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    void loadSupplements()
-  }, [loadSupplements])
+    void loadSupplements();
+  }, [loadSupplements]);
 
   const handleRefresh = () => {
-    setRefreshing(true)
-    void loadSupplements(true)
-  }
+    setRefreshing(true);
+    void loadSupplements(true);
+  };
 
   const handleAddFromTemplate = async (template: SupplementTemplate) => {
-    setSaving(true)
+    setSaving(true);
     try {
       const params: CreateSupplementParams = {
         name: template.name,
@@ -152,21 +154,21 @@ export default function SupplementsScreen(): React.JSX.Element {
         defaultAmount: template.defaultAmount,
         icon: template.icon,
         color: template.color,
-      }
-      await supplementsApi.create(params)
-      setShowTemplateSheet(false)
-      await loadSupplements(true)
+      };
+      await supplementsApi.create(params);
+      setShowTemplateSheet(false);
+      await loadSupplements(true);
     } catch (err) {
       alert(
         "Error",
         err instanceof Error ? err.message : "Failed to add supplement",
         [{ text: "OK" }],
         "error",
-      )
+      );
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleAddCustom = async () => {
     if (!newName.trim()) {
@@ -175,44 +177,44 @@ export default function SupplementsScreen(): React.JSX.Element {
         "Please enter a supplement name.",
         [{ text: "OK" }],
         "warning",
-      )
-      return
+      );
+      return;
     }
-    const amt = parseFloat(newAmount)
+    const amt = parseFloat(newAmount);
     if (isNaN(amt) || amt <= 0) {
       alert(
         "Invalid Amount",
         "Please enter a valid default amount.",
         [{ text: "OK" }],
         "error",
-      )
-      return
+      );
+      return;
     }
-    setSaving(true)
+    setSaving(true);
     try {
       await supplementsApi.create({
         name: newName.trim(),
         unit: newUnit.trim() || "g",
         defaultAmount: amt,
         icon: newIcon || "💊",
-      })
-      setShowAddSheet(false)
-      setNewName("")
-      setNewUnit("g")
-      setNewAmount("5")
-      setNewIcon("💊")
-      await loadSupplements(true)
+      });
+      setShowAddSheet(false);
+      setNewName("");
+      setNewUnit("g");
+      setNewAmount("5");
+      setNewIcon("💊");
+      await loadSupplements(true);
     } catch (err) {
       alert(
         "Error",
         err instanceof Error ? err.message : "Failed to add supplement",
         [{ text: "OK" }],
         "error",
-      )
+      );
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleLog = async (
     supp: SupplementSummary,
@@ -220,31 +222,50 @@ export default function SupplementsScreen(): React.JSX.Element {
     note: string,
   ) => {
     try {
-      await supplementsApi.log(supp.id, { amount, note: note || null })
-      await loadSupplements(true)
+      await supplementsApi.log(supp.id, { amount, note: note || null });
+      await loadSupplements(true);
     } catch (err) {
       alert(
         "Log Failed",
         err instanceof Error ? err.message : "Could not log supplement",
         [{ text: "OK" }],
         "error",
-      )
+      );
     }
-  }
+  };
 
   const openHistory = async (supp: SupplementSummary) => {
-    setHistorySupp(supp)
-    setShowHistorySheet(true)
-    setHistoryLoading(true)
+    setHistorySupp(supp);
+    setShowHistorySheet(true);
+    setHistoryLoading(true);
     try {
-      const res = await supplementsApi.getLog(supp.id, 30)
-      setHistory(res.entries)
+      const res = await supplementsApi.getLog(supp.id, 30);
+      setHistory(res.entries);
     } catch {
-      setHistory([])
+      setHistory([]);
     } finally {
-      setHistoryLoading(false)
+      setHistoryLoading(false);
     }
-  }
+  };
+
+  const performDeleteEntry = async (entry: SupplementEntry) => {
+    try {
+      await supplementsApi.deleteLogEntry(entry.supplementId, entry.id);
+      removeHistoryEntry(entry.id);
+      await loadSupplements(true);
+    } catch (err) {
+      alert(
+        "Error",
+        err instanceof Error ? err.message : "Failed",
+        [{ text: "OK" }],
+        "error",
+      );
+    }
+  };
+
+  const removeHistoryEntry = (entryId: number) => {
+    setHistory((prev) => prev.filter((e) => e.id !== entryId));
+  };
 
   const handleDeleteEntry = (entry: SupplementEntry) => {
     alert(
@@ -255,25 +276,30 @@ export default function SupplementsScreen(): React.JSX.Element {
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await supplementsApi.deleteLogEntry(entry.supplementId, entry.id)
-              setHistory((prev) => prev.filter((e) => e.id !== entry.id))
-              await loadSupplements(true)
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : "Failed",
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          },
+          onPress: () => void performDeleteEntry(entry),
         },
       ],
       "warning",
-    )
-  }
+    );
+  };
+
+  const performDeleteSupplement = async (supp: SupplementSummary) => {
+    try {
+      await supplementsApi.delete(supp.id);
+      removeSupplementFromList(supp.id);
+    } catch (err) {
+      alert(
+        "Error",
+        err instanceof Error ? err.message : "Failed",
+        [{ text: "OK" }],
+        "error",
+      );
+    }
+  };
+
+  const removeSupplementFromList = (suppId: number) => {
+    setSupplements((prev) => prev.filter((s) => s.id !== suppId));
+  };
 
   const handleDeleteSupplement = (supp: SupplementSummary) => {
     alert(
@@ -284,34 +310,22 @@ export default function SupplementsScreen(): React.JSX.Element {
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await supplementsApi.delete(supp.id)
-              setSupplements((prev) => prev.filter((s) => s.id !== supp.id))
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : "Failed",
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          },
+          onPress: () => void performDeleteSupplement(supp),
         },
       ],
       "error",
-    )
-  }
+    );
+  };
 
   const formatDate = (iso: string) =>
     formatDateUtil(iso, { month: "short", day: "numeric" }) +
     " " +
-    formatClockTime(iso, { hour: "2-digit", minute: "2-digit" })
+    formatClockTime(iso, { hour: "2-digit", minute: "2-digit" });
 
   const alreadyAdded = (template: SupplementTemplate) =>
     supplements.some(
       (s) => s.name.toLowerCase() === template.name.toLowerCase(),
-    )
+    );
 
   if (loading) {
     return (
@@ -321,7 +335,7 @@ export default function SupplementsScreen(): React.JSX.Element {
           <Text style={styles.loadingText}>Loading supplements…</Text>
         </View>
       </SafeAreaView>
-    )
+    );
   }
 
   return (
@@ -396,8 +410,8 @@ export default function SupplementsScreen(): React.JSX.Element {
           visible={!!quickLogSupplement}
           onClose={() => setQuickLogSupplement(null)}
           onLog={(amount, note) => {
-            void handleLog(quickLogSupplement, amount, note)
-            setQuickLogSupplement(null)
+            void handleLog(quickLogSupplement, amount, note);
+            setQuickLogSupplement(null);
           }}
           supplementName={quickLogSupplement.name}
           unit={quickLogSupplement.unit}
@@ -428,7 +442,7 @@ export default function SupplementsScreen(): React.JSX.Element {
           showsVerticalScrollIndicator={false}
         >
           {DEFAULT_SUPPLEMENT_TEMPLATES.map((t) => {
-            const added = alreadyAdded(t)
+            const added = alreadyAdded(t);
             return (
               <TouchableOpacity
                 key={t.name}
@@ -457,15 +471,15 @@ export default function SupplementsScreen(): React.JSX.Element {
                   <Text style={styles.templateAddIcon}>+</Text>
                 )}
               </TouchableOpacity>
-            )
+            );
           })}
         </ScrollView>
 
         <TouchableOpacity
           style={styles.customButton}
           onPress={() => {
-            setShowTemplateSheet(false)
-            setShowAddSheet(true)
+            setShowTemplateSheet(false);
+            setShowAddSheet(true);
           }}
         >
           <Text style={styles.customButtonText}>
@@ -598,24 +612,24 @@ export default function SupplementsScreen(): React.JSX.Element {
           supplement={settingsSupplement}
           onClose={() => setSettingsSupplement(null)}
           onSaved={() => {
-            setSettingsSupplement(null)
-            void loadSupplements(true)
+            setSettingsSupplement(null);
+            void loadSupplements(true);
           }}
         />
       )}
 
       {AlertComponent}
     </SafeAreaView>
-  )
+  );
 }
 
 interface SupplementCardProps {
-  supplement: SupplementSummary
-  colors: ThemeColors
-  onLog: () => void
-  onHistory: () => void
-  onSettings: () => void
-  onDelete: () => void
+  supplement: SupplementSummary;
+  colors: ThemeColors;
+  onLog: () => void;
+  onHistory: () => void;
+  onSettings: () => void;
+  onDelete: () => void;
 }
 
 function SupplementCard({
@@ -626,7 +640,7 @@ function SupplementCard({
   onSettings,
   onDelete,
 }: SupplementCardProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <View style={cardStyles(colors).card}>
@@ -708,7 +722,7 @@ function SupplementCard({
         </View>
       )}
     </View>
-  )
+  );
 }
 
 const cardStyles = (colors: ThemeColors) =>
@@ -780,7 +794,7 @@ const cardStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       fontWeight: "600",
     },
-  })
+  });
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
@@ -997,4 +1011,4 @@ const makeStyles = (colors: ThemeColors) =>
     historyDate: { fontSize: 12, color: colors.textMuted, marginTop: 3 },
     historyDelete: { padding: 8 },
     historyDeleteText: { fontSize: 18 },
-  })
+  });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,13 @@ import {
   Platform,
   Linking,
   ActivityIndicator,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import DateTimePicker from "@react-native-community/datetimepicker"
-import * as Location from "expo-location"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { supplementsApi } from "../services"
+import { supplementsApi } from "../services";
 import {
   scheduleTimeReminder,
   cancelTimeReminder,
@@ -28,21 +28,23 @@ import {
   triggerImmediateLocationCheck,
   getBatterySettings,
   BATTERY_PRESETS,
-} from "../../../../tasks/supplementLocationTask"
-import SupplementLocationPicker from "./SupplementLocationPicker"
-import type { ReminderLocation, SupplementSummary } from "../types"
-import BatterySettingsModal from "./BatterySettingsModal"
-import ModalSheet from "@shared/components/ModalSheet"
-import { useAlert } from "@shared/components/CustomAlert"
-import { useTheme } from "@shared/context/ThemeContext"
-import { useAuth } from "@shared/context/AuthContext"
+} from "../../../../tasks/supplementLocationTask";
+import SupplementLocationPicker from "./SupplementLocationPicker";
+import type { ReminderLocation, SupplementSummary } from "../types";
+import BatterySettingsModal from "./BatterySettingsModal";
+import ModalSheet from "@shared/components/ModalSheet";
+import { useAlert } from "@shared/components/CustomAlert";
+import { useTheme } from "@shared/context/ThemeContext";
+import { useAuth } from "@shared/context/AuthContext";
 
 type SupplementSettingsModalProps = {
-  visible: boolean
-  supplement: SupplementSummary
-  onClose: () => void
-  onSaved?: () => void
-}
+  visible: boolean;
+  supplement: SupplementSummary;
+  onClose: () => void;
+  onSaved?: () => void;
+};
+
+type ValidationResult = { valid: true; amount: number } | { valid: false };
 
 export default function SupplementSettingsModal({
   visible,
@@ -50,88 +52,108 @@ export default function SupplementSettingsModal({
   onClose,
   onSaved,
 }: SupplementSettingsModalProps): React.JSX.Element | null {
-  const { colors } = useTheme()
-  const styles = makeStyles(colors)
-  const { alert, AlertComponent } = useAlert()
-  const { user } = useAuth()
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+  const { alert, AlertComponent } = useAlert();
+  const { user } = useAuth();
 
-  const [timeBasedEnabled, setTimeBasedEnabled] = useState(false)
-  const [locationBasedEnabled, setLocationBasedEnabled] = useState(false)
-  const [reminderTime, setReminderTime] = useState(new Date())
-  const [showTimePicker, setShowTimePicker] = useState(false)
+  const [timeBasedEnabled, setTimeBasedEnabled] = useState(false);
+  const [locationBasedEnabled, setLocationBasedEnabled] = useState(false);
+  const [reminderTime, setReminderTime] = useState(new Date());
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [defaultAmount, setDefaultAmount] = useState(
     String(supplement.defaultAmount),
-  )
-  const [notificationType, setNotificationType] = useState("notification")
+  );
+  const [notificationType, setNotificationType] = useState("notification");
   const [reminderLocation, setReminderLocation] =
-    useState<ReminderLocation | null>(null)
-  const [showLocationPicker, setShowLocationPicker] = useState(false)
-  const [showBatterySettings, setShowBatterySettings] = useState(false)
-  const [batteryPreset, setBatteryPreset] = useState("MEDIUM")
-  const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(true)
+    useState<ReminderLocation | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [showBatterySettings, setShowBatterySettings] = useState(false);
+  const [batteryPreset, setBatteryPreset] = useState("MEDIUM");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!visible) return
-    void loadSettings()
-  }, [visible, supplement.id])
+    if (!visible) return;
+    void loadSettings();
+  }, [visible, supplement.id]);
 
   const settingsKey = (uid: string | number) =>
-    `supplementSettings_${supplement.id}_user_${uid}`
+    `supplementSettings_${supplement.id}_user_${uid}`;
+
+  // ---------------------------------------------------------------------
+  // loadSettings — split so each piece stays trivially simple
+  // ---------------------------------------------------------------------
+
+  const applyStoredReminderTime = (time: string) => {
+    const [h, m] = time.split(":");
+    const d = new Date();
+    d.setHours(parseInt(h, 10));
+    d.setMinutes(parseInt(m, 10));
+    setReminderTime(d);
+  };
+
+  const applyStoredSettings = (raw: string) => {
+    const s = JSON.parse(raw);
+    setTimeBasedEnabled(s.timeBasedEnabled || false);
+    setLocationBasedEnabled(s.locationBasedReminder || false);
+    setDefaultAmount(String(s.defaultAmount || supplement.defaultAmount));
+    setNotificationType(s.notificationType || "notification");
+    if (s.reminderLocation) setReminderLocation(s.reminderLocation);
+    if (s.reminderTime) applyStoredReminderTime(s.reminderTime);
+  };
+
+  const loadLocalSettings = async () => {
+    if (!user?.id) return;
+    const raw = await AsyncStorage.getItem(settingsKey(user.id));
+    if (raw) applyStoredSettings(raw);
+  };
+
+  const loadRemoteLocation = async () => {
+    try {
+      const locRes = await supplementsApi.getLocation(supplement.id);
+      if (locRes.location) {
+        setReminderLocation({
+          lat: locRes.location.latitude,
+          lng: locRes.location.longitude,
+          address: locRes.location.address,
+          radius: locRes.location.radius,
+        });
+        setLocationBasedEnabled(locRes.enabled);
+      }
+    } catch {
+      // No saved server-side location yet — not an error state.
+    }
+  };
 
   const loadSettings = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      if (user?.id) {
-        const raw = await AsyncStorage.getItem(settingsKey(user.id))
-        if (raw) {
-          const s = JSON.parse(raw)
-          setTimeBasedEnabled(s.timeBasedEnabled || false)
-          setLocationBasedEnabled(s.locationBasedReminder || false)
-          setDefaultAmount(String(s.defaultAmount || supplement.defaultAmount))
-          setNotificationType(s.notificationType || "notification")
-          if (s.reminderLocation) setReminderLocation(s.reminderLocation)
-          if (s.reminderTime) {
-            const [h, m] = s.reminderTime.split(":")
-            const d = new Date()
-            d.setHours(parseInt(h, 10))
-            d.setMinutes(parseInt(m, 10))
-            setReminderTime(d)
-          }
-        }
-      }
-
-      try {
-        const locRes = await supplementsApi.getLocation(supplement.id)
-        if (locRes.location) {
-          setReminderLocation({
-            lat: locRes.location.latitude,
-            lng: locRes.location.longitude,
-            address: locRes.location.address,
-            radius: locRes.location.radius,
-          })
-          setLocationBasedEnabled(locRes.enabled)
-        }
-      } catch {}
-
-      const bat = await getBatterySettings()
-      setBatteryPreset(bat.preset)
+      await loadLocalSettings();
+      await loadRemoteLocation();
+      const bat = await getBatterySettings();
+      setBatteryPreset(bat.preset);
     } catch (err) {
-      console.error("Error loading supplement settings:", err)
+      console.error("Error loading supplement settings:", err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleSave = async () => {
+  // ---------------------------------------------------------------------
+  // handleSave — split into validation / permissions / persistence /
+  // scheduling / messaging so each function has a single job
+  // ---------------------------------------------------------------------
+
+  const validateForm = (): ValidationResult => {
     if (!timeBasedEnabled && !locationBasedEnabled) {
       alert(
         "Enable a Condition",
         "Please enable at least one reminder type (time or location).",
         [{ text: "OK" }],
         "warning",
-      )
-      return
+      );
+      return { valid: false };
     }
 
     if (locationBasedEnabled && !reminderLocation) {
@@ -140,172 +162,287 @@ export default function SupplementSettingsModal({
         "Please pick a location before enabling location-based reminders.",
         [{ text: "OK" }],
         "warning",
-      )
-      return
+      );
+      return { valid: false };
     }
 
-    const amt = parseFloat(defaultAmount)
+    const amt = parseFloat(defaultAmount);
     if (isNaN(amt) || amt <= 0) {
       alert(
         "Invalid Amount",
         "Please enter a valid default amount.",
         [{ text: "OK" }],
         "error",
-      )
-      return
+      );
+      return { valid: false };
     }
 
-    const notifReady = await initializeSupplementNotifications()
+    return { valid: true, amount: amt };
+  };
+
+  const ensureNotificationPermission = async (): Promise<boolean> => {
+    const notifReady = await initializeSupplementNotifications();
     if (!notifReady) {
       alert(
         "Notifications Required",
         "Please enable notifications for reminders to work.",
         [{ text: "OK" }],
         "warning",
-      )
-      return
+      );
+    }
+    return notifReady;
+  };
+
+  const ensureForegroundLocationPermission = async (): Promise<boolean> => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      alert(
+        "Permission Required",
+        "Location access is needed for location-based reminders.",
+        [{ text: "OK" }],
+        "warning",
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const ensureBackgroundLocationPermission = async (): Promise<boolean> => {
+    if (Platform.OS !== "android") return true;
+    const { status } = await Location.requestBackgroundPermissionsAsync();
+    if (status !== "granted") {
+      alert(
+        "Background Permission Required",
+        "Background location is needed for reminders to work when the app is closed.\n\nSelect 'Allow all the time' in Settings.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+        ],
+        "warning",
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const ensureLocationPermissions = async (): Promise<boolean> => {
+    if (!(await ensureForegroundLocationPermission())) return false;
+    return ensureBackgroundLocationPermission();
+  };
+
+  const ensurePermissions = async (): Promise<boolean> => {
+    if (!(await ensureNotificationPermission())) return false;
+    if (locationBasedEnabled) return ensureLocationPermissions();
+    return true;
+  };
+
+  const formatTimeStr = (date: Date) =>
+    `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+
+  const persistSettings = async (amt: number, timeStr: string) => {
+    await supplementsApi.update(supplement.id, { defaultAmount: amt });
+
+    if (reminderLocation) {
+      await supplementsApi.saveLocation(supplement.id, {
+        lat: reminderLocation.lat,
+        lng: reminderLocation.lng,
+        address: reminderLocation.address,
+        radius: reminderLocation.radius,
+      });
+      await supplementsApi.toggleLocation(supplement.id, locationBasedEnabled);
     }
 
+    await supplementsApi.update(supplement.id, {
+      reminderEnabled: timeBasedEnabled || locationBasedEnabled,
+      reminderTime: timeBasedEnabled ? timeStr : null,
+      locationReminderEnabled: locationBasedEnabled,
+    });
+  };
+
+  const persistLocalCache = async (amt: number, timeStr: string) => {
+    if (!user?.id) return;
+
+    const stored = {
+      timeBasedEnabled,
+      locationBasedReminder: locationBasedEnabled,
+      reminderLocation,
+      reminderTime: timeStr,
+      defaultAmount: amt,
+      notificationType,
+    };
+    await AsyncStorage.setItem(settingsKey(user.id), JSON.stringify(stored));
+
+    await saveSupplementReminderConfig(String(user.id), {
+      supplementId: supplement.id,
+      name: supplement.name,
+      unit: supplement.unit,
+      defaultAmount: amt,
+      locationBasedReminder: locationBasedEnabled,
+      timeBasedEnabled,
+      reminderTime: timeStr,
+      reminderLocation: reminderLocation
+        ? {
+            lat: reminderLocation.lat,
+            lng: reminderLocation.lng,
+            address: reminderLocation.address,
+            radius: reminderLocation.radius,
+          }
+        : null,
+      enabled: true,
+    });
+  };
+
+  const scheduleTimeOnlyReminder = async (amt: number, timeStr: string) => {
+    await cancelTimeReminder(supplement.id);
+    const isReg = await isLocationTaskRegistered();
+    if (isReg) await unregisterLocationTask();
+    const identifier = await scheduleTimeReminder(
+      String(user!.id),
+      supplement.id,
+      supplement.name,
+      amt,
+      supplement.unit,
+      timeStr,
+    );
+    if (!identifier) {
+      alert(
+        "Warning",
+        "Could not schedule the time-based notification. Please try again.",
+        [{ text: "OK" }],
+        "warning",
+      );
+    }
+  };
+
+  const scheduleLocationReminder = async () => {
+    await cancelTimeReminder(supplement.id);
+    const registered = await registerLocationTask();
+    if (!registered) {
+      alert(
+        "Warning",
+        "Location tracking may not work properly. Check permissions.",
+        [{ text: "OK" }],
+        "warning",
+      );
+      return;
+    }
+    await triggerImmediateLocationCheck();
+  };
+
+  const scheduleReminders = async (amt: number, timeStr: string) => {
     if (locationBasedEnabled) {
-      const { status: fg } = await Location.requestForegroundPermissionsAsync()
-      if (fg !== "granted") {
-        alert(
-          "Permission Required",
-          "Location access is needed for location-based reminders.",
-          [{ text: "OK" }],
-          "warning",
-        )
-        return
-      }
-      if (Platform.OS === "android") {
-        const { status: bg } =
-          await Location.requestBackgroundPermissionsAsync()
-        if (bg !== "granted") {
-          alert(
-            "Background Permission Required",
-            "Background location is needed for reminders to work when the app is closed.\n\nSelect 'Allow all the time' in Settings.",
-            [
-              { text: "Cancel", style: "cancel" },
-              { text: "Open Settings", onPress: () => Linking.openSettings() },
-            ],
-            "warning",
-          )
-          return
-        }
-      }
+      await scheduleLocationReminder();
+      return;
     }
+    if (timeBasedEnabled) {
+      await scheduleTimeOnlyReminder(amt, timeStr);
+    }
+  };
 
-    setSaving(true)
+  const buildSuccessMessage = (timeStr: string): string => {
+    const address = reminderLocation?.address || "your location";
+    let msg = `${supplement.name} reminder settings saved!`;
+    if (timeBasedEnabled && !locationBasedEnabled) {
+      msg += ` You'll be reminded daily at ${timeStr}.`;
+    } else if (locationBasedEnabled && !timeBasedEnabled) {
+      msg += ` You'll be reminded when you arrive at ${address}.`;
+    } else {
+      msg += ` You'll be reminded at ${timeStr} when you're at ${address}.`;
+    }
+    return msg;
+  };
+
+  const handleSave = async () => {
+    const validation = validateForm();
+    if (!validation.valid) return;
+
+    if (!(await ensurePermissions())) return;
+
+    setSaving(true);
     try {
-      const timeStr = `${reminderTime.getHours().toString().padStart(2, "0")}:${reminderTime.getMinutes().toString().padStart(2, "0")}`
+      const timeStr = formatTimeStr(reminderTime);
 
-      await supplementsApi.update(supplement.id, { defaultAmount: amt })
+      await persistSettings(validation.amount, timeStr);
+      await persistLocalCache(validation.amount, timeStr);
+      await scheduleReminders(validation.amount, timeStr);
 
-      if (reminderLocation) {
-        await supplementsApi.saveLocation(supplement.id, {
-          lat: reminderLocation.lat,
-          lng: reminderLocation.lng,
-          address: reminderLocation.address,
-          radius: reminderLocation.radius,
-        })
-        await supplementsApi.toggleLocation(supplement.id, locationBasedEnabled)
-      }
-
-      await supplementsApi.update(supplement.id, {
-        reminderEnabled: timeBasedEnabled || locationBasedEnabled,
-        reminderTime: timeBasedEnabled ? timeStr : null,
-        locationReminderEnabled: locationBasedEnabled,
-      })
-
-      if (user?.id) {
-        const stored = {
-          timeBasedEnabled,
-          locationBasedReminder: locationBasedEnabled,
-          reminderLocation,
-          reminderTime: timeStr,
-          defaultAmount: amt,
-          notificationType,
-        }
-        await AsyncStorage.setItem(settingsKey(user.id), JSON.stringify(stored))
-
-        await saveSupplementReminderConfig(String(user.id), {
-          supplementId: supplement.id,
-          name: supplement.name,
-          unit: supplement.unit,
-          defaultAmount: amt,
-          locationBasedReminder: locationBasedEnabled,
-          timeBasedEnabled,
-          reminderTime: timeStr,
-          reminderLocation: reminderLocation
-            ? {
-                lat: reminderLocation.lat,
-                lng: reminderLocation.lng,
-                address: reminderLocation.address,
-                radius: reminderLocation.radius,
-              }
-            : null,
-          enabled: true,
-        })
-      }
-
-      if (timeBasedEnabled && !locationBasedEnabled) {
-        await cancelTimeReminder(supplement.id)
-        const isReg = await isLocationTaskRegistered()
-        if (isReg) await unregisterLocationTask()
-        const identifier = await scheduleTimeReminder(
-          String(user!.id),
-          supplement.id,
-          supplement.name,
-          amt,
-          supplement.unit,
-          timeStr,
-        )
-        if (!identifier) {
-          alert(
-            "Warning",
-            "Could not schedule the time-based notification. Please try again.",
-            [{ text: "OK" }],
-            "warning",
-          )
-        }
-      } else if (locationBasedEnabled) {
-        await cancelTimeReminder(supplement.id)
-        const registered = await registerLocationTask()
-        if (!registered) {
-          alert(
-            "Warning",
-            "Location tracking may not work properly. Check permissions.",
-            [{ text: "OK" }],
-            "warning",
-          )
-        } else {
-          await triggerImmediateLocationCheck()
-        }
-      }
-
-      let msg = `${supplement.name} reminder settings saved!`
-      if (timeBasedEnabled && !locationBasedEnabled)
-        msg += ` You'll be reminded daily at ${timeStr}.`
-      else if (locationBasedEnabled && !timeBasedEnabled)
-        msg += ` You'll be reminded when you arrive at ${reminderLocation?.address || "your location"}.`
-      else
-        msg += ` You'll be reminded at ${timeStr} when you're at ${reminderLocation?.address || "your location"}.`
-
-      alert("✅ Saved", msg, [{ text: "OK" }], "success")
-      onSaved?.()
+      alert(
+        "✅ Saved",
+        buildSuccessMessage(timeStr),
+        [{ text: "OK" }],
+        "success",
+      );
+      onSaved?.();
     } catch (err) {
       alert(
         "Error",
         err instanceof Error ? err.message : "Failed to save settings",
         [{ text: "OK" }],
         "error",
-      )
+      );
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
-  const handleDisable = async () => {
+  // ---------------------------------------------------------------------
+  // handleDisable — split confirmation from the actual disable work
+  // ---------------------------------------------------------------------
+
+  const clearSupplementReminders = async () => {
+    await supplementsApi.update(supplement.id, {
+      reminderEnabled: false,
+      reminderTime: null,
+      locationReminderEnabled: false,
+    });
+    if (reminderLocation) {
+      await supplementsApi.toggleLocation(supplement.id, false);
+    }
+    await cancelTimeReminder(supplement.id);
+    const isReg = await isLocationTaskRegistered();
+    if (isReg) await unregisterLocationTask();
+  };
+
+  const clearLocalDisableState = async () => {
+    if (!user?.id) return;
+    await AsyncStorage.removeItem(settingsKey(user.id));
+    await saveSupplementReminderConfig(String(user.id), {
+      supplementId: supplement.id,
+      name: supplement.name,
+      unit: supplement.unit,
+      defaultAmount: parseFloat(defaultAmount) || supplement.defaultAmount,
+      locationBasedReminder: false,
+      timeBasedEnabled: false,
+      reminderTime: "00:00",
+      reminderLocation: null,
+      enabled: false,
+    });
+  };
+
+  const performDisable = async () => {
+    try {
+      await clearSupplementReminders();
+      await clearLocalDisableState();
+      setTimeBasedEnabled(false);
+      setLocationBasedEnabled(false);
+      alert(
+        "Reminders Disabled",
+        `Reminders for ${supplement.name} have been turned off.`,
+        [{ text: "OK" }],
+        "success",
+      );
+      onSaved?.();
+    } catch (err) {
+      alert(
+        "Error",
+        err instanceof Error ? err.message : "Failed",
+        [{ text: "OK" }],
+        "error",
+      );
+    }
+  };
+
+  const handleDisable = () => {
     alert(
       "Disable Reminders",
       `Turn off all reminders for ${supplement.name}?`,
@@ -314,65 +451,19 @@ export default function SupplementSettingsModal({
         {
           text: "Disable",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await supplementsApi.update(supplement.id, {
-                reminderEnabled: false,
-                reminderTime: null,
-                locationReminderEnabled: false,
-              })
-              if (reminderLocation) {
-                await supplementsApi.toggleLocation(supplement.id, false)
-              }
-              await cancelTimeReminder(supplement.id)
-              const isReg = await isLocationTaskRegistered()
-              if (isReg) await unregisterLocationTask()
-              if (user?.id) {
-                await AsyncStorage.removeItem(settingsKey(user.id))
-
-                await saveSupplementReminderConfig(String(user.id), {
-                  supplementId: supplement.id,
-                  name: supplement.name,
-                  unit: supplement.unit,
-                  defaultAmount:
-                    parseFloat(defaultAmount) || supplement.defaultAmount,
-                  locationBasedReminder: false,
-                  timeBasedEnabled: false,
-                  reminderTime: "00:00",
-                  reminderLocation: null,
-                  enabled: false,
-                })
-              }
-              setTimeBasedEnabled(false)
-              setLocationBasedEnabled(false)
-              alert(
-                "Reminders Disabled",
-                `Reminders for ${supplement.name} have been turned off.`,
-                [{ text: "OK" }],
-                "success",
-              )
-              onSaved?.()
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : "Failed",
-                [{ text: "OK" }],
-                "error",
-              )
-            }
-          },
+          onPress: () => void performDisable(),
         },
       ],
       "warning",
-    )
-  }
+    );
+  };
 
   const handleTimeChange = (_event: unknown, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === "ios")
-    if (selectedDate) setReminderTime(selectedDate)
-  }
+    setShowTimePicker(Platform.OS === "ios");
+    if (selectedDate) setReminderTime(selectedDate);
+  };
 
-  if (!visible) return null
+  if (!visible) return null;
 
   return (
     <ModalSheet
@@ -642,27 +733,27 @@ export default function SupplementSettingsModal({
           visible={showLocationPicker}
           onClose={() => setShowLocationPicker(false)}
           onLocationSelected={async (loc) => {
-            setReminderLocation(loc)
+            setReminderLocation(loc);
             try {
               await supplementsApi.saveLocation(supplement.id, {
                 lat: loc.lat,
                 lng: loc.lng,
                 address: loc.address,
                 radius: loc.radius,
-              })
+              });
               alert(
                 "Location Set",
                 `Location saved: ${loc.address}`,
                 [{ text: "OK" }],
                 "success",
-              )
+              );
             } catch (err) {
               alert(
                 "Error",
                 "Failed to save location",
                 [{ text: "OK" }],
                 "error",
-              )
+              );
             }
           }}
           initialLocation={reminderLocation}
@@ -677,7 +768,7 @@ export default function SupplementSettingsModal({
         {AlertComponent}
       </SafeAreaView>
     </ModalSheet>
-  )
+  );
 }
 
 const makeStyles = (colors: any) =>
@@ -936,4 +1027,4 @@ const makeStyles = (colors: any) =>
       fontWeight: "700",
       color: colors.surface,
     },
-  })
+  });

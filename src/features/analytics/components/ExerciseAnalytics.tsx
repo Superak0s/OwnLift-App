@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,16 +9,16 @@ import {
   TextInput,
   RefreshControl,
   Dimensions,
-} from "react-native"
-import * as Device from "expo-device"
-import UniversalCalendar from "@shared/components/UniversalCalendar"
-import ProgressChart from "@shared/components/ProgressChart"
-import ModalSheet from "@shared/components/ModalSheet"
-import { formatDate as formatDateUtil, formatClockTime } from "@utils/format"
+} from "react-native";
+import * as Device from "expo-device";
+import UniversalCalendar from "@shared/components/UniversalCalendar";
+import ProgressChart from "@shared/components/ProgressChart";
+import ModalSheet from "@shared/components/ModalSheet";
+import { formatDate as formatDateUtil, formatClockTime } from "@utils/format";
 
 interface ChartData {
-  labels: string[]
-  datasets: { data: number[] }[]
+  labels: string[];
+  datasets: { data: number[] }[];
 }
 
 import type {
@@ -26,53 +26,53 @@ import type {
   SetTiming,
   FullSessionWithGroups,
   WidgetInstance,
-} from "@shared/types"
-import { useTheme } from "@shared/context/ThemeContext"
-import type { ThemeColors } from "@shared/context/ThemeContext"
-import { useWidgets } from "@shared/context/hooks/useWidgets"
-import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull"
-import WidgetGallery from "@shared/components/widgets/WidgetGallery"
-import WidgetsPanel from "@shared/components/widgets/WidgetsPanel"
+} from "@shared/types";
+import { useTheme } from "@shared/context/ThemeContext";
+import type { ThemeColors } from "@shared/context/ThemeContext";
+import { useWidgets } from "@shared/context/hooks/useWidgets";
+import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull";
+import WidgetGallery from "@shared/components/widgets/WidgetGallery";
+import WidgetsPanel from "@shared/components/widgets/WidgetsPanel";
 import {
   ANALYTICS_WIDGET_REGISTRY,
   DEFAULT_ANALYTICS_WIDGETS,
   ANALYTICS_WIDGETS_STORAGE_KEY,
   type AnalyticsWidgetType,
-} from "../widgets"
+} from "../widgets";
 
 import type {
   CompletedDays,
   ExerciseMeta,
   ExerciseHistoryEntry,
   ExerciseStats,
-} from "../types"
+} from "../types";
 
-const { width: screenWidth } = Dimensions.get("window")
+const { width: screenWidth } = Dimensions.get("window");
 // Extra horizontal padding a chart eats once it's nested inside a widget
 // card (the card itself pads 14 on each side) on top of the outer content
 // padding already subtracted from containerWidth.
-const WIDGET_CARD_PADDING = 28
+const WIDGET_CARD_PADDING = 28;
 
 type Session = Pick<
   FullSessionWithGroups,
   "day_number" | "start_time" | "set_timings"
->
+>;
 
 interface ExerciseAnalyticsProps {
-  sessions?: Session[]
-  workoutData?: WorkoutData | null
-  selectedSplit?: string | null
-  completedDays?: CompletedDays
-  currentBodyWeight?: number | null
-  isDemoMode?: boolean
-  onRefresh?: (() => void) | null
-  refreshing?: boolean
-  title?: string
-  currentSessionId?: string | null
-  isLoading?: boolean
-  error?: string | null
+  sessions?: Session[];
+  workoutData?: WorkoutData | null;
+  selectedSplit?: string | null;
+  completedDays?: CompletedDays;
+  currentBodyWeight?: number | null;
+  isDemoMode?: boolean;
+  onRefresh?: (() => void) | null;
+  refreshing?: boolean;
+  title?: string;
+  currentSessionId?: string | null;
+  isLoading?: boolean;
+  error?: string | null;
   /** Used to key widget layout persistence per-user, same as HomeScreen. */
-  userId?: string | number | null
+  userId?: string | number | null;
 }
 
 export default function ExerciseAnalytics({
@@ -90,26 +90,26 @@ export default function ExerciseAnalytics({
   error = null,
   userId = null,
 }: ExerciseAnalyticsProps) {
-  const { colors } = useTheme()
-  const styles = makeStyles(colors)
-  const [selectedExercise, setSelectedExercise] = useState<string | null>(null)
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
+  const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
   const [exerciseData, setExerciseData] = useState<
     ExerciseHistoryEntry[] | null
-  >(null)
-  const [loading, setLoading] = useState(false)
+  >(null);
+  const [loading, setLoading] = useState(false);
   const [availableExercises, setAvailableExercises] = useState<ExerciseMeta[]>(
     [],
-  )
-  const [showDropdown, setShowDropdown] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [showZeroSetExercises, setShowZeroSetExercises] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [showDateSets, setShowDateSets] = useState(false)
-  const hasAutoSelected = useRef(false)
-  const [containerWidth, setContainerWidth] = useState(0)
-  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false)
-  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false)
-  const isEmulator = !Device.isDevice
+  );
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showZeroSetExercises, setShowZeroSetExercises] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showDateSets, setShowDateSets] = useState(false);
+  const hasAutoSelected = useRef(false);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
+  const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
+  const isEmulator = !Device.isDevice;
 
   // ─── Widgets ────────────────────────────────────────────────────────────
   const {
@@ -124,84 +124,84 @@ export default function ExerciseAnalytics({
     registry: ANALYTICS_WIDGET_REGISTRY,
     defaults: DEFAULT_ANALYTICS_WIDGETS,
     storageKey: ANALYTICS_WIDGETS_STORAGE_KEY,
-  })
+  });
 
   // Two-finger pull brings up the "deploy" panel for adding widgets. To
   // rearrange, resize, or remove widgets already on the screen, open that
   // same panel and tap "Edit Widgets" — it closes the panel and switches
   // this screen into edit mode.
   const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
-    setShowWidgetGallery(true)
-  })
+    setShowWidgetGallery(true);
+  });
 
   const handleEditWidgets = () => {
-    setShowWidgetGallery(false)
-    setWidgetEditMode(true)
-  }
+    setShowWidgetGallery(false);
+    setWidgetEditMode(true);
+  };
 
   const handleAddWidget = async (type: Parameters<typeof addWidget>[0]) => {
-    const result = await addWidget(type)
+    const result = await addWidget(type);
     if (!result.success && result.error) {
       // Widget-gallery failures are quiet by design here (no alert plumbing
       // in this component) — the gallery just stays open.
-      console.error("Can't add widget:", result.error)
-      return
+      console.error("Can't add widget:", result.error);
+      return;
     }
-    setShowWidgetGallery(false)
-  }
+    setShowWidgetGallery(false);
+  };
 
   useEffect(() => {
-    loadAvailableExercises()
-  }, [sessions, workoutData, selectedSplit, completedDays])
+    loadAvailableExercises();
+  }, [sessions, workoutData, selectedSplit, completedDays]);
   useEffect(() => {
-    hasAutoSelected.current = false
-  }, [selectedSplit, sessions])
+    hasAutoSelected.current = false;
+  }, [selectedSplit, sessions]);
   useEffect(() => {
-    if (selectedExercise) loadExerciseData()
-  }, [selectedExercise, completedDays, sessions])
+    if (selectedExercise) loadExerciseData();
+  }, [selectedExercise, completedDays, sessions]);
 
   const fmt = (value?: number | null): string => {
-    const n = parseFloat(String(value ?? 0))
-    if (!isFinite(n)) return "0"
-    return parseFloat(n.toFixed(2)).toString()
-  }
+    const n = parseFloat(String(value ?? 0));
+    if (!isFinite(n)) return "0";
+    return parseFloat(n.toFixed(2)).toString();
+  };
 
   const resolveExerciseName = useCallback(
     (timing: SetTiming, session: Session): string => {
-      if (timing.exercise_name?.trim()) return timing.exercise_name.trim()
+      if (timing.exercise_name?.trim()) return timing.exercise_name.trim();
 
       if (workoutData?.days && selectedSplit && timing.exercise_index != null) {
         const day = workoutData.days.find(
           (d) => d.dayNumber === session.day_number,
-        )
+        );
         const exercise =
-          day?.split?.[selectedSplit]?.exercises?.[timing.exercise_index]
+          day?.split?.[selectedSplit]?.exercises?.[timing.exercise_index];
         if (exercise) {
-          const ex = exercise as { machineName?: string; name: string }
-          return ex.machineName ?? ex.name
+          const ex = exercise as { machineName?: string; name: string };
+          return ex.machineName ?? ex.name;
         }
       }
 
       return timing.exercise_index != null
         ? `Exercise ${timing.exercise_index + 1}`
-        : "Unknown Exercise"
+        : "Unknown Exercise";
     },
     [workoutData, selectedSplit],
-  )
+  );
 
   const loadAvailableExercises = () => {
-    const exercisesMap = new Map<string, ExerciseMeta>()
+    const exercisesMap = new Map<string, ExerciseMeta>();
 
     if (workoutData?.days && selectedSplit) {
       workoutData.days.forEach((day) => {
-        const splitWorkout = day.split?.[selectedSplit]
-        ;(splitWorkout?.exercises ?? []).forEach((exercise, exerciseIndex) => {
+        const splitWorkout = day.split?.[selectedSplit];
+        (splitWorkout?.exercises ?? []).forEach((exercise, exerciseIndex) => {
           const ex = exercise as {
-            machineName?: string
-            name: string
-            muscleGroup?: string
-          }
-          const key = ex.machineName ?? ex.name
+            machineName?: string;
+            name: string;
+            muscleGroup?: string;
+          };
+          const key = ex.machineName ?? ex.name;
           if (!exercisesMap.has(key)) {
             exercisesMap.set(key, {
               name: key,
@@ -210,21 +210,21 @@ export default function ExerciseAnalytics({
               muscleGroup: ex.muscleGroup ?? null,
               days: [],
               totalSets: 0,
-            })
+            });
           }
-          const data = exercisesMap.get(key)!
-          data.days.push({ dayNumber: day.dayNumber, exerciseIndex })
+          const data = exercisesMap.get(key)!;
+          data.days.push({ dayNumber: day.dayNumber, exerciseIndex });
 
-          const daySets = completedDays[day.dayNumber]?.[exerciseIndex]
-          if (daySets) data.totalSets += Object.keys(daySets).length
-        })
-      })
+          const daySets = completedDays[day.dayNumber]?.[exerciseIndex];
+          if (daySets) data.totalSets += Object.keys(daySets).length;
+        });
+      });
     }
 
     sessions.forEach((session) => {
-      if (!session.set_timings) return
+      if (!session.set_timings) return;
       session.set_timings.forEach((timing) => {
-        const key = resolveExerciseName(timing, session)
+        const key = resolveExerciseName(timing, session);
         if (!exercisesMap.has(key)) {
           exercisesMap.set(key, {
             name: key,
@@ -233,28 +233,28 @@ export default function ExerciseAnalytics({
             muscleGroup: timing.exercise_muscle_group ?? null,
             days: [],
             totalSets: 0,
-          })
+          });
         }
-        exercisesMap.get(key)!.totalSets++
-      })
-    })
+        exercisesMap.get(key)!.totalSets++;
+      });
+    });
 
     const exercises = Array.from(exercisesMap.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
-    )
-    setAvailableExercises(exercises)
+    );
+    setAvailableExercises(exercises);
 
     if (exercises.length > 0 && !hasAutoSelected.current) {
-      hasAutoSelected.current = true
-      const firstWithData = exercises.find((e) => e.totalSets > 0)
-      setSelectedExercise(firstWithData?.name ?? exercises[0]?.name ?? null)
+      hasAutoSelected.current = true;
+      const firstWithData = exercises.find((e) => e.totalSets > 0);
+      setSelectedExercise(firstWithData?.name ?? exercises[0]?.name ?? null);
     }
-  }
+  };
 
   const generateDemoData = (exerciseName: string): ExerciseHistoryEntry[] => {
-    const demoData: ExerciseHistoryEntry[] = []
-    const today = new Date()
-    const lower = exerciseName.toLowerCase()
+    const demoData: ExerciseHistoryEntry[] = [];
+    const today = new Date();
+    const lower = exerciseName.toLowerCase();
     const baseWeight = lower.includes("bench")
       ? 60
       : lower.includes("squat")
@@ -263,20 +263,20 @@ export default function ExerciseAnalytics({
           ? 100
           : lower.includes("press")
             ? 40
-            : 50
+            : 50;
 
     for (let week = 0; week < 4; week++) {
       for (let session = 0; session < 3; session++) {
-        const daysAgo = (3 - week) * 7 + (2 - session) * 2
-        const workoutDate = new Date(today)
-        workoutDate.setDate(today.getDate() - daysAgo)
-        const weeklyIncrease = week * 2.5
-        const sessionVariation = (Math.random() - 0.5) * 2.5
-        const numSets = 3 + Math.floor(Math.random() * 2)
+        const daysAgo = (3 - week) * 7 + (2 - session) * 2;
+        const workoutDate = new Date(today);
+        workoutDate.setDate(today.getDate() - daysAgo);
+        const weeklyIncrease = week * 2.5;
+        const sessionVariation = (Math.random() - 0.5) * 2.5;
+        const numSets = 3 + Math.floor(Math.random() * 2);
 
         for (let set = 0; set < numSets; set++) {
-          const weight = baseWeight + weeklyIncrease + sessionVariation
-          const reps = Math.max(8, 10 + Math.floor(Math.random() * 3) - 1)
+          const weight = baseWeight + weeklyIncrease + sessionVariation;
+          const reps = Math.max(8, 10 + Math.floor(Math.random() * 3) - 1);
           demoData.push({
             date: new Date(workoutDate.getTime() + set * 1000 * 180),
             weight: Math.round(weight * 2) / 2,
@@ -286,202 +286,237 @@ export default function ExerciseAnalytics({
             setNumber: set + 1,
             source: "demo",
             isAssisted: false,
-          })
+          });
         }
       }
     }
-    return demoData
-  }
+    return demoData;
+  };
+
+  // isAssisted / volume are shared by both the "server" (sessions) and
+  // "local" (completedDays) history sources below.
+  const resolveIsAssisted = (
+    exerciseIndex: number | null | undefined,
+    dayNumber: number,
+  ): boolean => {
+    if (!workoutData?.days || !selectedSplit || exerciseIndex == null)
+      return false;
+    const day = workoutData.days.find((d) => d.dayNumber === dayNumber);
+    const exercise = day?.split?.[selectedSplit]?.exercises?.[exerciseIndex];
+    if (!exercise) return false;
+    const ex = exercise as { name: string };
+    return ex.name.toLowerCase().includes("assisted");
+  };
+
+  const computeVolume = (
+    isAssisted: boolean,
+    weight: number,
+    reps: number,
+  ): number =>
+    isAssisted && currentBodyWeight
+      ? (currentBodyWeight - weight) * reps
+      : weight * reps;
+
+  // ─── History source 1: live server sessions ────────────────────────────
+  const buildHistoryEntryFromTiming = (
+    timing: SetTiming,
+    session: Session,
+  ): ExerciseHistoryEntry | null => {
+    if (resolveExerciseName(timing, session) !== selectedExercise) return null;
+
+    const isAssisted = resolveIsAssisted(
+      timing.exercise_index,
+      session.day_number ?? 0,
+    );
+    const rawWeight = timing.weight ?? 0;
+    const rawReps = timing.reps ?? 0;
+    const volume = computeVolume(isAssisted, rawWeight, rawReps);
+
+    return {
+      date: new Date(timing.end_time ?? session.start_time ?? Date.now()),
+      weight: isFinite(rawWeight) ? rawWeight : 0,
+      reps: isFinite(rawReps) ? rawReps : 0,
+      volume: isFinite(volume) ? volume : 0,
+      dayNumber: session.day_number ?? 0,
+      setNumber: (timing.set_index ?? 0) + 1,
+      source: "server",
+      isAssisted,
+    };
+  };
+
+  const buildHistoryFromSessions = (): ExerciseHistoryEntry[] =>
+    sessions.flatMap((session) =>
+      (session.set_timings ?? [])
+        .map((timing) => buildHistoryEntryFromTiming(timing, session))
+        .filter((entry): entry is ExerciseHistoryEntry => entry !== null),
+    );
+
+  // ─── History source 2: locally-completed (not yet synced) sets ────────
+  const buildHistoryFromCompletedSet = (
+    exercise: { name: string },
+    exerciseSets: NonNullable<CompletedDays[number]>[number],
+    dayNumber: number,
+  ): ExerciseHistoryEntry[] => {
+    const isAssisted = exercise.name.toLowerCase().includes("assisted");
+    return Object.keys(exerciseSets)
+      .filter((setIndex) => exerciseSets[setIndex as unknown as number])
+      .map((setIndex) => {
+        const setData = exerciseSets[setIndex as unknown as number]!;
+        const rawWeight = setData.weight ?? 0;
+        const rawReps = setData.reps ?? 0;
+        const volume = computeVolume(isAssisted, rawWeight, rawReps);
+        return {
+          date: new Date(setData.completedAt ?? Date.now()),
+          weight: isFinite(rawWeight) ? rawWeight : 0,
+          reps: isFinite(rawReps) ? rawReps : 0,
+          volume: isFinite(volume) ? volume : 0,
+          dayNumber,
+          setNumber: parseInt(setIndex) + 1,
+          source: "local",
+          isAssisted,
+        };
+      });
+  };
+
+  const buildHistoryFromDay = (dayNumber: number): ExerciseHistoryEntry[] => {
+    const day = workoutData?.days?.find((d) => d.dayNumber === dayNumber);
+    const splitWorkout = day?.split?.[selectedSplit ?? ""];
+    if (!splitWorkout?.exercises) return [];
+
+    return splitWorkout.exercises.flatMap((exercise, exerciseIndex) => {
+      const ex = exercise as { machineName?: string; name: string };
+      if ((ex.machineName ?? ex.name) !== selectedExercise) return [];
+      const exerciseSets = completedDays[dayNumber]?.[exerciseIndex];
+      if (!exerciseSets) return [];
+      return buildHistoryFromCompletedSet(ex, exerciseSets, dayNumber);
+    });
+  };
+
+  const buildHistoryFromCompletedDays = (): ExerciseHistoryEntry[] => {
+    if (
+      !workoutData?.days ||
+      !selectedSplit ||
+      Object.keys(completedDays).length === 0
+    )
+      return [];
+
+    return Object.keys(completedDays).flatMap((dayNumber) =>
+      buildHistoryFromDay(parseInt(dayNumber)),
+    );
+  };
+
+  // ─── Merge + dedupe: server entries win over local ones for the same set ─
+  const dedupeHistory = (
+    entries: ExerciseHistoryEntry[],
+  ): ExerciseHistoryEntry[] => {
+    const sorted = [...entries].sort(
+      (a, b) => a.date.getTime() - b.date.getTime(),
+    );
+    const uniqueHistory: ExerciseHistoryEntry[] = [];
+    const seen = new Map<string, ExerciseHistoryEntry>();
+
+    sorted.forEach((entry) => {
+      const key = `${entry.date.getTime()}-${entry.dayNumber}-${entry.setNumber}`;
+      const existing = seen.get(key);
+      if (!existing) {
+        seen.set(key, entry);
+        uniqueHistory.push(entry);
+        return;
+      }
+      if (entry.source === "server" && existing.source === "local") {
+        uniqueHistory[uniqueHistory.indexOf(existing)] = entry;
+        seen.set(key, entry);
+      }
+    });
+
+    return uniqueHistory;
+  };
 
   const loadExerciseData = () => {
-    if (!selectedExercise) return
-    setLoading(true)
+    if (!selectedExercise) return;
+    setLoading(true);
     try {
-      const exerciseHistory: ExerciseHistoryEntry[] = []
-
-      sessions.forEach((session) => {
-        if (!session.set_timings?.length) return
-        session.set_timings.forEach((timing) => {
-          if (resolveExerciseName(timing, session) !== selectedExercise) return
-
-          let isAssisted = false
-          if (
-            workoutData?.days &&
-            selectedSplit &&
-            timing.exercise_index != null
-          ) {
-            const day = workoutData.days.find(
-              (d) => d.dayNumber === session.day_number,
-            )
-            const exercise =
-              day?.split?.[selectedSplit]?.exercises?.[timing.exercise_index]
-            if (exercise) {
-              const ex = exercise as { name: string }
-              isAssisted = ex.name.toLowerCase().includes("assisted")
-            }
-          }
-
-          const rawWeight = timing.weight ?? 0
-          const rawReps = timing.reps ?? 0
-          const volume =
-            isAssisted && currentBodyWeight
-              ? (currentBodyWeight - rawWeight) * rawReps
-              : rawWeight * rawReps
-
-          exerciseHistory.push({
-            date: new Date(timing.end_time ?? session.start_time ?? Date.now()),
-            weight: isFinite(rawWeight) ? rawWeight : 0,
-            reps: isFinite(rawReps) ? rawReps : 0,
-            volume: isFinite(volume) ? volume : 0,
-            dayNumber: session.day_number ?? 0,
-            setNumber: (timing.set_index ?? 0) + 1,
-            source: "server",
-            isAssisted,
-          })
-        })
-      })
-
-      if (
-        workoutData?.days &&
-        selectedSplit &&
-        Object.keys(completedDays).length > 0
-      ) {
-        Object.keys(completedDays).forEach((dayNumber) => {
-          const day = workoutData.days!.find(
-            (d) => d.dayNumber === parseInt(dayNumber),
-          )
-          if (!day) return
-          const splitWorkout = day.split?.[selectedSplit]
-          if (!splitWorkout?.exercises) return
-
-          splitWorkout.exercises.forEach((exercise, exerciseIndex) => {
-            const ex = exercise as { machineName?: string; name: string }
-            const exerciseName = ex.machineName ?? ex.name
-            if (exerciseName !== selectedExercise) return
-            const isAssisted = ex.name.toLowerCase().includes("assisted")
-            const exerciseSets = completedDays[dayNumber as unknown as number]?.[exerciseIndex]
-            if (!exerciseSets) return
-
-            Object.keys(exerciseSets).forEach((setIndex) => {
-              const setData = exerciseSets[setIndex as unknown as number]
-              if (!setData) return
-              const rawWeight = setData.weight ?? 0
-              const rawReps = setData.reps ?? 0
-              const volume =
-                isAssisted && currentBodyWeight
-                  ? (currentBodyWeight - rawWeight) * rawReps
-                  : rawWeight * rawReps
-
-              exerciseHistory.push({
-                date: new Date(setData.completedAt ?? Date.now()),
-                weight: isFinite(rawWeight) ? rawWeight : 0,
-                reps: isFinite(rawReps) ? rawReps : 0,
-                volume: isFinite(volume) ? volume : 0,
-                dayNumber: parseInt(dayNumber),
-                setNumber: parseInt(setIndex) + 1,
-                source: "local",
-                isAssisted,
-              })
-            })
-          })
-        })
-      }
+      let exerciseHistory = [
+        ...buildHistoryFromSessions(),
+        ...buildHistoryFromCompletedDays(),
+      ];
 
       if (isDemoMode && exerciseHistory.length === 0) {
-        exerciseHistory.push(...generateDemoData(selectedExercise))
+        exerciseHistory = generateDemoData(selectedExercise);
       }
 
-      exerciseHistory.sort((a, b) => a.date.getTime() - b.date.getTime())
-
-      const uniqueHistory: ExerciseHistoryEntry[] = []
-      const seen = new Map<string, ExerciseHistoryEntry>()
-      exerciseHistory.forEach((entry) => {
-        const key = `${entry.date.getTime()}-${entry.dayNumber}-${entry.setNumber}`
-        if (!seen.has(key)) {
-          seen.set(key, entry)
-          uniqueHistory.push(entry)
-        } else {
-          const existing = seen.get(key)!
-          if (entry.source === "server" && existing.source === "local") {
-            const index = uniqueHistory.indexOf(existing)
-            uniqueHistory[index] = entry
-            seen.set(key, entry)
-          }
-        }
-      })
-
-      setExerciseData(uniqueHistory)
+      setExerciseData(dedupeHistory(exerciseHistory));
     } catch (error) {
-      console.error("Error loading exercise data:", error)
+      console.error("Error loading exercise data:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getChartData = (metric: "weight" | "volume" | "reps"): ChartData => {
     if (!exerciseData?.length) {
-      return { labels: ["No data"], datasets: [{ data: [0] }] }
+      return { labels: ["No data"], datasets: [{ data: [0] }] };
     }
 
     const sessionMap = new Map<
       string,
       { date: Date; weights: number[]; reps: number[]; volumes: number[] }
-    >()
+    >();
     exerciseData.forEach((entry) => {
-      const dateKey = entry.date.toLocaleDateString()
+      const dateKey = entry.date.toLocaleDateString();
       if (!sessionMap.has(dateKey)) {
         sessionMap.set(dateKey, {
           date: entry.date,
           weights: [],
           reps: [],
           volumes: [],
-        })
+        });
       }
-      const s = sessionMap.get(dateKey)!
-      s.weights.push(isFinite(entry.weight) ? entry.weight : 0)
-      s.reps.push(isFinite(entry.reps) ? entry.reps : 0)
-      s.volumes.push(isFinite(entry.volume) ? entry.volume : 0)
-    })
+      const s = sessionMap.get(dateKey)!;
+      s.weights.push(isFinite(entry.weight) ? entry.weight : 0);
+      s.reps.push(isFinite(entry.reps) ? entry.reps : 0);
+      s.volumes.push(isFinite(entry.volume) ? entry.volume : 0);
+    });
 
     const chartSessions = Array.from(sessionMap.values()).sort(
       (a, b) => a.date.getTime() - b.date.getTime(),
-    )
+    );
     if (!chartSessions.length)
-      return { labels: ["No data"], datasets: [{ data: [0] }] }
+      return { labels: ["No data"], datasets: [{ data: [0] }] };
 
-    const maxLabels = 8
-    const labelInterval = Math.ceil(chartSessions.length / maxLabels)
+    const maxLabels = 8;
+    const labelInterval = Math.ceil(chartSessions.length / maxLabels);
     const labels = chartSessions.map((s, index) =>
       chartSessions.length <= maxLabels || index % labelInterval === 0
         ? s.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
         : "",
-    )
+    );
 
-    let data: number[]
+    let data: number[];
     if (metric === "weight") {
       data = chartSessions.map((s) => {
-        if (!s.weights.length) return 0
-        const avg = s.weights.reduce((sum, w) => sum + w, 0) / s.weights.length
-        return isFinite(avg) ? Math.round(avg * 10) / 10 : 0
-      })
+        if (!s.weights.length) return 0;
+        const avg = s.weights.reduce((sum, w) => sum + w, 0) / s.weights.length;
+        return isFinite(avg) ? Math.round(avg * 10) / 10 : 0;
+      });
     } else if (metric === "volume") {
       data = chartSessions.map((s) => {
-        const total = s.volumes.reduce((sum, v) => sum + v, 0)
-        return isFinite(total) ? Math.round(total * 10) / 10 : 0
-      })
+        const total = s.volumes.reduce((sum, v) => sum + v, 0);
+        return isFinite(total) ? Math.round(total * 10) / 10 : 0;
+      });
     } else {
       data = chartSessions.map((s) => {
-        if (!s.reps.length) return 0
-        const avg = s.reps.reduce((sum, r) => sum + r, 0) / s.reps.length
-        return isFinite(avg) ? Math.round(avg * 10) / 10 : 0
-      })
+        if (!s.reps.length) return 0;
+        const avg = s.reps.reduce((sum, r) => sum + r, 0) / s.reps.length;
+        return isFinite(avg) ? Math.round(avg * 10) / 10 : 0;
+      });
     }
 
     return {
       labels: labels.length > 0 ? labels : [""],
       datasets: [{ data: data.map((v) => (isFinite(v) ? v : 0)) }],
-    }
-  }
+    };
+  };
 
   const getStats = (): ExerciseStats => {
     const empty: ExerciseStats = {
@@ -495,19 +530,23 @@ export default function ExerciseAnalytics({
       totalVolume: 0,
       lastWorkout: null,
       isAssisted: false,
-    }
-    if (!exerciseData?.length) return empty
+    };
+    if (!exerciseData?.length) return empty;
 
-    const isAssisted = exerciseData[0]?.isAssisted ?? false
+    const isAssisted = exerciseData[0]?.isAssisted ?? false;
     const sessionDates = new Set(
       exerciseData.map((e) => e.date.toLocaleDateString()),
-    )
-    const weights = exerciseData.map((e) => (isFinite(e.weight) ? e.weight : 0))
-    const reps = exerciseData.map((e) => (isFinite(e.reps) ? e.reps : 0))
-    const volumes = exerciseData.map((e) => (isFinite(e.volume) ? e.volume : 0))
-    const totalVolume = volumes.reduce((sum, v) => sum + v, 0)
-    const avgWeight = weights.reduce((sum, w) => sum + w, 0) / weights.length
-    const avgReps = reps.reduce((sum, r) => sum + r, 0) / reps.length
+    );
+    const weights = exerciseData.map((e) =>
+      isFinite(e.weight) ? e.weight : 0,
+    );
+    const reps = exerciseData.map((e) => (isFinite(e.reps) ? e.reps : 0));
+    const volumes = exerciseData.map((e) =>
+      isFinite(e.volume) ? e.volume : 0,
+    );
+    const totalVolume = volumes.reduce((sum, v) => sum + v, 0);
+    const avgWeight = weights.reduce((sum, w) => sum + w, 0) / weights.length;
+    const avgReps = reps.reduce((sum, r) => sum + r, 0) / reps.length;
 
     return {
       totalSets: exerciseData.length,
@@ -520,28 +559,29 @@ export default function ExerciseAnalytics({
       totalVolume: isFinite(totalVolume) ? Math.round(totalVolume) : 0,
       lastWorkout: exerciseData[exerciseData.length - 1]?.date ?? null,
       isAssisted,
-    }
-  }
+    };
+  };
 
   const getSetsForDate = (date: Date): ExerciseHistoryEntry[] => {
-    if (!exerciseData) return []
-    const target = new Date(date)
-    target.setHours(0, 0, 0, 0)
+    if (!exerciseData) return [];
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
     return exerciseData.filter((set) => {
-      const setDate = new Date(set.date)
-      setDate.setHours(0, 0, 0, 0)
-      return setDate.getTime() === target.getTime()
-    })
-  }
+      const setDate = new Date(set.date);
+      setDate.setHours(0, 0, 0, 0);
+      return setDate.getTime() === target.getTime();
+    });
+  };
 
-  const hasSetsOnDate = (date: Date): boolean => getSetsForDate(date).length > 0
+  const hasSetsOnDate = (date: Date): boolean =>
+    getSetsForDate(date).length > 0;
 
   const handleDatePress = (date: Date) => {
     if (getSetsForDate(date).length > 0) {
-      setSelectedDate(date)
-      setShowDateSets(true)
+      setSelectedDate(date);
+      setShowDateSets(true);
     }
-  }
+  };
 
   const formatDate = (date: Date): string =>
     formatDateUtil(date, {
@@ -549,9 +589,9 @@ export default function ExerciseAnalytics({
       month: "long",
       day: "numeric",
       year: "numeric",
-    })
+    });
 
-  const formatTime = (date: Date): string => formatClockTime(date)
+  const formatTime = (date: Date): string => formatClockTime(date);
 
   const filteredExercises = availableExercises.filter((exercise) => {
     const matchesSearch =
@@ -560,260 +600,264 @@ export default function ExerciseAnalytics({
       (exercise.muscleGroup
         ?.toLowerCase()
         .includes(searchQuery.toLowerCase()) ??
-        false)
-    const hasData = exercise.totalSets > 0 || showZeroSetExercises
-    return matchesSearch && hasData
-  })
+        false);
+    const hasData = exercise.totalSets > 0 || showZeroSetExercises;
+    return matchesSearch && hasData;
+  });
 
   const selectedExerciseMeta = availableExercises.find(
     (e) => e.name === selectedExercise,
-  )
-  const chartWidth = (containerWidth || screenWidth - 40) - WIDGET_CARD_PADDING
+  );
+  const chartWidth = (containerWidth || screenWidth - 40) - WIDGET_CARD_PADDING;
+
+  const renderSelectExerciseWidget = (): React.ReactNode => (
+    <View>
+      {selectedExercise &&
+        selectedExerciseMeta?.name.toLowerCase().includes("assisted") &&
+        !currentBodyWeight && (
+          <View style={styles.warningBanner}>
+            <Text style={styles.warningIcon}>⚠️</Text>
+            <View style={styles.warningTextContainer}>
+              <Text style={styles.warningTitle}>Body Weight Required</Text>
+              <Text style={styles.warningText}>
+                Body weight needed for accurate assisted exercise calculations
+              </Text>
+            </View>
+          </View>
+        )}
+      <TouchableOpacity
+        style={styles.dropdownButton}
+        onPress={() => setShowDropdown(true)}
+      >
+        <View style={styles.dropdownButtonContent}>
+          <View style={styles.dropdownButtonLeft}>
+            <Text style={styles.dropdownButtonText}>
+              {selectedExercise ?? "Select an exercise"}
+            </Text>
+            {selectedExercise && selectedExerciseMeta?.muscleGroup && (
+              <Text style={styles.dropdownButtonSubtext}>
+                {selectedExerciseMeta.muscleGroup}
+              </Text>
+            )}
+          </View>
+          <Text style={styles.dropdownArrow}>▼</Text>
+        </View>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderSetDataWidget = (): React.ReactNode => {
+    if (!selectedExercise) {
+      return (
+        <Text style={styles.widgetLineMuted}>
+          Select an exercise to see its stats here.
+        </Text>
+      );
+    }
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size='large' color={colors.accent} />
+          <Text style={styles.loadingText}>Loading data...</Text>
+        </View>
+      );
+    }
+    if (!exerciseData || exerciseData.length === 0) {
+      return (
+        <View style={styles.noDataContainer}>
+          <Text style={styles.noDataIcon}>📭</Text>
+          <Text style={styles.noDataTitle}>No Data Yet</Text>
+          <Text style={styles.noDataText}>
+            No completed sets for "{selectedExercise}"
+          </Text>
+        </View>
+      );
+    }
+    const s = getStats();
+    return (
+      <View>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{s.totalSets}</Text>
+            <Text style={styles.statLabel}>Total Sets</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{s.totalWorkouts}</Text>
+            <Text style={styles.statLabel}>Workouts</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{fmt(s.extremeWeight)}kg</Text>
+            <Text style={styles.statLabel}>{s.extremeWeightLabel}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{s.maxReps}</Text>
+            <Text style={styles.statLabel}>Max Reps</Text>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.statCardWide}>
+            <Text style={styles.statValueSmall}>{fmt(s.avgWeight)}kg</Text>
+            <Text style={styles.statLabel}>Avg Weight</Text>
+          </View>
+          <View style={styles.statCardWide}>
+            <Text style={styles.statValueSmall}>{fmt(s.avgReps)}</Text>
+            <Text style={styles.statLabel}>Avg Reps</Text>
+          </View>
+          <View style={styles.statCardWide}>
+            <Text style={styles.statValueSmall}>{fmt(s.totalVolume)}kg</Text>
+            <Text style={styles.statLabel}>Total Volume</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const renderLastWorkoutWidget = (): React.ReactNode => {
+    if (!selectedExercise) {
+      return (
+        <Text style={styles.widgetLineMuted}>
+          Select an exercise to see your last workout.
+        </Text>
+      );
+    }
+    if (loading) {
+      return (
+        <View style={styles.streakLoading}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      );
+    }
+    const s = getStats();
+    if (!s.lastWorkout) {
+      return (
+        <Text style={styles.widgetLineMuted}>
+          No workouts logged yet for "{selectedExercise}".
+        </Text>
+      );
+    }
+    return (
+      <View style={styles.lastWorkoutCardWidget}>
+        <Text style={styles.lastWorkoutDate}>
+          {s.lastWorkout.toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderWorkoutHistoryWidget = (): React.ReactNode => {
+    if (!selectedExercise) {
+      return (
+        <Text style={styles.widgetLineMuted}>
+          Select an exercise to see its history here.
+        </Text>
+      );
+    }
+    if (loading) {
+      return (
+        <View style={styles.calendarLoading}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      );
+    }
+    if (!exerciseData || exerciseData.length === 0) {
+      return (
+        <Text style={styles.widgetLineMuted}>
+          No completed sets to show on the calendar yet.
+        </Text>
+      );
+    }
+    return (
+      <UniversalCalendar
+        hasDataOnDate={hasSetsOnDate}
+        onDatePress={handleDatePress}
+        initialView='week'
+        legendText={`Workout day for ${selectedExercise}`}
+        dotColor={colors.success}
+      />
+    );
+  };
+
+  // weight/volume/reps progress widgets only differ by title, icon, metric
+  // key, and y-axis suffix — driven off one small config table instead of
+  // three near-identical case bodies.
+  type ProgressWidgetType =
+    | "weight_progress"
+    | "volume_progress"
+    | "reps_progress";
+  const PROGRESS_WIDGET_CONFIG: Record<
+    ProgressWidgetType,
+    {
+      title: string;
+      icon: string;
+      metric: "weight" | "volume" | "reps";
+      yAxisSuffix?: string;
+      emptyText: string;
+    }
+  > = {
+    weight_progress: {
+      title: "Weight Progress (kg)",
+      icon: "💪",
+      metric: "weight",
+      yAxisSuffix: "kg",
+      emptyText: "No data yet to chart weight progress.",
+    },
+    volume_progress: {
+      title: "Volume Progress (kg)",
+      icon: "📦",
+      metric: "volume",
+      yAxisSuffix: "kg",
+      emptyText: "No data yet to chart volume progress.",
+    },
+    reps_progress: {
+      title: "Reps Progress",
+      icon: "🔢",
+      metric: "reps",
+      emptyText: "No data yet to chart reps progress.",
+    },
+  };
+
+  const renderProgressWidget = (type: ProgressWidgetType): React.ReactNode => {
+    const config = PROGRESS_WIDGET_CONFIG[type];
+    if (!selectedExercise || !exerciseData?.length) {
+      return <Text style={styles.widgetLineMuted}>{config.emptyText}</Text>;
+    }
+    return (
+      <ProgressChart
+        title={config.title}
+        icon={config.icon}
+        data={getChartData(config.metric)}
+        yAxisSuffix={config.yAxisSuffix}
+        chartWidth={chartWidth}
+      />
+    );
+  };
 
   const renderWidgetContent = (
     instance: WidgetInstance<AnalyticsWidgetType>,
   ): React.ReactNode => {
     switch (instance.type) {
-      case "select_exercise": {
-        return (
-          <View>
-            {selectedExercise &&
-              selectedExerciseMeta?.name.toLowerCase().includes("assisted") &&
-              !currentBodyWeight && (
-                <View style={styles.warningBanner}>
-                  <Text style={styles.warningIcon}>⚠️</Text>
-                  <View style={styles.warningTextContainer}>
-                    <Text style={styles.warningTitle}>
-                      Body Weight Required
-                    </Text>
-                    <Text style={styles.warningText}>
-                      Body weight needed for accurate assisted exercise
-                      calculations
-                    </Text>
-                  </View>
-                </View>
-              )}
-            <TouchableOpacity
-              style={styles.dropdownButton}
-              onPress={() => setShowDropdown(true)}
-            >
-              <View style={styles.dropdownButtonContent}>
-                <View style={styles.dropdownButtonLeft}>
-                  <Text style={styles.dropdownButtonText}>
-                    {selectedExercise ?? "Select an exercise"}
-                  </Text>
-                  {selectedExercise && selectedExerciseMeta?.muscleGroup && (
-                    <Text style={styles.dropdownButtonSubtext}>
-                      {selectedExerciseMeta.muscleGroup}
-                    </Text>
-                  )}
-                </View>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )
-      }
-
-      case "set_data": {
-        if (!selectedExercise) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Select an exercise to see its stats here.
-            </Text>
-          )
-        }
-        if (loading) {
-          return (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size='large' color={colors.accent} />
-              <Text style={styles.loadingText}>Loading data...</Text>
-            </View>
-          )
-        }
-        if (!exerciseData || exerciseData.length === 0) {
-          return (
-            <View style={styles.noDataContainer}>
-              <Text style={styles.noDataIcon}>📭</Text>
-              <Text style={styles.noDataTitle}>No Data Yet</Text>
-              <Text style={styles.noDataText}>
-                No completed sets for "{selectedExercise}"
-              </Text>
-            </View>
-          )
-        }
-        const s = getStats()
-        return (
-          <View>
-            <View style={styles.statsGrid}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{s.totalSets}</Text>
-                <Text style={styles.statLabel}>Total Sets</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{s.totalWorkouts}</Text>
-                <Text style={styles.statLabel}>Workouts</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{fmt(s.extremeWeight)}kg</Text>
-                <Text style={styles.statLabel}>{s.extremeWeightLabel}</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{s.maxReps}</Text>
-                <Text style={styles.statLabel}>Max Reps</Text>
-              </View>
-            </View>
-
-            <View style={styles.statsRow}>
-              <View style={styles.statCardWide}>
-                <Text style={styles.statValueSmall}>{fmt(s.avgWeight)}kg</Text>
-                <Text style={styles.statLabel}>Avg Weight</Text>
-              </View>
-              <View style={styles.statCardWide}>
-                <Text style={styles.statValueSmall}>{fmt(s.avgReps)}</Text>
-                <Text style={styles.statLabel}>Avg Reps</Text>
-              </View>
-              <View style={styles.statCardWide}>
-                <Text style={styles.statValueSmall}>
-                  {fmt(s.totalVolume)}kg
-                </Text>
-                <Text style={styles.statLabel}>Total Volume</Text>
-              </View>
-            </View>
-          </View>
-        )
-      }
-
-      case "last_workout": {
-        if (!selectedExercise) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Select an exercise to see your last workout.
-            </Text>
-          )
-        }
-        if (loading) {
-          return (
-            <View style={styles.streakLoading}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          )
-        }
-        const s = getStats()
-        if (!s.lastWorkout) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              No workouts logged yet for "{selectedExercise}".
-            </Text>
-          )
-        }
-        return (
-          <View style={styles.lastWorkoutCardWidget}>
-            <Text style={styles.lastWorkoutDate}>
-              {s.lastWorkout.toLocaleDateString("en-US", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </Text>
-          </View>
-        )
-      }
-
-      case "workout_history": {
-        if (!selectedExercise) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Select an exercise to see its history here.
-            </Text>
-          )
-        }
-        if (loading) {
-          return (
-            <View style={styles.calendarLoading}>
-              <ActivityIndicator color={colors.accent} />
-            </View>
-          )
-        }
-        if (!exerciseData || exerciseData.length === 0) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              No completed sets to show on the calendar yet.
-            </Text>
-          )
-        }
-        return (
-          <UniversalCalendar
-            hasDataOnDate={hasSetsOnDate}
-            onDatePress={handleDatePress}
-            initialView='week'
-            legendText={`Workout day for ${selectedExercise}`}
-            dotColor={colors.success}
-          />
-        )
-      }
-
-      case "weight_progress": {
-        if (!selectedExercise || !exerciseData?.length) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              No data yet to chart weight progress.
-            </Text>
-          )
-        }
-        return (
-          <ProgressChart
-            title='Weight Progress (kg)'
-            icon='💪'
-            data={getChartData("weight")}
-            yAxisSuffix='kg'
-            chartWidth={chartWidth}
-          />
-        )
-      }
-
-      case "volume_progress": {
-        if (!selectedExercise || !exerciseData?.length) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              No data yet to chart volume progress.
-            </Text>
-          )
-        }
-        return (
-          <ProgressChart
-            title='Volume Progress (kg)'
-            icon='📦'
-            data={getChartData("volume")}
-            yAxisSuffix='kg'
-            chartWidth={chartWidth}
-          />
-        )
-      }
-
-      case "reps_progress": {
-        if (!selectedExercise || !exerciseData?.length) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              No data yet to chart reps progress.
-            </Text>
-          )
-        }
-        return (
-          <ProgressChart
-            title='Reps Progress'
-            icon='🔢'
-            data={getChartData("reps")}
-            chartWidth={chartWidth}
-          />
-        )
-      }
-
+      case "select_exercise":
+        return renderSelectExerciseWidget();
+      case "set_data":
+        return renderSetDataWidget();
+      case "last_workout":
+        return renderLastWorkoutWidget();
+      case "workout_history":
+        return renderWorkoutHistoryWidget();
+      case "weight_progress":
+      case "volume_progress":
+      case "reps_progress":
+        return renderProgressWidget(instance.type);
       default:
-        return <Text style={styles.widgetLineMuted}>Coming soon</Text>
+        return <Text style={styles.widgetLineMuted}>Coming soon</Text>;
     }
-  }
+  };
 
   if (isLoading) {
     return (
@@ -821,7 +865,7 @@ export default function ExerciseAnalytics({
         <ActivityIndicator size='large' color={colors.accent} />
         <Text style={styles.loadingText}>Loading sessions...</Text>
       </View>
-    )
+    );
   }
 
   if (error) {
@@ -831,7 +875,7 @@ export default function ExerciseAnalytics({
         <Text style={styles.emptyTitle}>Something went wrong</Text>
         <Text style={styles.emptyText}>{error}</Text>
       </View>
-    )
+    );
   }
 
   if (!sessions?.length) {
@@ -841,7 +885,7 @@ export default function ExerciseAnalytics({
         <Text style={styles.emptyTitle}>No Data Available</Text>
         <Text style={styles.emptyText}>No workout sessions found</Text>
       </View>
-    )
+    );
   }
 
   return (
@@ -921,8 +965,8 @@ export default function ExerciseAnalytics({
         <ModalSheet
           visible={showDropdown}
           onClose={() => {
-            setShowDropdown(false)
-            setSearchQuery("")
+            setShowDropdown(false);
+            setSearchQuery("");
           }}
           title='Select Exercise'
           showCancelButton={false}
@@ -976,9 +1020,9 @@ export default function ExerciseAnalytics({
                   styles.dropdownItemSelected,
               ]}
               onPress={() => {
-                setSelectedExercise(exercise.name)
-                setShowDropdown(false)
-                setSearchQuery("")
+                setSelectedExercise(exercise.name);
+                setShowDropdown(false);
+                setSearchQuery("");
               }}
             >
               <View style={styles.dropdownItemContent}>
@@ -1067,7 +1111,7 @@ export default function ExerciseAnalytics({
         onEditWidgets={handleEditWidgets}
       />
     </View>
-  )
+  );
 }
 
 const makeStyles = (colors: ThemeColors) =>
@@ -1428,4 +1472,4 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: "center",
       lineHeight: 22,
     },
-  })
+  });
