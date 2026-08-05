@@ -2,5 +2,5 @@ projectKey=OwnLift-App
 serverUrl=http://192.168.10.12:8999
 serverVersion=26.6.0.123539
 dashboardUrl=http://192.168.10.12:8999/dashboard?id=OwnLift-App
-ceTaskId=cea21e52-dc2b-4e92-bf96-cca14188fd58
-ceTaskUrl=http://192.168.10.12:8999/api/ce/task?id=cea21e52-dc2b-4e92-bf96-cca14188fd58
+ceTaskId=4ec8cbe1-c92f-48e5-b58d-91c7b4b9e839
+ceTaskUrl=http://192.168.10.12:8999/api/ce/task?id=4ec8cbe1-c92f-48e5-b58d-91c7b4b9e839

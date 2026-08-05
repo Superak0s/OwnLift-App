@@ -1,6 +1,3 @@
-import { LogBox } from "react-native";
-import * as Updates from "expo-updates";
-
 import React, { useState, useEffect, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -15,13 +12,9 @@ import {
   Animated,
   PanResponder,
   ScrollView,
-  Keyboard,
   AppState,
   type AppStateStatus,
-  type GestureResponderEvent,
 } from "react-native";
-import Constants, { ExecutionEnvironment } from "expo-constants";
-import * as Linking from "expo-linking";
 import { LinearGradient } from "expo-linear-gradient";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -29,7 +22,6 @@ import { AuthProvider, useAuth } from "./src/shared/context/AuthContext";
 import { WorkoutProvider } from "./src/shared/context/WorkoutContext";
 import * as NavigationBar from "expo-navigation-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { scheduleTimeReminder } from "./tasks/supplementLocationTask";
 import { useAlert } from "./src/shared/components/CustomAlert";
 import { useTabBar, TabBarProvider } from "./src/shared/context/TabBarContext";
 import { VersionGuard } from "./src/shared/components/VersionGuard";
@@ -52,6 +44,7 @@ import {
   unregisterLocationTask,
   isLocationTaskRegistered,
   initializeSupplementNotifications,
+  scheduleTimeReminder,
 } from "./tasks/supplementLocationTask";
 import { getNotifications } from "./src/shared/services/notifications";
 
@@ -385,46 +378,46 @@ function NotificationListener() {
 function UpdateChecker() {
   const { alert, AlertComponent } = useAlert();
 
-  useEffect(() => {
-    const checkForUpdate = async () => {
-      try {
-        const response = await fetch(
-          "https://api.github.com/repos/Superak0s/OwnLift-App/releases/latest",
-        );
-        const release = (await response.json()) as {
-          tag_name: string;
-          assets: Array<{ name: string; browser_download_url: string }>;
-        };
+  // useEffect(() => {
+  //   const checkForUpdate = async () => {
+  //     try {
+  //       const response = await fetch(
+  //         "https://api.github.com/repos/Superak0s/OwnLift-App/releases/latest",
+  //       );
+  //       // const release = (await response.json()) as {
+  //       //   tag_name: string;
+  //       //   assets: Array<{ name: string; browser_download_url: string }>;
+  //       // };
 
-        const latestVersion = release.tag_name.replace(/^v/, "").split("-")[0]!;
-        const currentVersion = Constants.expoConfig?.version;
+  //       // const latestVersion = release.tag_name.replace(/^v/, "").split("-")[0]!;
+  //       // const currentVersion = Constants.expoConfig?.version;
 
-        // if (latestVersion !== currentVersion) {
-        //   const apkUrl = release.assets.find((a) =>
-        //     a.name.endsWith(".apk"),
-        //   )?.browser_download_url
+  //       // if (latestVersion !== currentVersion) {
+  //       //   const apkUrl = release.assets.find((a) =>
+  //       //     a.name.endsWith(".apk"),
+  //       //   )?.browser_download_url
 
-        //   alert(
-        //     "Update Available",
-        //     `Version ${latestVersion} is available. Do you want to download it?`,
-        //     [
-        //       { text: "Later", style: "cancel" },
-        //       {
-        //         text: "Download",
-        //         onPress: () => {
-        //           if (apkUrl) void Linking.openURL(apkUrl)
-        //         },
-        //       },
-        //     ],
-        //     "info",
-        //   )
-        // }
-      } catch (e) {
-        console.log("Update check failed:", e);
-      }
-    };
-    void checkForUpdate();
-  }, []);
+  //       //   alert(
+  //       //     "Update Available",
+  //       //     `Version ${latestVersion} is available. Do you want to download it?`,
+  //       //     [
+  //       //       { text: "Later", style: "cancel" },
+  //       //       {
+  //       //         text: "Download",
+  //       //         onPress: () => {
+  //       //           if (apkUrl) void Linking.openURL(apkUrl)
+  //       //         },
+  //       //       },
+  //       //     ],
+  //       //     "info",
+  //       //   )
+  //       // }
+  //     } catch (e) {
+  //       console.log("Update check failed:", e);
+  //     }
+  //   };
+  //   void checkForUpdate();
+  // }, []);
 
   return AlertComponent;
 }
