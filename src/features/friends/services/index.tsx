@@ -1,20 +1,18 @@
 import { createDispatchProxy } from "@shared/services/dispatchProxy"
 import { friendsApi as friendsApiOn } from "./on/friends"
-import { friendsApi as friendsApiOff } from "./off/friends"
 import { sharingApi as sharingApiOn } from "./on/sharing"
-import { sharingApi as sharingApiOff } from "./off/sharing"
 
 type FriendsApiShape = typeof friendsApiOn
 type SharingApiShape = typeof sharingApiOn
 
 export const friendsApi: FriendsApiShape = createDispatchProxy(
   friendsApiOn,
-  friendsApiOff,
+  friendsApiOn,
 )
 
 export const sharingApi: SharingApiShape = createDispatchProxy(
   sharingApiOn,
-  sharingApiOff,
+  sharingApiOn,
 )
 
 export {

@@ -72,3 +72,5 @@ wsl.sh
 release.bat
 release.sh
 sonarqube/
+.scannerwork/
+.sonarlint/

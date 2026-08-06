@@ -101,9 +101,4 @@ export function computeDailyStreak(timestamps: string[]): number {
   return streak
 }
 
-/** Generic "not supported offline" error for server-only features. */
-export function offlineUnsupported(feature: string): never {
-  throw new Error(
-    `${feature} isn't available in offline mode. Switch to server mode in Settings to use this feature.`,
-  )
-}
+

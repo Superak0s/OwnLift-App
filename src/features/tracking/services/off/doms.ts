@@ -3,12 +3,12 @@
 // DOMS tracking API - Offline mode (mock data)
 
 import type {
-  ApiResponse,
   ActiveSoreness,
   DOMSStats,
   LogSorenessParams,
   UpdateSorenessParams,
 } from "../../types/muscleRecovery";
+import type { ApiResponse } from "../types";
 
 let localIdCounter = 100;
 

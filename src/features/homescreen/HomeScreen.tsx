@@ -7,9 +7,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   ScrollView,
-  Modal,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -39,12 +37,13 @@ import type {
   WorkoutSession,
   FullSessionWithGroups,
   WidgetInstance,
+  SetTiming,
+  GroupedExercise,
+  RootStackParamList,
 } from "@shared/types";
-import type { SetTiming, GroupedExercise } from "@shared/types";
-import type { RootStackParamList } from "@shared/types";
 
 type HomeScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
+  readonly navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
 };
 
 // ─── Widget content components ───────────────────────────────────────────
@@ -57,14 +56,14 @@ type HomeScreenProps = {
 // them stays flat and trivial to read.
 
 type NextWorkoutWidgetProps = {
-  selectedSplit: unknown;
-  workoutData: WorkoutData | null;
-  currentDay: number;
-  isDayLocked: (day: number) => boolean;
-  hasActiveSession: () => boolean;
-  onChangeDay: () => void;
-  onGoToWorkout: () => void;
-  styles: ReturnType<typeof makeStyles>;
+  readonly selectedSplit: unknown;
+  readonly workoutData: WorkoutData | null;
+  readonly currentDay: number;
+  readonly isDayLocked: (day: number) => boolean;
+  readonly hasActiveSession: () => boolean;
+  readonly onChangeDay: () => void;
+  readonly onGoToWorkout: () => void;
+  readonly styles: ReturnType<typeof makeStyles>;
 };
 
 function NextWorkoutWidget({
@@ -143,12 +142,12 @@ function NextWorkoutWidget({
 }
 
 type WeeklyProgressWidgetProps = {
-  selectedSplit: unknown;
-  workoutData: WorkoutData | null;
-  currentDay: number;
-  isDayLocked: (day: number) => boolean;
-  colors: ThemeColors;
-  styles: ReturnType<typeof makeStyles>;
+  readonly selectedSplit: unknown;
+  readonly workoutData: WorkoutData | null;
+  readonly currentDay: number;
+  readonly isDayLocked: (day: number) => boolean;
+  readonly colors: ThemeColors;
+  readonly styles: ReturnType<typeof makeStyles>;
 };
 
 function WeeklyProgressWidget({
@@ -210,9 +209,9 @@ function WeeklyProgressDot({
   isToday,
   styles,
 }: {
-  done: boolean;
-  isToday: boolean;
-  styles: ReturnType<typeof makeStyles>;
+  readonly done: boolean;
+  readonly isToday: boolean;
+  readonly styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   return (
     <View
@@ -228,13 +227,24 @@ function WeeklyProgressDot({
 }
 
 type WorkoutStreakWidgetProps = {
-  selectedSplit: unknown;
-  loadingHistory: boolean;
-  sessionHistory: WorkoutSession[];
-  weeklyStreak: { count: number; currentWeekLogged: boolean };
-  colors: ThemeColors;
-  styles: ReturnType<typeof makeStyles>;
+  readonly selectedSplit: unknown;
+  readonly loadingHistory: boolean;
+  readonly sessionHistory: WorkoutSession[];
+  readonly weeklyStreak: { count: number; currentWeekLogged: boolean };
+  readonly colors: ThemeColors;
+  readonly styles: ReturnType<typeof makeStyles>;
 };
+
+// Extracted from a nested ternary (currentWeekLogged ? ... : count > 0 ? ... : ...)
+// into its own function so the branching reads as a plain if/else chain.
+function getStreakSubtitle(weeklyStreak: {
+  count: number;
+  currentWeekLogged: boolean;
+}): string {
+  if (weeklyStreak.currentWeekLogged) return "Logged this week 💪";
+  if (weeklyStreak.count > 0) return "Log a workout this week to keep it going";
+  return "Complete a workout to start your streak";
+}
 
 function WorkoutStreakWidget({
   selectedSplit,
@@ -260,11 +270,7 @@ function WorkoutStreakWidget({
     );
   }
 
-  const subtitle = weeklyStreak.currentWeekLogged
-    ? "Logged this week 💪"
-    : weeklyStreak.count > 0
-      ? "Log a workout this week to keep it going"
-      : "Complete a workout to start your streak";
+  const subtitle = getStreakSubtitle(weeklyStreak);
 
   return (
     <View style={styles.streakWrap}>
@@ -279,11 +285,11 @@ function WorkoutStreakWidget({
 }
 
 type WorkoutCalendarWidgetProps = {
-  selectedSplit: unknown;
-  loadingHistory: boolean;
-  hasSessionOnDate: (date: Date) => boolean;
-  onDatePress: (date: Date) => void;
-  styles: ReturnType<typeof makeStyles>;
+  readonly selectedSplit: unknown;
+  readonly loadingHistory: boolean;
+  readonly hasSessionOnDate: (date: Date) => boolean;
+  readonly onDatePress: (date: Date) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
 };
 
 function WorkoutCalendarWidget({
@@ -323,7 +329,7 @@ function WorkoutCalendarWidget({
 function GettingStartedWidget({
   styles,
 }: {
-  styles: ReturnType<typeof makeStyles>;
+  readonly styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   return (
     <View style={styles.instructionsCard}>
@@ -361,8 +367,8 @@ function getDayTitle(
 // nesting entirely and makes them independently testable.
 
 function formatSetVolume(weight: unknown, reps: unknown): string {
-  const w = parseFloat(String(weight ?? 0));
-  const r = parseInt(String(reps ?? 0));
+  const w = Number.parseFloat(String(weight ?? 0));
+  const r = Number.parseInt(String(reps ?? 0), 10);
   const volume = w * r;
   const displayVolume = Number.isInteger(volume)
     ? `${volume}`
@@ -617,8 +623,8 @@ export default function HomeScreen({
 
       try {
         const saved = await programApi.fetchSavedProgram();
-        if (saved && (saved as unknown as { success?: boolean }).success) {
-          await saveWorkoutData(saved as unknown as WorkoutData);
+        if (saved && (saved as { success?: boolean }).success) {
+          await saveWorkoutData(saved as WorkoutData);
         }
       } catch (error) {
         if ((error as Error)?.message === "SESSION_EXPIRED") {
@@ -713,6 +719,7 @@ export default function HomeScreen({
       setShowSessionDetails(true);
       setSelectedDate(null);
     } catch (error) {
+      console.error("Failed to load session details:", error);
       alert("Error", "Failed to load session details");
     }
   };
@@ -753,7 +760,7 @@ export default function HomeScreen({
 
     const timePart = String(dateString).replace("T", " ").split(" ")[1] || "";
     const [hourStr, minuteStr] = timePart.split(":");
-    const hour = parseInt(hourStr);
+    const hour = Number.parseInt(hourStr, 10);
     const minute = minuteStr || "00";
     const ampm = hour >= 12 ? "PM" : "AM";
     const hour12 = hour % 12 || 12;
@@ -916,11 +923,11 @@ function DayOptionRow({
   onPress,
   styles,
 }: {
-  day: WorkoutDay;
-  isCurrent: boolean;
-  isLocked: boolean;
-  onPress: () => void;
-  styles: ReturnType<typeof makeStyles>;
+  readonly day: WorkoutDay;
+  readonly isCurrent: boolean;
+  readonly isLocked: boolean;
+  readonly onPress: () => void;
+  readonly styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   return (
     <TouchableOpacity
@@ -972,12 +979,12 @@ function SessionListItem({
   onPress,
   styles,
 }: {
-  session: WorkoutSession;
-  title: string;
-  formatSessionTime: (dateString: string | null | undefined) => string;
-  formatTime: (seconds: number) => string;
-  onPress: () => void;
-  styles: ReturnType<typeof makeStyles>;
+  readonly session: WorkoutSession;
+  readonly title: string;
+  readonly formatSessionTime: (dateString: string | null | undefined) => string;
+  readonly formatTime: (seconds: number) => string;
+  readonly onPress: () => void;
+  readonly styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   return (
     <TouchableOpacity style={styles.sessionListItem} onPress={onPress}>
@@ -1010,10 +1017,10 @@ function SessionDetails({
   formatTime,
   styles,
 }: {
-  session: FullSessionWithGroups;
-  formatSessionTime: (dateString: string | null | undefined) => string;
-  formatTime: (seconds: number) => string;
-  styles: ReturnType<typeof makeStyles>;
+  readonly session: FullSessionWithGroups;
+  readonly formatSessionTime: (dateString: string | null | undefined) => string;
+  readonly formatTime: (seconds: number) => string;
+  readonly styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   return (
     <>
@@ -1023,8 +1030,8 @@ function SessionDetails({
         {Array.isArray(session.muscle_groups) &&
           session.muscle_groups.length > 0 && (
             <View style={styles.muscleGroupsRow}>
-              {session.muscle_groups.map((group: string, idx: number) => (
-                <View key={idx} style={styles.muscleTag}>
+              {session.muscle_groups.map((group: string) => (
+                <View key={group} style={styles.muscleTag}>
                   <Text style={styles.muscleTagText}>{String(group)}</Text>
                 </View>
               ))}
@@ -1078,15 +1085,13 @@ function SessionDetails({
         session.groupedExercises.length > 0 && (
           <View style={styles.detailSection}>
             <Text style={styles.detailSectionTitle}>Exercises</Text>
-            {session.groupedExercises.map(
-              (exercise: GroupedExercise, exerciseIdx: number) => (
-                <ExerciseCard
-                  key={exerciseIdx}
-                  exercise={exercise}
-                  styles={styles}
-                />
-              ),
-            )}
+            {session.groupedExercises.map((exercise: GroupedExercise) => (
+              <ExerciseCard
+                key={exercise.exerciseName}
+                exercise={exercise}
+                styles={styles}
+              />
+            ))}
           </View>
         )}
     </>
@@ -1097,8 +1102,8 @@ function ExerciseCard({
   exercise,
   styles,
 }: {
-  exercise: GroupedExercise;
-  styles: ReturnType<typeof makeStyles>;
+  readonly exercise: GroupedExercise;
+  readonly styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   return (
     <View style={styles.exerciseCard}>
@@ -1110,8 +1115,8 @@ function ExerciseCard({
         >{`${exercise.sets.length} sets`}</Text>
       </View>
 
-      {exercise.sets.map((set: SetTiming, setIdx: number) => (
-        <SetTimingCard key={setIdx} set={set} styles={styles} />
+      {exercise.sets.map((set: SetTiming) => (
+        <SetTimingCard key={set.set_index} set={set} styles={styles} />
       ))}
     </View>
   );
@@ -1121,8 +1126,8 @@ function SetTimingCard({
   set,
   styles,
 }: {
-  set: SetTiming;
-  styles: ReturnType<typeof makeStyles>;
+  readonly set: SetTiming;
+  readonly styles: ReturnType<typeof makeStyles>;
 }): React.JSX.Element {
   return (
     <View style={styles.setTimingCard}>

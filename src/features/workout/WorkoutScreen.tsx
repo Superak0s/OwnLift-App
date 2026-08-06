@@ -69,8 +69,8 @@ function kgToDisplay(kg: number, unit: "kg" | "lbs"): string {
 
 /** Parse a user-entered string in the chosen unit and return kg for storage. */
 function displayToKg(value: string, unit: "kg" | "lbs"): number {
-  const n = parseFloat(value);
-  if (!isFinite(n) || n <= 0) return 0;
+  const n = Number.parseFloat(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
   return unit === "lbs" ? n * LBS_TO_KG : n;
 }
 
@@ -197,9 +197,9 @@ function toPerformanceEntry(
   const r = reps ?? 0;
   return {
     date: new Date(completedAt ?? Date.now()),
-    weight: isFinite(w) ? w : 0,
-    reps: isFinite(r) ? r : 0,
-    volume: isFinite(w * r) ? w * r : 0,
+    weight: Number.isFinite(w) ? w : 0,
+    reps: Number.isFinite(r) ? r : 0,
+    volume: Number.isFinite(w * r) ? w * r : 0,
     note: note || "",
     isWarmup: Boolean(isWarmup),
   };
@@ -232,6 +232,43 @@ function collectSetsForExercise(
   });
 }
 
+function getSetsForDayExercise(
+  workoutData: { days: Array<Record<string, any>> } | null | undefined,
+  selectedSplit: string | null,
+  completedDays: Record<string, Record<number, Record<string, unknown>>>,
+  dayNumber: string,
+  canonicalName: string,
+  allExerciseNames: string[],
+): PerformanceEntry[] {
+  const day = workoutData?.days.find(
+    (d) => d.dayNumber === Number.parseInt(dayNumber, 10),
+  );
+  const pw = day && selectedSplit ? day.split[selectedSplit] : null;
+  if (!pw?.exercises) return [];
+
+  const entries: PerformanceEntry[] = [];
+  pw.exercises.forEach((ex: { name: string }, exerciseIndex: number) => {
+    const matches =
+      getCanonicalName(ex.name, allExerciseNames).toLowerCase() ===
+      canonicalName.toLowerCase();
+    if (!matches) return;
+    const sets = completedDays[dayNumber]?.[exerciseIndex] as
+      | Record<
+          string,
+          {
+            weight?: number;
+            reps?: number;
+            completedAt?: string;
+            note?: string;
+            isWarmup?: boolean;
+          }
+        >
+      | undefined;
+    entries.push(...collectSetsForExercise(sets));
+  });
+  return entries;
+}
+
 function getLocalHistoryEntries(
   completedDays: Record<string, Record<number, Record<string, unknown>>>,
   workoutData: { days: Array<Record<string, any>> } | null | undefined,
@@ -239,34 +276,16 @@ function getLocalHistoryEntries(
   canonicalName: string,
   allExerciseNames: string[],
 ): PerformanceEntry[] {
-  const history: PerformanceEntry[] = [];
-  Object.keys(completedDays).forEach((dayNumber) => {
-    const day = workoutData?.days.find(
-      (d) => d.dayNumber === parseInt(dayNumber),
-    );
-    const pw = day && selectedSplit ? day.split[selectedSplit] : null;
-    if (!pw?.exercises) return;
-    pw.exercises.forEach((ex: { name: string }, exerciseIndex: number) => {
-      const matches =
-        getCanonicalName(ex.name, allExerciseNames).toLowerCase() ===
-        canonicalName.toLowerCase();
-      if (!matches) return;
-      const sets = completedDays[dayNumber]?.[exerciseIndex] as
-        | Record<
-            string,
-            {
-              weight?: number;
-              reps?: number;
-              completedAt?: string;
-              note?: string;
-              isWarmup?: boolean;
-            }
-          >
-        | undefined;
-      history.push(...collectSetsForExercise(sets));
-    });
-  });
-  return history;
+  return Object.keys(completedDays).flatMap((dayNumber) =>
+    getSetsForDayExercise(
+      workoutData,
+      selectedSplit,
+      completedDays,
+      dayNumber,
+      canonicalName,
+      allExerciseNames,
+    ),
+  );
 }
 
 function collectSessionTimings(
@@ -322,6 +341,54 @@ async function getServerHistoryEntries(
   }
 }
 
+function pickBestPerformanceSummary(history: PerformanceEntry[]): {
+  last: PerformanceEntry;
+  best: PerformanceEntry;
+  totalAttempts: number;
+} | null {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const prev = history.filter((e) => e.date < today && !e.isWarmup);
+  if (!prev.length) return null;
+
+  prev.sort((a, b) => b.date.getTime() - a.date.getTime());
+  const last = prev[0];
+  const best = prev.reduce((b, c) => (c.volume > b.volume ? c : b), prev[0]);
+  return { last, best, totalAttempts: prev.length };
+}
+
+// ─── Partner-progress label helpers ────────────────────────────────────────
+// Extracted so PartnerBanner's render body doesn't need a nested ternary
+// (SonarQube typescript:S3358) — each label is resolved by its own small,
+// single-purpose function instead.
+
+function getPartnerExerciseLabel(
+  partnerProgress: Record<string, unknown> | null,
+): string {
+  if (!partnerProgress) return "—";
+  const exerciseName = partnerProgress.exerciseName as string | undefined;
+  if (exerciseName) return exerciseName;
+  const exerciseIndex = partnerProgress.exerciseIndex as number | undefined;
+  if (exerciseIndex != null) return `Ex ${exerciseIndex + 1}`;
+  return "—";
+}
+
+function getPartnerSetLabel(
+  partnerProgress: Record<string, unknown> | null,
+): string {
+  const setIndex = partnerProgress?.setIndex as number | undefined;
+  return setIndex != null ? `Set ${setIndex + 1}` : "—";
+}
+
+function getPartnerStatusText(
+  isPartnerReady: boolean,
+  partnerProgress: Record<string, unknown> | null,
+): string {
+  if (isPartnerReady) return "✅ Ready for next set";
+  if (!partnerProgress) return "Waiting…";
+  return `${getPartnerExerciseLabel(partnerProgress)} · ${getPartnerSetLabel(partnerProgress)}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Partner banner – compact strip pinned to the very top of the screen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,7 +398,7 @@ function PartnerBanner({
   syncPulse,
   partnerUsername,
   onLeave,
-}: PartnerBannerProps): React.JSX.Element {
+}: Readonly<PartnerBannerProps>): React.JSX.Element {
   const { colors } = useTheme();
   const bannerStyles = makeBannerStyles(colors);
   const pulse = useRef(new Animated.Value(1)).current;
@@ -363,20 +430,7 @@ function PartnerBanner({
     }
   }, [syncPulse, pulse]);
 
-  const exerciseLabel = partnerProgress?.exerciseName
-    ? partnerProgress.exerciseName
-    : partnerProgress?.exerciseIndex != null
-      ? `Ex ${(partnerProgress.exerciseIndex as number) + 1}`
-      : "—";
-  const setLabel =
-    partnerProgress?.setIndex != null
-      ? `Set ${(partnerProgress.setIndex as number) + 1}`
-      : "—";
-  const statusText = isPartnerReady
-    ? "✅ Ready for next set"
-    : partnerProgress
-      ? `${exerciseLabel} · ${setLabel}`
-      : "Waiting…";
+  const statusText = getPartnerStatusText(isPartnerReady, partnerProgress);
 
   return (
     <Animated.View
@@ -446,7 +500,7 @@ const makeBannerStyles = (colors: ThemeColors) =>
 // ─────────────────────────────────────────────────────────────────────────────
 // "Partner is here" pill
 // ─────────────────────────────────────────────────────────────────────────────
-function PartnerExercisePill({ username }: { username: string }) {
+function PartnerExercisePill({ username }: Readonly<{ username: string }>) {
   const { colors } = useTheme();
   const pillStyles = makePillStyles(colors);
   return (
@@ -460,25 +514,39 @@ function PartnerExercisePill({ username }: { username: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Badge showing set-count difference for shared exercises
 // ─────────────────────────────────────────────────────────────────────────────
+function getSetDiffLabel(diff: number): string {
+  if (diff === 0) return "Same sets";
+  return diff > 0 ? `+${diff} partner sets` : `${diff} partner sets`;
+}
+
+function getSetDiffColors(
+  colors: ThemeColors,
+  diff: number,
+): { text: string; bg: string; border: string } {
+  if (diff === 0) {
+    return { text: "#78350f", bg: "#fef9c3", border: "#fde68a" };
+  }
+  if (diff > 0) {
+    return { text: "#92400e", bg: colors.warningLight, border: "#fcd34d" };
+  }
+  return { text: "#78350f", bg: "#fef9c3", border: "#fde68a" };
+}
+
 function PartnerExerciseMatchBadge({
   partnerSets,
   mySets,
-}: {
+}: Readonly<{
   partnerSets: number | null;
   mySets: number;
-}) {
+}>) {
   const { colors } = useTheme();
   const diff = (partnerSets ?? 0) - mySets;
-  const diffText =
-    diff === 0
-      ? "Same sets"
-      : diff > 0
-        ? `+${diff} partner sets`
-        : `${diff} partner sets`;
-  const diffColor = diff === 0 ? "#78350f" : diff > 0 ? "#92400e" : "#78350f";
-  const bgColor =
-    diff === 0 ? "#fef9c3" : diff > 0 ? colors.warningLight : "#fef9c3";
-  const borderColor = diff === 0 ? "#fde68a" : diff > 0 ? "#fcd34d" : "#fde68a";
+  const diffText = getSetDiffLabel(diff);
+  const {
+    text: diffColor,
+    bg: bgColor,
+    border: borderColor,
+  } = getSetDiffColors(colors, diff);
   return (
     <View
       style={[matchStyles.badge, { backgroundColor: bgColor, borderColor }]}
@@ -526,6 +594,53 @@ const matchStyles = StyleSheet.create({
   setsText: { fontSize: 11, fontWeight: "700" },
 });
 
+// ─── Partner-matching helpers for the exercise list ────────────────────────
+// Extracted so the .map() callback below doesn't itself add to
+// WorkoutScreen's Cognitive Complexity score.
+
+type PartnerMatchInfo = {
+  partnerMatchesByName: boolean;
+  partnerOnThis: boolean;
+  partnerSetCount: number | null;
+};
+
+function getPartnerMatchInfo(
+  isInJointSession: boolean,
+  partnerNameSet: Set<string>,
+  partnerProgress: Record<string, unknown> | null,
+  partnerParticipant:
+    | { exerciseNames?: Array<string | { name: string; sets?: number }> }
+    | null
+    | undefined,
+  exerciseNameLower: string,
+): PartnerMatchInfo {
+  const partnerMatchesByName =
+    isInJointSession && partnerNameSet.has(exerciseNameLower);
+  const partnerActiveExercise = partnerProgress?.exerciseName as
+    | string
+    | undefined;
+  const partnerActiveNameLower = partnerActiveExercise
+    ? normalizeExerciseName(partnerActiveExercise)
+    : undefined;
+  const partnerOnThis =
+    isInJointSession &&
+    !!partnerActiveNameLower &&
+    partnerMatchesByName &&
+    partnerActiveNameLower === exerciseNameLower;
+
+  let partnerSetCount: number | null = null;
+  if (partnerMatchesByName) {
+    const entry = (partnerParticipant?.exerciseNames ?? []).find(
+      (e) =>
+        (typeof e === "string" ? e : e.name).trim().toLowerCase() ===
+        exerciseNameLower,
+    );
+    partnerSetCount = typeof entry === "object" ? (entry?.sets ?? null) : null;
+  }
+
+  return { partnerMatchesByName, partnerOnThis, partnerSetCount };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Main screen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -549,7 +664,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     getEstimatedTimeRemaining,
     getEstimatedEndTime,
     workoutStartTime,
-    currentSessionId,
+    currentSessionId: _currentSessionId,
     endWorkout,
     updateExerciseName,
     addExtraSetsToExercise,
@@ -565,7 +680,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     isInJointSession,
     jointSession,
     partnerProgress,
-    partnerExerciseList,
+    partnerExerciseList: _partnerExerciseList,
     isPartnerReady,
     syncPulse,
     pushJointProgress,
@@ -647,7 +762,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   const [tempRestReminderSeconds, setTempRestReminderSeconds] =
     useState<string>("");
 
-  const [currentRestTimer, setCurrentRestTimer] = useState<number>(0);
+  const [, setCurrentRestTimer] = useState<number>(0);
   const [sessionStats, setSessionStats] = useState<Record<
     string,
     unknown
@@ -869,124 +984,33 @@ export default function WorkoutScreen(): React.JSX.Element {
         ?.exercises as Array<{ name: string }>;
       const exercise = exercises[selectedSet.exerciseIndex];
       const canonicalName = getCanonicalName(exercise.name, allExerciseNames);
-      const history: Array<{
-        date: Date;
-        weight: number;
-        reps: number;
-        volume: number;
-        note: string;
-        isWarmup: boolean;
-      }> = [];
 
       // First look through local completedDays (fast / already available)
-      Object.keys(completedDays).forEach((dayNumber) => {
-        const day = workoutData?.days.find(
-          (d) => d.dayNumber === parseInt(dayNumber),
-        );
-        if (!day) return;
-        const pw = day.split[selectedSplit!];
-        if (!pw?.exercises) return;
-        pw.exercises.forEach((ex, exerciseIndex) => {
-          if (
-            getCanonicalName(ex.name, allExerciseNames).toLowerCase() !==
-            canonicalName.toLowerCase()
-          )
-            return;
-          const sets = (
-            completedDays as Record<
-              string,
-              Record<
-                number,
-                Record<
-                  string,
-                  {
-                    weight?: number;
-                    reps?: number;
-                    completedAt?: string;
-                    note?: string;
-                    isWarmup?: boolean;
-                  }
-                >
-              >
-            >
-          )[dayNumber]?.[exerciseIndex];
-          if (!sets) return;
-          Object.keys(sets).forEach((si) => {
-            const s = sets[si];
-            const w = s.weight ?? 0,
-              r = s.reps ?? 0;
-            history.push({
-              date: new Date(s.completedAt ?? Date.now()),
-              weight: isFinite(w) ? w : 0,
-              reps: isFinite(r) ? r : 0,
-              volume: isFinite(w * r) ? w * r : 0,
-              note: s.note || "",
-              isWarmup: s.isWarmup || false,
-            });
-          });
-        });
-      });
+      let history = getLocalHistoryEntries(
+        completedDays,
+        workoutData,
+        selectedSplit,
+        canonicalName,
+        allExerciseNames,
+      );
 
       // If no local history, fall back to server session history (set_timings)
       if (history.length === 0 && typeof fetchSessionHistory === "function") {
-        try {
-          const sessions = (await fetchSessionHistory(50, true)) as any[];
-          if (sessions && sessions.length) {
-            sessions.forEach((session) => {
-              if (!session?.set_timings) return;
-              session.set_timings.forEach((t: any) => {
-                const timingName = t.exercise_name || exercise.name || "";
-                const timingCanonical = getCanonicalName(
-                  timingName,
-                  allExerciseNames,
-                );
-                if (
-                  timingCanonical.toLowerCase() !== canonicalName.toLowerCase()
-                )
-                  return;
-                const w = t.weight ?? 0;
-                const r = t.reps ?? 0;
-                const completedAt =
-                  t.end_time ?? session.end_time ?? session.start_time;
-                history.push({
-                  date: new Date(completedAt ?? Date.now()),
-                  weight: isFinite(w) ? w : 0,
-                  reps: isFinite(r) ? r : 0,
-                  volume: isFinite(w * r) ? w * r : 0,
-                  note: t.note || "",
-                  isWarmup: Boolean(t.is_warmup),
-                });
-              });
-            });
-          }
-        } catch (err) {
-          // ignore server lookup failures — we simply won't show history
-          console.warn(
-            "Failed to fetch server session history for performance:",
-            err,
-          );
-        }
+        history = await getServerHistoryEntries(
+          fetchSessionHistory,
+          exercise.name,
+          canonicalName,
+          allExerciseNames,
+        );
       }
 
       if (!history.length) {
         if (isMountedRef.current) setPerformanceHistory(null);
         return;
       }
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const prev = history.filter((e) => e.date < today && !e.isWarmup);
-      if (!prev.length) {
-        if (isMountedRef.current) setPerformanceHistory(null);
-        return;
-      }
-      prev.sort((a, b) => b.date.getTime() - a.date.getTime());
-      const last = prev[0];
-      const best = prev.reduce(
-        (b, c) => (c.volume > b.volume ? c : b),
-        prev[0],
-      );
-      if (isMountedRef.current)
-        setPerformanceHistory({ last, best, totalAttempts: prev.length });
+
+      const summary = pickBestPerformanceSummary(history);
+      if (isMountedRef.current) setPerformanceHistory(summary);
     } catch (e) {
       console.error("Error loading performance history:", e);
       if (isMountedRef.current) setPerformanceHistory(null);
@@ -1004,6 +1028,56 @@ export default function WorkoutScreen(): React.JSX.Element {
   ]);
 
   // ── set press ────────────────────────────────────────────────────────
+  const openSetModalForNewEntry = (exerciseIndex: number, setIndex: number) => {
+    setSelectedSet({ exerciseIndex, setIndex });
+    setWeight("");
+    setReps("");
+    setSetNote("");
+    setIsWarmupSet(false);
+    setShowSetModal(true);
+  };
+
+  const showCompletedSetAlert = (
+    exerciseIndex: number,
+    setIndex: number,
+    existing: SetDetail,
+  ) => {
+    // Display weight in the user's preferred unit
+    const displayWeight = existing.weight
+      ? kgToDisplay(existing.weight, weightUnit)
+      : "0";
+    let msg = `Weight: ${displayWeight} ${weightUnit}\nReps: ${existing.reps || 0}`;
+    if (existing.isWarmup) msg = `🔥 WARM-UP SET\n${msg}`;
+    if (existing.note) msg += `\n\nNote: ${existing.note}`;
+    alert(
+      "Set Completed",
+      msg,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Edit",
+          onPress: () => {
+            setSelectedSet({ exerciseIndex, setIndex });
+            // Pre-fill weight field in the user's current unit
+            setWeight(
+              existing.weight ? kgToDisplay(existing.weight, weightUnit) : "",
+            );
+            setReps(existing.reps?.toString() || "");
+            setSetNote(existing.note || "");
+            setIsWarmupSet(existing.isWarmup || false);
+            setShowSetModal(true);
+          },
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteSetDetails(currentDay, exerciseIndex, setIndex),
+        },
+      ],
+      "info",
+    );
+  };
+
   const handleSetPress = (exerciseIndex: number, setIndex: number) => {
     if (isCurrentDayLocked) {
       alert(
@@ -1020,48 +1094,9 @@ export default function WorkoutScreen(): React.JSX.Element {
       setIndex,
     ) as SetDetail | null;
     if (existing) {
-      // Display weight in the user's preferred unit
-      const displayWeight = existing.weight
-        ? kgToDisplay(existing.weight, weightUnit)
-        : "0";
-      let msg = `Weight: ${displayWeight} ${weightUnit}\nReps: ${existing.reps || 0}`;
-      if (existing.isWarmup) msg = `🔥 WARM-UP SET\n${msg}`;
-      if (existing.note) msg += `\n\nNote: ${existing.note}`;
-      alert(
-        "Set Completed",
-        msg,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Edit",
-            onPress: () => {
-              setSelectedSet({ exerciseIndex, setIndex });
-              // Pre-fill weight field in the user's current unit
-              setWeight(
-                existing.weight ? kgToDisplay(existing.weight, weightUnit) : "",
-              );
-              setReps(existing.reps?.toString() || "");
-              setSetNote(existing.note || "");
-              setIsWarmupSet(existing.isWarmup || false);
-              setShowSetModal(true);
-            },
-          },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () =>
-              deleteSetDetails(currentDay, exerciseIndex, setIndex),
-          },
-        ],
-        "info",
-      );
+      showCompletedSetAlert(exerciseIndex, setIndex, existing);
     } else {
-      setSelectedSet({ exerciseIndex, setIndex });
-      setWeight("");
-      setReps("");
-      setSetNote("");
-      setIsWarmupSet(false);
-      setShowSetModal(true);
+      openSetModalForNewEntry(exerciseIndex, setIndex);
     }
   };
 
@@ -1071,7 +1106,7 @@ export default function WorkoutScreen(): React.JSX.Element {
 
     // Convert entered value to kg for storage/server
     const weightInKg = displayToKg(weight, weightUnit);
-    const r = parseInt(reps) || 0;
+    const r = Number.parseInt(reps, 10) || 0;
 
     if (weightInKg === 0 || r === 0) {
       alert(
@@ -1140,7 +1175,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     const raw =
       overrideSeconds !== undefined
         ? overrideSeconds
-        : parseInt(tempRestReminderSeconds || "0", 10) || 0;
+        : Number.parseInt(tempRestReminderSeconds || "0", 10) || 0;
     const secs = Math.max(0, Number(raw));
     setRestReminderSeconds(secs);
     setRestReminderEnabled(secs > 0);
@@ -1200,6 +1235,17 @@ export default function WorkoutScreen(): React.JSX.Element {
     setMuscleGroupSuggestions([]);
   };
 
+  const applyExerciseNameEdit = (finalName: string, trimmedMG: string) => {
+    updateExerciseName(
+      currentDay,
+      selectedSplit!,
+      editingExercise!.index,
+      finalName,
+      trimmedMG,
+    );
+    closeEditModal();
+  };
+
   const handleSaveExerciseName = () => {
     if (!editingExercise || !newExerciseName.trim()) {
       alert(
@@ -1210,25 +1256,22 @@ export default function WorkoutScreen(): React.JSX.Element {
       );
       return;
     }
-    const trimmed = newExerciseName.trim(),
-      trimmedMG = newMuscleGroup.trim();
+    const trimmed = newExerciseName.trim();
+    const trimmedMG = newMuscleGroup.trim();
     const tc = checkForTypo(trimmed, allExerciseNames);
+
     if (tc.exactMatch) {
-      updateExerciseName(
-        currentDay,
-        selectedSplit!,
-        editingExercise.index,
-        tc.exactMatch,
-        trimmedMG,
-      );
+      applyExerciseNameEdit(tc.exactMatch, trimmedMG);
       alert(
         "Exercise Matched! 🎯",
         `Matched to "${tc.exactMatch}".`,
         [{ text: "Great!" }],
         "success",
       );
-      closeEditModal();
-    } else if (tc.isLikelyTypo && tc.suggestions.length > 0) {
+      return;
+    }
+
+    if (tc.isLikelyTypo && tc.suggestions.length > 0) {
       const top = tc.suggestions[0];
       alert(
         "Did you mean?",
@@ -1237,43 +1280,19 @@ export default function WorkoutScreen(): React.JSX.Element {
           {
             text: "Use Original",
             style: "cancel",
-            onPress: () => {
-              updateExerciseName(
-                currentDay,
-                selectedSplit!,
-                editingExercise.index,
-                trimmed,
-                trimmedMG,
-              );
-              closeEditModal();
-            },
+            onPress: () => applyExerciseNameEdit(trimmed, trimmedMG),
           },
           {
             text: `Use "${top.name}"`,
-            onPress: () => {
-              updateExerciseName(
-                currentDay,
-                selectedSplit!,
-                editingExercise.index,
-                top.name,
-                trimmedMG,
-              );
-              closeEditModal();
-            },
+            onPress: () => applyExerciseNameEdit(top.name, trimmedMG),
           },
         ],
         "warning",
       );
-    } else {
-      updateExerciseName(
-        currentDay,
-        selectedSplit!,
-        editingExercise.index,
-        trimmed,
-        trimmedMG,
-      );
-      closeEditModal();
+      return;
     }
+
+    applyExerciseNameEdit(trimmed, trimmedMG);
   };
 
   const handleQuickAddSet = (exerciseIndex: number) => {
@@ -1318,8 +1337,8 @@ export default function WorkoutScreen(): React.JSX.Element {
 
   const handleSaveAdditionalSets = () => {
     if (!addingSetsExercise) return;
-    const sets = parseInt(additionalSets);
-    if (isNaN(sets) || sets < 1) {
+    const sets = Number.parseInt(additionalSets, 10);
+    if (Number.isNaN(sets) || sets < 1) {
       alert(
         "Error",
         "Please enter a valid number of sets (minimum 1)",
@@ -1360,14 +1379,27 @@ export default function WorkoutScreen(): React.JSX.Element {
     setNewExerciseMuscleGroupSuggestions([]);
   };
 
+  const applyNewExercise = (
+    finalName: string,
+    trimmedMG: string,
+    setsNum: number,
+  ) => {
+    addNewExercise(currentDay, selectedSplit!, {
+      name: finalName,
+      muscleGroup: trimmedMG,
+      sets: setsNum,
+    });
+    closeAddExerciseModal();
+  };
+
   const handleSaveNewExercise = () => {
     const { name, muscleGroup, sets } = newExercise;
     if (!name.trim()) {
       alert("Error", "Exercise name is required", [{ text: "OK" }], "error");
       return;
     }
-    const setsNum = parseInt(sets);
-    if (isNaN(setsNum) || setsNum < 1) {
+    const setsNum = Number.parseInt(sets, 10);
+    if (Number.isNaN(setsNum) || setsNum < 1) {
       alert(
         "Error",
         "Please enter a valid number of sets (minimum 1)",
@@ -1376,24 +1408,21 @@ export default function WorkoutScreen(): React.JSX.Element {
       );
       return;
     }
-    const trimmed = name.trim(),
-      trimmedMG = muscleGroup.trim();
+    const trimmed = name.trim();
+    const trimmedMG = muscleGroup.trim();
     const tc = checkForTypo(trimmed, allExerciseNames);
+
     if (tc.exactMatch) {
-      addNewExercise(currentDay, selectedSplit!, {
-        name: tc.exactMatch,
-        muscleGroup: trimmedMG,
-        sets: setsNum,
-      });
+      applyNewExercise(tc.exactMatch, trimmedMG, setsNum);
       alert(
         "Exercise Matched! 🎯",
         `Matched to "${tc.exactMatch}".`,
         [{ text: "Great!" }],
         "success",
       );
-      closeAddExerciseModal();
       return;
     }
+
     if (tc.isLikelyTypo && tc.suggestions.length > 0) {
       const top = tc.suggestions[0];
       alert(
@@ -1403,37 +1432,19 @@ export default function WorkoutScreen(): React.JSX.Element {
           {
             text: "Use Original",
             style: "cancel",
-            onPress: () => {
-              addNewExercise(currentDay, selectedSplit!, {
-                name: trimmed,
-                muscleGroup: trimmedMG,
-                sets: setsNum,
-              });
-              closeAddExerciseModal();
-            },
+            onPress: () => applyNewExercise(trimmed, trimmedMG, setsNum),
           },
           {
             text: `Use "${top.name}"`,
-            onPress: () => {
-              addNewExercise(currentDay, selectedSplit!, {
-                name: top.name,
-                muscleGroup: trimmedMG,
-                sets: setsNum,
-              });
-              closeAddExerciseModal();
-            },
+            onPress: () => applyNewExercise(top.name, trimmedMG, setsNum),
           },
         ],
         "warning",
       );
       return;
     }
-    addNewExercise(currentDay, selectedSplit!, {
-      name: trimmed,
-      muscleGroup: trimmedMG,
-      sets: setsNum,
-    });
-    closeAddExerciseModal();
+
+    applyNewExercise(trimmed, trimmedMG, setsNum);
   };
 
   const handleSuggestionPress = (
@@ -1441,16 +1452,39 @@ export default function WorkoutScreen(): React.JSX.Element {
     field = "name",
   ) => {
     if (showEditNameModal) {
-      field === "muscleGroup"
-        ? (setNewMuscleGroup(suggestion.name), setMuscleGroupSuggestions([]))
-        : (setNewExerciseName(suggestion.name), setNameSuggestions([]));
+      if (field === "muscleGroup") {
+        setNewMuscleGroup(suggestion.name);
+        setMuscleGroupSuggestions([]);
+      } else {
+        setNewExerciseName(suggestion.name);
+        setNameSuggestions([]);
+      }
     } else if (showAddExerciseModal) {
-      field === "muscleGroup"
-        ? (setNewExercise({ ...newExercise, muscleGroup: suggestion.name }),
-          setNewExerciseMuscleGroupSuggestions([]))
-        : (setNewExercise({ ...newExercise, name: suggestion.name }),
-          setNewExerciseSuggestions([]));
+      if (field === "muscleGroup") {
+        setNewExercise({ ...newExercise, muscleGroup: suggestion.name });
+        setNewExerciseMuscleGroupSuggestions([]);
+      } else {
+        setNewExercise({ ...newExercise, name: suggestion.name });
+        setNewExerciseSuggestions([]);
+      }
     }
+  };
+
+  const getCompleteWorkoutMessage = (done: number, total: number): string =>
+    done === total
+      ? "Are you sure you want to finish? You've completed all sets!"
+      : `You've completed ${done}/${total} sets. End this session? The day will be locked.`;
+
+  const confirmCompleteWorkout = async () => {
+    if (isInJointSession) await leaveJointSession();
+    const auto = await endWorkout();
+    if (!auto)
+      alert(
+        "Workout Completed! 💪",
+        `Day ${currentDay} is now locked.`,
+        [{ text: "OK" }],
+        "success",
+      );
   };
 
   const handleCompleteWorkout = () => {
@@ -1463,30 +1497,16 @@ export default function WorkoutScreen(): React.JSX.Element {
       );
       return;
     }
-    const done = getCompletedSetsCount(),
-      total = (dayWorkout?.totalSets as number) || 0;
-    const msg =
-      done === total
-        ? "Are you sure you want to finish? You've completed all sets!"
-        : `You've completed ${done}/${total} sets. End this session? The day will be locked.`;
+    const done = getCompletedSetsCount();
+    const total = (dayWorkout?.totalSets as number) || 0;
     alert(
       "Complete Workout?",
-      msg,
+      getCompleteWorkoutMessage(done, total),
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Complete & Lock",
-          onPress: async () => {
-            if (isInJointSession) await leaveJointSession();
-            const auto = await endWorkout();
-            if (!auto)
-              alert(
-                "Workout Completed! 💪",
-                `Day ${currentDay} is now locked.`,
-                [{ text: "OK" }],
-                "success",
-              );
-          },
+          onPress: confirmCompleteWorkout,
         },
       ],
       "session",
@@ -1556,11 +1576,11 @@ export default function WorkoutScreen(): React.JSX.Element {
   // those returns, which is what caused the "Rendered more hooks than
   // during the previous render" crash.
   const allSetsCompleteForTint = areAllSetsComplete && !isCurrentDayLocked;
-  const dayOverviewTint = isCurrentDayLocked
-    ? colors.textSecondary
-    : allSetsCompleteForTint
-      ? colors.success
-      : colors.accent;
+  const dayOverviewTint = getDayOverviewTint(
+    colors,
+    isCurrentDayLocked,
+    allSetsCompleteForTint,
+  );
 
   const getWidgetCardBackgroundColor = useCallback(
     (): string | undefined => dayOverviewTint,
@@ -1628,41 +1648,27 @@ export default function WorkoutScreen(): React.JSX.Element {
   );
 
   // ── empty states ─────────────────────────────────────────────────────
-  if (!workoutData)
+  const emptyState = getEmptyStateInfo(
+    workoutData,
+    selectedSplit,
+    dayWorkout,
+    currentDay,
+  );
+  if (emptyState)
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📁</Text>
-        <Text style={styles.emptyTitle}>No Workout Plan</Text>
-        <Text style={styles.emptyText}>
-          Go to the Home tab to upload your workout file
-        </Text>
-      </View>
-    );
-  if (!selectedSplit)
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>👤</Text>
-        <Text style={styles.emptyTitle}>No Split Selected</Text>
-        <Text style={styles.emptyText}>
-          Go to the Plan tab to select your split
-        </Text>
-      </View>
-    );
-  if (!dayWorkout)
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>🤷</Text>
-        <Text style={styles.emptyTitle}>No Workout for This Day</Text>
-        <Text style={styles.emptyText}>
-          {selectedSplit} has no exercises scheduled for Day {currentDay}
-        </Text>
+        <Text style={styles.emptyIcon}>{emptyState.icon}</Text>
+        <Text style={styles.emptyTitle}>{emptyState.title}</Text>
+        <Text style={styles.emptyText}>{emptyState.text}</Text>
       </View>
     );
 
   const completedSetsCount = getCompletedSetsCount();
   const totalSetsCount = ((dayWorkout as any)?.totalSets as number) ?? 0;
-  const progressPercentage =
-    totalSetsCount > 0 ? (completedSetsCount / totalSetsCount) * 100 : 0;
+  const progressPercentage = computeProgressPercentage(
+    completedSetsCount,
+    totalSetsCount,
+  );
   const allSetsComplete = areAllSetsComplete && !isCurrentDayLocked;
   const totalSessionTime = getTotalSessionTime();
   const sessionAvgRest = getSessionAverageRestTime(currentDay);
@@ -1822,9 +1828,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         {isPulling && (
           <View pointerEvents='none' style={styles.pullHint}>
             <Text style={styles.pullHintText}>
-              {pullDistance > 90
-                ? "Release to add a widget ✨"
-                : "Pull to add a widget ↓"}
+              {getPullHintText(pullDistance)}
             </Text>
           </View>
         )}
@@ -1900,38 +1904,18 @@ export default function WorkoutScreen(): React.JSX.Element {
               const exerciseNameLower = exercise.name
                 ? normalizeExerciseName(exercise.name)
                 : "";
-              const partnerMatchesByName =
-                isInJointSession && partnerNameSet.has(exerciseNameLower);
-              const partnerActiveExercise = partnerProgress?.exerciseName as
-                | string
-                | undefined;
-              const partnerActiveNameLower = partnerActiveExercise
-                ? normalizeExerciseName(partnerActiveExercise)
-                : undefined;
-              const partnerOnThis =
-                isInJointSession &&
-                !!partnerActiveNameLower &&
-                partnerMatchesByName &&
-                partnerActiveNameLower === exerciseNameLower;
-              const partnerSetCount = partnerMatchesByName
-                ? (() => {
-                    const entry = (
-                      partnerParticipant?.exerciseNames ?? []
-                    ).find(
-                      (e) =>
-                        (typeof e === "string" ? e : e.name)
-                          .trim()
-                          .toLowerCase() === exerciseNameLower,
-                    );
-                    return typeof entry === "object"
-                      ? (entry?.sets ?? null)
-                      : null;
-                  })()
-                : null;
+              const { partnerMatchesByName, partnerOnThis, partnerSetCount } =
+                getPartnerMatchInfo(
+                  isInJointSession,
+                  partnerNameSet,
+                  partnerProgress as Record<string, unknown> | null,
+                  partnerParticipant,
+                  exerciseNameLower,
+                );
 
               return (
                 <View
-                  key={exerciseIndex}
+                  key={exercise.name || exerciseIndex}
                   style={[
                     styles.exerciseCard,
                     allDone && styles.exerciseCardComplete,
@@ -2016,7 +2000,7 @@ export default function WorkoutScreen(): React.JSX.Element {
                           setIndex;
                       return (
                         <TouchableOpacity
-                          key={setIndex}
+                          key={`${exercise.name || exerciseIndex}-set-${setIndex}`}
                           style={[
                             styles.setButton,
                             done && styles.setButtonComplete,
@@ -2202,8 +2186,8 @@ export default function WorkoutScreen(): React.JSX.Element {
                 onPress={() => {
                   if (weightUnit !== "kg") {
                     // Convert currently entered value from lbs → kg display
-                    const currentLbs = parseFloat(weight);
-                    if (isFinite(currentLbs) && currentLbs > 0) {
+                    const currentLbs = Number.parseFloat(weight);
+                    if (Number.isFinite(currentLbs) && currentLbs > 0) {
                       setWeight((currentLbs * LBS_TO_KG).toFixed(1));
                     }
                     saveWeightUnit("kg");
@@ -2227,8 +2211,8 @@ export default function WorkoutScreen(): React.JSX.Element {
                 onPress={() => {
                   if (weightUnit !== "lbs") {
                     // Convert currently entered value from kg → lbs display
-                    const currentKg = parseFloat(weight);
-                    if (isFinite(currentKg) && currentKg > 0) {
+                    const currentKg = Number.parseFloat(weight);
+                    if (Number.isFinite(currentKg) && currentKg > 0) {
                       setWeight((currentKg * KG_TO_LBS).toFixed(1));
                     }
                     saveWeightUnit("lbs");
@@ -2371,18 +2355,17 @@ export default function WorkoutScreen(): React.JSX.Element {
               placeholderTextColor='#999'
             />
           </View>
-          {selectedSet &&
-            (dayWorkout as any)?.exercises[selectedSet.exerciseIndex] &&
-            isAssistedExercise(
-              (dayWorkout as any)?.exercises[selectedSet.exerciseIndex].name,
-            ) && (
-              <View style={styles.assistedInfoBox}>
-                <Text style={styles.assistedInfoText}>
-                  🤝 Assisted Exercise - Weight represents assistance from the
-                  machine. Lower = harder.
-                </Text>
-              </View>
-            )}
+          {checkIsSelectedSetAssisted(
+            selectedSet,
+            dayWorkout as Record<string, unknown> | null,
+          ) && (
+            <View style={styles.assistedInfoBox}>
+              <Text style={styles.assistedInfoText}>
+                🤝 Assisted Exercise - Weight represents assistance from the
+                machine. Lower = harder.
+              </Text>
+            </View>
+          )}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Notes (optional)</Text>
             <TextInput
@@ -2428,7 +2411,7 @@ export default function WorkoutScreen(): React.JSX.Element {
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
               {nameSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={i}
+                  key={s.name ?? i}
                   style={styles.suggestionButton}
                   onPress={() => handleSuggestionPress(s, "name")}
                 >
@@ -2455,7 +2438,7 @@ export default function WorkoutScreen(): React.JSX.Element {
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
               {muscleGroupSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={i}
+                  key={s.name ?? i}
                   style={styles.suggestionButton}
                   onPress={() => handleSuggestionPress(s, "muscleGroup")}
                 >
@@ -2484,11 +2467,7 @@ export default function WorkoutScreen(): React.JSX.Element {
             setAdditionalSets("");
           }}
           title='Add Multiple Sets'
-          subtitle={
-            addingSetsExercise
-              ? `Adding sets to: ${(addingSetsExercise.exercise as { name: string }).name}`
-              : undefined
-          }
+          subtitle={getAddingSetsSubtitle(addingSetsExercise)}
           showCancelButton={false}
           showConfirmButton={false}
         >
@@ -2537,7 +2516,7 @@ export default function WorkoutScreen(): React.JSX.Element {
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
               {newExerciseSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={i}
+                  key={s.name ?? i}
                   style={styles.suggestionButton}
                   onPress={() => handleSuggestionPress(s, "name")}
                 >
@@ -2566,7 +2545,7 @@ export default function WorkoutScreen(): React.JSX.Element {
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
               {newExerciseMuscleGroupSuggestions.map((s, i) => (
                 <TouchableOpacity
-                  key={i}
+                  key={s.name ?? i}
                   style={styles.suggestionButton}
                   onPress={() => handleSuggestionPress(s, "muscleGroup")}
                 >

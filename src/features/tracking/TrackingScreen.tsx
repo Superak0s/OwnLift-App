@@ -844,6 +844,89 @@ export default function TrackingScreen(): React.JSX.Element {
       console.error("Error loading tab data:", error);
     }
   };
+  const createDeleteHandler = <T,>(
+    apiDelete: (id: any) => Promise<any>,
+    setHistory: (updater: (prev: T[]) => T[]) => void,
+    extraCleanup?: (entry: T) => void,
+  ) => {
+    return async (entry: T) => {
+      const entryId = (entry as { id: string | number }).id;
+      try {
+        await apiDelete(entryId);
+        setHistory((prev) => prev.filter((e) => (e as { id: string | number }).id !== entryId));
+        setDayModal((prev) => {
+          if (!prev) return null;
+          const remaining = (prev.existingEntries || []).filter(
+            (e: any) => e.id !== entryId,
+          );
+          return {
+            ...prev,
+            existingEntries: remaining.length > 0 ? remaining : null,
+          };
+        });
+        extraCleanup?.(entry);
+      } catch (err) {
+        alert(
+          "Error",
+          err instanceof Error ? err.message : String(err),
+          [{ text: "OK" }],
+          "error",
+        );
+      }
+    };
+  };
+
+  const handleDeleteWeight = createDeleteHandler(
+    bodyTrackingApi.deleteWeightEntry,
+    setWeightHistory,
+  );
+  const handleDeleteMacro = createDeleteHandler(
+    macrosTrackingApi.deleteMacrosEntry,
+    setMacrosEntries,
+    () => loadData(),
+  );
+  const handleDeletePhoto = createDeleteHandler<ProgressPhoto>(
+    bodyTrackingApi.deleteProgressPhoto,
+    setProgressPhotos,
+    (photo) => {
+      setPhotoUriCache((prev) => {
+        const next = { ...prev };
+        delete next[photo.id];
+        return next;
+      });
+      setSelectedDatePhotos((prev) => {
+        if (!prev) return null;
+        const remaining = prev.photos.filter((p) => p.id !== photo.id);
+        return remaining.length > 0
+          ? { ...prev, photos: remaining }
+          : null;
+      });
+      if (
+        !selectedDatePhotos ||
+        selectedDatePhotos.photos.filter((p) => p.id !== photo.id)
+          .length === 0
+      ) {
+        setShowDatePhotosModal(false);
+      }
+    },
+  );
+  const handleDeleteBodyFat = createDeleteHandler(
+    bodyFatApi.deleteBodyFatEntry,
+    setBodyFatHistory,
+  );
+  const handleDeleteMeasurement = createDeleteHandler(
+    bodyMeasurementsApi.deleteMeasurementEntry,
+    setMeasurementHistory,
+  );
+  const handleDeleteHydration = createDeleteHandler(
+    hydrationApi.deleteHydrationEntry,
+    setHydrationEntries,
+  );
+  const handleDeleteSoreness = createDeleteHandler(
+    sorenessApi.deleteSorenessEntry,
+    setSorenessEntries,
+  );
+
   const deleteWeightEntry = (entry: WeightEntry) => {
     const label =
       weightUnit === "kg"
@@ -854,33 +937,7 @@ export default function TrackingScreen(): React.JSX.Element {
       `Remove ${label}?`,
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await bodyTrackingApi.deleteWeightEntry(entry.id);
-              setWeightHistory((prev) => prev.filter((e) => e.id !== entry.id));
-              setDayModal((prev) => {
-                if (!prev) return null;
-                const remaining = (prev.existingEntries || []).filter(
-                  (e) => (e as WeightEntry).id !== entry.id,
-                );
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                };
-              });
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              );
-            }
-          },
-        },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteWeight(entry) },
       ],
       "warning",
     );
@@ -892,34 +949,7 @@ export default function TrackingScreen(): React.JSX.Element {
       entry.name ? `Remove "${entry.name}"?` : "Remove this entry?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await macrosTrackingApi.deleteMacrosEntry(entry.id);
-              setMacrosEntries((prev) => prev.filter((e) => e.id !== entry.id));
-              setDayModal((prev) => {
-                if (!prev) return null;
-                const remaining = (prev.existingEntries || []).filter(
-                  (e) => (e as MacrosEntry).id !== entry.id,
-                );
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                };
-              });
-              loadData();
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              );
-            }
-          },
-        },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteMacro(entry) },
       ],
       "warning",
     );
@@ -931,54 +961,7 @@ export default function TrackingScreen(): React.JSX.Element {
       "Permanently delete this progress photo?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await bodyTrackingApi.deleteProgressPhoto(photo.id);
-              setProgressPhotos((prev) =>
-                prev.filter((p) => p.id !== photo.id),
-              );
-              setPhotoUriCache((prev) => {
-                const next = { ...prev };
-                delete next[photo.id];
-                return next;
-              });
-              setDayModal((prev) => {
-                if (!prev) return null;
-                const remaining = (prev.existingEntries || []).filter(
-                  (p) => (p as ProgressPhoto).id !== photo.id,
-                );
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                };
-              });
-              setSelectedDatePhotos((prev) => {
-                if (!prev) return null;
-                const remaining = prev.photos.filter((p) => p.id !== photo.id);
-                return remaining.length > 0
-                  ? { ...prev, photos: remaining }
-                  : null;
-              });
-              if (
-                !selectedDatePhotos ||
-                selectedDatePhotos.photos.filter((p) => p.id !== photo.id)
-                  .length === 0
-              ) {
-                setShowDatePhotosModal(false);
-              }
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              );
-            }
-          },
-        },
+        { text: "Delete", style: "destructive", onPress: () => handleDeletePhoto(photo) },
       ],
       "warning",
     );
@@ -994,35 +977,7 @@ export default function TrackingScreen(): React.JSX.Element {
       `Remove ${pct}% reading?`,
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await bodyFatApi.deleteBodyFatEntry(entry.id);
-              setBodyFatHistory((prev) =>
-                prev.filter((b) => b.id !== entry.id),
-              );
-              setDayModal((prev) => {
-                if (!prev) return null;
-                const remaining = (prev.existingEntries || []).filter(
-                  (b) => (b as BodyFatEntryWithFields).id !== entry.id,
-                );
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                };
-              });
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              );
-            }
-          },
-        },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteBodyFat(entry) },
       ],
       "warning",
     );
@@ -1034,35 +989,7 @@ export default function TrackingScreen(): React.JSX.Element {
       "Remove this measurement?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await bodyMeasurementsApi.deleteMeasurementEntry(entry.id);
-              setMeasurementHistory((prev) =>
-                prev.filter((e) => e.id !== entry.id),
-              );
-              setDayModal((prev) => {
-                if (!prev) return null;
-                const remaining = (prev.existingEntries || []).filter(
-                  (e: any) => e.id !== entry.id,
-                );
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                };
-              });
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              );
-            }
-          },
-        },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteMeasurement(entry) },
       ],
       "warning",
     );
@@ -1074,35 +1001,7 @@ export default function TrackingScreen(): React.JSX.Element {
       "Remove this hydration entry?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await hydrationApi.deleteHydrationEntry(entry.id);
-              setHydrationEntries((prev) =>
-                prev.filter((e) => e.id !== entry.id),
-              );
-              setDayModal((prev) => {
-                if (!prev) return null;
-                const remaining = (prev.existingEntries || []).filter(
-                  (e: any) => e.id !== entry.id,
-                );
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                };
-              });
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              );
-            }
-          },
-        },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteHydration(entry) },
       ],
       "warning",
     );
@@ -1114,35 +1013,7 @@ export default function TrackingScreen(): React.JSX.Element {
       "Remove this soreness entry?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await sorenessApi.deleteSorenessEntry(entry.id);
-              setSorenessEntries((prev) =>
-                prev.filter((e) => e.id !== entry.id),
-              );
-              setDayModal((prev) => {
-                if (!prev) return null;
-                const remaining = (prev.existingEntries || []).filter(
-                  (e: any) => e.id !== entry.id,
-                );
-                return {
-                  ...prev,
-                  existingEntries: remaining.length > 0 ? remaining : null,
-                };
-              });
-            } catch (err) {
-              alert(
-                "Error",
-                err instanceof Error ? err.message : String(err),
-                [{ text: "OK" }],
-                "error",
-              );
-            }
-          },
-        },
+        { text: "Delete", style: "destructive", onPress: () => handleDeleteSoreness(entry) },
       ],
       "warning",
     );

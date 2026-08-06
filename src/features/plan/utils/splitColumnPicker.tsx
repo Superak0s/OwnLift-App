@@ -11,17 +11,17 @@ import type { ThemeColors } from "@shared/context/ThemeContext"
 import type { SplitColumnCandidate } from "@utils/clientWorkoutParser"
 
 interface SplitColumnPickerProps {
-  visible: boolean
-  fileName?: string | null
-  candidates: SplitColumnCandidate[]
-  selectedIndices: Set<number>
-  onToggle: (index: number) => void
-  onSelectAll: () => void
-  onSelectNone: () => void
-  onCancel: () => void
-  onConfirm: () => void
-  isImporting?: boolean
-  colors: ThemeColors
+  readonly visible: boolean
+  readonly fileName?: string | null
+  readonly candidates: SplitColumnCandidate[]
+  readonly selectedIndices: Set<number>
+  readonly onToggle: (index: number) => void
+  readonly onSelectAll: () => void
+  readonly onSelectNone: () => void
+  readonly onCancel: () => void
+  readonly onConfirm: () => void
+  readonly isImporting?: boolean
+  readonly colors: ThemeColors
 }
 
 export default function SplitColumnPicker({

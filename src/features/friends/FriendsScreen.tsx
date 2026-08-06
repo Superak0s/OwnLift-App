@@ -136,9 +136,9 @@ const useFriendSessionStatuses = (
 };
 
 interface InviteBannerProps {
-  invite: { fromUsername: string } | null;
-  onAccept: () => void;
-  onDecline: () => void;
+  readonly invite: { fromUsername: string } | null;
+  readonly onAccept: () => void;
+  readonly onDecline: () => void;
 }
 
 function InviteBanner({
@@ -213,9 +213,9 @@ const makeBannerStyles = (colors: ThemeColors) =>
   });
 
 interface LiftTogetherButtonProps {
-  onPress: () => void;
-  status?: string;
-  small?: boolean;
+  readonly onPress: () => void;
+  readonly status?: string;
+  readonly small?: boolean;
 }
 
 function LiftTogetherButton({
@@ -280,13 +280,13 @@ const makeLiftStyles = (colors: ThemeColors) =>
   });
 
 interface PermissionRowProps {
-  icon: string;
-  title: string;
-  description: string;
-  granted: boolean;
-  loading: boolean;
-  onGrant: () => void;
-  onRevoke: () => void;
+  readonly icon: string;
+  readonly title: string;
+  readonly description: string;
+  readonly granted: boolean;
+  readonly loading: boolean;
+  readonly onGrant: () => void;
+  readonly onRevoke: () => void;
 }
 
 function PermissionRow({
@@ -384,19 +384,19 @@ const makePermStyles = (colors: ThemeColors) =>
 // into FriendsScreen's cognitive complexity.
 
 interface FriendsListWidgetProps {
-  friends: Friend[];
-  friendSessionStatuses: Record<string | number, boolean>;
-  hasOwnActiveSession: boolean;
-  getInviteStatusForFriend: (friendId: number | string) => string;
-  isWatching: boolean;
-  watchTarget: { friendId?: string } | null;
-  onSelectFriend: (friend: Friend) => void;
-  onFindFriends: () => void;
-  onSendInvite: (friend: Friend) => void;
-  styles: ReturnType<typeof makeStyles>;
-  liftStyles: ReturnType<typeof makeLiftStyles>;
-  watchStyles: ReturnType<typeof makeWatchStyles>;
-  colors: ThemeColors;
+  readonly friends: Friend[];
+  readonly friendSessionStatuses: Record<string | number, boolean>;
+  readonly hasOwnActiveSession: boolean;
+  readonly getInviteStatusForFriend: (friendId: number | string) => string;
+  readonly isWatching: boolean;
+  readonly watchTarget: { friendId?: string } | null;
+  readonly onSelectFriend: (friend: Friend) => void;
+  readonly onFindFriends: () => void;
+  readonly onSendInvite: (friend: Friend) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly liftStyles: ReturnType<typeof makeLiftStyles>;
+  readonly watchStyles: ReturnType<typeof makeWatchStyles>;
+  readonly colors: ThemeColors;
 }
 
 function FriendsListWidget({
@@ -509,10 +509,10 @@ function FriendsListWidget({
 }
 
 interface RequestsPendingWidgetProps {
-  pendingRequests: PendingFriendRequest[];
-  styles: ReturnType<typeof makeStyles>;
-  onAccept: (friendshipId: number | string) => void;
-  onReject: (friendshipId: number | string, username: string) => void;
+  readonly pendingRequests: PendingFriendRequest[];
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly onAccept: (friendshipId: number | string) => void;
+  readonly onReject: (friendshipId: number | string, username: string) => void;
 }
 
 function RequestsPendingWidget({
@@ -572,8 +572,8 @@ function RequestsPendingWidget({
 }
 
 interface RequestsSentWidgetProps {
-  sentRequests: SentFriendRequest[];
-  styles: ReturnType<typeof makeStyles>;
+  readonly sentRequests: SentFriendRequest[];
+  readonly styles: ReturnType<typeof makeStyles>;
 }
 
 function RequestsSentWidget({
@@ -620,15 +620,15 @@ function RequestsSentWidget({
 }
 
 interface SearchContactsWidgetProps {
-  styles: ReturnType<typeof makeStyles>;
-  permStyles: ReturnType<typeof makePermStyles>;
-  loadingContactSuggestions: boolean;
-  contactPermissionDenied: boolean;
-  contactSuggestionsRequested: boolean;
-  contactSuggestions: ContactFriendSuggestion[];
-  sendingRequestTo: number | string | null;
-  onFindSuggestions: () => void;
-  onSendRequest: (suggestion: ContactFriendSuggestion) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly permStyles: ReturnType<typeof makePermStyles>;
+  readonly loadingContactSuggestions: boolean;
+  readonly contactPermissionDenied: boolean;
+  readonly contactSuggestionsRequested: boolean;
+  readonly contactSuggestions: ContactFriendSuggestion[];
+  readonly sendingRequestTo: number | string | null;
+  readonly onFindSuggestions: () => void;
+  readonly onSendRequest: (suggestion: ContactFriendSuggestion) => void;
 }
 
 function SearchContactsWidget({
@@ -727,9 +727,9 @@ function SearchContactsWidget({
 }
 
 interface SearchQrWidgetProps {
-  permStyles: ReturnType<typeof makePermStyles>;
-  onShowMyQr: () => void;
-  onScanQr: () => void;
+  readonly permStyles: ReturnType<typeof makePermStyles>;
+  readonly onShowMyQr: () => void;
+  readonly onScanQr: () => void;
 }
 
 function SearchQrWidget({
@@ -761,17 +761,17 @@ function SearchQrWidget({
 }
 
 interface SearchUsersWidgetProps {
-  styles: ReturnType<typeof makeStyles>;
-  searchQuery: string;
-  onChangeQuery: (text: string) => void;
-  searching: boolean;
-  searchResults: UserSearchResult[];
-  friends: Friend[];
-  sentRequests: SentFriendRequest[];
-  pendingRequests: PendingFriendRequest[];
-  currentUserId: number | string | undefined;
-  onGoToRequests: () => void;
-  onAddFriend: (username: string) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly searchQuery: string;
+  readonly onChangeQuery: (text: string) => void;
+  readonly searching: boolean;
+  readonly searchResults: UserSearchResult[];
+  readonly friends: Friend[];
+  readonly sentRequests: SentFriendRequest[];
+  readonly pendingRequests: PendingFriendRequest[];
+  readonly currentUserId: number | string | undefined;
+  readonly onGoToRequests: () => void;
+  readonly onAddFriend: (username: string) => void;
 }
 
 function SearchUserResultRow({
@@ -784,14 +784,14 @@ function SearchUserResultRow({
   onGoToRequests,
   onAddFriend,
 }: {
-  result: UserSearchResult;
-  friends: Friend[];
-  sentRequests: SentFriendRequest[];
-  pendingRequests: PendingFriendRequest[];
-  currentUserId: number | string | undefined;
-  styles: ReturnType<typeof makeStyles>;
-  onGoToRequests: () => void;
-  onAddFriend: (username: string) => void;
+  readonly result: UserSearchResult;
+  readonly friends: Friend[];
+  readonly sentRequests: SentFriendRequest[];
+  readonly pendingRequests: PendingFriendRequest[];
+  readonly currentUserId: number | string | undefined;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly onGoToRequests: () => void;
+  readonly onAddFriend: (username: string) => void;
 }): React.JSX.Element {
   const isFriend = friends.some((f) => f.id === result.id);
   const hasSent = sentRequests.some((r) => r.receiverId === result.id);
@@ -917,19 +917,19 @@ interface FriendTabDescriptor {
 }
 
 interface FriendTabsBarProps {
-  selectedFriend: Friend | null;
-  activeFriendTab: string;
-  hasFriendSharedAnalyticsWith: (
+  readonly selectedFriend: Friend | null;
+  readonly activeFriendTab: string;
+  readonly hasFriendSharedAnalyticsWith: (
     friendId: number | string | undefined,
   ) => boolean;
-  receivedPrograms: ReceivedProgram[];
-  hasReceivedPermission: (
+  readonly receivedPrograms: ReceivedProgram[];
+  readonly hasReceivedPermission: (
     friendId: number | string | undefined,
     type: string,
   ) => boolean;
-  onSelectTab: (tabKey: string) => void;
-  onLockedTab: (tabKey: string) => void;
-  styles: ReturnType<typeof makeStyles>;
+  readonly onSelectTab: (tabKey: string) => void;
+  readonly onLockedTab: (tabKey: string) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
 }
 
 function FriendTabsBar({
@@ -1010,10 +1010,10 @@ function getProgramDayTitle(day: ProgramDay): string {
 }
 
 interface ProgramExerciseRowProps {
-  exercise: ProgramExercise;
-  exIdx: number;
-  selectedProgram: string | null;
-  styles: ReturnType<typeof makeStyles>;
+  readonly exercise: ProgramExercise;
+  readonly exIdx: number;
+  readonly selectedProgram: string | null;
+  readonly styles: ReturnType<typeof makeStyles>;
 }
 
 function ProgramExerciseRow({
@@ -1046,10 +1046,10 @@ function ProgramExerciseRow({
 }
 
 interface ProgramDayCardProps {
-  day: ProgramDay;
-  dayIdx: number;
-  selectedProgram: string | null;
-  styles: ReturnType<typeof makeStyles>;
+  readonly day: ProgramDay;
+  readonly dayIdx: number;
+  readonly selectedProgram: string | null;
+  readonly styles: ReturnType<typeof makeStyles>;
 }
 
 function ProgramDayCard({
@@ -1091,10 +1091,10 @@ function ProgramDayCard({
 }
 
 interface ProgramPeopleSelectorProps {
-  options: string[];
-  selectedProgram: string | null;
-  onSelect: (option: string | null) => void;
-  styles: ReturnType<typeof makeStyles>;
+  readonly options: string[];
+  readonly selectedProgram: string | null;
+  readonly onSelect: (option: string | null) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
 }
 
 function ProgramPeopleSelector({
@@ -1137,11 +1137,11 @@ function ProgramPeopleSelector({
 }
 
 interface FriendProgramTabProps {
-  selectedFriend: Friend | null;
-  receivedPrograms: ReceivedProgram[];
-  selectedProgram: string | null;
-  setSelectedProgram: (option: string | null) => void;
-  styles: ReturnType<typeof makeStyles>;
+  readonly selectedFriend: Friend | null;
+  readonly receivedPrograms: ReceivedProgram[];
+  readonly selectedProgram: string | null;
+  readonly setSelectedProgram: (option: string | null) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
 }
 
 function FriendProgramTab({
@@ -1241,20 +1241,20 @@ function getShareProgramDescription(
 }
 
 interface FriendGrantedPermissionsProps {
-  selectedFriend: Friend | null;
-  workoutData: unknown;
-  styles: ReturnType<typeof makeStyles>;
-  getGrantedPermission: (
+  readonly selectedFriend: Friend | null;
+  readonly workoutData: unknown;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly getGrantedPermission: (
     friendId: number | string,
     type: string,
   ) => GrantedPermission | undefined;
-  isPermLoading: (
+  readonly isPermLoading: (
     friendId: number | string | undefined,
     type: string,
   ) => boolean;
-  onGrantPermission: (friend: Friend, type: string) => void;
-  onGrantProgramPermission: (friend: Friend) => void;
-  onRevokePermission: (friend: Friend, type: string) => void;
+  readonly onGrantPermission: (friend: Friend, type: string) => void;
+  readonly onGrantProgramPermission: (friend: Friend) => void;
+  readonly onRevokePermission: (friend: Friend, type: string) => void;
 }
 
 function FriendGrantedPermissions({
@@ -1354,11 +1354,11 @@ function FriendGrantedPermissions({
 }
 
 interface FriendReceivedPermissionsProps {
-  selectedFriend: Friend | null;
-  styles: ReturnType<typeof makeStyles>;
-  permStyles: ReturnType<typeof makePermStyles>;
-  colors: ThemeColors;
-  hasReceivedPermission: (
+  readonly selectedFriend: Friend | null;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly permStyles: ReturnType<typeof makePermStyles>;
+  readonly colors: ThemeColors;
+  readonly hasReceivedPermission: (
     friendId: number | string | undefined,
     type: string,
   ) => boolean;
@@ -1424,16 +1424,16 @@ function FriendReceivedPermissions({
 }
 
 interface LiveSessionActionProps {
-  selectedFriend: Friend | null;
-  friendSessionStatuses: Record<string | number, boolean>;
-  isWatching: boolean;
-  watchTarget: { friendId?: string } | null;
-  checkingActiveSession: boolean;
-  onWatch: (friend: Friend) => void;
-  onStopWatching: () => void;
-  styles: ReturnType<typeof makeStyles>;
-  watchStyles: ReturnType<typeof makeWatchStyles>;
-  colors: ThemeColors;
+  readonly selectedFriend: Friend | null;
+  readonly friendSessionStatuses: Record<string | number, boolean>;
+  readonly isWatching: boolean;
+  readonly watchTarget: { friendId?: string } | null;
+  readonly checkingActiveSession: boolean;
+  readonly onWatch: (friend: Friend) => void;
+  readonly onStopWatching: () => void;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly watchStyles: ReturnType<typeof makeWatchStyles>;
+  readonly colors: ThemeColors;
 }
 
 function LiveSessionAction({
@@ -1524,15 +1524,15 @@ function LiveSessionAction({
 }
 
 interface LiftTogetherActionProps {
-  selectedFriend: Friend | null;
-  friendSessionStatuses: Record<string | number, boolean>;
-  isInJointSession: boolean;
-  getInviteStatusForFriend: (friendId: number | string) => string;
-  onLeaveJointSession: () => void;
-  onSendInvite: (friend: Friend) => void;
-  styles: ReturnType<typeof makeStyles>;
-  jointStyles: ReturnType<typeof makeJointStyles>;
-  colors: ThemeColors;
+  readonly selectedFriend: Friend | null;
+  readonly friendSessionStatuses: Record<string | number, boolean>;
+  readonly isInJointSession: boolean;
+  readonly getInviteStatusForFriend: (friendId: number | string) => string;
+  readonly onLeaveJointSession: () => void;
+  readonly onSendInvite: (friend: Friend) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly jointStyles: ReturnType<typeof makeJointStyles>;
+  readonly colors: ThemeColors;
 }
 
 function LiftTogetherAction({
@@ -1623,40 +1623,40 @@ function LiftTogetherAction({
 }
 
 interface FriendActionsTabProps {
-  selectedFriend: Friend | null;
-  styles: ReturnType<typeof makeStyles>;
-  permStyles: ReturnType<typeof makePermStyles>;
-  watchStyles: ReturnType<typeof makeWatchStyles>;
-  jointStyles: ReturnType<typeof makeJointStyles>;
-  colors: ThemeColors;
-  workoutData: unknown;
-  getGrantedPermission: (
+  readonly selectedFriend: Friend | null;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly permStyles: ReturnType<typeof makePermStyles>;
+  readonly watchStyles: ReturnType<typeof makeWatchStyles>;
+  readonly jointStyles: ReturnType<typeof makeJointStyles>;
+  readonly colors: ThemeColors;
+  readonly workoutData: unknown;
+  readonly getGrantedPermission: (
     friendId: number | string,
     type: string,
   ) => GrantedPermission | undefined;
-  isPermLoading: (
+  readonly isPermLoading: (
     friendId: number | string | undefined,
     type: string,
   ) => boolean;
-  hasReceivedPermission: (
+  readonly hasReceivedPermission: (
     friendId: number | string | undefined,
     type: string,
   ) => boolean;
-  onGrantPermission: (friend: Friend, type: string) => void;
-  onRevokePermission: (friend: Friend, type: string) => void;
-  onGrantProgramPermission: (friend: Friend) => void;
-  friendSessionStatuses: Record<string | number, boolean>;
-  isWatching: boolean;
-  watchTarget: { friendId?: string } | null;
-  checkingActiveSession: boolean;
-  onWatchSession: (friend: Friend) => void;
-  onStopWatching: () => void;
-  hasOwnActiveSession: boolean;
-  isInJointSession: boolean;
-  getInviteStatusForFriend: (friendId: number | string) => string;
-  onLeaveJointSession: () => void;
-  onSendInvite: (friend: Friend) => void;
-  onRemoveFriend: (friend: Friend) => void;
+  readonly onGrantPermission: (friend: Friend, type: string) => void;
+  readonly onRevokePermission: (friend: Friend, type: string) => void;
+  readonly onGrantProgramPermission: (friend: Friend) => void;
+  readonly friendSessionStatuses: Record<string | number, boolean>;
+  readonly isWatching: boolean;
+  readonly watchTarget: { friendId?: string } | null;
+  readonly checkingActiveSession: boolean;
+  readonly onWatchSession: (friend: Friend) => void;
+  readonly onStopWatching: () => void;
+  readonly hasOwnActiveSession: boolean;
+  readonly isInJointSession: boolean;
+  readonly getInviteStatusForFriend: (friendId: number | string) => string;
+  readonly onLeaveJointSession: () => void;
+  readonly onSendInvite: (friend: Friend) => void;
+  readonly onRemoveFriend: (friend: Friend) => void;
 }
 
 function FriendActionsTab({
@@ -2598,12 +2598,12 @@ export default function FriendsScreen(): React.JSX.Element {
           if (!map.has(k)) map.set(k, { exerciseName: k, sets: [] });
           map.get(k)!.sets.push(t);
         });
-        map.forEach((ex) =>
-          ex.sets.sort(
+        map.forEach((ex) => {
+          ex.sets = ex.sets.toSorted(
             (a: { set_index: number }, b: { set_index: number }) =>
               a.set_index - b.set_index,
-          ),
-        );
+          );
+        });
         details.groupedExercises = Array.from(map.values());
       } else {
         details.groupedExercises = [];
@@ -2630,7 +2630,7 @@ export default function FriendsScreen(): React.JSX.Element {
   const formatSessionTime = (s: string | number | undefined): string => {
     const p = String(s).replace("T", " ").split(" ")[1] || "";
     const [h, m] = p.split(":");
-    const hr = parseInt(h);
+    const hr = Number.parseInt(h);
     return `${hr % 12 || 12}:${m || "00"} ${hr >= 12 ? "PM" : "AM"}`;
   };
   const getSessionTitle = (s: SessionRecord | null): string => {
@@ -3223,7 +3223,7 @@ export default function FriendsScreen(): React.JSX.Element {
                                   </Text>
                                   <Text style={styles.setTimingDetail}>
                                     {parseFloat(String(set.weight ?? 0))}kg ×{" "}
-                                    {parseInt(String(set.reps ?? 0))}
+                                    {Number.parseInt(String(set.reps ?? 0))}
                                   </Text>
                                 </View>
                               ))}

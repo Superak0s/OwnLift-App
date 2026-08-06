@@ -14,9 +14,7 @@ import { macrosTrackingApi as macrosTrackingApiOff } from "./off/macros";
 import { photoApi as photoApiOn } from "./on/photo";
 import { photoApi as photoApiOff } from "./off/photo";
 import { hydrationApi as hydrationApiOn } from "./on/hydration";
-import { hydrationApi as hydrationApiOff } from "./off/hydration";
 import { sorenessApi as sorenessApiOn } from "./on/soreness";
-import { sorenessApi as sorenessApiOff } from "./off/soreness";
 import { domsApi as domsApiOn } from "./on/doms";
 import { domsApi as domsApiOff } from "./off/doms";
 import { injuryApi as injuryApiOn } from "./on/injury";
@@ -26,9 +24,7 @@ import { progressPhotoApi as progressPhotoApiOff } from "./off/progressPhoto";
 import { personalNotesApi as personalNotesApiOn } from "./on/personalNotes";
 import { personalNotesApi as personalNotesApiOff } from "./off/personalNotes";
 import { bodyMeasurementsApi as bodyMeasurementsApiOn } from "./on/bodyMeasurements";
-import { bodyMeasurementsApi as bodyMeasurementsApiOff } from "./off/bodyMeasurements";
 import { menstrualApi as menstrualApiOn } from "./on/menstrual";
-import { menstrualApi as menstrualApiOff } from "./off/menstrual";
 
 type BodyTrackingApiShape = typeof bodyTrackingApiOn;
 type BodyFatApiShape = typeof bodyFatApiOn;
@@ -63,40 +59,24 @@ export const photoApi: PhotoApiShape = createDispatchProxy(
   photoApiOff,
 );
 
-export const hydrationApi: HydrationApiShape = createDispatchProxy(
-  hydrationApiOn,
-  hydrationApiOff,
-);
-
-export const sorenessApi: SorenessApiShape = createDispatchProxy(
-  sorenessApiOn,
-  sorenessApiOff,
-);
-
+// No offline equivalents — server-only APIs
+export const hydrationApi: HydrationApiShape = hydrationApiOn;
+export const sorenessApi: SorenessApiShape = sorenessApiOn;
 export const domsApi: DomsApiShape = createDispatchProxy(domsApiOn, domsApiOff);
-
 export const injuryApi: InjuryApiShape = createDispatchProxy(
   injuryApiOn,
   injuryApiOff,
 );
-
 export const progressPhotoApi: ProgressPhotoApiShape = createDispatchProxy(
   progressPhotoApiOn,
   progressPhotoApiOff,
 );
-
 export const personalNotesApi: PersonalNotesApiShape = createDispatchProxy(
   personalNotesApiOn,
   personalNotesApiOff,
 );
-
-export const bodyMeasurementsApi: BodyMeasurementsApiShape =
-  createDispatchProxy(bodyMeasurementsApiOn, bodyMeasurementsApiOff);
-
-export const menstrualApi: MenstrualApiShape = createDispatchProxy(
-  menstrualApiOn,
-  menstrualApiOff,
-);
+export const bodyMeasurementsApi: BodyMeasurementsApiShape = bodyMeasurementsApiOn;
+export const menstrualApi: MenstrualApiShape = menstrualApiOn;
 
 // getCurrentBodyWeight is a standalone function, not a method on either
 // api object above, so it's wrapped in a tiny one-off shape to go through

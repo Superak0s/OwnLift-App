@@ -11,14 +11,14 @@ import { useAlert } from "@shared/components/CustomAlert"
 import { useTheme } from "@shared/context/ThemeContext"
 
 interface QuickLogSupplementProps {
-  visible: boolean
-  onClose: () => void
-  onLog: (amount: number, note: string) => void
-  supplementName?: string
-  unit?: string
-  icon?: string
-  defaultAmount?: number
-  quickAmounts?: readonly number[]
+  readonly visible: boolean
+  readonly onClose: () => void
+  readonly onLog: (amount: number, note: string) => void
+  readonly supplementName?: string
+  readonly unit?: string
+  readonly icon?: string
+  readonly defaultAmount?: number
+  readonly quickAmounts?: readonly number[]
 }
 
 const DEFAULT_QUICK_AMOUNTS = [3, 5, 10] as const

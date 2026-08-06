@@ -104,17 +104,17 @@ if (
 // far less to do directly.
 
 interface SplitDayRowProps {
-  index: number;
-  day: { dayTitle: string; muscleGroups: string };
-  canRemove: boolean;
-  colors: ThemeColors;
-  styles: Styles;
-  onChangeField: (
+  readonly index: number;
+  readonly day: { dayTitle: string; muscleGroups: string };
+  readonly canRemove: boolean;
+  readonly colors: ThemeColors;
+  readonly styles: Styles;
+  readonly onChangeField: (
     idx: number,
     field: "dayTitle" | "muscleGroups",
     value: string,
   ) => void;
-  onRemove: (idx: number) => void;
+  readonly onRemove: (idx: number) => void;
 }
 
 function SplitDayRow({
@@ -167,9 +167,9 @@ function SplitDayRow({
 }
 
 interface SuggestionsBoxProps {
-  suggestions: string[];
-  styles: Styles;
-  onSelect: (value: string) => void;
+  readonly suggestions: string[];
+  readonly styles: Styles;
+  readonly onSelect: (value: string) => void;
 }
 
 function SuggestionsBox({
@@ -187,9 +187,9 @@ function SuggestionsBox({
 }
 
 interface SuggestionItemProps {
-  value: string;
-  styles: Styles;
-  onSelect: (value: string) => void;
+  readonly value: string;
+  readonly styles: Styles;
+  readonly onSelect: (value: string) => void;
 }
 
 function SuggestionItem({
@@ -206,11 +206,11 @@ function SuggestionItem({
 }
 
 interface SetsEditRowProps {
-  personKeys: string[];
-  setsByPerson: Record<string, string>;
-  colors: ThemeColors;
-  styles: Styles;
-  onChange: (person: string, value: string) => void;
+  readonly personKeys: string[];
+  readonly setsByPerson: Record<string, string>;
+  readonly colors: ThemeColors;
+  readonly styles: Styles;
+  readonly onChange: (person: string, value: string) => void;
 }
 
 function SetsEditRow({
@@ -237,11 +237,11 @@ function SetsEditRow({
 }
 
 interface SetEditItemProps {
-  person: string;
-  value: string;
-  colors: ThemeColors;
-  styles: Styles;
-  onChange: (person: string, value: string) => void;
+  readonly person: string;
+  readonly value: string;
+  readonly colors: ThemeColors;
+  readonly styles: Styles;
+  readonly onChange: (person: string, value: string) => void;
 }
 
 function SetEditItem({
@@ -269,30 +269,30 @@ function SetEditItem({
 }
 
 interface ExerciseEditBlockProps {
-  draft: ExerciseDraft;
-  exIdx: number;
-  colors: ThemeColors;
-  styles: Styles;
-  nameSuggestions: string[];
-  mgSuggestions: string[];
-  showNameSuggestions: boolean;
-  showMgSuggestions: boolean;
-  onChangeField: (
+  readonly draft: ExerciseDraft;
+  readonly exIdx: number;
+  readonly colors: ThemeColors;
+  readonly styles: Styles;
+  readonly nameSuggestions: string[];
+  readonly mgSuggestions: string[];
+  readonly showNameSuggestions: boolean;
+  readonly showMgSuggestions: boolean;
+  readonly onChangeField: (
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
   ) => void;
-  onFocusName: (exIdx: number) => void;
-  onBlurName: () => void;
-  onFocusMg: (exIdx: number) => void;
-  onBlurMg: () => void;
-  onApplySuggestion: (
+  readonly onFocusName: (exIdx: number) => void;
+  readonly onBlurName: () => void;
+  readonly onFocusMg: (exIdx: number) => void;
+  readonly onBlurMg: () => void;
+  readonly onApplySuggestion: (
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
   ) => void;
-  onRemove: (exIdx: number) => void;
-  onChangeSets: (exIdx: number, person: string, value: string) => void;
+  readonly onRemove: (exIdx: number) => void;
+  readonly onChangeSets: (exIdx: number, person: string, value: string) => void;
 }
 
 function ExerciseEditBlock({
@@ -386,10 +386,10 @@ function ExerciseEditBlock({
 }
 
 interface ProgramExerciseRowProps {
-  name: string;
-  muscleGroup?: string;
-  personEntries: Array<[string, number]>;
-  styles: Styles;
+  readonly name: string;
+  readonly muscleGroup?: string;
+  readonly personEntries: Array<[string, number]>;
+  readonly styles: Styles;
 }
 
 function ProgramExerciseRow({
@@ -419,33 +419,33 @@ function ProgramExerciseRow({
 }
 
 interface DayEditFormProps {
-  dayDraft: DayDraft;
-  colors: ThemeColors;
-  styles: Styles;
-  nameSuggestions: Record<number, string[]>;
-  mgSuggestions: Record<number, string[]>;
-  focusedNameIdx: number | null;
-  focusedMgIdx: number | null;
-  isSubmitting: boolean;
-  onChangeField: (
+  readonly dayDraft: DayDraft;
+  readonly colors: ThemeColors;
+  readonly styles: Styles;
+  readonly nameSuggestions: Record<number, string[]>;
+  readonly mgSuggestions: Record<number, string[]>;
+  readonly focusedNameIdx: number | null;
+  readonly focusedMgIdx: number | null;
+  readonly isSubmitting: boolean;
+  readonly onChangeField: (
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
   ) => void;
-  onFocusName: (exIdx: number) => void;
-  onBlurName: () => void;
-  onFocusMg: (exIdx: number) => void;
-  onBlurMg: () => void;
-  onApplySuggestion: (
+  readonly onFocusName: (exIdx: number) => void;
+  readonly onBlurName: () => void;
+  readonly onFocusMg: (exIdx: number) => void;
+  readonly onBlurMg: () => void;
+  readonly onApplySuggestion: (
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
   ) => void;
-  onRemoveExercise: (exIdx: number) => void;
-  onChangeSets: (exIdx: number, person: string, value: string) => void;
-  onAddExercise: () => void;
-  onCancel: () => void;
-  onSubmit: () => void;
+  readonly onRemoveExercise: (exIdx: number) => void;
+  readonly onChangeSets: (exIdx: number, person: string, value: string) => void;
+  readonly onAddExercise: () => void;
+  readonly onCancel: () => void;
+  readonly onSubmit: () => void;
 }
 
 function DayEditForm({
@@ -561,41 +561,41 @@ function getPersonEntries(
 }
 
 interface ProgramDayCardProps {
-  day: WdDay;
-  dayIdx: number;
-  selectedProgram: string | null;
-  isHidden: boolean;
-  isEditing: boolean;
-  canStartEditing: boolean;
-  dayDraft: DayDraft | null;
-  colors: ThemeColors;
-  styles: Styles;
-  nameSuggestions: Record<number, string[]>;
-  mgSuggestions: Record<number, string[]>;
-  focusedNameIdx: number | null;
-  focusedMgIdx: number | null;
-  isSubmitting: boolean;
-  onStartEditing: (dayIdx: number) => void;
-  onToggleHidden: (dayIdx: number) => void;
-  onChangeField: (
+  readonly day: WdDay;
+  readonly dayIdx: number;
+  readonly selectedProgram: string | null;
+  readonly isHidden: boolean;
+  readonly isEditing: boolean;
+  readonly canStartEditing: boolean;
+  readonly dayDraft: DayDraft | null;
+  readonly colors: ThemeColors;
+  readonly styles: Styles;
+  readonly nameSuggestions: Record<number, string[]>;
+  readonly mgSuggestions: Record<number, string[]>;
+  readonly focusedNameIdx: number | null;
+  readonly focusedMgIdx: number | null;
+  readonly isSubmitting: boolean;
+  readonly onStartEditing: (dayIdx: number) => void;
+  readonly onToggleHidden: (dayIdx: number) => void;
+  readonly onChangeField: (
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
   ) => void;
-  onFocusName: (exIdx: number) => void;
-  onBlurName: () => void;
-  onFocusMg: (exIdx: number) => void;
-  onBlurMg: () => void;
-  onApplySuggestion: (
+  readonly onFocusName: (exIdx: number) => void;
+  readonly onBlurName: () => void;
+  readonly onFocusMg: (exIdx: number) => void;
+  readonly onBlurMg: () => void;
+  readonly onApplySuggestion: (
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
   ) => void;
-  onRemoveExercise: (exIdx: number) => void;
-  onChangeSets: (exIdx: number, person: string, value: string) => void;
-  onAddExercise: () => void;
-  onCancelEditing: () => void;
-  onSubmitEdits: () => void;
+  readonly onRemoveExercise: (exIdx: number) => void;
+  readonly onChangeSets: (exIdx: number, person: string, value: string) => void;
+  readonly onAddExercise: () => void;
+  readonly onCancelEditing: () => void;
+  readonly onSubmitEdits: () => void;
 }
 
 function ProgramDayCard({
@@ -1285,12 +1285,12 @@ export default function PlanScreen({
           const exercisesForPerson = dayDraft.exercises
             .filter((draft) => {
               const raw = draft.setsByPerson[person];
-              return raw !== undefined && (parseInt(raw, 10) || 0) > 0;
+              return raw !== undefined && (Number.parseInt(raw, 10) || 0) > 0;
             })
             .map((draft) => ({
               name: draft.name,
               muscleGroup: draft.muscleGroup,
-              sets: parseInt(draft.setsByPerson[person], 10) || 0,
+              sets: Number.parseInt(draft.setsByPerson[person], 10) || 0,
             }));
 
           const totalSets = exercisesForPerson.reduce(

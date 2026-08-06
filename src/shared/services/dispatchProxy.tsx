@@ -20,8 +20,8 @@ export function createDispatchProxy<
   const proxy = {} as Record<keyof T, (...args: unknown[]) => unknown>
 
   for (const key of keys) {
-    proxy[key] = (...args: unknown[]) => {
-      const impl = isServerless() ? offImpl : onImpl
+    proxy[key] = async (...args: unknown[]) => {
+      const impl = (await isServerless()) ? offImpl : onImpl
       return impl[key](...args)
     }
   }

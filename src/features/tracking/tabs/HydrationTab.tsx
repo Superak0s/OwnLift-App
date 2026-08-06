@@ -109,9 +109,9 @@ import ModalSheet from "@shared/components/ModalSheet";
 import { hydrationApi } from "../services";
 
 interface LogHydrationModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSuccess?: (data: any) => void;
+  readonly visible: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess?: (data: any) => void;
 }
 
 const STEP_ML = 50;
@@ -253,7 +253,7 @@ export function LogHydrationModal({
             placeholderTextColor={colors.textSecondary}
             value={String(amountMl)}
             onChangeText={(text) =>
-              setAmountMl(Math.max(0, parseInt(text) || 0))
+              setAmountMl(Math.max(0, Number.parseInt(text, 10) || 0))
             }
             keyboardType='number-pad'
           />
@@ -497,7 +497,7 @@ import {
 } from "react-native";
 
 interface HydrationSettingsWidgetProps {
-  onSettingsUpdate?: (settings: {
+  readonly onSettingsUpdate?: (settings: {
     goalMl: number;
     measurementErrorPercent: number;
   }) => void;
@@ -591,7 +591,7 @@ export function HydrationSettingsWidget({
               style={styles.mainInput}
               value={String(goalMl)}
               onChangeText={(text) =>
-                setGoalMl(Math.max(500, parseInt(text) || 2000))
+                setGoalMl(Math.max(500, Number.parseInt(text, 10) || 2000))
               }
               keyboardType='number-pad'
             />
@@ -642,7 +642,7 @@ export function HydrationSettingsWidget({
                   style={styles.input}
                   value={String(measurementErrorPercent)}
                   onChangeText={(text) =>
-                    setMeasurementErrorPercent(Math.max(0, parseInt(text) || 0))
+                    setMeasurementErrorPercent(Math.max(0, Number.parseInt(text, 10) || 0))
                   }
                   keyboardType='number-pad'
                 />

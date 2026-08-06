@@ -21,9 +21,9 @@ import {
 import ModalSheet from "@shared/components/ModalSheet";
 
 interface LogProgressPhotoModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
+  readonly visible: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess: () => void;
 }
 
 const PHOTOSHOTS_ANGLE_OPTIONS = [

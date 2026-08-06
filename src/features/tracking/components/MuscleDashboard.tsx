@@ -15,9 +15,9 @@ import { domsApi, injuryApi, progressPhotoApi, personalNotesApi } from "../servi
 import { MuscleGroup, MUSCLE_GROUP_LABELS, PersonalMuscleNote } from "../types/muscleRecovery";
 
 interface MuscleDashboardProps {
-  muscleGroup: MuscleGroup;
-  onClose: () => void;
-  onBack?: () => void;
+  readonly muscleGroup: MuscleGroup;
+  readonly onClose: () => void;
+  readonly onBack?: () => void;
 }
 
 type TabType = "soreness" | "photos" | "injuries" | "stats" | "notes";

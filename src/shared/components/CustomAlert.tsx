@@ -27,12 +27,12 @@ interface AlertConfig {
 }
 
 interface CustomAlertProps {
-  visible: boolean
-  title: string
-  message: string
-  buttons: AlertButton[]
-  type: AlertType
-  onDismiss: () => void
+  readonly visible: boolean
+  readonly title: string
+  readonly message: string
+  readonly buttons: AlertButton[]
+  readonly type: AlertType
+  readonly onDismiss: () => void
 }
 
 export interface UseAlertReturn {

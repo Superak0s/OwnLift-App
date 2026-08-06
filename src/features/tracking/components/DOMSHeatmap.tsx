@@ -15,8 +15,8 @@ import { MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
 interface DOMSHeatmapProps {
-  dateRange?: "30d" | "90d" | "180d" | "1y";
-  onSelectMuscle?: (muscle: string) => void;
+  readonly dateRange?: "30d" | "90d" | "180d" | "1y";
+  readonly onSelectMuscle?: (muscle: string) => void;
 }
 
 type DayData = {

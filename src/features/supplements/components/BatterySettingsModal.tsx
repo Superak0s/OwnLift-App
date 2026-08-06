@@ -21,9 +21,9 @@ import { useAlert } from "@shared/components/CustomAlert"
 import { useTheme } from "@shared/context/ThemeContext"
 
 interface BatterySettingsModalProps {
-  visible: boolean
-  onClose: () => void
-  onSave?: (settings: BatterySettings) => void
+  readonly visible: boolean
+  readonly onClose: () => void
+  readonly onSave?: (settings: BatterySettings) => void
 }
 
 export default function BatterySettingsModal({
@@ -67,8 +67,8 @@ export default function BatterySettingsModal({
       let settings: BatterySettings
 
       if (showAdvanced) {
-        const timeMinutes = parseInt(customTimeInterval)
-        const distanceMeters = parseInt(customDistanceInterval)
+        const timeMinutes = Number.parseInt(customTimeInterval, 10)
+        const distanceMeters = Number.parseInt(customDistanceInterval, 10)
 
         if (isNaN(timeMinutes) || timeMinutes < 1 || timeMinutes > 60) {
           alert(

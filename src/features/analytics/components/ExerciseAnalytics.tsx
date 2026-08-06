@@ -59,20 +59,20 @@ type Session = Pick<
 >;
 
 interface ExerciseAnalyticsProps {
-  sessions?: Session[];
-  workoutData?: WorkoutData | null;
-  selectedSplit?: string | null;
-  completedDays?: CompletedDays;
-  currentBodyWeight?: number | null;
-  isDemoMode?: boolean;
-  onRefresh?: (() => void) | null;
-  refreshing?: boolean;
-  title?: string;
-  currentSessionId?: string | null;
-  isLoading?: boolean;
-  error?: string | null;
+  readonly sessions?: Session[];
+  readonly workoutData?: WorkoutData | null;
+  readonly selectedSplit?: string | null;
+  readonly completedDays?: CompletedDays;
+  readonly currentBodyWeight?: number | null;
+  readonly isDemoMode?: boolean;
+  readonly onRefresh?: (() => void) | null;
+  readonly refreshing?: boolean;
+  readonly title?: string;
+  readonly currentSessionId?: string | null;
+  readonly isLoading?: boolean;
+  readonly error?: string | null;
   /** Used to key widget layout persistence per-user, same as HomeScreen. */
-  userId?: string | number | null;
+  readonly userId?: string | number | null;
 }
 
 export default function ExerciseAnalytics({
@@ -89,7 +89,7 @@ export default function ExerciseAnalytics({
   isLoading = false,
   error = null,
   userId = null,
-}: ExerciseAnalyticsProps) {
+}: Readonly<ExerciseAnalyticsProps>) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
@@ -120,7 +120,7 @@ export default function ExerciseAnalytics({
     removeWidget,
     cycleWidgetSize,
     reorderWidgets,
-  } = useWidgets<AnalyticsWidgetType>(userId != null ? String(userId) : null, {
+  } = useWidgets<AnalyticsWidgetType>(userId == null ? null : String(userId), {
     registry: ANALYTICS_WIDGET_REGISTRY,
     defaults: DEFAULT_ANALYTICS_WIDGETS,
     storageKey: ANALYTICS_WIDGETS_STORAGE_KEY,
@@ -161,9 +161,9 @@ export default function ExerciseAnalytics({
   }, [selectedExercise, completedDays, sessions]);
 
   const fmt = (value?: number | null): string => {
-    const n = parseFloat(String(value ?? 0));
-    if (!isFinite(n)) return "0";
-    return parseFloat(n.toFixed(2)).toString();
+    const n = Number.parseFloat(String(value ?? 0));
+    if (!Number.isFinite(n)) return "0";
+    return Number.parseFloat(n.toFixed(2)).toString();
   };
 
   const resolveExerciseName = useCallback(
@@ -182,62 +182,76 @@ export default function ExerciseAnalytics({
         }
       }
 
-      return timing.exercise_index != null
-        ? `Exercise ${timing.exercise_index + 1}`
-        : "Unknown Exercise";
+      return timing.exercise_index == null
+        ? "Unknown Exercise"
+        : `Exercise ${timing.exercise_index + 1}`;
     },
     [workoutData, selectedSplit],
   );
 
-  const loadAvailableExercises = () => {
-    const exercisesMap = new Map<string, ExerciseMeta>();
-
-    if (workoutData?.days && selectedSplit) {
-      workoutData.days.forEach((day) => {
-        const splitWorkout = day.split?.[selectedSplit];
-        (splitWorkout?.exercises ?? []).forEach((exercise, exerciseIndex) => {
-          const ex = exercise as {
-            machineName?: string;
-            name: string;
-            muscleGroup?: string;
-          };
-          const key = ex.machineName ?? ex.name;
-          if (!exercisesMap.has(key)) {
-            exercisesMap.set(key, {
-              name: key,
-              exerciseName: ex.name,
-              machineName: ex.machineName ?? null,
-              muscleGroup: ex.muscleGroup ?? null,
-              days: [],
-              totalSets: 0,
-            });
-          }
-          const data = exercisesMap.get(key)!;
-          data.days.push({ dayNumber: day.dayNumber, exerciseIndex });
-
-          const daySets = completedDays[day.dayNumber]?.[exerciseIndex];
-          if (daySets) data.totalSets += Object.keys(daySets).length;
-        });
-      });
+  // Registers (or reuses) the map entry for an exercise and returns it.
+  const getOrCreateExerciseMeta = (
+    exercisesMap: Map<string, ExerciseMeta>,
+    key: string,
+    fallback: Omit<ExerciseMeta, "name" | "days" | "totalSets">,
+  ): ExerciseMeta => {
+    if (!exercisesMap.has(key)) {
+      exercisesMap.set(key, { name: key, days: [], totalSets: 0, ...fallback });
     }
+    return exercisesMap.get(key)!;
+  };
 
-    sessions.forEach((session) => {
-      if (!session.set_timings) return;
-      session.set_timings.forEach((timing) => {
-        const key = resolveExerciseName(timing, session);
-        if (!exercisesMap.has(key)) {
-          exercisesMap.set(key, {
-            name: key,
-            exerciseName: key,
-            machineName: null,
-            muscleGroup: timing.exercise_muscle_group ?? null,
-            days: [],
-            totalSets: 0,
-          });
-        }
-        exercisesMap.get(key)!.totalSets++;
+  // Source 1: every exercise defined in the workout plan itself, so it
+  // shows up in the picker even before any sets are logged for it.
+  const addExercisesFromWorkoutPlan = (
+    exercisesMap: Map<string, ExerciseMeta>,
+  ) => {
+    if (!workoutData?.days || !selectedSplit) return;
+
+    workoutData.days.forEach((day) => {
+      const splitWorkout = day.split?.[selectedSplit];
+      (splitWorkout?.exercises ?? []).forEach((exercise, exerciseIndex) => {
+        const ex = exercise as {
+          machineName?: string;
+          name: string;
+          muscleGroup?: string;
+        };
+        const key = ex.machineName ?? ex.name;
+        const data = getOrCreateExerciseMeta(exercisesMap, key, {
+          exerciseName: ex.name,
+          machineName: ex.machineName ?? null,
+          muscleGroup: ex.muscleGroup ?? null,
+        });
+        data.days.push({ dayNumber: day.dayNumber, exerciseIndex });
+
+        const daySets = completedDays[day.dayNumber]?.[exerciseIndex];
+        if (daySets) data.totalSets += Object.keys(daySets).length;
       });
     });
+  };
+
+  // Source 2: exercises seen in logged sessions, in case they aren't (or
+  // are no longer) part of the current workout plan.
+  const addExercisesFromSessions = (
+    exercisesMap: Map<string, ExerciseMeta>,
+  ) => {
+    sessions.forEach((session) => {
+      (session.set_timings ?? []).forEach((timing) => {
+        const key = resolveExerciseName(timing, session);
+        const data = getOrCreateExerciseMeta(exercisesMap, key, {
+          exerciseName: key,
+          machineName: null,
+          muscleGroup: timing.exercise_muscle_group ?? null,
+        });
+        data.totalSets++;
+      });
+    });
+  };
+
+  const loadAvailableExercises = () => {
+    const exercisesMap = new Map<string, ExerciseMeta>();
+    addExercisesFromWorkoutPlan(exercisesMap);
+    addExercisesFromSessions(exercisesMap);
 
     const exercises = Array.from(exercisesMap.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
@@ -255,15 +269,16 @@ export default function ExerciseAnalytics({
     const demoData: ExerciseHistoryEntry[] = [];
     const today = new Date();
     const lower = exerciseName.toLowerCase();
-    const baseWeight = lower.includes("bench")
-      ? 60
-      : lower.includes("squat")
-        ? 80
-        : lower.includes("deadlift")
-          ? 100
-          : lower.includes("press")
-            ? 40
-            : 50;
+    let baseWeight = 50;
+    if (lower.includes("bench")) {
+      baseWeight = 60;
+    } else if (lower.includes("squat")) {
+      baseWeight = 80;
+    } else if (lower.includes("deadlift")) {
+      baseWeight = 100;
+    } else if (lower.includes("press")) {
+      baseWeight = 40;
+    }
 
     for (let week = 0; week < 4; week++) {
       for (let session = 0; session < 3; session++) {
@@ -334,9 +349,9 @@ export default function ExerciseAnalytics({
 
     return {
       date: new Date(timing.end_time ?? session.start_time ?? Date.now()),
-      weight: isFinite(rawWeight) ? rawWeight : 0,
-      reps: isFinite(rawReps) ? rawReps : 0,
-      volume: isFinite(volume) ? volume : 0,
+      weight: Number.isFinite(rawWeight) ? rawWeight : 0,
+      reps: Number.isFinite(rawReps) ? rawReps : 0,
+      volume: Number.isFinite(volume) ? volume : 0,
       dayNumber: session.day_number ?? 0,
       setNumber: (timing.set_index ?? 0) + 1,
       source: "server",
@@ -348,7 +363,7 @@ export default function ExerciseAnalytics({
     sessions.flatMap((session) =>
       (session.set_timings ?? [])
         .map((timing) => buildHistoryEntryFromTiming(timing, session))
-        .filter((entry): entry is ExerciseHistoryEntry => entry !== null),
+        .filter((entry): entry is ExerciseHistoryEntry => entry != null),
     );
 
   // ─── History source 2: locally-completed (not yet synced) sets ────────
@@ -359,19 +374,19 @@ export default function ExerciseAnalytics({
   ): ExerciseHistoryEntry[] => {
     const isAssisted = exercise.name.toLowerCase().includes("assisted");
     return Object.keys(exerciseSets)
-      .filter((setIndex) => exerciseSets[setIndex as unknown as number])
+      .filter((setIndex) => exerciseSets[Number(setIndex)])
       .map((setIndex) => {
-        const setData = exerciseSets[setIndex as unknown as number]!;
+        const setData = exerciseSets[Number(setIndex)]!;
         const rawWeight = setData.weight ?? 0;
         const rawReps = setData.reps ?? 0;
         const volume = computeVolume(isAssisted, rawWeight, rawReps);
         return {
           date: new Date(setData.completedAt ?? Date.now()),
-          weight: isFinite(rawWeight) ? rawWeight : 0,
-          reps: isFinite(rawReps) ? rawReps : 0,
-          volume: isFinite(volume) ? volume : 0,
+          weight: Number.isFinite(rawWeight) ? rawWeight : 0,
+          reps: Number.isFinite(rawReps) ? rawReps : 0,
+          volume: Number.isFinite(volume) ? volume : 0,
           dayNumber,
-          setNumber: parseInt(setIndex) + 1,
+          setNumber: Number.parseInt(setIndex) + 1,
           source: "local",
           isAssisted,
         };
@@ -401,7 +416,7 @@ export default function ExerciseAnalytics({
       return [];
 
     return Object.keys(completedDays).flatMap((dayNumber) =>
-      buildHistoryFromDay(parseInt(dayNumber)),
+      buildHistoryFromDay(Number.parseInt(dayNumber)),
     );
   };
 
@@ -473,9 +488,9 @@ export default function ExerciseAnalytics({
         });
       }
       const s = sessionMap.get(dateKey)!;
-      s.weights.push(isFinite(entry.weight) ? entry.weight : 0);
-      s.reps.push(isFinite(entry.reps) ? entry.reps : 0);
-      s.volumes.push(isFinite(entry.volume) ? entry.volume : 0);
+      s.weights.push(Number.isFinite(entry.weight) ? entry.weight : 0);
+      s.reps.push(Number.isFinite(entry.reps) ? entry.reps : 0);
+      s.volumes.push(Number.isFinite(entry.volume) ? entry.volume : 0);
     });
 
     const chartSessions = Array.from(sessionMap.values()).sort(
@@ -497,24 +512,24 @@ export default function ExerciseAnalytics({
       data = chartSessions.map((s) => {
         if (!s.weights.length) return 0;
         const avg = s.weights.reduce((sum, w) => sum + w, 0) / s.weights.length;
-        return isFinite(avg) ? Math.round(avg * 10) / 10 : 0;
+        return Number.isFinite(avg) ? Math.round(avg * 10) / 10 : 0;
       });
     } else if (metric === "volume") {
       data = chartSessions.map((s) => {
         const total = s.volumes.reduce((sum, v) => sum + v, 0);
-        return isFinite(total) ? Math.round(total * 10) / 10 : 0;
+        return Number.isFinite(total) ? Math.round(total * 10) / 10 : 0;
       });
     } else {
       data = chartSessions.map((s) => {
         if (!s.reps.length) return 0;
         const avg = s.reps.reduce((sum, r) => sum + r, 0) / s.reps.length;
-        return isFinite(avg) ? Math.round(avg * 10) / 10 : 0;
+        return Number.isFinite(avg) ? Math.round(avg * 10) / 10 : 0;
       });
     }
 
     return {
       labels: labels.length > 0 ? labels : [""],
-      datasets: [{ data: data.map((v) => (isFinite(v) ? v : 0)) }],
+      datasets: [{ data: data.map((v) => (Number.isFinite(v) ? v : 0)) }],
     };
   };
 
@@ -538,11 +553,13 @@ export default function ExerciseAnalytics({
       exerciseData.map((e) => e.date.toLocaleDateString()),
     );
     const weights = exerciseData.map((e) =>
-      isFinite(e.weight) ? e.weight : 0,
+      Number.isFinite(e.weight) ? e.weight : 0,
     );
-    const reps = exerciseData.map((e) => (isFinite(e.reps) ? e.reps : 0));
+    const reps = exerciseData.map((e) =>
+      Number.isFinite(e.reps) ? e.reps : 0,
+    );
     const volumes = exerciseData.map((e) =>
-      isFinite(e.volume) ? e.volume : 0,
+      Number.isFinite(e.volume) ? e.volume : 0,
     );
     const totalVolume = volumes.reduce((sum, v) => sum + v, 0);
     const avgWeight = weights.reduce((sum, w) => sum + w, 0) / weights.length;
@@ -554,10 +571,12 @@ export default function ExerciseAnalytics({
       extremeWeight: isAssisted ? Math.min(...weights) : Math.max(...weights),
       extremeWeightLabel: isAssisted ? "Least Assistance" : "Max Weight",
       maxReps: Math.max(...reps),
-      avgWeight: isFinite(avgWeight) ? Math.round(avgWeight * 10) / 10 : 0,
-      avgReps: isFinite(avgReps) ? Math.round(avgReps * 10) / 10 : 0,
-      totalVolume: isFinite(totalVolume) ? Math.round(totalVolume) : 0,
-      lastWorkout: exerciseData[exerciseData.length - 1]?.date ?? null,
+      avgWeight: Number.isFinite(avgWeight)
+        ? Math.round(avgWeight * 10) / 10
+        : 0,
+      avgReps: Number.isFinite(avgReps) ? Math.round(avgReps * 10) / 10 : 0,
+      totalVolume: Number.isFinite(totalVolume) ? Math.round(totalVolume) : 0,
+      lastWorkout: exerciseData.at(-1)?.date ?? null,
       isAssisted,
     };
   };
@@ -1072,8 +1091,11 @@ export default function ExerciseAnalytics({
           scrollable
         >
           {selectedDate &&
-            getSetsForDate(selectedDate).map((set, index) => (
-              <View key={index} style={styles.setCard}>
+            getSetsForDate(selectedDate).map((set) => (
+              <View
+                key={`set-${selectedDate}-${set.setNumber}`}
+                style={styles.setCard}
+              >
                 <View style={styles.setCardHeader}>
                   <Text style={styles.setCardTitle}>Set {set.setNumber}</Text>
                   <Text style={styles.setCardTime}>{formatTime(set.date)}</Text>

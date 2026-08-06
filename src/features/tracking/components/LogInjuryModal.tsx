@@ -13,9 +13,9 @@ import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS, InjuryType } from "../types/muscleR
 import ModalSheet from "@shared/components/ModalSheet";
 
 interface LogInjuryModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
+  readonly visible: boolean;
+  readonly onClose: () => void;
+  readonly onSuccess: () => void;
 }
 
 const INJURY_TYPES: { value: InjuryType; label: string; icon: string }[] = [

@@ -256,7 +256,7 @@ function applyExerciseRow(
   });
 
   if (Object.keys(setsByPerson).length > 0) {
-    if (!day.exercises) day.exercises = [];
+    day.exercises ??= [];
     day.exercises.push({ name: firstCell, muscleGroup, setsByPerson });
   }
 }

@@ -3,11 +3,11 @@
 // Injury tracking API - Offline mode (mock data)
 
 import type {
-  ApiResponse,
   InjuryRecord,
   LogInjuryParams,
   UpdateInjuryParams,
 } from "../../types/muscleRecovery";
+import type { ApiResponse } from "../types";
 
 const mockInjuries: InjuryRecord[] = [
   {

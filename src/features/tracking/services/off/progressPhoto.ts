@@ -3,10 +3,10 @@
 // Progress Photo with muscle tagging API - Offline mode (mock data)
 
 import type {
-  ApiResponse,
   ProgressPhotoMuscle,
   LogProgressPhotoParams,
 } from "../../types/muscleRecovery";
+import type { ApiResponse } from "../types";
 
 const mockPhotos: ProgressPhotoMuscle[] = [
   {

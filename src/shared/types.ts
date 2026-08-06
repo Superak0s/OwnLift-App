@@ -364,6 +364,34 @@ export const RECOVERY_MUSCLE_GROUPS = [
 
 export type RecoveryMuscleGroup = (typeof RECOVERY_MUSCLE_GROUPS)[number]
 
+/** Human-readable labels for recovery muscle groups. */
+export const MUSCLE_GROUP_LABELS: Record<RecoveryMuscleGroup, string> = {
+  chest_upper: "Upper Chest",
+  chest_lower: "Lower Chest",
+  back_upper: "Upper Back",
+  back_lower: "Lower Back",
+  lats: "Lats",
+  traps: "Traps",
+  neck: "Neck",
+  shoulders_front: "Front Delts",
+  shoulders_side: "Side Delts",
+  shoulders_rear: "Rear Delts",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  forearms: "Forearms",
+  abs_upper: "Upper Abs",
+  abs_lower: "Lower Abs",
+  obliques: "Obliques",
+  lower_back: "Lower Back",
+  glutes: "Glutes",
+  quads: "Quads",
+  hamstrings: "Hamstrings",
+  calves: "Calves",
+  adductors: "Adductors",
+  abductors: "Abductors",
+  hip_flexors: "Hip Flexors",
+} as const
+
 /**
  * Lookup map from Title Case names (exerciseMatching taxonomy) to snake_case
  * recovery taxonomy names. Covers the overlap; non-overlapping groups fall

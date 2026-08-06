@@ -3,10 +3,10 @@
 // Personal Muscle Notes API - Offline mode (mock data)
 
 import type {
-  ApiResponse,
   PersonalMuscleNote,
   MuscleGroup,
 } from "../../types/muscleRecovery";
+import type { ApiResponse } from "../types";
 import { nextId } from "@shared/services/offlineHelpers";
 
 const MOCK_NOTES: PersonalMuscleNote[] = [

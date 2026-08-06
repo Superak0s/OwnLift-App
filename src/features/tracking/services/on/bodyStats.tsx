@@ -1,4 +1,5 @@
 import { apiCall } from "@shared/services/apiClient"
+import { calculateBodyFatPercentage } from "@utils/bodyFat"
 import { getServerUrl } from "@shared/services/config"
 import { tokenStorage } from "@shared/services/tokenStorage"
 import AsyncStorage from "@react-native-async-storage/async-storage"
@@ -286,36 +287,14 @@ export const bodyFatApi = {
     apiCall(`/api/tracking/bodystats/trend?days=${days}`),
 
   /**
-   * Calculate body fat percentage client-side (US Navy method).
-   * All measurements in the same unit (cm or inches).
-   */
-  calculateBodyFatPercentage: (
-    gender: Gender,
-    height: number,
-    waist: number,
-    neck: number,
-    hip: number | null = null,
-  ): number => {
-    let bodyFatPercentage: number
-
-    if (gender === "male") {
-      bodyFatPercentage =
-        495 /
-          (1.0324 -
-            0.19077 * Math.log10(waist - neck) +
-            0.15456 * Math.log10(height)) -
-        450
-    } else {
-      if (!hip)
-        throw new Error("Hip measurement required for female calculation")
-      bodyFatPercentage =
-        495 /
-          (1.29579 -
-            0.35004 * Math.log10(waist + hip - neck) +
-            0.221 * Math.log10(height)) -
-        450
-    }
-
-    return parseFloat(bodyFatPercentage.toFixed(1))
-  },
+    * Calculate body fat percentage client-side (US Navy method).
+    * All measurements in the same unit (cm or inches).
+    */
+   calculateBodyFatPercentage: (
+     gender: Gender,
+     height: number,
+     waist: number,
+     neck: number,
+     hip: number | null = null,
+   ): number => calculateBodyFatPercentage(gender, height, waist, neck, hip),
 }

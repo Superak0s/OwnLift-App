@@ -26,14 +26,14 @@ import {
 import {
   getAppMode,
   setAppMode,
-  ensureAppModeLoaded,
+
   onAppModeChange,
 } from "@shared/services/appMode"
 import type { AppMode } from "@shared/services/appMode"
 import type { RootStackParamList } from "./types"
 
 type LoginScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, "Login">
+  readonly navigation: NativeStackNavigationProp<RootStackParamList, "Login">
 }
 export default function LoginScreen({
   navigation,
@@ -48,15 +48,15 @@ export default function LoginScreen({
   const [showServerModal, setShowServerModal] = useState<boolean>(false)
   const [tempServerUrl, setTempServerUrl] = useState<string>("")
   const [currentServerUrl, setCurrentServerUrl] = useState<string>("")
-  const [appMode, setAppModeState] = useState<AppMode>("on")
+  const [appMode, setAppModeState] = useState<AppMode>("online")
 
   const { signin } = useAuth()
   const { alert, AlertComponent } = useAlert()
 
   useEffect(() => {
     setCurrentServerUrl(getServerUrl())
-    void ensureAppModeLoaded().then(() => setAppModeState(getAppMode()))
-    return onAppModeChange(setAppModeState)
+    void getAppMode().then(setAppModeState)
+    return onAppModeChange.subscribe(setAppModeState)
   }, [])
 
   const handleModeChange = useCallback(
@@ -269,7 +269,7 @@ export default function LoginScreen({
             <View style={styles.header}>
               <Text style={styles.title}>💪 Workout Tracker</Text>
               <Text style={styles.subtitle}>
-                {appMode === "on"
+                {appMode === "online"
                   ? "Sign in to continue your fitness journey"
                   : "Continue offline — your data stays on this device"}
               </Text>
@@ -282,7 +282,7 @@ export default function LoginScreen({
               disabled={isLoading}
             />
 
-            {appMode === "on" && (
+            {appMode === "online" && (
               <TouchableOpacity
                 style={styles.serverBadge}
                 onPress={handleOpenServerModal}
@@ -341,7 +341,7 @@ export default function LoginScreen({
                 </View>
               </View>
 
-              {appMode === "on" && (
+              {appMode === "online" && (
                 <TouchableOpacity style={styles.forgotPassword}>
                   <Text style={styles.forgotPasswordText}>
                     Forgot Password?
@@ -361,12 +361,12 @@ export default function LoginScreen({
                   <ActivityIndicator color={colors.surface} />
                 ) : (
                   <Text style={styles.loginButtonText}>
-                    {appMode === "on" ? "Sign In" : "Continue Offline"}
+                    {appMode === "online" ? "Sign In" : "Continue Offline"}
                   </Text>
                 )}
               </TouchableOpacity>
 
-              {appMode === "on" && (
+              {appMode === "online" && (
                 <>
                   <View style={styles.divider}>
                     <View style={styles.dividerLine} />

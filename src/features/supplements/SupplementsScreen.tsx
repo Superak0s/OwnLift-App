@@ -624,12 +624,12 @@ export default function SupplementsScreen(): React.JSX.Element {
 }
 
 interface SupplementCardProps {
-  supplement: SupplementSummary;
-  colors: ThemeColors;
-  onLog: () => void;
-  onHistory: () => void;
-  onSettings: () => void;
-  onDelete: () => void;
+  readonly supplement: SupplementSummary;
+  readonly colors: ThemeColors;
+  readonly onLog: () => void;
+  readonly onHistory: () => void;
+  readonly onSettings: () => void;
+  readonly onDelete: () => void;
 }
 
 function SupplementCard({

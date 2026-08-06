@@ -117,10 +117,10 @@ export const FLOW_INTENSITY_LABELS: Record<string, string> = {
 };
 
 interface LogCycleModalProps {
-  visible: boolean;
-  onClose: () => void;
-  prefillDate?: Date;
-  onSuccess?: (data: any) => void;
+  readonly visible: boolean;
+  readonly onClose: () => void;
+  readonly prefillDate?: Date;
+  readonly onSuccess?: (data: any) => void;
 }
 
 export function LogCycleModal({
@@ -380,7 +380,7 @@ const makeLogCycleStyles = (colors: any) =>
 // ─── Cycle Settings Widget ─────────────────────────────────────────────────────
 
 interface CycleSettingsWidgetProps {
-  onSettingsUpdate?: (settings: {
+  readonly onSettingsUpdate?: (settings: {
     periodDays: number;
     cycleLengthDays: number;
   }) => void;
@@ -464,7 +464,7 @@ export function CycleSettingsWidget({
                 style={styles.input}
                 value={String(periodDays)}
                 onChangeText={(text) =>
-                  setPeriodDays(Math.max(1, parseInt(text) || 1))
+                  setPeriodDays(Math.max(1, Number.parseInt(text, 10) || 1))
                 }
                 keyboardType="number-pad"
               />
@@ -493,7 +493,7 @@ export function CycleSettingsWidget({
                 style={styles.input}
                 value={String(cycleLengthDays)}
                 onChangeText={(text) =>
-                  setCycleLengthDays(Math.max(20, parseInt(text) || 28))
+                  setCycleLengthDays(Math.max(20, Number.parseInt(text, 10) || 28))
                 }
                 keyboardType="number-pad"
               />

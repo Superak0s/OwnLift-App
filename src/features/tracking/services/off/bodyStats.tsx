@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { calculateBodyFatPercentage } from "@utils/bodyFat"
 import * as FileSystem from "expo-file-system/legacy"
 import { generateId } from "@utils/format"
 import type {
@@ -471,36 +472,13 @@ export const bodyFatApi = {
   },
 
   /**
-   * Pure math, identical to services/on/bodyStats.tsx — no server
-   * involved either way, so this is copied over unchanged.
-   */
-  calculateBodyFatPercentage: (
-    gender: Gender,
-    height: number,
-    waist: number,
-    neck: number,
-    hip: number | null = null,
-  ): number => {
-    let bodyFatPercentage: number
-
-    if (gender === "male") {
-      bodyFatPercentage =
-        495 /
-          (1.0324 -
-            0.19077 * Math.log10(waist - neck) +
-            0.15456 * Math.log10(height)) -
-        450
-    } else {
-      if (!hip)
-        throw new Error("Hip measurement required for female calculation")
-      bodyFatPercentage =
-        495 /
-          (1.29579 -
-            0.35004 * Math.log10(waist + hip - neck) +
-            0.221 * Math.log10(height)) -
-        450
-    }
-
-    return parseFloat(bodyFatPercentage.toFixed(1))
-  },
+    * Pure math, delegated to shared utility.
+    */
+   calculateBodyFatPercentage: (
+     gender: Gender,
+     height: number,
+     waist: number,
+     neck: number,
+     hip: number | null = null,
+   ): number => calculateBodyFatPercentage(gender, height, waist, neck, hip),
 }

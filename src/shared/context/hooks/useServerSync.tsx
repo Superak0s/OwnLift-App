@@ -129,9 +129,164 @@ export const useServerSync = ({
     [selectedSplit],
   )
 
-  /**
-   * Sync completed days from server.
-   */
+  const mergeProgramFromServer = async (): Promise<WorkoutData | null> => {
+    try {
+      const savedProgram =
+        (await programApi.fetchSavedProgram()) as SavedProgram | null
+      if (!savedProgram?.days) return null
+
+      const latestWorkoutData = workoutDataRef.current
+      if (!latestWorkoutData) return null
+
+      if (savedProgram.days.length < latestWorkoutData.days.length) {
+        return latestWorkoutData
+      }
+
+      const mergedData: WorkoutData = {
+        ...latestWorkoutData,
+        days: latestWorkoutData.days.map((localDay) => {
+          const serverDay = savedProgram.days.find(
+            (d) => d.dayNumber === localDay.dayNumber,
+          )
+          if (!serverDay) return localDay
+
+          const mergedPeople = { ...localDay.split }
+          Object.keys(serverDay.split || {}).forEach((person) => {
+            const serverWorkout = serverDay.split[person]
+            const localWorkout = localDay.split[person]
+            if (!localWorkout) {
+              mergedPeople[person] = serverWorkout
+              return
+            }
+            mergedPeople[person] =
+              (serverWorkout?.exercises?.length ?? 0) >
+              (localWorkout?.exercises?.length ?? 0)
+                ? serverWorkout
+                : localWorkout
+          })
+          return { ...localDay, split: mergedPeople }
+        }),
+      }
+      return mergedData
+    } catch (programErr) {
+      console.warn(
+        "Could not refresh program from server:",
+        (programErr as Error).message,
+      )
+      return null
+    }
+  }
+
+  const buildCompletedDaysMap = (
+    sessionResults: (FullSession | null)[],
+    workoutData: WorkoutData,
+  ): {
+    newCompletedDays: CompletedDays
+    newLockedDays: LockedDays
+    activeSessionWasEndedRemotely: boolean
+  } => {
+    const newCompletedDays: CompletedDays = {}
+    const newLockedDays: LockedDays = { ...lockedDays }
+    let activeSessionWasEndedRemotely = false
+
+    for (const fullSession of sessionResults) {
+      if (!fullSession) continue
+      const dayNumber = fullSession.day_number
+
+      if (fullSession.end_time && !unlockedOverrides[dayNumber]) {
+        newLockedDays[dayNumber] = true
+      }
+      if (
+        fullSession.end_time &&
+        currentSessionIdRef.current &&
+        String(fullSession.id) === String(currentSessionIdRef.current)
+      ) {
+        activeSessionWasEndedRemotely = true
+      }
+      if (unlockedOverrides[dayNumber]) continue
+      if (!fullSession.set_timings?.length) continue
+
+      const day = workoutData.days.find((d) => d.dayNumber === dayNumber)
+      if (!day) continue
+      const personWorkout = day.split[selectedSplit!]
+      if (!personWorkout?.exercises) continue
+      if (!newCompletedDays[dayNumber]) {
+        newCompletedDays[dayNumber] = {}
+      }
+
+      fullSession.set_timings.forEach((timing, fallbackIndex) => {
+        let exerciseIndex = fallbackIndex
+        if (timing.exercise_name) {
+          const idx = personWorkout.exercises.findIndex(
+            (ex: any) =>
+              ex.name.toLowerCase() === timing.exercise_name!.toLowerCase(),
+          )
+          if (idx !== -1) exerciseIndex = idx
+        }
+
+        const setIndex = timing.set_index
+        if (!newCompletedDays[dayNumber][exerciseIndex]) {
+          newCompletedDays[dayNumber][exerciseIndex] = {}
+        }
+
+        const existing =
+          newCompletedDays[dayNumber][exerciseIndex][setIndex]
+        const serverTime = new Date(timing.end_time).getTime()
+        const existingTime = existing
+          ? new Date(existing.completedAt).getTime()
+          : 0
+
+        if (!existing || serverTime > existingTime) {
+          newCompletedDays[dayNumber][exerciseIndex][setIndex] = {
+            weight: timing.weight ?? 0,
+            reps: timing.reps ?? 0,
+            completedAt: timing.end_time,
+            note: timing.note ?? "",
+            isWarmup: timing.is_warmup ?? false,
+            source: "server",
+          }
+        }
+      })
+    }
+
+    return { newCompletedDays, newLockedDays, activeSessionWasEndedRemotely }
+  }
+
+  const preserveLocalSets = (
+    newCompletedDays: CompletedDays,
+  ): void => {
+    if (!currentSessionId || currentSessionId.startsWith("local_")) return
+
+    const sessionStart = new Date(workoutStartTime ?? "").getTime()
+
+    Object.keys(completedDays).forEach((dayNumberStr) => {
+      const dayNumber = Number(dayNumberStr)
+      if (unlockedOverrides[dayNumber]) return
+
+      Object.keys(completedDays[dayNumber] || {}).forEach(
+        (exerciseIndexStr) => {
+          const exerciseIndex = Number(exerciseIndexStr)
+          Object.keys(
+            completedDays[dayNumber][exerciseIndex] || {},
+          ).forEach((setIndexStr) => {
+            const setIndex = Number(setIndexStr)
+            const localSet =
+              completedDays[dayNumber][exerciseIndex][setIndex]
+            if (new Date(localSet.completedAt).getTime() < sessionStart) return
+
+            if (!newCompletedDays[dayNumber])
+              newCompletedDays[dayNumber] = {}
+            if (!newCompletedDays[dayNumber][exerciseIndex])
+              newCompletedDays[dayNumber][exerciseIndex] = {}
+            if (!newCompletedDays[dayNumber][exerciseIndex][setIndex]) {
+              newCompletedDays[dayNumber][exerciseIndex][setIndex] = localSet
+            }
+          })
+        },
+      )
+    })
+  }
+
   const syncFromServer = useCallback(async (): Promise<
     CompletedDays | undefined
   > => {
@@ -143,77 +298,14 @@ export const useServerSync = ({
       let currentWorkoutData = workoutDataRef.current
 
       // ── Refresh program from server ──────────────────────────────────────
-      try {
-        const savedProgram =
-          (await programApi.fetchSavedProgram()) as SavedProgram | null
-
-        if (savedProgram?.days) {
-          // Rebase on whatever is in state RIGHT NOW, not on the
-          // `currentWorkoutData` snapshot from when this function started —
-          // fetchSavedProgram is a network call, and local state (e.g. a
-          // template insert) may have moved on while we were waiting.
-          const latestWorkoutData = workoutDataRef.current ?? currentWorkoutData
-          const serverDayCount = savedProgram.days.length
-          const localDayCount = latestWorkoutData.days.length
-
-          if (serverDayCount >= localDayCount) {
-            const mergedData: WorkoutData = {
-              ...latestWorkoutData,
-              days: latestWorkoutData.days.map((localDay) => {
-                const serverDay = savedProgram.days.find(
-                  (d) => d.dayNumber === localDay.dayNumber,
-                )
-                if (!serverDay) return localDay
-
-                const mergedPeople = { ...localDay.split }
-                Object.keys(serverDay.split || {}).forEach((person) => {
-                  const serverPersonWorkout = serverDay.split[person]
-                  const localPersonWorkout = localDay.split[person]
-
-                  if (!localPersonWorkout) {
-                    mergedPeople[person] = serverPersonWorkout
-                    return
-                  }
-
-                  const serverExCount =
-                    serverPersonWorkout?.exercises?.length ?? 0
-                  const localExCount =
-                    localPersonWorkout?.exercises?.length ?? 0
-
-                  // Exercise count is only a crude proxy for "which side is
-                  // newer". On a tie, prefer the LOCAL copy: an equal count can
-                  // hide an un-pushed local rename or set-change, and taking the
-                  // server copy would silently revert it. Only let the server
-                  // win when it strictly has more exercises.
-                  // TODO: replace this heuristic with real program versioning /
-                  // updatedAt timestamps for a correct last-writer-wins merge.
-                  mergedPeople[person] =
-                    serverExCount > localExCount
-                      ? serverPersonWorkout
-                      : localPersonWorkout
-                })
-
-                return { ...localDay, split: mergedPeople }
-              }),
-            }
-
-            currentWorkoutData = mergedData
-            await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, mergedData, userId)
-            setWorkoutData(mergedData)
-            console.log("✅ Program refreshed from server")
-          } else {
-            // Local already has more days than the server (e.g. a template
-            // insert that hasn't been pushed yet) — nothing to merge, but
-            // the rest of this function should still reason about the
-            // freshest local state, not the pre-await snapshot.
-            currentWorkoutData = latestWorkoutData
-          }
-        }
-      } catch (programErr) {
-        console.warn(
-          "Could not refresh program from server:",
-          (programErr as Error).message,
-        )
+      const mergedProgram = await mergeProgramFromServer()
+      if (mergedProgram) {
+        currentWorkoutData = mergedProgram
+        await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, mergedProgram, userId)
+        setWorkoutData(mergedProgram)
+        console.log("✅ Program refreshed from server")
+      } else if (workoutDataRef.current) {
+        currentWorkoutData = workoutDataRef.current
       }
 
       // ── Fetch session list ───────────────────────────────────────────────
@@ -223,20 +315,18 @@ export const useServerSync = ({
         100,
       )) as WorkoutSession[]
 
-      if (!allSessions || allSessions.length === 0) {
+      if (!allSessions?.length) {
         console.log("No server sessions found")
         return
       }
 
-      // Only consider sessions from the current week (Monday 00:00 onwards).
       const weekStart = getCurrentWeekMonday()
       const sessions = allSessions.filter((s) => {
         const raw = s.start_time ?? s.created_at
-        if (!raw) return false
-        return new Date(raw) >= weekStart
+        return raw ? new Date(raw) >= weekStart : false
       })
 
-      if (sessions.length === 0) {
+      if (!sessions.length) {
         console.log(
           "No server sessions found for the current week — skipping lock/completion sync",
         )
@@ -247,8 +337,9 @@ export const useServerSync = ({
       const sessionResults = await Promise.all(
         sessions.map(async (session) => {
           try {
-            const full = await workoutApi.getSession(String(session.id))
-            return full as FullSession
+            return (await workoutApi.getSession(
+              String(session.id),
+            )) as FullSession
           } catch (err) {
             console.warn(
               `Failed to fetch session ${session.id}:`,
@@ -260,126 +351,20 @@ export const useServerSync = ({
       )
 
       // ── Build completed/locked maps ──────────────────────────────────────
-      const newCompletedDays: CompletedDays = {}
-      const newLockedDays: LockedDays = { ...lockedDays }
-
-      // Set when we find that the session the client still thinks is
-      // "active" already has an end_time server-side — i.e. it was closed
-      // out from under the app (stale-session cleanup, another device,
-      // manually via support, etc). Checked once after the loop so the
-      // active-session cleanup happens exactly once per sync, regardless of
-      // where in `sessionResults` the match turns up.
-      let activeSessionWasEndedRemotely = false
-
-      for (const fullSession of sessionResults) {
-        if (!fullSession) continue
-
-        const dayNumber = fullSession.day_number
-
-        if (fullSession.end_time && !unlockedOverrides[dayNumber]) {
-          newLockedDays[dayNumber] = true
-        }
-
-        if (
-          fullSession.end_time &&
-          currentSessionIdRef.current &&
-          String(fullSession.id) === String(currentSessionIdRef.current)
-        ) {
-          activeSessionWasEndedRemotely = true
-        }
-
-        if (unlockedOverrides[dayNumber]) {
-          console.log(`↩ Skipping set sync for unlocked day ${dayNumber}`)
-          continue
-        }
-
-        if (!fullSession.set_timings || fullSession.set_timings.length === 0) {
-          continue
-        }
-
-        const day = currentWorkoutData.days.find(
-          (d) => d.dayNumber === dayNumber,
-        )
-        if (!day) continue
-
-        const personWorkout = day.split[selectedSplit]
-        if (!personWorkout?.exercises) continue
-
-        if (!newCompletedDays[dayNumber]) {
-          newCompletedDays[dayNumber] = {}
-        }
-
-        fullSession.set_timings.forEach((timing, fallbackIndex) => {
-          const exerciseName = timing.exercise_name
-          let exerciseIndex = fallbackIndex
-
-          if (exerciseName) {
-            const idx = personWorkout.exercises.findIndex(
-              (ex) => ex.name.toLowerCase() === exerciseName.toLowerCase(),
-            )
-            if (idx !== -1) exerciseIndex = idx
-          }
-
-          const setIndex = timing.set_index
-
-          if (!newCompletedDays[dayNumber][exerciseIndex]) {
-            newCompletedDays[dayNumber][exerciseIndex] = {}
-          }
-
-          const existing = newCompletedDays[dayNumber][exerciseIndex][setIndex]
-          const serverTime = new Date(timing.end_time).getTime()
-          const existingTime = existing
-            ? new Date(existing.completedAt).getTime()
-            : 0
-
-          if (!existing || serverTime > existingTime) {
-            newCompletedDays[dayNumber][exerciseIndex][setIndex] = {
-              weight: timing.weight ?? 0,
-              reps: timing.reps ?? 0,
-              completedAt: timing.end_time,
-              note: timing.note ?? "",
-              isWarmup: timing.is_warmup ?? false,
-              source: "server",
-            }
-          }
-        })
-      }
+      const {
+        newCompletedDays,
+        newLockedDays,
+        activeSessionWasEndedRemotely,
+      } = buildCompletedDaysMap(sessionResults, currentWorkoutData)
 
       // ── Preserve in-progress local sets from current session ─────────────
-      if (currentSessionId && !currentSessionId.startsWith("local_")) {
-        Object.keys(completedDays).forEach((dayNumberStr) => {
-          const dayNumber = Number(dayNumberStr)
-          if (unlockedOverrides[dayNumber]) return
+      preserveLocalSets(newCompletedDays)
 
-          Object.keys(completedDays[dayNumber] || {}).forEach(
-            (exerciseIndexStr) => {
-              const exerciseIndex = Number(exerciseIndexStr)
-              Object.keys(
-                completedDays[dayNumber][exerciseIndex] || {},
-              ).forEach((setIndexStr) => {
-                const setIndex = Number(setIndexStr)
-                const localSet =
-                  completedDays[dayNumber][exerciseIndex][setIndex]
-                const setTime = new Date(localSet.completedAt).getTime()
-                const sessionStart = new Date(workoutStartTime ?? "").getTime()
-
-                if (setTime >= sessionStart) {
-                  if (!newCompletedDays[dayNumber])
-                    newCompletedDays[dayNumber] = {}
-                  if (!newCompletedDays[dayNumber][exerciseIndex])
-                    newCompletedDays[dayNumber][exerciseIndex] = {}
-                  if (!newCompletedDays[dayNumber][exerciseIndex][setIndex]) {
-                    newCompletedDays[dayNumber][exerciseIndex][setIndex] =
-                      localSet
-                  }
-                }
-              })
-            },
-          )
-        })
-      }
-
-      await saveToStorage(STORAGE_KEYS.COMPLETED_DAYS, newCompletedDays, userId)
+      await saveToStorage(
+        STORAGE_KEYS.COMPLETED_DAYS,
+        newCompletedDays,
+        userId,
+      )
       await saveToStorage(STORAGE_KEYS.LOCKED_DAYS, newLockedDays, userId)
       setCompletedDays(newCompletedDays)
       setLockedDays(newLockedDays)
@@ -392,9 +377,7 @@ export const useServerSync = ({
         "days locked",
       )
 
-      // ── Clear a locally "active" session that was actually already ended ──
-      // Runs after storage/state above are settled so the day-lock state and
-      // the active-session state land consistently rather than racing.
+      // ── Clear remotely-ended session ─────────────────────────────────────
       if (activeSessionWasEndedRemotely) {
         console.log(
           "⚠ Current session was already ended server-side — clearing local active workout state",

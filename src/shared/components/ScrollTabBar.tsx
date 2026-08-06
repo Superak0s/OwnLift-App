@@ -47,15 +47,15 @@ interface Props {
 const ROW_HEIGHT = 68
 
 interface RowProps {
-  tab: TabItem
-  cfg: TabConfig
-  index: number
-  total: number
-  visibleCount: number
-  accentLightColor: string
-  surfaceColor: string
-  onToggle: (key: string) => void
-  onReorder: (from: number, to: number) => void
+  readonly tab: TabItem
+  readonly cfg: TabConfig
+  readonly index: number
+  readonly total: number
+  readonly visibleCount: number
+  readonly accentLightColor: string
+  readonly surfaceColor: string
+  readonly onToggle: (key: string) => void
+  readonly onReorder: (from: number, to: number) => void
 }
 
 function DraggableRow({

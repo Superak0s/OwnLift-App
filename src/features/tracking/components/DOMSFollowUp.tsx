@@ -31,8 +31,8 @@ const FOLLOW_UP_OPTIONS = [
 const INTENSITY_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 interface DOMSFollowUpProps {
-  onMuscleRecovered?: (muscle: string) => void;
-  onNavigateToMuscleDashboard?: (muscle: string) => void;
+  readonly onMuscleRecovered?: (muscle: string) => void;
+  readonly onNavigateToMuscleDashboard?: (muscle: string) => void;
 }
 
 export const DOMSFollowUp: React.FC<DOMSFollowUpProps> = ({

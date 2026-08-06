@@ -9,7 +9,7 @@ import React, {
 import { authService } from "@features/auth/services/index"
 import { onServerUrlChange } from "../services/config"
 import {
-  ensureAppModeLoaded,
+  getAppMode,
   isServerless,
   onAppModeChange,
 } from "../services/appMode"
@@ -95,7 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ── Offline auto-connect ────────────────────────────────────────────────────
   /**
-   * In serverless ("off") mode there's no server to authenticate against, so
+   * In serverless ("offline") mode there's no server to authenticate against, so
    * we skip the login screen entirely: load (or create) the single local
    * profile and mark the session authenticated. Safe to call repeatedly —
    * the offline auth service just loads the existing local profile.
@@ -173,8 +173,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // switching to offline auto-connects with no login; switching to server
   // mode drops the local session so a real login is required.
   useEffect(() => {
-    const unsubscribe = onAppModeChange((mode) => {
-      if (mode === "off") void autoConnectOffline()
+    const unsubscribe = onAppModeChange.subscribe((mode) => {
+      if (mode === "offline") void autoConnectOffline()
       else void logout()
     })
     return unsubscribe
@@ -199,7 +199,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       // Make sure the persisted app mode is loaded before we decide whether
       // this is a serverless session (which never shows a login screen).
-      await ensureAppModeLoaded()
+      await getAppMode()
       const isAuth = await authService.isAuthenticated()
       if (isAuth) {
         try {
@@ -231,7 +231,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           }
         }
-      } else if (isServerless()) {
+      } else if (await isServerless()) {
         // Offline mode: connect automatically, no login screen.
         await autoConnectOffline()
       } else {

@@ -9,13 +9,13 @@ interface ChartData {
 }
 
 interface ProgressChartProps {
-  title: string
-  icon: string
-  data: ChartData
-  yAxisSuffix?: string
-  chartWidth?: number
-  chartColor?: string // override the gradient/dot color
-  chartColorDark?: string // override the darker shade (optional)
+  readonly title: string
+  readonly icon: string
+  readonly data: ChartData
+  readonly yAxisSuffix?: string
+  readonly chartWidth?: number
+  readonly chartColor?: string // override the gradient/dot color
+  readonly chartColorDark?: string // override the darker shade (optional)
 }
 
 const { width } = Dimensions.get("window")

@@ -7,13 +7,13 @@ import { useTheme } from "../context/ThemeContext"
 type CalendarView = "week" | "month"
 
 interface UniversalCalendarProps {
-  hasDataOnDate?: (date: Date) => boolean
-  onDatePress?: (date: Date) => void
-  initialView?: CalendarView
-  legendText?: string
-  dotColor?: string
+  readonly hasDataOnDate?: (date: Date) => boolean
+  readonly onDatePress?: (date: Date) => void
+  readonly initialView?: CalendarView
+  readonly legendText?: string
+  readonly dotColor?: string
   // Optional hook for consumers to provide per-day decoration (background, custom dot color, etc.)
-  getDayDecoration?: (date: Date) => {
+  readonly getDayDecoration?: (date: Date) => {
     backgroundColor?: string
     dotColor?: string
   } | null

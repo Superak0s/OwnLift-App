@@ -3,12 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import type { AppMode } from "@shared/services/appMode"
 
 interface ServerModeToggleProps {
-  mode: AppMode
-  onChange: (mode: AppMode) => void
-  colors: any
-  disabled?: boolean
+  readonly mode: AppMode
+  readonly onChange: (mode: AppMode) => void
+  readonly colors: any
+  readonly disabled?: boolean
   /** Short helper line shown under the toggle, describing the active mode. */
-  showHelperText?: boolean
+  readonly showHelperText?: boolean
 }
 
 /**
@@ -28,32 +28,32 @@ export default function ServerModeToggle({
     <View style={styles.wrapper}>
       <View style={styles.container}>
         <TouchableOpacity
-          style={[styles.option, mode === "on" && styles.optionActive]}
-          onPress={() => onChange("on")}
+          style={[styles.option, mode === "online" && styles.optionActive]}
+          onPress={() => onChange("online")}
           disabled={disabled}
           accessibilityRole='button'
-          accessibilityState={{ selected: mode === "on" }}
+          accessibilityState={{ selected: mode === "online" }}
         >
           <Text
             style={[
               styles.optionText,
-              mode === "on" && styles.optionTextActive,
+              mode === "online" && styles.optionTextActive,
             ]}
           >
             🌐 Server
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.option, mode === "off" && styles.optionActive]}
-          onPress={() => onChange("off")}
+          style={[styles.option, mode === "offline" && styles.optionActive]}
+          onPress={() => onChange("offline")}
           disabled={disabled}
           accessibilityRole='button'
-          accessibilityState={{ selected: mode === "off" }}
+          accessibilityState={{ selected: mode === "offline" }}
         >
           <Text
             style={[
               styles.optionText,
-              mode === "off" && styles.optionTextActive,
+              mode === "offline" && styles.optionTextActive,
             ]}
           >
             📴 Offline
@@ -63,7 +63,7 @@ export default function ServerModeToggle({
 
       {showHelperText && (
         <Text style={styles.helperText}>
-          {mode === "on"
+          {mode === "online"
             ? "Syncing with your server"
             : "Everything stays on this device — no server needed"}
         </Text>

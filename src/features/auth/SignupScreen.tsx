@@ -31,7 +31,7 @@ interface PasswordStrength {
 }
 
 type SignupScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, "Signup">;
+  readonly navigation: NativeStackNavigationProp<RootStackParamList, "Signup">;
 };
 
 const STRENGTH_LEVELS: { label: string; color: string }[] = [
@@ -90,7 +90,7 @@ function applyPasswordPenalties(
     penalizedFeedback.push("Avoid using only letters");
   }
 
-  if (/^[0-9]+$/.test(value)) {
+  if (/^\d+$/.test(value)) {
     penalizedScore = Math.max(0, penalizedScore - 2);
     penalizedFeedback.push("Avoid using only numbers");
   }
@@ -185,7 +185,7 @@ export default function SignupScreen({
   }, []);
 
   const validateUsername = useCallback((value: string): boolean => {
-    const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+    const usernameRegex = /^\w{3,20}$/;
     return usernameRegex.test(value);
   }, []);
 
@@ -329,7 +329,7 @@ export default function SignupScreen({
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        keyboardVerticalOffset={0}
         style={styles.container}
       >
         <ScrollView
@@ -422,7 +422,7 @@ export default function SignupScreen({
                   </TouchableOpacity>
                 </View>
 
-                {password && passwordStrength && (
+                 {password && passwordStrength != null && (
                   <View style={styles.strengthContainer}>
                     <View style={styles.strengthBarContainer}>
                       {[0, 1, 2, 3, 4].map((index) => (
@@ -451,10 +451,10 @@ export default function SignupScreen({
                   </View>
                 )}
 
-                {password && passwordStrength && passwordStrength.score < 3 && (
+                 {password && passwordStrength != null && passwordStrength.score < 3 && (
                   <View style={styles.feedbackContainer}>
-                    {passwordStrength.feedback.map((tip, index) => (
-                      <Text key={index} style={styles.feedbackText}>
+                     {passwordStrength!.feedback.map((tip) => (
+                       <Text key={tip} style={styles.feedbackText}>
                         • {tip}
                       </Text>
                     ))}
@@ -492,9 +492,7 @@ export default function SignupScreen({
                     </Text>
                   </TouchableOpacity>
                 </View>
-                {password &&
-                  confirmPassword &&
-                  password !== confirmPassword && (
+                {password && confirmPassword && password !== confirmPassword && (
                     <Text style={styles.errorText}>Passwords do not match</Text>
                   )}
               </View>

@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { getServerUrl } from "@shared/services/config"
 import { tokenStorage } from "@shared/services/tokenStorage"
-import { apiCall, parseApiResponse, ApiError } from "@shared/services/apiClient"
+import { apiCall, parseApiResponse } from "@shared/services/apiClient"
 import type { AuthResponse, AuthUser } from "../../types"
 
 const USER_KEY = "@user"

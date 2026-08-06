@@ -23,10 +23,10 @@ import type {
   ExerciseEntry,
 } from "../types"
 interface LiveSessionTabProps {
-  friend: Friend
-  isVisible: boolean
-  receivedPrograms?: ReceivedProgram[]
-  socketLastMessage?: {
+  readonly friend: Friend
+  readonly isVisible: boolean
+  readonly receivedPrograms?: ReceivedProgram[]
+  readonly socketLastMessage?: {
     type: string
     liveSession?: LiveData
     friendId?: string
@@ -92,8 +92,8 @@ const makeLiveDotSt = (colors: any) =>
   })
 
 interface SetBubbleProps {
-  setIndex: number
-  setData: SetTiming | null
+  readonly setIndex: number
+  readonly setData: SetTiming | null
 }
 
 function SetBubble({ setIndex, setData }: SetBubbleProps) {
@@ -164,10 +164,10 @@ const makeBblStyles = (colors: any) =>
   })
 
 interface ExerciseCardProps {
-  exerciseName: string
-  muscleGroup: string | null
-  totalSets: number
-  completedSetMap: Record<number, SetTiming>
+  readonly exerciseName: string
+  readonly muscleGroup: string | null
+  readonly totalSets: number
+  readonly completedSetMap: Record<number, SetTiming>
 }
 
 function ExerciseCard({
@@ -431,7 +431,7 @@ export default function LiveSessionTab({
         coveredKeys.add(key)
         const completedSetMap = completedByExercise.get(key) ?? {}
         const maxLoggedIndex = Object.keys(completedSetMap).reduce(
-          (max, i) => Math.max(max, parseInt(i)),
+          (max, i) => Math.max(max, Number.parseInt(i)),
           -1,
         )
         const totalSets = Math.max(info.totalSets, maxLoggedIndex + 1)

@@ -53,8 +53,8 @@ interface ColorRow {
 }
 
 interface ThemeEditorModalProps {
-  visible: boolean
-  onClose: () => void
+  readonly visible: boolean
+  readonly onClose: () => void
 }
 
 // ─── Color token metadata ─────────────────────────────────────────────────────
@@ -141,10 +141,10 @@ function isValidHex(hex: string): boolean {
 
 function darken(hex: string, amount = 0.2): string {
   try {
-    const n = parseInt(hex.slice(1), 16)
-    const r = Math.max(0, ((n >> 16) & 0xff) * (1 - amount)) | 0
-    const g = Math.max(0, ((n >> 8) & 0xff) * (1 - amount)) | 0
-    const b = Math.max(0, (n & 0xff) * (1 - amount)) | 0
+    const n = Number.parseInt(hex.slice(1), 16)
+    const r = Math.max(0, Math.trunc(((n >> 16) & 0xff) * (1 - amount)))
+    const g = Math.max(0, Math.trunc(((n >> 8) & 0xff) * (1 - amount)))
+    const b = Math.max(0, Math.trunc((n & 0xff) * (1 - amount)))
     return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`
   } catch {
     return hex

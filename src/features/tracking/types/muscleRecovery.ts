@@ -7,41 +7,15 @@
 // taxonomy (25 snake_case muscle groups).
 
 import type { RecoveryMuscleGroup } from "@shared/types"
-
+export type { ApiResponse } from "@features/tracking/services/types"
 export {
   RECOVERY_MUSCLE_GROUPS as MUSCLE_GROUPS,
+  MUSCLE_GROUP_LABELS,
 } from "@shared/types"
 export type { RecoveryMuscleGroup as MuscleGroup } from "@shared/types"
 
 /** Local alias so `MuscleGroup` is usable within this module. */
 type MuscleGroup = RecoveryMuscleGroup
-
-export const MUSCLE_GROUP_LABELS: Record<string, string> = {
-  chest_upper: "Upper Chest",
-  chest_lower: "Lower Chest",
-  back_upper: "Upper Back",
-  back_lower: "Lower Back",
-  lats: "Lats",
-  traps: "Traps",
-  neck: "Neck",
-  shoulders_front: "Front Delts",
-  shoulders_side: "Side Delts",
-  shoulders_rear: "Rear Delts",
-  biceps: "Biceps",
-  triceps: "Triceps",
-  forearms: "Forearms",
-  abs_upper: "Upper Abs",
-  abs_lower: "Lower Abs",
-  obliques: "Obliques",
-  lower_back: "Lower Back",
-  glutes: "Glutes",
-  quads: "Quads",
-  hamstrings: "Hamstrings",
-  calves: "Calves",
-  adductors: "Adductors",
-  abductors: "Abductors",
-  hip_flexors: "Hip Flexors",
-} as const
 
 // ─── Soreness Records (continuous tracking) ───────────────────────────────────
 
@@ -171,10 +145,6 @@ export interface DOMSFollowUpItem {
   updatedIntensity: number;
   notes: string;
 }
-
-// ─── API Response Types ──────────────────────────────────────────────────────
-// Re-exported from services/types.ts so callers still get a single import point.
-export { type ApiResponse } from "../services/types";
 
 // ─── Log Soreness Parameters ─────────────────────────────────────────────────
 

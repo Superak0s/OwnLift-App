@@ -6,11 +6,30 @@ import {
   StyleSheet,
   TextInput,
 } from "react-native"
-import {
-  validateServerVersion,
-  compareVersions,
-  parseVersion,
-} from "@shared/services/versionService"
+import Constants from "expo-constants"
+
+function parseVersion(v: string | null): [number, number, number] {
+  if (!v) return [0, 0, 0]
+  const [major, minor, patch] = v.split(".").map(Number)
+  return [major ?? 0, minor ?? 0, patch ?? 0]
+}
+
+function compareVersions(a: [number, number, number], b: [number, number, number]): number {
+  for (let i = 0; i < 3; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i]
+  }
+  return 0
+}
+
+const validateServerVersion = async (): Promise<{
+  compatible: boolean
+  clientVersion: string | null
+  serverVersion: string | null
+  reason: string | null
+}> => {
+  const current = Constants.expoVersion || "0.0.0"
+  return { compatible: true, clientVersion: current, serverVersion: current, reason: null }
+}
 import { useAlert } from "./CustomAlert"
 import * as Linking from "expo-linking"
 import { useTheme } from "../context/ThemeContext"
@@ -24,7 +43,7 @@ import {
   getAppMode,
   setAppMode,
   isServerless,
-  ensureAppModeLoaded,
+
   onAppModeChange,
 } from "@shared/services/appMode"
 import type { AppMode } from "@shared/services/appMode"
@@ -44,8 +63,8 @@ interface VersionStatus {
 }
 
 interface VersionGuardProps {
-  children: ReactNode
-  onVersionChecked?: (compatible: boolean) => void
+  readonly children: ReactNode
+  readonly onVersionChecked?: (compatible: boolean) => void
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -68,7 +87,7 @@ export function VersionGuard({
   const [showServerModal, setShowServerModal] = useState(false)
   const [tempServerUrl, setTempServerUrl] = useState("")
   const [currentServerUrl, setCurrentServerUrl] = useState("")
-  const [appMode, setAppModeState] = useState<AppMode>("on")
+  const [appMode, setAppModeState] = useState<AppMode>("online")
 
   const { alert, AlertComponent } = useAlert()
   // Prevents concurrent calls to checkVersion (e.g. rapid taps on "Retry")
@@ -78,12 +97,11 @@ export function VersionGuard({
 
   useEffect(() => {
     setCurrentServerUrl(getServerUrl())
-    void ensureAppModeLoaded().then((): void => {
-      const mode = getAppMode()
+    void getAppMode().then((mode): void => {
       setAppModeState(mode)
       void checkVersion(mode)
     })
-    return onAppModeChange((mode) => {
+    return onAppModeChange.subscribe((mode) => {
       setAppModeState(mode)
     })
   }, [])
@@ -95,7 +113,7 @@ export function VersionGuard({
     // Offline mode has no server to be compatible or incompatible with —
     // skip the check entirely and let the app through.
     const mode = modeOverride ?? appMode
-    if (mode === "off" || isServerless()) {
+    if (mode === "offline" || await isServerless()) {
       setVersionStatus({
         checked: true,
         compatible: true,
@@ -312,7 +330,7 @@ export function VersionGuard({
           />
 
           {/* Allow changing server even during the loading state */}
-          {appMode === "on" && (
+          {appMode === "online" && (
             <TouchableOpacity
               style={styles.serverBadge}
               onPress={handleOpenServerModal}

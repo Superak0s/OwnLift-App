@@ -38,10 +38,10 @@ import { useTheme } from "@shared/context/ThemeContext";
 import { useAuth } from "@shared/context/AuthContext";
 
 type SupplementSettingsModalProps = {
-  visible: boolean;
-  supplement: SupplementSummary;
-  onClose: () => void;
-  onSaved?: () => void;
+  readonly visible: boolean;
+  readonly supplement: SupplementSummary;
+  readonly onClose: () => void;
+  readonly onSaved?: () => void;
 };
 
 type ValidationResult = { valid: true; amount: number } | { valid: false };
@@ -88,8 +88,8 @@ export default function SupplementSettingsModal({
   const applyStoredReminderTime = (time: string) => {
     const [h, m] = time.split(":");
     const d = new Date();
-    d.setHours(parseInt(h, 10));
-    d.setMinutes(parseInt(m, 10));
+    d.setHours(Number.parseInt(h, 10));
+    d.setMinutes(Number.parseInt(m, 10));
     setReminderTime(d);
   };
 

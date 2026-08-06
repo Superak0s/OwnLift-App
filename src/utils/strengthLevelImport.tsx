@@ -90,7 +90,7 @@ export function parseStrengthLevelCSV(csvText: string): StrengthLevelRow[] {
     const exercise = cols[exerciseIdx]?.trim()
     const weightKgRaw = weightKgIdx !== -1 ? cols[weightKgIdx] : "0"
     const weightKg = parseFloat(weightKgRaw)
-    const reps = parseInt(cols[repsIdx], 10)
+    const reps = Number.parseInt(cols[repsIdx], 10)
     const warmupRaw = warmupIdx !== -1 ? cols[warmupIdx]?.trim() : "0"
     const isWarmup = warmupRaw === "1" || warmupRaw?.toLowerCase() === "true"
 

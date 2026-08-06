@@ -35,11 +35,11 @@ import type { SimilarityMatch, GroupedExercise } from "../types"
 const IMPORTED_DAY_TITLE = "Imported (Strength Level)"
 
 interface Props {
-  visible: boolean
-  onClose: () => void
-  person: string
+  readonly visible: boolean
+  readonly onClose: () => void
+  readonly person: string
   /** Called after any successful edit, so the caller can refresh analytics/progress */
-  onDataChanged?: () => void
+  readonly onDataChanged?: () => void
 }
 /** Groups a session's flat set list by exercise name, preserving set order. */
 function groupSetsByExercise(sets: SetTiming[]): GroupedExercise[] {
@@ -102,6 +102,148 @@ function combineToIso(date: string, time: string): string | null {
   )
   if (Number.isNaN(d.getTime())) return null
   return d.toISOString()
+}
+
+interface SessionListViewProps {
+  readonly showImportedOnly: boolean;
+  readonly setShowImportedOnly: (v: boolean | ((p: boolean) => boolean)) => void;
+  readonly loadingSessions: boolean;
+  readonly visibleSessions: WorkoutSession[];
+  readonly openSession: (session: WorkoutSession) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly colors: ThemeColors;
+}
+
+function SessionListView({
+  showImportedOnly,
+  setShowImportedOnly,
+  loadingSessions,
+  visibleSessions,
+  openSession,
+  styles,
+  colors,
+}: SessionListViewProps): React.JSX.Element {
+  return (
+    <ScrollView contentContainerStyle={styles.listContent}>
+      <TouchableOpacity
+        style={[
+          styles.filterPill,
+          showImportedOnly && styles.filterPillActive,
+        ]}
+        onPress={() => setShowImportedOnly((prev) => !prev)}
+      >
+        <Text
+          style={[
+            styles.filterPillText,
+            showImportedOnly && styles.filterPillTextActive,
+          ]}
+        >
+          {showImportedOnly
+            ? "✓ Imported sessions only"
+            : "Show imported sessions only"}
+        </Text>
+      </TouchableOpacity>
+
+      {loadingSessions ? (
+        <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+      ) : visibleSessions.length === 0 ? (
+        <Text style={styles.emptyText}>
+          {showImportedOnly
+            ? "No imported sessions found for this person."
+            : "No sessions found for this person."}
+        </Text>
+      ) : (
+        visibleSessions.map((session) => (
+          <TouchableOpacity
+            key={session.id}
+            style={styles.sessionRow}
+            onPress={() => openSession(session)}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sessionTitle}>
+                {formatSessionLabel(session)}
+              </Text>
+              <Text style={styles.sessionSubtitle}>
+                {session.set_count ?? 0} set
+                {(session.set_count ?? 0) === 1 ? "" : "s"}
+              </Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+        ))
+      )}
+    </ScrollView>
+  );
+}
+
+interface SessionDetailViewProps {
+  readonly loadingDetail: boolean;
+  readonly groupedExercises: GroupedExercise[];
+  readonly openEditExercise: (group: GroupedExercise) => void;
+  readonly openEditSet: (set: SetTiming) => void;
+  readonly styles: ReturnType<typeof makeStyles>;
+  readonly colors: ThemeColors;
+}
+
+function SessionDetailView({
+  loadingDetail,
+  groupedExercises,
+  openEditExercise,
+  openEditSet,
+  styles,
+  colors,
+}: SessionDetailViewProps): React.JSX.Element {
+  return (
+    <ScrollView contentContainerStyle={styles.listContent}>
+      {loadingDetail ? (
+        <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+      ) : groupedExercises.length === 0 ? (
+        <Text style={styles.emptyText}>
+          No sets recorded in this session.
+        </Text>
+      ) : (
+        groupedExercises.map((group) => (
+          <View key={group.exerciseName} style={styles.exerciseCard}>
+            <View style={styles.exerciseHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.exerciseName}>{group.exerciseName}</Text>
+                <Text style={styles.exerciseMuscleGroup}>
+                  {group.muscleGroup || "No muscle group set"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.smallEditButton}
+                onPress={() => openEditExercise(group)}
+              >
+                <Text style={styles.smallEditButtonText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
+
+            {group.sets.map((set, idx) => (
+              <TouchableOpacity
+                key={set.id ?? `${group.exerciseName}-${idx}`}
+                style={styles.setRow}
+                onPress={() => openEditSet(set)}
+              >
+                <Text style={styles.setLabel}>Set {set.set_index}</Text>
+                <Text style={styles.setDetail}>
+                  {set.weight ?? 0}kg × {set.reps ?? 0}
+                </Text>
+                <Text style={styles.setTime}>
+                  {formatDateTime(set.end_time, {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))
+      )}
+    </ScrollView>
+  );
 }
 
 export default function EditWorkoutHistoryModal({
@@ -418,7 +560,7 @@ export default function EditWorkoutHistoryModal({
     const weight =
       setWeightInput.trim() === "" ? undefined : parseFloat(setWeightInput)
     const reps =
-      setRepsInput.trim() === "" ? undefined : parseInt(setRepsInput, 10)
+      setRepsInput.trim() === "" ? undefined : Number.parseInt(setRepsInput, 10)
     if (weight !== undefined && Number.isNaN(weight)) {
       alert(
         "Invalid Weight",
@@ -523,111 +665,24 @@ export default function EditWorkoutHistoryModal({
         </View>
 
         {!selectedSession ? (
-          <ScrollView contentContainerStyle={styles.listContent}>
-            <TouchableOpacity
-              style={[
-                styles.filterPill,
-                showImportedOnly && styles.filterPillActive,
-              ]}
-              onPress={() => setShowImportedOnly((prev) => !prev)}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  showImportedOnly && styles.filterPillTextActive,
-                ]}
-              >
-                {showImportedOnly
-                  ? "✓ Imported sessions only"
-                  : "Show imported sessions only"}
-              </Text>
-            </TouchableOpacity>
-
-            {loadingSessions ? (
-              <ActivityIndicator
-                color={colors.accent}
-                style={{ marginTop: 40 }}
-              />
-            ) : visibleSessions.length === 0 ? (
-              <Text style={styles.emptyText}>
-                {showImportedOnly
-                  ? "No imported sessions found for this person."
-                  : "No sessions found for this person."}
-              </Text>
-            ) : (
-              visibleSessions.map((session) => (
-                <TouchableOpacity
-                  key={session.id}
-                  style={styles.sessionRow}
-                  onPress={() => openSession(session)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sessionTitle}>
-                      {formatSessionLabel(session)}
-                    </Text>
-                    <Text style={styles.sessionSubtitle}>
-                      {session.set_count ?? 0} set
-                      {(session.set_count ?? 0) === 1 ? "" : "s"}
-                    </Text>
-                  </View>
-                  <Text style={styles.chevron}>›</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </ScrollView>
+          <SessionListView
+            showImportedOnly={showImportedOnly}
+            setShowImportedOnly={setShowImportedOnly}
+            loadingSessions={loadingSessions}
+            visibleSessions={visibleSessions}
+            openSession={openSession}
+            styles={styles}
+            colors={colors}
+          />
         ) : (
-          <ScrollView contentContainerStyle={styles.listContent}>
-            {loadingDetail ? (
-              <ActivityIndicator
-                color={colors.accent}
-                style={{ marginTop: 40 }}
-              />
-            ) : groupedExercises.length === 0 ? (
-              <Text style={styles.emptyText}>
-                No sets recorded in this session.
-              </Text>
-            ) : (
-              groupedExercises.map((group) => (
-                <View key={group.exerciseName} style={styles.exerciseCard}>
-                  <View style={styles.exerciseHeaderRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.exerciseName}>{group.exerciseName}</Text>
-                      <Text style={styles.exerciseMuscleGroup}>
-                        {group.muscleGroup || "No muscle group set"}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.smallEditButton}
-                      onPress={() => openEditExercise(group)}
-                    >
-                      <Text style={styles.smallEditButtonText}>Edit</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {group.sets.map((set, idx) => (
-                    <TouchableOpacity
-                      key={set.id ?? `${group.exerciseName}-${idx}`}
-                      style={styles.setRow}
-                      onPress={() => openEditSet(set)}
-                    >
-                      <Text style={styles.setLabel}>Set {set.set_index}</Text>
-                      <Text style={styles.setDetail}>
-                        {set.weight ?? 0}kg × {set.reps ?? 0}
-                      </Text>
-                      <Text style={styles.setTime}>
-                        {formatDateTime(set.end_time, {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ))
-            )}
-          </ScrollView>
+          <SessionDetailView
+            loadingDetail={loadingDetail}
+            groupedExercises={groupedExercises}
+            openEditExercise={openEditExercise}
+            openEditSet={openEditSet}
+            styles={styles}
+            colors={colors}
+          />
         )}
       </SafeAreaView>
 

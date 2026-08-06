@@ -15,20 +15,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTheme } from "../context/ThemeContext"
 
 interface ModalSheetProps {
-  visible: boolean
-  onClose: () => void
-  title?: string
-  subtitle?: string
-  children?: ReactNode
-  showCancelButton?: boolean
-  showConfirmButton?: boolean
-  cancelText?: string
-  confirmText?: string
-  onConfirm?: () => void
-  confirmDisabled?: boolean
-  scrollable?: boolean
-  dismissOnBackdropPress?: boolean
-  fullHeight?: boolean
+  readonly visible: boolean
+  readonly onClose: () => void
+  readonly title?: string
+  readonly subtitle?: string
+  readonly children?: ReactNode
+  readonly showCancelButton?: boolean
+  readonly showConfirmButton?: boolean
+  readonly cancelText?: string
+  readonly confirmText?: string
+  readonly onConfirm?: () => void
+  readonly confirmDisabled?: boolean
+  readonly scrollable?: boolean
+  readonly dismissOnBackdropPress?: boolean
+  readonly fullHeight?: boolean
 }
 
 const KEYBOARD_DISMISS_DURATION_MS = 50

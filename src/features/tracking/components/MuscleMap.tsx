@@ -24,14 +24,14 @@ import type { MuscleGroup } from "../types/muscleRecovery";
 import { MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 
 interface MuscleMapProps {
-  view: "front" | "back";
-  selectedMuscles: Set<string>;
-  sorenessMap: Record<MuscleGroup, number>; // muscle -> intensity (0-10), any value > 0 = sore (light orange)
-  injuredMuscles?: Set<MuscleGroup> | Record<MuscleGroup, boolean>; // muscle -> injured (red), takes priority over soreness
-  heatmapData?: Record<MuscleGroup, number>; // muscle -> frequency count
-  onPressMuscle: (muscle: MuscleGroup) => void;
-  showLabels?: boolean;
-  compact?: boolean;
+  readonly view: "front" | "back";
+  readonly selectedMuscles: Set<string>;
+  readonly sorenessMap: Record<MuscleGroup, number>; // muscle -> intensity (0-10), any value > 0 = sore (light orange)
+  readonly injuredMuscles?: Set<MuscleGroup> | Record<MuscleGroup, boolean>; // muscle -> injured (red), takes priority over soreness
+  readonly heatmapData?: Record<MuscleGroup, number>; // muscle -> frequency count
+  readonly onPressMuscle: (muscle: MuscleGroup) => void;
+  readonly showLabels?: boolean;
+  readonly compact?: boolean;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

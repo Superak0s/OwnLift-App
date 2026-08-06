@@ -598,17 +598,17 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
       if (data) setWorkoutData(data as WorkoutData);
       if (person) setSelectedSplit(person as string);
-      if (day) setCurrentDay(parseInt(day as string));
+      if (day) setCurrentDay(Number.parseInt(day as string, 10));
       if (completed) setCompletedDays(completed as CompletedDays);
       if (locked) setLockedDays(locked as LockedDays);
       if (overrides) setUnlockedOverrides(overrides as Record<number, boolean>);
-      if (timeBetween) setTimeBetweenSets(parseInt(timeBetween as string));
+      if (timeBetween) setTimeBetweenSets(Number.parseInt(timeBetween as string, 10));
       if (startTime) setWorkoutStartTime(startTime as string);
       if (sessionId) setCurrentSessionId(sessionId as string);
       if (demoMode) setIsDemoMode(demoMode === "true");
       if (manualTime) setUseManualTime(manualTime === "true");
       if (syncs) setPendingSyncs(syncs as PendingSync[]);
-      if (activity) setLastActivityTime(parseInt(activity as string));
+      if (activity) setLastActivityTime(Number.parseInt(activity as string, 10));
       if (weightUnitLoaded) setWeightUnit(weightUnitLoaded as "kg" | "lbs");
 
       const loadedLastReset = lastReset ? (lastReset as string) : null;

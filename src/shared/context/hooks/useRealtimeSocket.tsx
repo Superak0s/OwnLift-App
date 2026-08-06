@@ -14,7 +14,7 @@
 // exponential-backoff retry path.
 //
 // Offline-mode fix: realtime features (joint sessions, live watch, etc.)
-// are server-only — there is no "off" equivalent. This hook now checks
+// are server-only — there is no "offline" equivalent. This hook now checks
 // isServerless() and refuses to open a connection at all while the app is
 // in offline mode, instead of trying to connect with whatever token the
 // offline auth stub produces (which isn't a real JWT, hence the endless
@@ -24,9 +24,9 @@ import { useEffect, useRef, useCallback, useState } from "react"
 import { AppState } from "react-native"
 import { getServerUrl } from "../../services/config"
 import {
+  getAppMode,
   isServerless,
   onAppModeChange,
-  ensureAppModeLoaded,
 } from "../../services/appMode"
 
 const BASE_RETRY_MS = 1_000
@@ -80,11 +80,11 @@ export function useRealtimeSocket({
   const authFailedTokenRef = useRef<string | null>(null)
   // Mirrors isServerless() in a ref so the stable `connect` callback always
   // reads the current value instead of one captured at creation time.
-  const offlineRef = useRef<boolean>(isServerless())
+  const offlineRef = useRef<boolean>(false)
   const [connected, setConnected] = useState(false)
   const [authError, setAuthError] = useState(false)
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
-  const [isOffline, setIsOffline] = useState<boolean>(isServerless())
+  const [isOffline, setIsOffline] = useState<boolean>(false)
 
   useEffect(() => {
     onMessageRef.current = onMessage
@@ -106,12 +106,12 @@ export function useRealtimeSocket({
   // Load the persisted app mode once, then stay in sync with it. Nothing
   // in this hook should attempt a socket connection until this resolves.
   useEffect(() => {
-    void ensureAppModeLoaded().then(() => {
-      offlineRef.current = isServerless()
-      setIsOffline(offlineRef.current)
+    void isServerless().then((offline) => {
+      offlineRef.current = offline
+      setIsOffline(offline)
     })
-    return onAppModeChange((mode) => {
-      const offline = mode === "off"
+    return onAppModeChange.subscribe((mode) => {
+      const offline = mode === "offline"
       offlineRef.current = offline
       setIsOffline(offline)
       if (offline) {

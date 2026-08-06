@@ -19,7 +19,7 @@ import {
 } from "../types/muscleRecovery";
 
 interface InjuryTrackerProps {
-  onLogInjury?: () => void;
+  readonly onLogInjury?: () => void;
 }
 
 const INJURY_TYPES: { value: InjuryType; label: string; icon: string }[] = [

@@ -21,10 +21,10 @@ import type {
 } from "../types"
 
 interface SupplementLocationPickerProps {
-  visible: boolean
-  onClose: () => void
-  onLocationSelected: (location: ReminderLocation) => void
-  initialLocation?: Partial<ReminderLocation> | null
+  readonly visible: boolean
+  readonly onClose: () => void
+  readonly onLocationSelected: (location: ReminderLocation) => void
+  readonly initialLocation?: Partial<ReminderLocation> | null
 }
 export default function SupplementLocationPicker({
   visible,

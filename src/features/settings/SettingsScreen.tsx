@@ -32,7 +32,7 @@ import EditWorkoutHistoryModal from "./components/EditWorkoutHistoryModal"
 import ModalSheet from "@shared/components/ModalSheet"
 import { importStrengthLevelCSV } from "@utils/strengthLevelImport"
 import { formatTime as formatDuration } from "@utils/timeEstimation"
-import { isServerless, setAppMode } from "@shared/services/appMode"
+import { isServerless, setAppMode, onAppModeChange } from "@shared/services/appMode"
 import { workoutApi } from "@features/workout/services/index"
 import type { WorkoutDay, CompletedExercises } from "@shared/types"
 
@@ -94,9 +94,14 @@ export default function SettingsScreen(): React.JSX.Element {
     [key: string]: unknown
   } | null>(null)
   const [loadingProgress, setLoadingProgress] = useState<boolean>(false)
+  const [isOffline, setIsOffline] = useState<boolean>(false)
 
   useEffect(() => {
     loadServerProgress()
+    void isServerless().then(setIsOffline)
+    return onAppModeChange.subscribe(() => {
+      void isServerless().then(setIsOffline)
+    })
   }, [user])
 
   const loadServerProgress = async () => {
@@ -467,7 +472,7 @@ export default function SettingsScreen(): React.JSX.Element {
   }
 
   const handleSaveTimeBetweenSets = () => {
-    const value = parseInt(tempTimeBetweenSets)
+    const value = Number.parseInt(tempTimeBetweenSets, 10)
     if (value && value > 0 && value <= 600) {
       saveTimeBetweenSets(value)
       setShowTimeBetweenSetsModal(false)
@@ -670,6 +675,63 @@ export default function SettingsScreen(): React.JSX.Element {
     }
   }
 
+  const doMigrateOffline = async (): Promise<boolean> => {
+    try {
+      const currentUserId = user?.id ?? null
+      if (currentUserId) {
+        for (const key of Object.values(STORAGE_KEYS)) {
+          try {
+            const value = await loadFromStorage(key, currentUserId)
+            if (value != null) {
+              await saveToStorage(key, value, "local")
+            }
+          } catch (err) {
+            console.warn(`Failed copying key ${key}:`, err)
+          }
+        }
+        try {
+          if (selectedSplit) {
+            const sessions = await workoutApi.getSessionHistory(
+              selectedSplit,
+              null,
+              1000,
+              true,
+            )
+            const mapped = (sessions || []).map((s: any) => ({
+              id: s.id,
+              person: selectedSplit,
+              day_number: s.day_number ?? s.dayNumber ?? 0,
+              day_title: s.day_title ?? s.dayTitle ?? undefined,
+              start_time: s.start_time ?? s.startTime ?? null,
+              end_time: s.end_time ?? s.endTime ?? null,
+              set_timings: s.set_timings ?? s.setTimings ?? [],
+              is_demo: s.is_demo ?? false,
+            }))
+            await AsyncStorage.setItem(
+              "@offline:workout:sessions",
+              JSON.stringify(mapped),
+            )
+          }
+        } catch (err) {
+          console.warn("Failed migrating sessions:", err)
+        }
+      }
+      await setAppMode("offline")
+      await updateProfile(
+        user?.name ?? user?.username ?? "Me",
+        user?.email ?? "",
+      )
+      if (profilePhone)
+        await AsyncStorage.setItem("@profile_phone", profilePhone)
+      if (profileAvatarUri)
+        await AsyncStorage.setItem("@profile_avatar", profileAvatarUri)
+      return true
+    } catch (error) {
+      console.error("Migration to offline failed:", error)
+      return false
+    }
+  }
+
   const migrateToOffline = async () => {
     alert(
       "Migrate to Offline",
@@ -679,83 +741,15 @@ export default function SettingsScreen(): React.JSX.Element {
         {
           text: "Migrate",
           onPress: async () => {
-            try {
-              const currentUserId = user?.id ?? null
-
-              // Copy persistent workout state for the current user into the local/offline user namespace.
-              // Read all STORAGE_KEYS for the current user and write them for the offline local id.
-              if (currentUserId) {
-                const keys = Object.values(STORAGE_KEYS)
-                for (const key of keys) {
-                  try {
-                    const value = await loadFromStorage(key, currentUserId)
-                    if (value != null) {
-                      // Write to offline "local" user id so the offline provider will load it
-                      await saveToStorage(key, value, "local")
-                    }
-                  } catch (err) {
-                    console.warn(`Failed copying key ${key}:`, err)
-                  }
-                }
-
-                // Copy server session history (if a selectedSplit exists) into the offline sessions store
-                try {
-                  if (selectedSplit) {
-                    // Pull full sessions including timings from the server
-                    const sessions = await workoutApi.getSessionHistory(
-                      selectedSplit,
-                      null,
-                      1000,
-                      true,
-                    )
-                    // Map shape to the offline storage format used by the offline workout service
-                    const mapped = (sessions || []).map((s: any) => ({
-                      id: s.id,
-                      person: selectedSplit,
-                      day_number: s.day_number ?? s.dayNumber ?? 0,
-                      day_title:
-                        s.day_title ?? s.dayTitle ?? s.day_title ?? undefined,
-                      start_time: s.start_time ?? s.startTime ?? null,
-                      end_time: s.end_time ?? s.endTime ?? null,
-                      set_timings: s.set_timings ?? s.setTimings ?? [],
-                      is_demo: s.is_demo ?? false,
-                    }))
-                    try {
-                      await AsyncStorage.setItem(
-                        "@offline:workout:sessions",
-                        JSON.stringify(mapped),
-                      )
-                    } catch (err) {
-                      console.warn("Failed writing offline sessions:", err)
-                    }
-                  }
-                } catch (err) {
-                  console.warn("Failed fetching sessions for migration:", err)
-                }
-              }
-
-              // Finally flip the mode — autoConnectOffline (AuthContext) will sign in the local profile.
-              await setAppMode("off")
-
-              // create/overwrite local profile with same name/email using auth updateProfile
-              const current = user
-              await updateProfile(
-                current?.name ?? current?.username ?? "Me",
-                current?.email ?? "",
-              )
-              if (profilePhone)
-                await AsyncStorage.setItem("@profile_phone", profilePhone)
-              if (profileAvatarUri)
-                await AsyncStorage.setItem("@profile_avatar", profileAvatarUri)
-
+            const ok = await doMigrateOffline()
+            if (ok) {
               alert(
                 "Success",
                 "Migrated to offline account — your data has been copied and you can continue where you left off.",
                 [{ text: "OK" }],
                 "success",
               )
-            } catch (error) {
-              console.error("Migration to offline failed:", error)
+            } else {
               alert(
                 "Error",
                 "Failed to migrate to offline account",
@@ -780,7 +774,7 @@ export default function SettingsScreen(): React.JSX.Element {
           text: "Switch",
           onPress: async () => {
             try {
-              await setAppMode("on")
+              await setAppMode("online")
               alert(
                 "Mode Changed",
                 "App switched to online mode. Please sign in or sign up from the login screen.",
@@ -815,7 +809,7 @@ export default function SettingsScreen(): React.JSX.Element {
           </View>
 
           <View style={styles.section}>
-            {!isServerless() && (
+            {!isOffline && (
               <View style={styles.card}>
                 <TouchableOpacity
                   style={styles.settingRow}
@@ -1157,7 +1151,7 @@ export default function SettingsScreen(): React.JSX.Element {
 
                   {/* Migration */}
                   <View style={{ height: 8 }} />
-                  {!isServerless() && (
+                  {!isOffline && (
                     <TouchableOpacity
                       style={styles.actionButton}
                       onPress={migrateToOffline}
@@ -1175,7 +1169,7 @@ export default function SettingsScreen(): React.JSX.Element {
                     </TouchableOpacity>
                   )}
 
-                  {isServerless() && (
+                  {isOffline && (
                     <TouchableOpacity
                       style={styles.actionButton}
                       onPress={migrateToOnline}
@@ -1198,7 +1192,7 @@ export default function SettingsScreen(): React.JSX.Element {
           </View>
 
           {/* Logout */}
-          {!isServerless() && (
+          {!isOffline && (
             <View style={styles.section}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.dangerButton]}
