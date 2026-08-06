@@ -10,7 +10,6 @@ import {
   Switch,
   ActivityIndicator,
   Platform,
-  Linking,
 } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import * as DocumentPicker from "expo-document-picker"
@@ -30,7 +29,7 @@ import { useAlert } from "@shared/components/CustomAlert"
 import ThemeEditorModal from "@shared/components/ThemeEditorModal"
 import EditWorkoutHistoryModal from "./components/EditWorkoutHistoryModal"
 import ModalSheet from "@shared/components/ModalSheet"
-import { importStrengthLevelCSV } from "@utils/strengthLevelImport"
+import { importStrengthLevelCSV, type ImportResult } from "@utils/strengthLevelImport"
 import { formatTime as formatDuration } from "@utils/timeEstimation"
 import { isServerless, setAppMode, onAppModeChange } from "@shared/services/appMode"
 import { workoutApi } from "@features/workout/services/index"
@@ -78,9 +77,6 @@ export default function SettingsScreen(): React.JSX.Element {
     useState<boolean>(false)
   const [tempTimeBetweenSets, setTempTimeBetweenSets] = useState<string>("")
   const [showResetDayModal, setShowResetDayModal] = useState<boolean>(false)
-  const [selectedDayToReset, setSelectedDayToReset] = useState<number | null>(
-    null,
-  )
 
   const [showThemeEditor, setShowThemeEditor] = useState<boolean>(false)
   const [isImporting, setIsImporting] = useState<boolean>(false)
@@ -145,6 +141,40 @@ export default function SettingsScreen(): React.JSX.Element {
     }
   }
 
+  const handleShowImportSuccess = useCallback(
+    (result: ImportResult) => {
+      if (!isMountedRef.current) return
+      const summary =
+        `Imported ${result.setsImported} set${result.setsImported === 1 ? "" : "s"} ` +
+        `across ${result.sessionsCreated} session${result.sessionsCreated === 1 ? "" : "s"}.` +
+        (result.skipped > 0 ? `\n${result.skipped} row(s) were skipped.` : "")
+      const hasErrors = result.errors.length > 0
+      alert(
+        hasErrors ? "Import Completed with Issues" : "Import Successful",
+        hasErrors
+          ? `${summary}\n\n${result.errors.slice(0, 3).join("\n")}`
+          : summary,
+        [{ text: "OK" }],
+        hasErrors ? "error" : "success",
+      )
+    },
+    [alert],
+  )
+
+  const handleShowImportError = useCallback(
+    (error: unknown) => {
+      if (!isMountedRef.current) return
+      console.error("Error importing CSV:", error)
+      alert(
+        "Import Failed",
+        error instanceof Error ? error.message : "Failed to import the CSV file.",
+        [{ text: "OK" }],
+        "error",
+      )
+    },
+    [alert],
+  )
+
   const handleImportCSV = useCallback(async (): Promise<void> => {
     if (!selectedSplit) {
       alert(
@@ -176,7 +206,6 @@ export default function SettingsScreen(): React.JSX.Element {
       setIsImporting(true)
 
       const csvText = await new ExpoFile(fileUri).text()
-
       const result = await importStrengthLevelCSV(csvText, selectedSplit)
 
       if (result.sessionsCreated > 0 && isMountedRef.current) {
@@ -184,41 +213,17 @@ export default function SettingsScreen(): React.JSX.Element {
         await loadServerProgress()
       }
 
-      if (!isMountedRef.current) return
-
-      const summary =
-        `Imported ${result.setsImported} set${result.setsImported === 1 ? "" : "s"} ` +
-        `across ${result.sessionsCreated} session${result.sessionsCreated === 1 ? "" : "s"}.` +
-        (result.skipped > 0 ? `\n${result.skipped} row(s) were skipped.` : "")
-
-      alert(
-        result.errors.length > 0
-          ? "Import Completed with Issues"
-          : "Import Successful",
-        result.errors.length > 0
-          ? `${summary}\n\n${result.errors.slice(0, 3).join("\n")}`
-          : summary,
-        [{ text: "OK" }],
-        result.errors.length > 0 ? "error" : "success",
-      )
-    } catch (error) {
-      console.error("Error importing CSV:", error)
       if (isMountedRef.current) {
-        alert(
-          "Import Failed",
-          error instanceof Error
-            ? error.message
-            : "Failed to import the CSV file.",
-          [{ text: "OK" }],
-          "error",
-        )
+        handleShowImportSuccess(result)
+        setIsImporting(false)
       }
-    } finally {
+    } catch (error) {
+      handleShowImportError(error)
       if (isMountedRef.current) {
         setIsImporting(false)
       }
     }
-  }, [selectedSplit, syncFromServer, alert])
+  }, [selectedSplit, syncFromServer, alert, handleShowImportSuccess, handleShowImportError])
 
   const handleClearData = () => {
     alert(
@@ -451,21 +456,6 @@ export default function SettingsScreen(): React.JSX.Element {
     )
   }
 
-  const lockDay = async (dayNumber: number) => {
-    try {
-      const newLockedDays = { ...lockedDays, [dayNumber]: true }
-      await saveLockedDays(newLockedDays)
-
-      if (unlockedOverrides[dayNumber]) {
-        const newOverrides = { ...unlockedOverrides }
-        delete newOverrides[dayNumber]
-        await saveUnlockedOverrides(newOverrides)
-      }
-    } catch (error) {
-      console.error("Error locking day:", error)
-    }
-  }
-
   const handleOpenTimeBetweenSetsModal = () => {
     setTempTimeBetweenSets(timeBetweenSets.toString())
     setShowTimeBetweenSetsModal(true)
@@ -675,46 +665,50 @@ export default function SettingsScreen(): React.JSX.Element {
     }
   }
 
+  const migrateUserData = async (userId: string) => {
+    for (const key of Object.values(STORAGE_KEYS)) {
+      try {
+        const value = await loadFromStorage(key, userId)
+        if (value != null) {
+          await saveToStorage(key, value, "local")
+        }
+      } catch (err) {
+        console.warn(`Failed copying key ${key}:`, err)
+      }
+    }
+    try {
+      if (selectedSplit) {
+        const sessions = await workoutApi.getSessionHistory(
+          selectedSplit,
+          null,
+          1000,
+          true,
+        )
+        const mapSession = (s: any) => ({
+          id: s.id,
+          person: selectedSplit,
+          day_number: s.day_number ?? s.dayNumber ?? 0,
+          day_title: s.day_title ?? s.dayTitle,
+          start_time: s.start_time ?? s.startTime,
+          end_time: s.end_time ?? s.endTime,
+          set_timings: s.set_timings ?? s.setTimings ?? [],
+          is_demo: s.is_demo ?? false,
+        })
+        await AsyncStorage.setItem(
+          "@offline:workout:sessions",
+          JSON.stringify((sessions || []).map(mapSession)),
+        )
+      }
+    } catch (err) {
+      console.warn("Failed migrating sessions:", err)
+    }
+  }
+
   const doMigrateOffline = async (): Promise<boolean> => {
     try {
       const currentUserId = user?.id ?? null
       if (currentUserId) {
-        for (const key of Object.values(STORAGE_KEYS)) {
-          try {
-            const value = await loadFromStorage(key, currentUserId)
-            if (value != null) {
-              await saveToStorage(key, value, "local")
-            }
-          } catch (err) {
-            console.warn(`Failed copying key ${key}:`, err)
-          }
-        }
-        try {
-          if (selectedSplit) {
-            const sessions = await workoutApi.getSessionHistory(
-              selectedSplit,
-              null,
-              1000,
-              true,
-            )
-            const mapped = (sessions || []).map((s: any) => ({
-              id: s.id,
-              person: selectedSplit,
-              day_number: s.day_number ?? s.dayNumber ?? 0,
-              day_title: s.day_title ?? s.dayTitle ?? undefined,
-              start_time: s.start_time ?? s.startTime ?? null,
-              end_time: s.end_time ?? s.endTime ?? null,
-              set_timings: s.set_timings ?? s.setTimings ?? [],
-              is_demo: s.is_demo ?? false,
-            }))
-            await AsyncStorage.setItem(
-              "@offline:workout:sessions",
-              JSON.stringify(mapped),
-            )
-          }
-        } catch (err) {
-          console.warn("Failed migrating sessions:", err)
-        }
+        await migrateUserData(currentUserId)
       }
       await setAppMode("offline")
       await updateProfile(

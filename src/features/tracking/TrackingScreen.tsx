@@ -120,6 +120,15 @@ import type { ThemeColors } from "@shared/context/ThemeContext";
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+function filterDayModalEntry(prev: DayModalState | null, entryId: string | number) {
+  if (!prev) return null;
+  const remaining = (prev.existingEntries || []).filter((e: any) => e.id !== entryId);
+  return {
+    ...prev,
+    existingEntries: remaining.length > 0 ? remaining : null,
+  };
+}
+
 export default function TrackingScreen(): React.JSX.Element {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -854,16 +863,7 @@ export default function TrackingScreen(): React.JSX.Element {
       try {
         await apiDelete(entryId);
         setHistory((prev) => prev.filter((e) => (e as { id: string | number }).id !== entryId));
-        setDayModal((prev) => {
-          if (!prev) return null;
-          const remaining = (prev.existingEntries || []).filter(
-            (e: any) => e.id !== entryId,
-          );
-          return {
-            ...prev,
-            existingEntries: remaining.length > 0 ? remaining : null,
-          };
-        });
+        setDayModal((prev) => filterDayModalEntry(prev, entryId));
         extraCleanup?.(entry);
       } catch (err) {
         alert(

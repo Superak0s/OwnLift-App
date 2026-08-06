@@ -28,5 +28,5 @@ export function calculateBodyFatPercentage(
       450
   }
 
-  return parseFloat(bodyFatPercentage.toFixed(1))
+  return Number.parseFloat(bodyFatPercentage.toFixed(1))
 }

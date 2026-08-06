@@ -321,7 +321,7 @@ async function getServerHistoryEntries(
   allExerciseNames: string[],
 ): Promise<PerformanceEntry[]> {
   try {
-    const sessions = (await fetchSessionHistory(50, true)) as any[];
+    const sessions = await fetchSessionHistory(50, true);
     if (!sessions?.length) return [];
     return sessions.flatMap((session) =>
       collectSessionTimings(
@@ -377,7 +377,7 @@ function getPartnerSetLabel(
   partnerProgress: Record<string, unknown> | null,
 ): string {
   const setIndex = partnerProgress?.setIndex as number | undefined;
-  return setIndex != null ? `Set ${setIndex + 1}` : "—";
+  return setIndex == null ? "—" : `Set ${setIndex + 1}`;
 }
 
 function getPartnerStatusText(
@@ -762,7 +762,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   const [tempRestReminderSeconds, setTempRestReminderSeconds] =
     useState<string>("");
 
-  const [, setCurrentRestTimer] = useState<number>(0);
+  const [currentRestTimer, setCurrentRestTimer] = useState<number>(0);
   const [sessionStats, setSessionStats] = useState<Record<
     string,
     unknown
@@ -2357,7 +2357,7 @@ export default function WorkoutScreen(): React.JSX.Element {
           </View>
           {checkIsSelectedSetAssisted(
             selectedSet,
-            dayWorkout as Record<string, unknown> | null,
+            dayWorkout,
           ) && (
             <View style={styles.assistedInfoBox}>
               <Text style={styles.assistedInfoText}>

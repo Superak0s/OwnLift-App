@@ -367,8 +367,8 @@ function getDayTitle(
 // nesting entirely and makes them independently testable.
 
 function formatSetVolume(weight: unknown, reps: unknown): string {
-  const w = Number.parseFloat(String(weight ?? 0));
-  const r = Number.parseInt(String(reps ?? 0), 10);
+  const w = typeof weight === "number" ? weight : 0;
+  const r = typeof reps === "number" ? reps : 0;
   const volume = w * r;
   const displayVolume = Number.isInteger(volume)
     ? `${volume}`
@@ -624,7 +624,7 @@ export default function HomeScreen({
       try {
         const saved = await programApi.fetchSavedProgram();
         if (saved && (saved as { success?: boolean }).success) {
-          await saveWorkoutData(saved as WorkoutData);
+          await saveWorkoutData(saved);
         }
       } catch (error) {
         if ((error as Error)?.message === "SESSION_EXPIRED") {
@@ -709,9 +709,7 @@ export default function HomeScreen({
 
   const handleSessionPress = async (session: WorkoutSession): Promise<void> => {
     try {
-      const details = (await workoutApi.getSession(
-        session.id,
-      )) as FullSessionWithGroups;
+      const details = await workoutApi.getSession(session.id);
 
       details.groupedExercises = groupSetTimingsByExercise(details.set_timings);
 

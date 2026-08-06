@@ -35,7 +35,7 @@ export const programApi = {
     try {
       const response = await authenticatedFetch(`/api/program`)
       if (response.status === 404) return null
-      return (await parseApiResponse(response)) as SavedProgram
+      return await parseApiResponse(response)
     } catch (error) {
       if ((error as Error).message === "SESSION_EXPIRED") throw error
       console.warn("Could not fetch saved program:", (error as Error).message)

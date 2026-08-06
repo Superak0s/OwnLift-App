@@ -453,7 +453,7 @@ export default function SignupScreen({
 
                  {password && passwordStrength != null && passwordStrength.score < 3 && (
                   <View style={styles.feedbackContainer}>
-                     {passwordStrength!.feedback.map((tip) => (
+                      {passwordStrength.feedback.map((tip) => (
                        <Text key={tip} style={styles.feedbackText}>
                         • {tip}
                       </Text>

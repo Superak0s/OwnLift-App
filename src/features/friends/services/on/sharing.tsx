@@ -140,7 +140,7 @@ export const sharingApi = {
   getFriendSessionDetails: async (
     friendId: number | string,
     sessionId: number | string,
-  ): Promise<unknown | null> => {
+  ): Promise<any | null> => {
     const data = await apiCall<{ session: unknown }>(
       `/api/sharing/sessions/friend/${friendId}/${sessionId}`,
     )
@@ -155,7 +155,7 @@ export const sharingApi = {
   // Needs raw response for 404 check
   getFriendSessionStatus: async (
     friendId: number | string,
-  ): Promise<{ hasActiveSession: boolean } | unknown> => {
+  ): Promise<{ hasActiveSession: boolean }> => {
     const response = await authenticatedFetch(
       `/api/sharing/joint-sessions/friend/${friendId}/status`,
     )
@@ -174,7 +174,7 @@ export const sharingApi = {
 
   getInviteStatus: async (
     inviteId: number | string,
-  ): Promise<unknown | null> => {
+  ): Promise<any | null> => {
     const response = await authenticatedFetch(
       `/api/sharing/joint-sessions/invites/${inviteId}`,
     )
@@ -182,7 +182,7 @@ export const sharingApi = {
     return parseApiResponse(response)
   },
 
-  getMyPendingInvite: async (): Promise<unknown | null> => {
+  getMyPendingInvite: async (): Promise<any | null> => {
     const response = await authenticatedFetch(
       `/api/sharing/joint-sessions/invites/pending`,
     )
@@ -200,7 +200,7 @@ export const sharingApi = {
       method: "POST",
     }),
 
-  getJointSession: async (jointSessionId: string): Promise<unknown | null> => {
+  getJointSession: async (jointSessionId: string): Promise<any | null> => {
     const response = await authenticatedFetch(
       `/api/sharing/joint-sessions/${jointSessionId}`,
     )
@@ -225,7 +225,7 @@ export const sharingApi = {
 
   getFriendActiveSession: async (
     friendId: number | string,
-  ): Promise<unknown | null> => {
+  ): Promise<any | null> => {
     const response = await authenticatedFetch(
       `/api/sharing/watch/friend/${friendId}/active`,
     )
@@ -237,7 +237,7 @@ export const sharingApi = {
   getFriendLiveSession: async (
     friendId: number | string,
     sessionId: number | string,
-  ): Promise<unknown | null> => {
+  ): Promise<any | null> => {
     const response = await authenticatedFetch(
       `/api/sharing/watch/friend/${friendId}/session/${sessionId}/live`,
     )

@@ -24,7 +24,6 @@ import { useEffect, useRef, useCallback, useState } from "react"
 import { AppState } from "react-native"
 import { getServerUrl } from "../../services/config"
 import {
-  getAppMode,
   isServerless,
   onAppModeChange,
 } from "../../services/appMode"

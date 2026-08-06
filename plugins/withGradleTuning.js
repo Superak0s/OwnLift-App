@@ -17,7 +17,7 @@ const FORCED_PROPERTIES = {
 };
 
 // Properties removed if present (deprecated / conflicting)
-const REMOVED_PROPERTIES = ["android.enableBuildCache"];
+const REMOVED_PROPERTIES = new Set(["android.enableBuildCache"]);
 
 function setProperty(modResults, key, value) {
   const existing = modResults.find(
@@ -37,7 +37,7 @@ const withGradleTuning = (config) => {
 
     results = results.filter(
       (item) =>
-        !(item.type === "property" && REMOVED_PROPERTIES.includes(item.key)),
+        !(item.type === "property" && REMOVED_PROPERTIES.has(item.key)),
     );
 
     for (const [key, value] of Object.entries(FORCED_PROPERTIES)) {

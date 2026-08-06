@@ -180,7 +180,7 @@ export default function SupplementsScreen(): React.JSX.Element {
       );
       return;
     }
-    const amt = parseFloat(newAmount);
+    const amt = Number.parseFloat(newAmount);
     if (isNaN(amt) || amt <= 0) {
       alert(
         "Invalid Amount",

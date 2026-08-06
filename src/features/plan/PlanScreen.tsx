@@ -475,7 +475,7 @@ function DayEditForm({
 
       {dayDraft.exercises.map((draft, exIdx) => (
         <ExerciseEditBlock
-          key={exIdx}
+          key={draft.name || `draft-${exIdx}`}
           draft={draft}
           exIdx={exIdx}
           colors={colors}
@@ -668,7 +668,7 @@ function ProgramDayCard({
         !isEditing &&
         exercises.map((exercise, exIdx) => (
           <ProgramExerciseRow
-            key={exIdx}
+            key={exercise.name ?? `exercise-${exIdx}`}
             name={exercise.name ?? `Exercise ${exIdx + 1}`}
             muscleGroup={exercise.muscleGroup}
             personEntries={getPersonEntries(exercise, selectedProgram)}
@@ -802,8 +802,8 @@ export default function PlanScreen({
       if (workoutData) return;
       try {
         const saved = await programApi.fetchSavedProgram();
-        if (saved && (saved as unknown as { success?: boolean }).success) {
-          await saveWorkoutData(saved as unknown as WorkoutData);
+        if (saved && (saved as { success?: boolean }).success) {
+          await saveWorkoutData(saved);
         }
       } catch (error) {
         if ((error as Error)?.message === "SESSION_EXPIRED") {
@@ -982,7 +982,7 @@ export default function PlanScreen({
     setIsApplyingTemplate(true);
     try {
       if (mode === "insert" && workoutData) {
-        let workoutToInsert = workoutData as unknown as WorkoutData;
+        let workoutToInsert = workoutData;
         if (personName && !workoutToInsert.split?.includes(personName)) {
           const splitWithNew = [...(workoutToInsert.split ?? []), personName];
           const existingDays = workoutToInsert.days ?? [];
@@ -1370,7 +1370,7 @@ export default function PlanScreen({
 
             {draftSplitDays.map((day, idx) => (
               <SplitDayRow
-                key={idx}
+                key={day.dayTitle || `day-${idx}`}
                 index={idx}
                 day={day}
                 canRemove={draftSplitDays.length > 1}
@@ -1612,7 +1612,7 @@ export default function PlanScreen({
           }
           return (
             <ProgramDayCard
-              key={dayIdx}
+              key={day.dayNumber ?? `day-${dayIdx}`}
               day={day}
               dayIdx={dayIdx}
               selectedProgram={selectedProgram}

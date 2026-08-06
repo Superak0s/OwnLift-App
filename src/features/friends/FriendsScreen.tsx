@@ -71,6 +71,9 @@ import type {
 } from "./types";
 import type { WidgetInstance } from "@shared/types";
 
+type IdOrNull = number | string | null;
+type IdOrUndefined = number | string | undefined;
+
 const useFriendSessionStatuses = (
   friends: Friend[],
   socketLastMessage: WebSocketMessage | null,
@@ -300,6 +303,15 @@ function PermissionRow({
 }: PermissionRowProps): React.JSX.Element {
   const { colors } = useTheme();
   const permStyles = makePermStyles(colors);
+  const actionBtn = granted ? (
+    <TouchableOpacity style={permStyles.revokeBtn} onPress={onRevoke}>
+      <Text style={permStyles.revokeBtnText}>Revoke</Text>
+    </TouchableOpacity>
+  ) : (
+    <TouchableOpacity style={permStyles.grantBtn} onPress={onGrant}>
+      <Text style={permStyles.grantBtnText}>Grant</Text>
+    </TouchableOpacity>
+  );
   return (
     <View style={[permStyles.row, granted && permStyles.rowGranted]}>
       <Text style={permStyles.icon}>{icon}</Text>
@@ -313,15 +325,7 @@ function PermissionRow({
           color='#667eea'
           style={{ marginLeft: 8 }}
         />
-      ) : granted ? (
-        <TouchableOpacity style={permStyles.revokeBtn} onPress={onRevoke}>
-          <Text style={permStyles.revokeBtnText}>Revoke</Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity style={permStyles.grantBtn} onPress={onGrant}>
-          <Text style={permStyles.grantBtnText}>Grant</Text>
-        </TouchableOpacity>
-      )}
+      ) : actionBtn}
     </View>
   );
 }
@@ -441,6 +445,11 @@ function FriendsListWidget({
               cardStatus !== "active";
             const isBeingWatched =
               isWatching && watchTarget?.friendId === String(friend.id);
+            const metaText = isBeingWatched
+              ? "👀 Watching their session"
+              : friendIsWorkingOut
+                ? "🏋️ Working out now"
+                : `Friends since ${formatDate(friend.createdAt)}`;
 
             return (
               <TouchableOpacity
@@ -469,13 +478,7 @@ function FriendsListWidget({
                   </View>
                   <View style={styles.friendDetails}>
                     <Text style={styles.friendName}>{friend.username}</Text>
-                    <Text style={styles.friendMeta}>
-                      {isBeingWatched
-                        ? "👀 Watching their session"
-                        : friendIsWorkingOut
-                          ? "🏋️ Working out now"
-                          : `Friends since ${formatDate(friend.createdAt)}`}
-                    </Text>
+                    <Text style={styles.friendMeta}>{metaText}</Text>
                   </View>
                 </View>
                 <View style={styles.friendCardRight}>
@@ -626,7 +629,7 @@ interface SearchContactsWidgetProps {
   readonly contactPermissionDenied: boolean;
   readonly contactSuggestionsRequested: boolean;
   readonly contactSuggestions: ContactFriendSuggestion[];
-  readonly sendingRequestTo: number | string | null;
+  readonly sendingRequestTo: IdOrNull;
   readonly onFindSuggestions: () => void;
   readonly onSendRequest: (suggestion: ContactFriendSuggestion) => void;
 }
@@ -769,7 +772,7 @@ interface SearchUsersWidgetProps {
   readonly friends: Friend[];
   readonly sentRequests: SentFriendRequest[];
   readonly pendingRequests: PendingFriendRequest[];
-  readonly currentUserId: number | string | undefined;
+  readonly currentUserId: IdOrUndefined;
   readonly onGoToRequests: () => void;
   readonly onAddFriend: (username: string) => void;
 }
@@ -788,7 +791,7 @@ function SearchUserResultRow({
   readonly friends: Friend[];
   readonly sentRequests: SentFriendRequest[];
   readonly pendingRequests: PendingFriendRequest[];
-  readonly currentUserId: number | string | undefined;
+  readonly currentUserId: IdOrUndefined;
   readonly styles: ReturnType<typeof makeStyles>;
   readonly onGoToRequests: () => void;
   readonly onAddFriend: (username: string) => void;
@@ -866,6 +869,12 @@ function SearchUsersWidget({
   onGoToRequests,
   onAddFriend,
 }: SearchUsersWidgetProps): React.JSX.Element {
+  const noResults =
+    searchQuery.trim() && !searching && searchResults.length === 0 ? (
+      <View style={styles.emptyStateSmall}>
+        <Text style={styles.emptyTextSmall}>No users found</Text>
+      </View>
+    ) : null;
   return (
     <View>
       <View style={styles.searchContainer}>
@@ -901,11 +910,7 @@ function SearchUsersWidget({
             />
           ))}
         </View>
-      ) : searchQuery.trim() && !searching ? (
-        <View style={styles.emptyStateSmall}>
-          <Text style={styles.emptyTextSmall}>No users found</Text>
-        </View>
-      ) : null}
+      ) : noResults}
     </View>
   );
 }
@@ -1077,9 +1082,9 @@ function ProgramDayCard({
           {getProgramDayTitle(day)}
         </Text>
       </View>
-      {exercises.map((exercise, exIdx) => (
-        <ProgramExerciseRow
-          key={exIdx}
+        {exercises.map((exercise, exIdx) => (
+          <ProgramExerciseRow
+            key={exercise.name ?? `exercise-${exIdx}`}
           exercise={exercise}
           exIdx={exIdx}
           selectedProgram={selectedProgram}
@@ -1201,7 +1206,7 @@ function FriendProgramTab({
         {Array.isArray(pd?.days) &&
           pd.days!.map((day, dayIdx) => (
             <ProgramDayCard
-              key={dayIdx}
+              key={day.dayNumber ?? `day-${dayIdx}`}
               day={day}
               dayIdx={dayIdx}
               selectedProgram={selectedProgram}
@@ -1794,7 +1799,6 @@ export default function FriendsScreen(): React.JSX.Element {
     leaveJointSession,
     isWatching,
     watchTarget,
-    watchLoading,
     startWatching,
     stopWatching,
     socketLastMessage,
@@ -1903,11 +1907,6 @@ export default function FriendsScreen(): React.JSX.Element {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [qrScanLocked, setQrScanLocked] = useState<boolean>(false);
   const [addingFriendFromQr, setAddingFriendFromQr] = useState<boolean>(false);
-
-  const [sharingStats, setSharingStats] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
 
   const [grantedPermissions, setGrantedPermissions] = useState<
     GrantedPermission[]
@@ -2211,11 +2210,6 @@ export default function FriendsScreen(): React.JSX.Element {
     ]);
     setGrantedPermissions(granted);
     setReceivedPermissions(received);
-  };
-
-  const loadStats = async () => {
-    const stats = await sharingApi.getSharingStats().catch(() => null);
-    setSharingStats(stats as Record<string, unknown> | null);
   };
 
   const onRefresh = async () => {
@@ -3164,8 +3158,8 @@ export default function FriendsScreen(): React.JSX.Element {
                     {Array.isArray(selectedSession.muscle_groups) &&
                       selectedSession.muscle_groups.length > 0 && (
                         <View style={styles.muscleGroupsRow}>
-                          {selectedSession.muscle_groups.map((g, i) => (
-                            <View key={i} style={styles.muscleTag}>
+                          {selectedSession.muscle_groups.map((g) => (
+                              <View key={String(g)} style={styles.muscleTag}>
                               <Text style={styles.muscleTagText}>
                                 {String(g)}
                               </Text>
@@ -3206,8 +3200,8 @@ export default function FriendsScreen(): React.JSX.Element {
                       <View style={styles.detailSection}>
                         <Text style={styles.detailSectionTitle}>Exercises</Text>
                         {selectedSession.groupedExercises.map(
-                          (exercise, ei) => (
-                            <View key={ei} style={styles.exerciseCard}>
+                          (exercise) => (
+                            <View key={exercise.exerciseName} style={styles.exerciseCard}>
                               <View style={styles.exerciseHeader}>
                                 <Text style={styles.exerciseName}>
                                   {exercise.exerciseName}
@@ -3216,8 +3210,8 @@ export default function FriendsScreen(): React.JSX.Element {
                                   {exercise.sets.length} sets
                                 </Text>
                               </View>
-                              {exercise.sets.map((set, si) => (
-                                <View key={si} style={styles.setTimingCard}>
+                                {exercise.sets.map((set) => (
+                                  <View key={set.id ?? `set-${set.set_index}`} style={styles.setTimingCard}>
                                   <Text style={styles.setTimingTitle}>
                                     Set {set.set_index + 1}
                                   </Text>

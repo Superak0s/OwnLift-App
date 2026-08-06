@@ -376,7 +376,7 @@ export default function ExerciseAnalytics({
     return Object.keys(exerciseSets)
       .filter((setIndex) => exerciseSets[Number(setIndex)])
       .map((setIndex) => {
-        const setData = exerciseSets[Number(setIndex)]!;
+        const setData = exerciseSets[Number(setIndex)] ?? {};
         const rawWeight = setData.weight ?? 0;
         const rawReps = setData.reps ?? 0;
         const volume = computeVolume(isAssisted, rawWeight, rawReps);

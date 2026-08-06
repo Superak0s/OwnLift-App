@@ -129,6 +129,19 @@ export const useServerSync = ({
     [selectedSplit],
   )
 
+  async function fetchWeeklySessions(
+    split: string,
+  ): Promise<WorkoutSession[]> {
+    const allSessions = await workoutApi.getSessionHistory(split, null, 100)
+    if (!allSessions?.length) return []
+
+    const weekStart = getCurrentWeekMonday()
+    return allSessions.filter((s) => {
+      const raw = s.start_time ?? s.created_at
+      return raw ? new Date(raw) >= weekStart : false
+    })
+  }
+
   const mergeProgramFromServer = async (): Promise<WorkoutData | null> => {
     try {
       const savedProgram =
@@ -177,6 +190,60 @@ export const useServerSync = ({
     }
   }
 
+  const findExerciseIndexByName = (
+    exercises: any[],
+    exerciseName: string,
+  ): number => {
+    return exercises.findIndex(
+      (ex) => ex.name.toLowerCase() === exerciseName.toLowerCase(),
+    )
+  }
+
+  const shouldReplaceExistingSet = (
+    existing: { completedAt: string } | undefined,
+    serverTime: number,
+  ): boolean => {
+    if (!existing) return true
+    return serverTime > new Date(existing.completedAt).getTime()
+  }
+
+  const processSetTimingsForDay = (
+    timings: NonNullable<FullSession["set_timings"]>,
+    exercises: any[],
+    dayNumber: number,
+    newCompletedDays: CompletedDays,
+  ): void => {
+    timings.forEach((timing, fallbackIndex) => {
+      let exerciseIndex = fallbackIndex
+      if (timing.exercise_name) {
+        const idx = findExerciseIndexByName(exercises, timing.exercise_name)
+        if (idx !== -1) exerciseIndex = idx
+      }
+
+      const setIndex = timing.set_index
+      if (!newCompletedDays[dayNumber][exerciseIndex]) {
+        newCompletedDays[dayNumber][exerciseIndex] = {}
+      }
+
+      const existing = newCompletedDays[dayNumber][exerciseIndex][setIndex]
+      if (
+        shouldReplaceExistingSet(
+          existing,
+          new Date(timing.end_time).getTime(),
+        )
+      ) {
+        newCompletedDays[dayNumber][exerciseIndex][setIndex] = {
+          weight: timing.weight ?? 0,
+          reps: timing.reps ?? 0,
+          completedAt: timing.end_time,
+          note: timing.note ?? "",
+          isWarmup: timing.is_warmup ?? false,
+          source: "server",
+        }
+      }
+    })
+  }
+
   const buildCompletedDaysMap = (
     sessionResults: (FullSession | null)[],
     workoutData: WorkoutData,
@@ -214,39 +281,12 @@ export const useServerSync = ({
         newCompletedDays[dayNumber] = {}
       }
 
-      fullSession.set_timings.forEach((timing, fallbackIndex) => {
-        let exerciseIndex = fallbackIndex
-        if (timing.exercise_name) {
-          const idx = personWorkout.exercises.findIndex(
-            (ex: any) =>
-              ex.name.toLowerCase() === timing.exercise_name!.toLowerCase(),
-          )
-          if (idx !== -1) exerciseIndex = idx
-        }
-
-        const setIndex = timing.set_index
-        if (!newCompletedDays[dayNumber][exerciseIndex]) {
-          newCompletedDays[dayNumber][exerciseIndex] = {}
-        }
-
-        const existing =
-          newCompletedDays[dayNumber][exerciseIndex][setIndex]
-        const serverTime = new Date(timing.end_time).getTime()
-        const existingTime = existing
-          ? new Date(existing.completedAt).getTime()
-          : 0
-
-        if (!existing || serverTime > existingTime) {
-          newCompletedDays[dayNumber][exerciseIndex][setIndex] = {
-            weight: timing.weight ?? 0,
-            reps: timing.reps ?? 0,
-            completedAt: timing.end_time,
-            note: timing.note ?? "",
-            isWarmup: timing.is_warmup ?? false,
-            source: "server",
-          }
-        }
-      })
+      processSetTimingsForDay(
+        fullSession.set_timings,
+        personWorkout.exercises,
+        dayNumber,
+        newCompletedDays,
+      )
     }
 
     return { newCompletedDays, newLockedDays, activeSessionWasEndedRemotely }
@@ -309,22 +349,7 @@ export const useServerSync = ({
       }
 
       // ── Fetch session list ───────────────────────────────────────────────
-      const allSessions = (await workoutApi.getSessionHistory(
-        selectedSplit,
-        null,
-        100,
-      )) as WorkoutSession[]
-
-      if (!allSessions?.length) {
-        console.log("No server sessions found")
-        return
-      }
-
-      const weekStart = getCurrentWeekMonday()
-      const sessions = allSessions.filter((s) => {
-        const raw = s.start_time ?? s.created_at
-        return raw ? new Date(raw) >= weekStart : false
-      })
+      const sessions = await fetchWeeklySessions(selectedSplit)
 
       if (!sessions.length) {
         console.log(
@@ -337,9 +362,7 @@ export const useServerSync = ({
       const sessionResults = await Promise.all(
         sessions.map(async (session) => {
           try {
-            return (await workoutApi.getSession(
-              String(session.id),
-            )) as FullSession
+            return await workoutApi.getSession(String(session.id))
           } catch (err) {
             console.warn(
               `Failed to fetch session ${session.id}:`,

@@ -113,6 +113,7 @@ void (async () => {
 const hideNavBar = async () => {
   if (Platform.OS === "android") {
     try {
+      // @ts-ignore deprecated API, no replacement
       await NavigationBar.setVisibilityAsync("hidden");
     } catch (error) {
       console.log("Failed to hide navigation bar:", (error as Error).message);
@@ -123,6 +124,7 @@ const hideNavBar = async () => {
 const showNavBarTemporarily = async (ms = 3000) => {
   if (Platform.OS !== "android") return;
   try {
+    // @ts-ignore deprecated API, no replacement
     await NavigationBar.setVisibilityAsync("visible");
     setTimeout(() => void hideNavBar(), ms);
   } catch (error) {

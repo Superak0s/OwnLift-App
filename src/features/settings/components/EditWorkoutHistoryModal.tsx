@@ -144,34 +144,32 @@ function SessionListView({
         </Text>
       </TouchableOpacity>
 
-      {loadingSessions ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
-      ) : visibleSessions.length === 0 ? (
-        <Text style={styles.emptyText}>
-          {showImportedOnly
-            ? "No imported sessions found for this person."
-            : "No sessions found for this person."}
-        </Text>
-      ) : (
-        visibleSessions.map((session) => (
-          <TouchableOpacity
-            key={session.id}
-            style={styles.sessionRow}
-            onPress={() => openSession(session)}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sessionTitle}>
-                {formatSessionLabel(session)}
-              </Text>
-              <Text style={styles.sessionSubtitle}>
-                {session.set_count ?? 0} set
-                {(session.set_count ?? 0) === 1 ? "" : "s"}
-              </Text>
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        ))
-      )}
+      {loadingSessions
+        ? <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+        : visibleSessions.length === 0
+          ? <Text style={styles.emptyText}>
+              {showImportedOnly
+                ? "No imported sessions found for this person."
+                : "No sessions found for this person."}
+            </Text>
+          : visibleSessions.map((session) => (
+              <TouchableOpacity
+                key={session.id}
+                style={styles.sessionRow}
+                onPress={() => openSession(session)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sessionTitle}>
+                    {formatSessionLabel(session)}
+                  </Text>
+                  <Text style={styles.sessionSubtitle}>
+                    {session.set_count ?? 0} set
+                    {(session.set_count ?? 0) === 1 ? "" : "s"}
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            ))}
     </ScrollView>
   );
 }
@@ -195,53 +193,51 @@ function SessionDetailView({
 }: SessionDetailViewProps): React.JSX.Element {
   return (
     <ScrollView contentContainerStyle={styles.listContent}>
-      {loadingDetail ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
-      ) : groupedExercises.length === 0 ? (
-        <Text style={styles.emptyText}>
-          No sets recorded in this session.
-        </Text>
-      ) : (
-        groupedExercises.map((group) => (
-          <View key={group.exerciseName} style={styles.exerciseCard}>
-            <View style={styles.exerciseHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.exerciseName}>{group.exerciseName}</Text>
-                <Text style={styles.exerciseMuscleGroup}>
-                  {group.muscleGroup || "No muscle group set"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.smallEditButton}
-                onPress={() => openEditExercise(group)}
-              >
-                <Text style={styles.smallEditButtonText}>Edit</Text>
-              </TouchableOpacity>
-            </View>
+      {loadingDetail
+        ? <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+        : groupedExercises.length === 0
+          ? <Text style={styles.emptyText}>
+              No sets recorded in this session.
+            </Text>
+          : groupedExercises.map((group) => (
+              <View key={group.exerciseName} style={styles.exerciseCard}>
+                <View style={styles.exerciseHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.exerciseName}>{group.exerciseName}</Text>
+                    <Text style={styles.exerciseMuscleGroup}>
+                      {group.muscleGroup || "No muscle group set"}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.smallEditButton}
+                    onPress={() => openEditExercise(group)}
+                  >
+                    <Text style={styles.smallEditButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
 
-            {group.sets.map((set, idx) => (
-              <TouchableOpacity
-                key={set.id ?? `${group.exerciseName}-${idx}`}
-                style={styles.setRow}
-                onPress={() => openEditSet(set)}
-              >
-                <Text style={styles.setLabel}>Set {set.set_index}</Text>
-                <Text style={styles.setDetail}>
-                  {set.weight ?? 0}kg × {set.reps ?? 0}
-                </Text>
-                <Text style={styles.setTime}>
-                  {formatDateTime(set.end_time, {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-              </TouchableOpacity>
+                {group.sets.map((set, idx) => (
+                  <TouchableOpacity
+                    key={set.id ?? `${group.exerciseName}-${idx}`}
+                    style={styles.setRow}
+                    onPress={() => openEditSet(set)}
+                  >
+                    <Text style={styles.setLabel}>Set {set.set_index}</Text>
+                    <Text style={styles.setDetail}>
+                      {set.weight ?? 0}kg × {set.reps ?? 0}
+                    </Text>
+                    <Text style={styles.setTime}>
+                      {formatDateTime(set.end_time, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             ))}
-          </View>
-        ))
-      )}
     </ScrollView>
   );
 }
@@ -328,7 +324,7 @@ export default function EditWorkoutHistoryModal({
     setLoadingDetail(true)
     try {
       const full = await workoutApi.getSession(session.id)
-      setSelectedSession(full as FullSessionWithGroups)
+      setSelectedSession(full)
     } catch (error) {
       console.error("Error loading session detail:", error)
       alert(
@@ -407,7 +403,7 @@ export default function EditWorkoutHistoryModal({
     setSavingExercise(true)
     try {
       await workoutApi.renameExercise(person, editingExercise.exerciseName, {
-        newName: finalName !== editingExercise.exerciseName ? finalName : undefined,
+        newName: finalName === editingExercise.exerciseName ? undefined : finalName,
         muscleGroup: finalGroup || null,
       })
 

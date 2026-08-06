@@ -98,7 +98,7 @@ export const programApi = {
       const program = await loadProgram(userId)
       if (!program) return null
 
-      const days = program.days as WorkoutDay[]
+      const days = program.days
       const day = days.find((d) => d.dayNumber === dayNumber)
       if (!day) return null
 
@@ -130,7 +130,7 @@ export const programApi = {
       const program = await loadProgram(userId)
       if (!program) return null
 
-      const days = program.days as WorkoutDay[]
+      const days = program.days
       const day = days.find((d) => d.dayNumber === dayNumber)
       if (!day) return null
 
@@ -161,7 +161,7 @@ export const programApi = {
       const program = await loadProgram(userId)
       if (!program) return null
 
-      const days = program.days as WorkoutDay[]
+      const days = program.days
       const day = days.find((d) => d.dayNumber === dayNumber)
       if (!day) return null
 

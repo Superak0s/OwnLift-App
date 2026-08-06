@@ -166,7 +166,7 @@ export default function SupplementSettingsModal({
       return { valid: false };
     }
 
-    const amt = parseFloat(defaultAmount);
+    const amt = Number.parseFloat(defaultAmount);
     if (isNaN(amt) || amt <= 0) {
       alert(
         "Invalid Amount",
@@ -410,7 +410,7 @@ export default function SupplementSettingsModal({
       supplementId: supplement.id,
       name: supplement.name,
       unit: supplement.unit,
-      defaultAmount: parseFloat(defaultAmount) || supplement.defaultAmount,
+      defaultAmount: Number.parseFloat(defaultAmount) || supplement.defaultAmount,
       locationBasedReminder: false,
       timeBasedEnabled: false,
       reminderTime: "00:00",
