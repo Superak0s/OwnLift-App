@@ -6,7 +6,6 @@
     "sourceMap": true,
     "resolveJsonModule": true,
     "paths": {
-      "@app/*": ["./src/app/*"],
       "@features/*": ["./src/features/*"],
       "@shared/*": ["./src/shared/*"],
       "@models/*": ["./src/types/*"],

@@ -207,41 +207,31 @@ export default function TrackingScreen(): React.JSX.Element {
 
   // Whichever tab is active, this is its widget board — the gallery and
   // the "+ Widget" / "Edit Widgets" affordances all key off this.
-  const activeBoard =
-    activeTab === "weight"
-      ? weightBoard
-      : activeTab === "photos"
-        ? photosBoard
-        : activeTab === "macros"
-          ? macrosBoard
-          : activeTab === "bodyfat"
-            ? bodyFatBoard
-            : activeTab === "measurements"
-              ? measurementsBoard
-              : activeTab === "hydration"
-                ? hydrationBoard
-                : activeTab === "soreness"
-                  ? sorenessBoard
-                  : menstrualBoard;
+  const tabBoardMap: Record<string, any> = {
+    weight: weightBoard,
+    photos: photosBoard,
+    macros: macrosBoard,
+    bodyfat: bodyFatBoard,
+    measurements: measurementsBoard,
+    hydration: hydrationBoard,
+    soreness: sorenessBoard,
+    menstrual: menstrualBoard,
+  };
+  const activeBoard = tabBoardMap[activeTab];
 
   // Which registry backs the currently-active tab — WidgetsPanel needs the
   // registry so it can render available widget types, icons and help text.
-  const activeRegistry =
-    activeTab === "weight"
-      ? WEIGHT_WIDGET_REGISTRY
-      : activeTab === "photos"
-        ? PHOTOS_WIDGET_REGISTRY
-        : activeTab === "macros"
-          ? MACROS_WIDGET_REGISTRY
-          : activeTab === "bodyfat"
-            ? BODYFAT_WIDGET_REGISTRY
-            : activeTab === "measurements"
-              ? MEASUREMENTS_WIDGET_REGISTRY
-              : activeTab === "hydration"
-                ? HYDRATION_WIDGET_REGISTRY
-                : activeTab === "soreness"
-                  ? SORENESS_WIDGET_REGISTRY
-                  : MENSTRUAL_WIDGET_REGISTRY;
+  const tabRegistryMap: Record<string, any> = {
+    weight: WEIGHT_WIDGET_REGISTRY,
+    photos: PHOTOS_WIDGET_REGISTRY,
+    macros: MACROS_WIDGET_REGISTRY,
+    bodyfat: BODYFAT_WIDGET_REGISTRY,
+    measurements: MEASUREMENTS_WIDGET_REGISTRY,
+    hydration: HYDRATION_WIDGET_REGISTRY,
+    soreness: SORENESS_WIDGET_REGISTRY,
+    menstrual: MENSTRUAL_WIDGET_REGISTRY,
+  };
+  const activeRegistry = tabRegistryMap[activeTab];
 
   // Two-finger pull brings up the "deploy" panel for the active tab's
   // widgets, same gesture as HomeScreen. To rearrange, resize, or remove
@@ -638,53 +628,42 @@ export default function TrackingScreen(): React.JSX.Element {
     const dateStr = toLocalDateStr(date);
     let existingEntries = null;
 
-    if (tab === "weight") {
-      const entries = weightHistory.filter(
-        (e) => isoToLocalDateStr(e?.recorded_at) === dateStr,
-      );
-      if (entries.length > 0) existingEntries = entries;
-    }
-
-    if (tab === "macros") {
-      const stats = getDailyMacrosStats(date);
-      if (stats) existingEntries = stats.entriesList;
-    }
-
-    if (tab === "photos") {
-      const photos = getPhotosForDate(date);
-      if (photos.length > 0) {
-        existingEntries = photos;
-        prefetchPhotosForDate(photos);
-      }
-    }
-
-    if (tab === "bodyfat") {
-      const entry = bodyFatHistory.find(
-        (b) => isoToLocalDateStr(b?.date) === dateStr,
-      );
-      if (entry) existingEntries = [entry];
-    }
-
-    if (tab === "measurements") {
-      const entries = measurementHistory.filter(
-        (m) => isoToLocalDateStr(m?.measuredAt ?? m?.recorded_at) === dateStr,
-      );
-      if (entries.length > 0) existingEntries = entries;
-    }
-
-    if (tab === "hydration") {
-      const entries = hydrationEntries.filter(
-        (h) => isoToLocalDateStr(h?.loggedAt ?? h?.recorded_at) === dateStr,
-      );
-      if (entries.length > 0) existingEntries = entries;
-    }
-
-    if (tab === "soreness") {
-      const entries = sorenessEntries.filter(
-        (s) =>
-          isoToLocalDateStr(s?.loggedAt ?? s?.recorded_at ?? s?.date) ===
-          dateStr,
-      );
+    const tabEntryFetcher: Record<string, () => any[]> = {
+      weight: () =>
+        weightHistory.filter(
+          (e) => isoToLocalDateStr(e?.recorded_at) === dateStr,
+        ),
+      macros: () => getDailyMacrosStats(date)?.entriesList || [],
+      photos: () => {
+        const p = getPhotosForDate(date);
+        if (p.length) prefetchPhotosForDate(p);
+        return p;
+      },
+      bodyfat: () => {
+        const b = bodyFatHistory.find(
+          (x) => isoToLocalDateStr(x?.date) === dateStr,
+        );
+        return b ? [b] : [];
+      },
+      measurements: () =>
+        measurementHistory.filter(
+          (m) => isoToLocalDateStr(m?.measuredAt ?? m?.recorded_at) === dateStr,
+        ),
+      hydration: () =>
+        hydrationEntries.filter(
+          (h) => isoToLocalDateStr(h?.loggedAt ?? h?.recorded_at) === dateStr,
+        ),
+      soreness: () =>
+        sorenessEntries.filter(
+          (s) =>
+            isoToLocalDateStr(
+              s?.loggedAt ?? s?.recorded_at ?? s?.date,
+            ) === dateStr,
+        ),
+    };
+    const fetcher = tabEntryFetcher[tab];
+    if (fetcher) {
+      const entries = fetcher();
       if (entries.length > 0) existingEntries = entries;
     }
 
@@ -927,43 +906,45 @@ export default function TrackingScreen(): React.JSX.Element {
     setSorenessEntries,
   );
 
+  const confirmDelete = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+  ) => {
+    alert(
+      title,
+      message,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: onConfirm },
+      ],
+      "warning",
+    );
+  };
+
   const deleteWeightEntry = (entry: WeightEntry) => {
     const label =
       weightUnit === "kg"
         ? `${Number(entry.weight_kg).toFixed(1)} kg`
         : `${(Number(entry.weight_kg) * 2.20462).toFixed(1)} lbs`;
-    alert(
-      "Delete Entry",
-      `Remove ${label}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDeleteWeight(entry) },
-      ],
-      "warning",
+    confirmDelete("Delete Entry", `Remove ${label}?`, () =>
+      handleDeleteWeight(entry),
     );
   };
 
   const deleteMacroEntry = (entry: MacrosEntry) => {
-    alert(
+    confirmDelete(
       "Delete Entry",
       entry.name ? `Remove "${entry.name}"?` : "Remove this entry?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDeleteMacro(entry) },
-      ],
-      "warning",
+      () => handleDeleteMacro(entry),
     );
   };
 
   const deletePhoto = (photo: ProgressPhoto) => {
-    alert(
+    confirmDelete(
       "Delete Photo",
       "Permanently delete this progress photo?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDeletePhoto(photo) },
-      ],
-      "warning",
+      () => handleDeletePhoto(photo),
     );
   };
 
@@ -972,52 +953,25 @@ export default function TrackingScreen(): React.JSX.Element {
       entry.percentage ??
       (entry as { body_fat_percentage?: number }).body_fat_percentage ??
       0;
-    alert(
-      "Delete Entry",
-      `Remove ${pct}% reading?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDeleteBodyFat(entry) },
-      ],
-      "warning",
+    confirmDelete("Delete Entry", `Remove ${pct}% reading?`, () =>
+      handleDeleteBodyFat(entry),
     );
   };
 
-  const deleteMeasurementEntry = (entry: any) => {
-    alert(
-      "Delete Entry",
-      "Remove this measurement?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDeleteMeasurement(entry) },
-      ],
-      "warning",
+  const deleteMeasurementEntry = (entry: any) =>
+    confirmDelete("Delete Entry", "Remove this measurement?", () =>
+      handleDeleteMeasurement(entry),
     );
-  };
 
-  const deleteHydrationEntry = (entry: any) => {
-    alert(
-      "Delete Entry",
-      "Remove this hydration entry?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDeleteHydration(entry) },
-      ],
-      "warning",
+  const deleteHydrationEntry = (entry: any) =>
+    confirmDelete("Delete Entry", "Remove this hydration entry?", () =>
+      handleDeleteHydration(entry),
     );
-  };
 
-  const deleteSorenessEntry = (entry: any) => {
-    alert(
-      "Delete Entry",
-      "Remove this soreness entry?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => handleDeleteSoreness(entry) },
-      ],
-      "warning",
+  const deleteSorenessEntry = (entry: any) =>
+    confirmDelete("Delete Entry", "Remove this soreness entry?", () =>
+      handleDeleteSoreness(entry),
     );
-  };
 
   // ─────────────────────────────────────────────────────────────
   // SUBMIT PAST DAY ENTRY
@@ -1186,33 +1140,25 @@ export default function TrackingScreen(): React.JSX.Element {
     if (user?.id) loadData();
   }, [user?.id]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadWithState = async (
+    setLoadingState: (v: boolean) => void,
+    label: string,
+  ) => {
+    setLoadingState(true);
     try {
       await loadFromServer();
     } catch (err) {
       console.warn(
-        "Server load failed:",
+        `${label} failed:`,
         err instanceof Error ? err.message : String(err),
       );
     } finally {
-      setLoading(false);
+      setLoadingState(false);
     }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await loadFromServer();
-    } catch (err) {
-      console.warn(
-        "Refresh failed:",
-        err instanceof Error ? err.message : String(err),
-      );
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  const loadData = () => loadWithState(setLoading, "Server load");
+  const onRefresh = () => loadWithState(setRefreshing, "Refresh");
 
   const loadFromServer = async () => {
     const weightData =
@@ -1963,61 +1909,34 @@ export default function TrackingScreen(): React.JSX.Element {
   // ─────────────────────────────────────────────────────────────
   // CALENDAR HAS-DATA CHECKERS
   // ─────────────────────────────────────────────────────────────
-  const hasWeightData = (date: Date) => {
+  const createHasData = (
+    entries: any[],
+    dateField: (e: any) => string | null | undefined,
+  ) => (date: Date) => {
     const dateStr = toLocalDateStr(date);
-    return weightHistory.some(
-      (e) => isoToLocalDateStr(e?.recorded_at) === dateStr,
-    );
+    return entries.some((e) => isoToLocalDateStr(dateField(e)) === dateStr);
   };
 
-  const hasPhotoData = (date: Date) => {
-    const dateStr = toLocalDateStr(date);
-    return progressPhotos.some(
-      (p) => isoToLocalDateStr(p?.takenAt) === dateStr,
-    );
-  };
-
-  const hasMacrosData = (date: Date) => {
-    const dateStr = toLocalDateStr(date);
-    return macrosEntries.some((e) => isoToLocalDateStr(e?.date) === dateStr);
-  };
-
-  const hasBodyFatData = (date: Date) => {
-    const dateStr = toLocalDateStr(date);
-    return bodyFatHistory.some((b) => isoToLocalDateStr(b?.date) === dateStr);
-  };
-
-  const hasMeasurementsData = (date: Date) => {
-    const dateStr = toLocalDateStr(date);
-    return measurementHistory.some(
-      (m) => isoToLocalDateStr(m?.measuredAt ?? m?.recorded_at) === dateStr,
-    );
-  };
-
-  const hasHydrationData = (date: Date) => {
-    const dateStr = toLocalDateStr(date);
-    return hydrationEntries.some(
-      (h) => isoToLocalDateStr(h?.loggedAt ?? h?.recorded_at) === dateStr,
-    );
-  };
-
-  const hasSorenessData = (date: Date) => {
-    const dateStr = toLocalDateStr(date);
-    return sorenessEntries.some(
-      (s) =>
-        isoToLocalDateStr(s?.loggedAt ?? s?.recorded_at ?? s?.date) === dateStr,
-    );
-  };
-
-  const hasCycleData = (date: Date) => {
-    const dateStr = toLocalDateStr(date);
-    return cycleEntries.some(
-      (c) =>
-        isoToLocalDateStr(
-          c?.cycleStart ?? c?.startDate ?? c?.recorded_at ?? c?.date,
-        ) === dateStr,
-    );
-  };
+  const hasWeightData = createHasData(weightHistory, (e) => e?.recorded_at);
+  const hasPhotoData = createHasData(progressPhotos, (p) => p?.takenAt);
+  const hasMacrosData = createHasData(macrosEntries, (e) => e?.date);
+  const hasBodyFatData = createHasData(bodyFatHistory, (b) => b?.date);
+  const hasMeasurementsData = createHasData(
+    measurementHistory,
+    (m) => m?.measuredAt ?? m?.recorded_at,
+  );
+  const hasHydrationData = createHasData(
+    hydrationEntries,
+    (h) => h?.loggedAt ?? h?.recorded_at,
+  );
+  const hasSorenessData = createHasData(
+    sorenessEntries,
+    (s) => s?.loggedAt ?? s?.recorded_at ?? s?.date,
+  );
+  const hasCycleData = createHasData(
+    cycleEntries,
+    (c) => c?.cycleStart ?? c?.startDate ?? c?.recorded_at ?? c?.date,
+  );
 
   // ─────────────────────────────────────────────────────────────
   // HEIGHT

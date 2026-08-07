@@ -4,40 +4,37 @@
 
 ```bash
 npm install --legacy-peer-deps   # required, peer deps are not resolvable otherwise
-npm start                         # Expo dev server (development build)
+npm start                         # Expo dev server
 npm run android                   # run on Android device/emulator
 ```
 
-No iOS support — `npm run ios` is in package.json but `ios/` is gitignored and no iOS build config exists.
+Android only — `ios/` is gitignored. `app.json` has iOS config but no iOS build target is maintained.
 
 ## Structure
 
 ```
 src/
-  features/          # feature modules: analytics, auth, friends, homescreen, plan, settings, supplements, tracking, workout
+  features/          # analytics, auth, friends, homescreen, plan, settings, supplements, tracking, workout
   shared/
     components/      # reusable UI
-    context/         # AuthContext, WorkoutContext, ThemeContext, TabBarContext + hooks (sync, session, program ops)
-    services/        # apiClient, authenticatedFetch, notifications, dispatchProxy, offlineHelpers
+    context/         # AuthContext, WorkoutContext, ThemeContext, TabBarContext
+    context/hooks/   # useJointSession, useProgramOperations, useRealtimeSocket, useServerSync,
+                     # useSessionOperations, useSyncManager, useTwoFingerPull, useWidgets
+    services/        # apiClient, appMode, authenticatedFetch, config, dispatchProxy,
+                     # managedState, notifications, offlineHelpers, storage, tokenStorage
     types.ts         # shared types
   utils/             # format helpers, parsers
 tasks/               # expo-task-manager background tasks (supplementLocationTask.tsx)
 plugins/             # Expo config plugins (withGradleTuning.js)
 ```
 
-`App.tsx` is the entrypoint. No `src/app/` directory exists despite the `@app` alias.
+`App.tsx` is the entrypoint. Imports in `App.tsx` use relative paths (`./src/...`), not aliases.
 
 ## Path aliases
 
-Configured in both `babel.config.js` and `tsconfig.json`:
+`@features/*`, `@shared/*`, `@models/*`, `@utils/*` — configured in `babel.config.js` and `tsconfig.json`.
 
-| Alias | Resolves to |
-|---|---|
-| `@features/*` | `src/features/*` |
-| `@shared/*` | `src/shared/*` |
-| `@models/*` | `src/types/*` |
-| `@utils/*` | `src/utils/*` |
-| `@app/*` | `src/app/*` (unused — directory does not exist) |
+`@app/*` exists only in `tsconfig.temp.json` (typecheck helper for tracking modals). `src/app/` does not exist.
 
 ## Offline-first architecture
 
@@ -52,16 +49,22 @@ Custom Expo plugin `plugins/withGradleTuning.js` injects aggressive Gradle JVM a
 ## Release builds
 
 - **EAS:** `eas build --profile preview --platform android` (APK), `--profile production` (AAB)
-- **Local:** `release.sh` (Linux, native Gradle) or `release.bat` (Windows, Docker) — both require secrets file and inject signing config into `android/app/build.gradle`
-- Secrets: `~/.ownlift-secrets` (Linux) or `%USERPROFILE%\.ownlift-secrets.bat` (Windows)
+- **Local:** `npm run build:android:apk` or `npm run build:android:apk:clean` (uses `local-expo-build`)
+- **Scripts:** `release.sh` (Linux) or `release.bat` (Windows, Docker) — require secrets file, inject signing config into `android/app/build.gradle`
+- **Secrets:** `~/.ownlift-secrets` (Linux) or `%USERPROFILE%\.ownlift-secrets.bat` (Windows)
 
 ## Testing
 
-`jest` / `jest-expo` configured in package.json but **no test files exist**. Coverage directory is `coverage/`.
+`jest` / `jest-expo` configured in package.json but **no test files exist**.
+
+## SonarQube
+
+`sonar-project.properties` present. Run `npm run sonar:scan` (requires `SONAR_TOKEN` env var, targets `http://192.168.10.12:8999`). Analysis output lives in `sonarqube/` and `.scannerwork/` (both gitignored but committed in history).
 
 ## Key gotchas
 
 - Notifications module is unavailable in Expo Go — wrapped in try/catch in `App.tsx`
 - Background location reminders use `expo-task-manager` — registered in `tasks/supplementLocationTask.tsx`
 - `expo-dev-client` is installed — dev builds require `eas build --profile development` or `expo run:android`, not Expo Go
-- `app-release.apk` is gitignored but committed in repo history — release scripts copy APK to repo root
+- `app-release.apk`, `release.bat`, `release.sh`, `sonarqube/`, `.scannerwork/`, `.sonarlint/` are gitignored but committed in repo history
+- `tsconfig.temp.json` is a typecheck-only config for tracking modals, not used at runtime
