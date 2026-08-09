@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, type ReactNode } from "react"
+import React, { useRef, useEffect, useCallback, useMemo, type ReactNode } from "react"
 import {
   View,
   Text,
@@ -13,6 +13,15 @@ import {
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTheme } from "../context/ThemeContext"
+
+interface ModalSheetHeaderActions {
+  readonly title?: string
+  readonly cancelText?: string
+  readonly onCancel?: () => void
+  readonly confirmText?: string
+  readonly onConfirm?: () => void
+  readonly confirmDisabled?: boolean
+}
 
 interface ModalSheetProps {
   readonly visible: boolean
@@ -29,6 +38,8 @@ interface ModalSheetProps {
   readonly scrollable?: boolean
   readonly dismissOnBackdropPress?: boolean
   readonly fullHeight?: boolean
+  /** Renders a top Cancel/title/Save row instead of the floating ✕ button — for full-height sheets that want their primary actions up top. */
+  readonly headerActions?: ModalSheetHeaderActions
 }
 
 const KEYBOARD_DISMISS_DURATION_MS = 50
@@ -48,9 +59,10 @@ export default function ModalSheet({
   scrollable = false,
   dismissOnBackdropPress = true,
   fullHeight = false,
+  headerActions,
 }: ModalSheetProps) {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const insets = useSafeAreaInsets()
   const isKeyboardOpenRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -99,8 +111,42 @@ export default function ModalSheet({
 
   const bottomPad = Math.max(insets.bottom, Platform.OS === "android" ? 16 : 34)
 
+  const headerRow = headerActions ? (
+    <View style={styles.headerRow}>
+      <TouchableOpacity
+        style={styles.headerRowBtn}
+        onPress={headerActions.onCancel ?? safeClose}
+      >
+        <Text style={styles.headerRowCancelText}>
+          {headerActions.cancelText ?? "Cancel"}
+        </Text>
+      </TouchableOpacity>
+      <Text style={styles.headerRowTitle} numberOfLines={1}>
+        {headerActions.title ?? title}
+      </Text>
+      {headerActions.onConfirm ? (
+        <TouchableOpacity
+          style={styles.headerRowBtn}
+          onPress={headerActions.onConfirm}
+          disabled={headerActions.confirmDisabled}
+        >
+          <Text
+            style={[
+              styles.headerRowConfirmText,
+              headerActions.confirmDisabled && styles.headerRowConfirmDisabled,
+            ]}
+          >
+            {headerActions.confirmText ?? "Save"}
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.headerRowSpacer} />
+      )}
+    </View>
+  ) : null
+
   const buttons =
-    showCancelButton || showConfirmButton ? (
+    !headerActions && (showCancelButton || showConfirmButton) ? (
       <View style={[styles.modalButtons, { paddingBottom: bottomPad }]}>
         {showCancelButton && (
           <TouchableOpacity
@@ -148,18 +194,24 @@ export default function ModalSheet({
             { transform: [{ translateY: sheetTranslateY }] },
           ]}
         >
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={safeClose}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.closeButtonText}>✕</Text>
-          </TouchableOpacity>
+          {headerActions ? (
+            headerRow
+          ) : (
+            <>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={safeClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
 
-          {title ? <Text style={styles.modalTitle}>{title}</Text> : null}
-          {subtitle ? (
-            <Text style={styles.modalSubtitle}>{subtitle}</Text>
-          ) : null}
+              {title ? <Text style={styles.modalTitle}>{title}</Text> : null}
+              {subtitle ? (
+                <Text style={styles.modalSubtitle}>{subtitle}</Text>
+              ) : null}
+            </>
+          )}
 
           {scrollable ? (
             <ScrollView
@@ -247,6 +299,37 @@ const makeStyles = (colors: any) =>
       marginBottom: 16,
       textAlign: "center",
     },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      marginHorizontal: -20,
+      marginTop: -20,
+      backgroundColor: colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.inputBorder,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+    },
+    headerRowBtn: { padding: 8, minWidth: 60 },
+    headerRowCancelText: { fontSize: 16, color: colors.error, fontWeight: "600" },
+    headerRowTitle: {
+      flex: 1,
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      textAlign: "center",
+    },
+    headerRowConfirmText: {
+      fontSize: 16,
+      color: colors.accent,
+      fontWeight: "600",
+      textAlign: "right",
+    },
+    headerRowConfirmDisabled: { opacity: 0.4 },
+    headerRowSpacer: { minWidth: 60 },
     staticBody: { marginTop: 8, flex: 1 },
     scrollBody: { marginTop: 8 },
     scrollBodyContent: { paddingBottom: 8 },

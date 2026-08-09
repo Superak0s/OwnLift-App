@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { useWorkout } from "@shared/context/WorkoutContext"
-import { useAuth } from "@shared/context/AuthContext"
-import { useAlert } from "@shared/components/CustomAlert"
-import ExerciseAnalytics from "./components/ExerciseAnalytics"
-import type { FullSessionWithGroups } from "@shared/types"
-import { getCurrentBodyWeight } from "@features/tracking/services"
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useWorkout } from "@shared/context/WorkoutContext";
+import { useAuth } from "@shared/context/AuthContext";
+import { useAlert } from "@shared/components/CustomAlert";
+import ExerciseAnalytics from "./components/ExerciseAnalytics";
+import type { FullSessionWithGroups } from "@shared/types";
+import { getCurrentBodyWeight } from "@features/tracking/services";
 
 export default function AnalyticsScreen(): React.JSX.Element {
   const {
@@ -16,125 +16,125 @@ export default function AnalyticsScreen(): React.JSX.Element {
     syncFromServer,
     fetchSessionHistory,
     currentSessionId,
-  } = useWorkout()
+  } = useWorkout();
 
-  const { user } = useAuth()
-  const { alert, AlertComponent } = useAlert()
+  const { user } = useAuth();
+  const { alert, AlertComponent } = useAlert();
 
   const [currentBodyWeight, setCurrentBodyWeight] = useState<number | null>(
     null,
-  )
-  const [sessions, setSessions] = useState<FullSessionWithGroups[]>([])
-  const [refreshing, setRefreshing] = useState<boolean>(false)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
+  );
+  const [sessions, setSessions] = useState<FullSessionWithGroups[]>([]);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const isMountedRef = useRef<boolean>(true)
-  const abortControllerRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef<boolean>(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
-      isMountedRef.current = false
-      abortControllerRef.current?.abort()
-    }
-  }, [])
+      isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     const loadBodyWeight = async (): Promise<void> => {
-      if (!user?.id) return
+      if (!user?.id) return;
 
       try {
-        const bodyWeight = await getCurrentBodyWeight(user.id)
+        const bodyWeight = await getCurrentBodyWeight(user.id);
         if (!cancelled && isMountedRef.current) {
-          setCurrentBodyWeight(bodyWeight)
+          setCurrentBodyWeight(bodyWeight);
         }
       } catch (error) {
         if (!cancelled && isMountedRef.current) {
-          console.error("Error loading body weight:", error)
+          console.error("Error loading body weight:", error);
         }
       }
-    }
+    };
 
-    loadBodyWeight()
+    loadBodyWeight();
 
     return () => {
-      cancelled = true
-    }
-  }, [user?.id])
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (selectedSplit) {
-      loadSessions()
+      loadSessions();
     }
-  }, [selectedSplit])
+  }, [selectedSplit]);
 
   const loadSessions = useCallback(async (): Promise<void> => {
-    if (!isMountedRef.current) return
+    if (!isMountedRef.current) return;
 
     try {
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
 
-      abortControllerRef.current?.abort()
-      abortControllerRef.current = new AbortController()
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
 
-      const sessionsData = await fetchSessionHistory(100, true)
+      const sessionsData = await fetchSessionHistory(100, true);
 
       if (isMountedRef.current) {
-        setSessions((sessionsData as FullSessionWithGroups[]) || [])
-        setIsLoading(false)
+        setSessions((sessionsData as FullSessionWithGroups[]) || []);
+        setIsLoading(false);
       }
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("Error loading sessions:", error)
+        console.error("Error loading sessions:", error);
         const errorMessage =
           error instanceof Error
             ? error.message
-            : "Failed to load workout sessions"
-        setError(errorMessage)
-        setIsLoading(false)
+            : "Failed to load workout sessions";
+        setError(errorMessage);
+        setIsLoading(false);
 
         alert(
           "Load Failed",
           "Unable to load your workout history. Please try again.",
           [{ text: "OK" }],
           "error",
-        )
+        );
       }
     }
-  }, [fetchSessionHistory, alert])
+  }, [fetchSessionHistory, alert]);
 
   const onRefresh = useCallback(async (): Promise<void> => {
-    if (!isMountedRef.current || refreshing) return
+    if (!isMountedRef.current || refreshing) return;
 
-    setRefreshing(true)
-    setError(null)
+    setRefreshing(true);
+    setError(null);
 
     try {
-      await syncFromServer()
-      await loadSessions()
+      await syncFromServer();
+      await loadSessions();
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("Error refreshing data:", error)
+        console.error("Error refreshing data:", error);
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to refresh data"
-        setError(errorMessage)
+          error instanceof Error ? error.message : "Failed to refresh data";
+        setError(errorMessage);
 
         alert(
           "Refresh Failed",
           "Unable to refresh your data. Please check your connection and try again.",
           [{ text: "OK" }],
           "error",
-        )
+        );
       }
     } finally {
       if (isMountedRef.current) {
-        setRefreshing(false)
+        setRefreshing(false);
       }
     }
-  }, [syncFromServer, loadSessions, refreshing, alert])
+  }, [syncFromServer, loadSessions, refreshing, alert]);
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -155,5 +155,5 @@ export default function AnalyticsScreen(): React.JSX.Element {
       />
       {AlertComponent}
     </SafeAreaView>
-  )
+  );
 }

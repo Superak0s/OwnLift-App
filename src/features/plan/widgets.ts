@@ -7,8 +7,8 @@
 // See features/home/widgets.ts for the sibling registry HomeScreen uses;
 // this one is wired into PlanScreen the same way.
 
-import { STORAGE_KEYS } from "@shared/services/storage"
-import type { WidgetDefinition, WidgetInstance } from "@shared/types"
+import { STORAGE_KEYS } from "@shared/services/storage";
+import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
 export type PlanWidgetType =
   | "create_split"
@@ -16,7 +16,7 @@ export type PlanWidgetType =
   | "default_splits"
   | "workout_plan_loaded"
   | "select_split"
-  | "view_program"
+  | "view_program";
 
 export const PLAN_WIDGET_REGISTRY: Record<
   PlanWidgetType,
@@ -80,7 +80,7 @@ export const PLAN_WIDGET_REGISTRY: Record<
     defaultSize: "large",
     singleton: true,
   },
-}
+};
 
 export const DEFAULT_PLAN_WIDGETS: WidgetInstance<PlanWidgetType>[] = [
   {
@@ -102,15 +102,15 @@ export const DEFAULT_PLAN_WIDGETS: WidgetInstance<PlanWidgetType>[] = [
     order: 2,
   },
   {
-    id: "default-workout-plan-loaded",
-    type: "workout_plan_loaded",
-    size: "medium",
-    order: 3,
-  },
-  {
     id: "default-select-split",
     type: "select_split",
     size: "large",
+    order: 3,
+  },
+  {
+    id: "default-workout-plan-loaded",
+    type: "workout_plan_loaded",
+    size: "medium",
     order: 4,
   },
   {
@@ -119,9 +119,9 @@ export const DEFAULT_PLAN_WIDGETS: WidgetInstance<PlanWidgetType>[] = [
     size: "large",
     order: 5,
   },
-]
+];
 
 // NOTE: add a `PLAN_WIDGETS` key to STORAGE_KEYS in @shared/services/storage
 // (right next to HOME_WIDGETS) before wiring this in — e.g.
 // `PLAN_WIDGETS: "plan_widgets"`.
-export const PLAN_WIDGETS_STORAGE_KEY = STORAGE_KEYS.PLAN_WIDGETS
+export const PLAN_WIDGETS_STORAGE_KEY = STORAGE_KEYS.PLAN_WIDGETS;

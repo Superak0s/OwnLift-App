@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
@@ -17,6 +17,8 @@ import {
   InjuryStatus,
   MUSCLE_GROUP_LABELS,
 } from "../types/muscleRecovery";
+import { FillBar } from "@shared/components/FillBar";
+import { getSeverityColor } from "@utils/severityColor";
 
 interface InjuryTrackerProps {
   readonly onLogInjury?: () => void;
@@ -79,12 +81,6 @@ export const InjuryTracker: React.FC<InjuryTrackerProps> = ({ onLogInjury }) => 
         <Text style={styles.statusText}>{config.icon} {config.label}</Text>
       </View>
     );
-  };
-
-  const getPainLevelColor = (level: number) => {
-    if (level <= 3) return "#6BCB77";
-    if (level <= 6) return "#FFD93D";
-    return "#FF6B6B";
   };
 
   if (loading) {
@@ -150,8 +146,11 @@ export const InjuryTracker: React.FC<InjuryTrackerProps> = ({ onLogInjury }) => 
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={styles.listContent}>
-        {filteredInjuries.length === 0 ? (
+      <FlatList
+        data={filteredInjuries}
+        keyExtractor={(injury) => String(injury.id)}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={[styles.emptyEmoji, { fontSize: 48 }]}>🎉</Text>
             <Text style={[styles.emptyText, { color: colors.textPrimary }]}>
@@ -161,14 +160,14 @@ export const InjuryTracker: React.FC<InjuryTrackerProps> = ({ onLogInjury }) => 
               Stay injury-free!
             </Text>
           </View>
-        ) : (
-          filteredInjuries.map((injury) => {
-            const muscleLabel =
-              MUSCLE_GROUP_LABELS[injury.muscleGroup] || injury.muscleGroup;
-            const injuryType = INJURY_TYPES.find((t) => t.value === injury.injuryType);
+        }
+        renderItem={({ item: injury }) => {
+          const muscleLabel =
+            MUSCLE_GROUP_LABELS[injury.muscleGroup] || injury.muscleGroup;
+          const injuryType = INJURY_TYPES.find((t) => t.value === injury.injuryType);
 
-            return (
-              <View key={injury.id} style={[styles.injuryCard, { backgroundColor: colors.surface }]}>
+          return (
+            <View style={[styles.injuryCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.injuryHeader}>
                   <View style={styles.injuryTitleRow}>
                     <Text style={[styles.injuryMuscle, { color: colors.textPrimary }]}>
@@ -193,17 +192,11 @@ export const InjuryTracker: React.FC<InjuryTrackerProps> = ({ onLogInjury }) => 
                       Pain Level:
                     </Text>
                     <View style={styles.painLevelRow}>
-                      <View style={styles.painBar}>
-                        <View
-                          style={[
-                            styles.painBarFill,
-                            {
-                              width: `${(injury.painLevel / 10) * 100}%`,
-                              backgroundColor: getPainLevelColor(injury.painLevel),
-                            },
-                          ]}
-                        />
-                      </View>
+                      <FillBar
+                        percentage={(injury.painLevel / 10) * 100}
+                        color={getSeverityColor(injury.painLevel, 3)}
+                        styles={{ track: styles.painBar, fill: styles.painBarFill }}
+                      />
                       <Text style={[styles.painLevelText, { color: colors.textPrimary }]}>
                         {injury.painLevel}/10
                       </Text>
@@ -241,11 +234,10 @@ export const InjuryTracker: React.FC<InjuryTrackerProps> = ({ onLogInjury }) => 
                     </Text>
                   </View>
                 )}
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+            </View>
+          );
+        }}
+      />
     </View>
   );
 };

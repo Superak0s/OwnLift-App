@@ -6,10 +6,10 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Image,
   Alert,
   Platform,
 } from "react-native";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { useTheme } from "@shared/context/ThemeContext";
@@ -263,7 +263,7 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
         {/* Preview */}
         {selectedUri && (
           <View style={tagStep.previewContainer}>
-            <Image source={{ uri: selectedUri }} style={tagStep.previewImage} resizeMode="cover" />
+            <Image source={{ uri: selectedUri }} style={tagStep.previewImage} contentFit="cover" />
             <TouchableOpacity
               style={[tagStep.retakeButton, { backgroundColor: "rgba(0,0,0,0.6)" }]}
               onPress={() => {

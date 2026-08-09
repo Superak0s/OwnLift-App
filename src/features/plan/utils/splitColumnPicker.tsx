@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useMemo } from "react"
 import {
   Modal,
   View,
@@ -37,7 +37,7 @@ export default function SplitColumnPicker({
   isImporting = false,
   colors,
 }: SplitColumnPickerProps): React.JSX.Element {
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const selectedCount = selectedIndices.size
 
   return (

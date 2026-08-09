@@ -74,3 +74,4 @@ release.sh
 sonarqube/
 .scannerwork/
 .sonarlint/
+.opencode/

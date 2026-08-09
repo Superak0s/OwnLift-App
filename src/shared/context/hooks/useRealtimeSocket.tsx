@@ -27,6 +27,7 @@ import {
   isServerless,
   onAppModeChange,
 } from "../../services/appMode"
+import logger from "../../services/logger"
 
 const BASE_RETRY_MS = 1_000
 const MAX_RETRY_MS = 30_000
@@ -114,7 +115,7 @@ export function useRealtimeSocket({
       offlineRef.current = offline
       setIsOffline(offline)
       if (offline) {
-        console.log("[WS_MODE_OFFLINE] Disconnecting realtime socket")
+        logger.debug("[WS_MODE_OFFLINE] Disconnecting realtime socket")
         if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
         wsRef.current?.close(1000, "offline mode")
         wsRef.current = null
@@ -125,15 +126,15 @@ export function useRealtimeSocket({
 
   const connect = useCallback(() => {
     if (offlineRef.current) {
-      console.log("[WS_CONNECT_SKIP_OFFLINE]")
+      logger.debug("[WS_CONNECT_SKIP_OFFLINE]")
       return
     }
     if (!tokenRef.current || !enabled) {
-      console.log("[WS_CONNECT_SKIP]", { token: !!tokenRef.current, enabled })
+      logger.debug("[WS_CONNECT_SKIP]", { token: !!tokenRef.current, enabled })
       return
     }
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log("[WS_ALREADY_OPEN]")
+      logger.debug("[WS_ALREADY_OPEN]")
       return
     }
     if (
@@ -142,18 +143,18 @@ export function useRealtimeSocket({
     ) {
       // This exact token was already rejected by the server. Don't hammer
       // it — wait for a new token (see the tokenRef sync effect above).
-      console.log("[WS_SKIP_KNOWN_BAD_TOKEN]")
+      logger.debug("[WS_SKIP_KNOWN_BAD_TOKEN]")
       return
     }
 
     // Connect without the token in the URL — send it as the first message
     // after the handshake completes so it never appears in access logs.
-    console.log("[WS_CONNECTING]", wsUrl())
+    logger.debug("[WS_CONNECTING]", wsUrl())
     const ws = new WebSocket(wsUrl())
     wsRef.current = ws
 
     ws.onopen = () => {
-      console.log("[WS_CONNECTED] Sending auth message")
+      logger.debug("[WS_CONNECTED] Sending auth message")
       // Authenticate immediately — server should enforce a short timeout
       // and close the connection if this message is not received.
       ws.send(JSON.stringify({ type: "auth", token: tokenRef.current }))
@@ -164,7 +165,6 @@ export function useRealtimeSocket({
     ws.onmessage = (event: WebSocketMessageEvent) => {
       try {
         const msg = JSON.parse(event.data as string) as WebSocketMessage
-        console.log("[WS_MESSAGE_RECEIVED]", msg.type, msg)
         setLastMessage(msg)
         onMessageRef.current?.(msg)
       } catch (e) {
@@ -177,7 +177,7 @@ export function useRealtimeSocket({
     }
 
     ws.onclose = (e: WebSocketCloseEvent) => {
-      console.log("[WS_CLOSED]", e.code, e.reason)
+      logger.debug("[WS_CLOSED]", e.code, e.reason)
       setConnected(false)
       wsRef.current = null
       if (!enabled) return
@@ -195,7 +195,7 @@ export function useRealtimeSocket({
 
       const delay = retryRef.current
       retryRef.current = Math.min(delay * 2, MAX_RETRY_MS)
-      console.log("[WS_RECONNECTING_IN]", delay, "ms")
+      logger.debug("[WS_RECONNECTING_IN]", delay, "ms")
       retryTimerRef.current = setTimeout(connect, delay)
     }
   }, [enabled])
@@ -210,7 +210,6 @@ export function useRealtimeSocket({
   const send = useCallback(
     (data: WebSocketMessage) => {
       if (offlineRef.current) return
-      console.log("[WS_SEND]", data.type, data)
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify(data))
       } else {

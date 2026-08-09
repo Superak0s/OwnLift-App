@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { sharingApi } from "@features/friends/services/index"
 import { normalizeExerciseName } from "@utils/exerciseMatching"
+import logger from "@shared/services/logger"
 import type { RealtimeSocket, WebSocketMessage } from "./useRealtimeSocket"
 
 const SYNC_PULSE_MS = 1_500
@@ -192,7 +193,7 @@ export const useJointSession = ({
 
   const handleSocketMessage = useCallback(
     (msg: WebSocketMessage) => {
-      console.log("[WS_MESSAGE]", msg.type, msg)
+      logger.debug("[WS_MESSAGE]", msg.type, msg)
 
       switch (msg.type) {
         case "joint_progress": {

@@ -1,8 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from "react"
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -10,43 +15,54 @@ import {
   Switch,
   ActivityIndicator,
   Platform,
-} from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import * as DocumentPicker from "expo-document-picker"
-import * as ImagePicker from "expo-image-picker"
-import { File as ExpoFile } from "expo-file-system"
-import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
+} from "react-native";
+import { Image } from "expo-image";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import { File as ExpoFile } from "expo-file-system";
+import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage";
 import {
   saveToStorage,
   loadFromStorage,
   STORAGE_KEYS,
-} from "@shared/services/storage"
-import { useWorkout } from "@shared/context/WorkoutContext"
-import { useAuth } from "@shared/context/AuthContext"
-import { useTheme } from "@shared/context/ThemeContext"
-import type { ThemeColors } from "@shared/context/ThemeContext"
-import { useAlert } from "@shared/components/CustomAlert"
-import ThemeEditorModal from "@shared/components/ThemeEditorModal"
-import EditWorkoutHistoryModal from "./components/EditWorkoutHistoryModal"
-import ModalSheet from "@shared/components/ModalSheet"
-import { importStrengthLevelCSV, type ImportResult } from "@utils/strengthLevelImport"
-import { formatTime as formatDuration } from "@utils/timeEstimation"
-import { isServerless, setAppMode, onAppModeChange } from "@shared/services/appMode"
-import { workoutApi } from "@features/workout/services/index"
-import type { WorkoutDay, CompletedExercises } from "@shared/types"
+} from "@shared/services/storage";
+import {
+  useWorkout,
+  useWorkoutSyncStatus,
+} from "@shared/context/WorkoutContext";
+import { useAuth } from "@shared/context/AuthContext";
+import { useTheme } from "@shared/context/ThemeContext";
+import type { ThemeColors } from "@shared/context/ThemeContext";
+import { useAlert } from "@shared/components/CustomAlert";
+import ThemeEditorModal from "@shared/components/ThemeEditorModal";
+import EditWorkoutHistoryModal from "./components/EditWorkoutHistoryModal";
+import ModalSheet from "@shared/components/ModalSheet";
+import {
+  importStrengthLevelCSV,
+  type ImportResult,
+} from "@utils/strengthLevelImport";
+import { formatTime as formatDuration } from "@utils/timeEstimation";
+import {
+  isServerless,
+  setAppMode,
+  onAppModeChange,
+} from "@shared/services/appMode";
+import { workoutApi } from "@features/workout/services/index";
+import type { WorkoutDay, CompletedExercises } from "@shared/types";
 
 export default function SettingsScreen(): React.JSX.Element {
-  const { colors } = useTheme()
-  const styles = makeStyles(colors)
-  const { user, logout, updateProfile, refreshUser } = useAuth()
-  const { alert, AlertComponent } = useAlert()
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { user, logout, updateProfile, refreshUser } = useAuth();
+  const { alert, AlertComponent } = useAlert();
 
-  const isMountedRef = useRef<boolean>(true)
+  const isMountedRef = useRef<boolean>(true);
   useEffect(() => {
     return () => {
-      isMountedRef.current = false
-    }
-  }, [])
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const {
     workoutData,
@@ -57,8 +73,6 @@ export default function SettingsScreen(): React.JSX.Element {
     timeBetweenSets,
     isDemoMode,
     useManualTime,
-    pendingSyncs,
-    isSyncing,
     workoutStartTime,
     saveCompletedDays,
     saveLockedDays,
@@ -71,84 +85,85 @@ export default function SettingsScreen(): React.JSX.Element {
     saveUnlockedOverrides,
     unlockedOverrides,
     syncFromServer,
-  } = useWorkout()
+  } = useWorkout();
+  const { pendingSyncs, isSyncing } = useWorkoutSyncStatus();
 
   const [showTimeBetweenSetsModal, setShowTimeBetweenSetsModal] =
-    useState<boolean>(false)
-  const [tempTimeBetweenSets, setTempTimeBetweenSets] = useState<string>("")
-  const [showResetDayModal, setShowResetDayModal] = useState<boolean>(false)
+    useState<boolean>(false);
+  const [tempTimeBetweenSets, setTempTimeBetweenSets] = useState<string>("");
+  const [showResetDayModal, setShowResetDayModal] = useState<boolean>(false);
 
-  const [showThemeEditor, setShowThemeEditor] = useState<boolean>(false)
-  const [isImporting, setIsImporting] = useState<boolean>(false)
+  const [showThemeEditor, setShowThemeEditor] = useState<boolean>(false);
+  const [isImporting, setIsImporting] = useState<boolean>(false);
   const [showEditHistoryModal, setShowEditHistoryModal] =
-    useState<boolean>(false)
+    useState<boolean>(false);
 
   const [serverProgress, setServerProgress] = useState<{
-    daysCount?: number
-    setsCount?: number
-    lockedCount?: number
-    [key: string]: unknown
-  } | null>(null)
-  const [loadingProgress, setLoadingProgress] = useState<boolean>(false)
-  const [isOffline, setIsOffline] = useState<boolean>(false)
+    daysCount?: number;
+    setsCount?: number;
+    lockedCount?: number;
+    [key: string]: unknown;
+  } | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState<boolean>(false);
+  const [isOffline, setIsOffline] = useState<boolean>(false);
 
   useEffect(() => {
-    loadServerProgress()
-    void isServerless().then(setIsOffline)
+    loadServerProgress();
+    void isServerless().then(setIsOffline);
     return onAppModeChange.subscribe(() => {
-      void isServerless().then(setIsOffline)
-    })
-  }, [user])
+      void isServerless().then(setIsOffline);
+    });
+  }, [user]);
 
   const loadServerProgress = async () => {
-    if (!selectedSplit) return
-    setLoadingProgress(true)
+    if (!selectedSplit) return;
+    setLoadingProgress(true);
     try {
       const sessions = await workoutApi.getSessionHistory(
         selectedSplit,
         null,
         100,
-      )
+      );
       if (!sessions || sessions.length === 0) {
-        setServerProgress({ daysCount: 0, setsCount: 0, lockedCount: 0 })
-        return
+        setServerProgress({ daysCount: 0, setsCount: 0, lockedCount: 0 });
+        return;
       }
 
-      const daysSeen = new Set()
-      const lockedDaysSeen = new Set()
-      let totalSets = 0
+      const daysSeen = new Set();
+      const lockedDaysSeen = new Set();
+      let totalSets = 0;
 
       for (const session of sessions) {
-        daysSeen.add(session.day_number)
+        daysSeen.add(session.day_number);
         if (session.end_time) {
-          lockedDaysSeen.add(session.day_number)
+          lockedDaysSeen.add(session.day_number);
         }
-        totalSets += session.set_count ?? 0
+        totalSets += session.set_count ?? 0;
       }
 
       setServerProgress({
         daysCount: daysSeen.size,
         setsCount: totalSets,
         lockedCount: lockedDaysSeen.size,
-      })
+      });
     } catch (error) {
       console.error(
         "Error loading server progress:",
         error instanceof Error ? error.message : error,
-      )
+      );
     } finally {
-      setLoadingProgress(false)
+      setLoadingProgress(false);
     }
-  }
+  };
 
   const handleShowImportSuccess = useCallback(
     (result: ImportResult) => {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current) return;
       const summary =
         `Imported ${result.setsImported} set${result.setsImported === 1 ? "" : "s"} ` +
         `across ${result.sessionsCreated} session${result.sessionsCreated === 1 ? "" : "s"}.` +
-        (result.skipped > 0 ? `\n${result.skipped} row(s) were skipped.` : "")
-      const hasErrors = result.errors.length > 0
+        (result.skipped > 0 ? `\n${result.skipped} row(s) were skipped.` : "");
+      const hasErrors = result.errors.length > 0;
       alert(
         hasErrors ? "Import Completed with Issues" : "Import Successful",
         hasErrors
@@ -156,24 +171,26 @@ export default function SettingsScreen(): React.JSX.Element {
           : summary,
         [{ text: "OK" }],
         hasErrors ? "error" : "success",
-      )
+      );
     },
     [alert],
-  )
+  );
 
   const handleShowImportError = useCallback(
     (error: unknown) => {
-      if (!isMountedRef.current) return
-      console.error("Error importing CSV:", error)
+      if (!isMountedRef.current) return;
+      console.error("Error importing CSV:", error);
       alert(
         "Import Failed",
-        error instanceof Error ? error.message : "Failed to import the CSV file.",
+        error instanceof Error
+          ? error.message
+          : "Failed to import the CSV file.",
         [{ text: "OK" }],
         "error",
-      )
+      );
     },
     [alert],
-  )
+  );
 
   const handleImportCSV = useCallback(async (): Promise<void> => {
     if (!selectedSplit) {
@@ -182,8 +199,8 @@ export default function SettingsScreen(): React.JSX.Element {
         "Select a person before importing workout history.",
         [{ text: "OK" }],
         "error",
-      )
-      return
+      );
+      return;
     }
 
     try {
@@ -196,34 +213,40 @@ export default function SettingsScreen(): React.JSX.Element {
         ],
         copyToCacheDirectory: true,
         multiple: false,
-      })
+      });
 
-      if (pickerResult.canceled) return
+      if (pickerResult.canceled) return;
 
-      const fileUri = pickerResult.assets?.[0]?.uri
-      if (!fileUri) return
+      const fileUri = pickerResult.assets?.[0]?.uri;
+      if (!fileUri) return;
 
-      setIsImporting(true)
+      setIsImporting(true);
 
-      const csvText = await new ExpoFile(fileUri).text()
-      const result = await importStrengthLevelCSV(csvText, selectedSplit)
+      const csvText = await new ExpoFile(fileUri).text();
+      const result = await importStrengthLevelCSV(csvText, selectedSplit);
 
       if (result.sessionsCreated > 0 && isMountedRef.current) {
-        await syncFromServer()
-        await loadServerProgress()
+        await syncFromServer();
+        await loadServerProgress();
       }
 
       if (isMountedRef.current) {
-        handleShowImportSuccess(result)
-        setIsImporting(false)
+        handleShowImportSuccess(result);
+        setIsImporting(false);
       }
     } catch (error) {
-      handleShowImportError(error)
+      handleShowImportError(error);
       if (isMountedRef.current) {
-        setIsImporting(false)
+        setIsImporting(false);
       }
     }
-  }, [selectedSplit, syncFromServer, alert, handleShowImportSuccess, handleShowImportError])
+  }, [
+    selectedSplit,
+    syncFromServer,
+    alert,
+    handleShowImportSuccess,
+    handleShowImportError,
+  ]);
 
   const handleClearData = () => {
     alert(
@@ -239,30 +262,30 @@ export default function SettingsScreen(): React.JSX.Element {
               // Wipe ALL server-side data for this user (workouts, tracking,
               // social). Server requires explicit confirmation token; the
               // API should return { success: true } on success.
-              const serverResp = await workoutApi.deleteAllUserData()
+              const serverResp = await workoutApi.deleteAllUserData();
               if (serverResp && typeof serverResp === "object") {
-                const sr = serverResp as any
+                const sr = serverResp as any;
                 if (sr.success === false) {
-                  throw new Error(sr.error || "Server refused to delete data")
+                  throw new Error(sr.error || "Server refused to delete data");
                 }
                 if (sr.error) {
                   // treat presence of error as failure
-                  throw new Error(sr.error)
+                  throw new Error(sr.error);
                 }
               }
 
               // If the server call was successful (or returned nothing), clear
               // local data as well.
-              await clearAllData()
+              await clearAllData();
 
               alert(
                 "Success",
                 "All data has been cleared (local and server)",
                 [{ text: "OK" }],
                 "success",
-              )
+              );
             } catch (error) {
-              console.error("Error clearing data:", error)
+              console.error("Error clearing data:", error);
               alert(
                 "Error",
                 error instanceof Error
@@ -270,17 +293,17 @@ export default function SettingsScreen(): React.JSX.Element {
                   : "Failed to clear all data",
                 [{ text: "OK" }],
                 "error",
-              )
+              );
             }
           },
         },
       ],
       "error",
-    )
-  }
+    );
+  };
 
   const handleResetProgress = () => {
-    const hasActiveSession = !!workoutStartTime
+    const hasActiveSession = !!workoutStartTime;
 
     alert(
       "Reset All Progress?",
@@ -295,42 +318,42 @@ export default function SettingsScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               if (hasActiveSession) {
-                await clearActiveWorkout()
+                await clearActiveWorkout();
               }
 
               if (selectedSplit) {
                 // deleteAllSessionsForPerson is imported at the top of the file
                 try {
-                  await workoutApi.deleteAllSessionsForPerson(selectedSplit)
+                  await workoutApi.deleteAllSessionsForPerson(selectedSplit);
                 } catch (error) {
-                  console.error("Failed to delete server data:", error)
+                  console.error("Failed to delete server data:", error);
                 }
               }
 
-              await saveCompletedDays({})
-              await saveLockedDays({})
+              await saveCompletedDays({});
+              await saveLockedDays({});
 
               alert(
                 "Success",
                 "All progress has been reset (local and server)",
                 [{ text: "OK" }],
                 "success",
-              )
+              );
             } catch (error) {
-              console.error("Error resetting progress:", error)
+              console.error("Error resetting progress:", error);
               alert(
                 "Error",
                 "Failed to reset progress",
                 [{ text: "OK" }],
                 "error",
-              )
+              );
             }
           },
         },
       ],
       "warning",
-    )
-  }
+    );
+  };
 
   const handleLogout = async () => {
     alert(
@@ -342,16 +365,16 @@ export default function SettingsScreen(): React.JSX.Element {
           text: "Logout",
           style: "destructive",
           onPress: async () => {
-            await logout()
+            await logout();
           },
         },
       ],
       "warning",
-    )
-  }
+    );
+  };
 
   const handleUnlockAllDays = () => {
-    const hasActiveSession = !!workoutStartTime
+    const hasActiveSession = !!workoutStartTime;
 
     alert(
       "Unlock All Days?",
@@ -366,18 +389,18 @@ export default function SettingsScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               if (hasActiveSession) {
-                await clearActiveWorkout()
+                await clearActiveWorkout();
               }
 
-              await saveLockedDays({})
+              await saveLockedDays({});
 
               const allDayNumbers =
                 workoutData?.days?.reduce(
                   (acc, d: WorkoutDay) => ({ ...acc, [d.dayNumber]: true }),
                   {},
-                ) || {}
+                ) || {};
 
-              await saveUnlockedOverrides(allDayNumbers)
+              await saveUnlockedOverrides(allDayNumbers);
 
               alert(
                 "Success",
@@ -386,28 +409,33 @@ export default function SettingsScreen(): React.JSX.Element {
                   : "All days have been unlocked. Your workout history is preserved in Analytics.",
                 [{ text: "OK" }],
                 "success",
-              )
+              );
             } catch (error) {
-              console.error("Error unlocking days:", error)
-              alert("Error", "Failed to unlock days", [{ text: "OK" }], "error")
+              console.error("Error unlocking days:", error);
+              alert(
+                "Error",
+                "Failed to unlock days",
+                [{ text: "OK" }],
+                "error",
+              );
             }
           },
         },
       ],
       "lock",
-    )
-  }
+    );
+  };
 
   const handleResetSingleDay = (dayNumber: number) => {
     const day = workoutData?.days.find(
       (d: WorkoutDay) => d.dayNumber === dayNumber,
-    )
+    );
     const dayTitle = day
       ? (day.dayTitle ?? day.muscleGroups?.join("/") ?? `Day ${dayNumber}`)
-      : `Day ${dayNumber}`
-    const hasActiveSession = !!workoutStartTime
-    const isCurrentDay = dayNumber === currentDay
-    const willAffectActiveSession = hasActiveSession && isCurrentDay
+      : `Day ${dayNumber}`;
+    const hasActiveSession = !!workoutStartTime;
+    const isCurrentDay = dayNumber === currentDay;
+    const willAffectActiveSession = hasActiveSession && isCurrentDay;
 
     alert(
       "Reset Day?",
@@ -422,63 +450,63 @@ export default function SettingsScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               if (willAffectActiveSession) {
-                await clearActiveWorkout()
+                await clearActiveWorkout();
               }
 
-              const newCompletedDays = { ...completedDays }
-              delete newCompletedDays[dayNumber]
-              await saveCompletedDays(newCompletedDays)
+              const newCompletedDays = { ...completedDays };
+              delete newCompletedDays[dayNumber];
+              await saveCompletedDays(newCompletedDays);
 
-              const newLockedDays = { ...lockedDays }
-              delete newLockedDays[dayNumber]
-              await saveLockedDays(newLockedDays)
+              const newLockedDays = { ...lockedDays };
+              delete newLockedDays[dayNumber];
+              await saveLockedDays(newLockedDays);
 
-              const newOverrides = { ...unlockedOverrides, [dayNumber]: true }
-              await saveUnlockedOverrides(newOverrides)
+              const newOverrides = { ...unlockedOverrides, [dayNumber]: true };
+              await saveUnlockedOverrides(newOverrides);
 
-              setShowResetDayModal(false)
+              setShowResetDayModal(false);
               alert(
                 "Success",
                 `${dayTitle} has been unlocked.`,
                 [{ text: "OK" }],
                 "success",
-              )
+              );
             } catch (error) {
-              console.error("Error resetting day:", error)
-              alert("Error", "Failed to reset day", [{ text: "OK" }], "error")
+              console.error("Error resetting day:", error);
+              alert("Error", "Failed to reset day", [{ text: "OK" }], "error");
             }
           },
         },
       ],
       willAffectActiveSession ? "warning" : "info",
-    )
-  }
+    );
+  };
 
   const handleOpenTimeBetweenSetsModal = () => {
-    setTempTimeBetweenSets(timeBetweenSets.toString())
-    setShowTimeBetweenSetsModal(true)
-  }
+    setTempTimeBetweenSets(timeBetweenSets.toString());
+    setShowTimeBetweenSetsModal(true);
+  };
 
   const handleSaveTimeBetweenSets = () => {
-    const value = Number.parseInt(tempTimeBetweenSets, 10)
+    const value = Number.parseInt(tempTimeBetweenSets, 10);
     if (value && value > 0 && value <= 600) {
-      saveTimeBetweenSets(value)
-      setShowTimeBetweenSetsModal(false)
+      saveTimeBetweenSets(value);
+      setShowTimeBetweenSetsModal(false);
       alert(
         "Success",
         `Time between sets set to ${formatDuration(value)}`,
         [{ text: "OK" }],
         "success",
-      )
+      );
     } else {
       alert(
         "Invalid Input",
         "Please enter a value between 1 and 600 seconds",
         [{ text: "OK" }],
         "error",
-      )
+      );
     }
-  }
+  };
 
   const handleToggleDemoMode = (value: boolean) => {
     if (!value) {
@@ -493,11 +521,11 @@ export default function SettingsScreen(): React.JSX.Element {
           },
         ],
         "warning",
-      )
+      );
     } else {
-      toggleDemoMode(true)
+      toggleDemoMode(true);
     }
-  }
+  };
 
   const handleToggleManualTime = (value: boolean) => {
     if (value) {
@@ -512,11 +540,11 @@ export default function SettingsScreen(): React.JSX.Element {
           },
         ],
         "info",
-      )
+      );
     } else {
-      toggleUseManualTime(false)
+      toggleUseManualTime(false);
     }
-  }
+  };
 
   const handleManualSync = async () => {
     if (pendingSyncs.length === 0) {
@@ -525,8 +553,8 @@ export default function SettingsScreen(): React.JSX.Element {
         "All workout data is already synced!",
         [{ text: "OK" }],
         "success",
-      )
-      return
+      );
+      return;
     }
 
     alert(
@@ -537,7 +565,7 @@ export default function SettingsScreen(): React.JSX.Element {
         {
           text: "Sync",
           onPress: async () => {
-            await syncPendingData()
+            await syncPendingData();
             alert(
               "Sync Complete",
               pendingSyncs.length === 0
@@ -545,68 +573,68 @@ export default function SettingsScreen(): React.JSX.Element {
                 : `${pendingSyncs.length} operation(s) still pending. Check your connection.`,
               [{ text: "OK" }],
               pendingSyncs.length === 0 ? "success" : "warning",
-            )
+            );
           },
         },
       ],
       "info",
-    )
-  }
+    );
+  };
 
-  const getCompletedDaysCount = () => Object.keys(completedDays).length
+  const getCompletedDaysCount = () => Object.keys(completedDays).length;
 
   const getTotalCompletedSets = () => {
-    let total = 0
+    let total = 0;
     Object.values(completedDays).forEach((day: CompletedExercises) => {
       Object.values(day).forEach((exercise) => {
-        total += Object.keys(exercise).length
-      })
-    })
-    return total
-  }
+        total += Object.keys(exercise).length;
+      });
+    });
+    return total;
+  };
 
   const getLockedDaysCount = () =>
-    Object.keys(lockedDays).filter((day) => lockedDays[Number(day)]).length
+    Object.keys(lockedDays).filter((day) => lockedDays[Number(day)]).length;
 
   const getDaysWithActivity = () => {
-    if (!workoutData?.days) return []
+    if (!workoutData?.days) return [];
     return workoutData.days.filter(
       (day: WorkoutDay) =>
         completedDays[day.dayNumber] || lockedDays[day.dayNumber],
-    )
-  }
+    );
+  };
 
   // UI state: advanced section is collapsible and account editing uses a modal
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(false)
-  const [showAccountModal, setShowAccountModal] = useState<boolean>(false)
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
   // Keep legacy activeTab string so older conditionals still work — general is default
-  const activeTab: "general" | "advanced" = "general"
+  const activeTab: "general" | "advanced" = "general";
 
   // Profile editing state
-  const [profileName, setProfileName] = useState<string>(user?.name ?? "")
-  const [profileEmail, setProfileEmail] = useState<string>(user?.email ?? "")
-  const [profilePhone, setProfilePhone] = useState<string>("")
-  const [profileAvatarUri, setProfileAvatarUri] = useState<string | null>(null)
-  const [savingProfile, setSavingProfile] = useState<boolean>(false)
+  const [profileName, setProfileName] = useState<string>(user?.name ?? "");
+  const [profileEmail, setProfileEmail] = useState<string>(user?.email ?? "");
+  const [profilePhone, setProfilePhone] = useState<string>("");
+  const [profileAvatarUri, setProfileAvatarUri] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState<boolean>(false);
 
   useEffect(() => {
-    setProfileName(user?.name ?? "")
-    setProfileEmail(user?.email ?? "")
-  }, [user?.name, user?.email])
+    setProfileName(user?.name ?? "");
+    setProfileEmail(user?.email ?? "");
+  }, [user?.name, user?.email]);
 
   // Load locally-stored phone/avatar
   useEffect(() => {
-    ;(async () => {
+    (async () => {
       try {
-        const phone = await getStorageItem("@profile_phone")
-        const avatar = await getStorageItem("@profile_avatar")
-        if (phone) setProfilePhone(phone)
-        if (avatar) setProfileAvatarUri(avatar)
+        const phone = await getStorageItem("@profile_phone");
+        const avatar = await getStorageItem("@profile_avatar");
+        if (phone) setProfilePhone(phone);
+        if (avatar) setProfileAvatarUri(avatar);
       } catch (err) {
-        console.warn("Failed loading profile extras:", err)
+        console.warn("Failed loading profile extras:", err);
       }
-    })()
-  }, [])
+    })();
+  }, []);
 
   const pickAvatar = async () => {
     try {
@@ -614,64 +642,64 @@ export default function SettingsScreen(): React.JSX.Element {
         mediaTypes: "images",
         allowsEditing: true,
         quality: 0.7,
-      })
+      });
       // Support both old and new result shapes
-      const canceled = (res as any).canceled ?? (res as any).cancelled
-      if (canceled) return
+      const canceled = (res as any).canceled ?? (res as any).cancelled;
+      if (canceled) return;
       if (
         (res as any).assets &&
         Array.isArray((res as any).assets) &&
         (res as any).assets.length > 0
       ) {
-        const uri = (res as any).assets[0].uri
-        if (uri) setProfileAvatarUri(uri)
-        return
+        const uri = (res as any).assets[0].uri;
+        if (uri) setProfileAvatarUri(uri);
+        return;
       }
       if ((res as any).uri) {
-        setProfileAvatarUri((res as any).uri)
+        setProfileAvatarUri((res as any).uri);
       }
     } catch (err) {
-      console.error("Image pick error:", err)
-      alert("Image Error", "Unable to pick image", [{ text: "OK" }], "error")
+      console.error("Image pick error:", err);
+      alert("Image Error", "Unable to pick image", [{ text: "OK" }], "error");
     }
-  }
+  };
 
   const handleSaveProfile = async () => {
-    setSavingProfile(true)
+    setSavingProfile(true);
     try {
-      const result = await updateProfile(profileName, profileEmail)
+      const result = await updateProfile(profileName, profileEmail);
       if (!result.success) {
         alert(
           "Update Failed",
           result.error ?? "Could not update profile",
           [{ text: "OK" }],
           "error",
-        )
-        setSavingProfile(false)
-        return
+        );
+        setSavingProfile(false);
+        return;
       }
-      await setStorageItem("@profile_phone", profilePhone)
+      await setStorageItem("@profile_phone", profilePhone);
       if (profileAvatarUri)
-        await setStorageItem("@profile_avatar", profileAvatarUri)
-      alert("Saved", "Profile updated", [{ text: "OK" }], "success")
-      await refreshUser()
+        await setStorageItem("@profile_avatar", profileAvatarUri);
+      alert("Saved", "Profile updated", [{ text: "OK" }], "success");
+      await refreshUser();
     } catch (error) {
-      console.error("Save profile error:", error)
-      alert("Error", "Failed to save profile", [{ text: "OK" }], "error")
+      console.error("Save profile error:", error);
+      alert("Error", "Failed to save profile", [{ text: "OK" }], "error");
     } finally {
-      setSavingProfile(false)
+      setSavingProfile(false);
     }
-  }
+  };
 
   const migrateUserData = async (userId: string) => {
     for (const key of Object.values(STORAGE_KEYS)) {
       try {
-        const value = await loadFromStorage(key, userId)
+        const value = await loadFromStorage(key, userId);
         if (value != null) {
-          await saveToStorage(key, value, "local")
+          await saveToStorage(key, value, "local");
         }
       } catch (err) {
-        console.warn(`Failed copying key ${key}:`, err)
+        console.warn(`Failed copying key ${key}:`, err);
       }
     }
     try {
@@ -681,7 +709,7 @@ export default function SettingsScreen(): React.JSX.Element {
           null,
           1000,
           true,
-        )
+        );
         const mapSession = (s: any) => ({
           id: s.id,
           person: selectedSplit,
@@ -691,38 +719,37 @@ export default function SettingsScreen(): React.JSX.Element {
           end_time: s.end_time ?? s.endTime,
           set_timings: s.set_timings ?? s.setTimings ?? [],
           is_demo: s.is_demo ?? false,
-        })
+        });
         await setStorageItem(
           "@offline:workout:sessions",
           JSON.stringify((sessions || []).map(mapSession)),
-        )
+        );
       }
     } catch (err) {
-      console.warn("Failed migrating sessions:", err)
+      console.warn("Failed migrating sessions:", err);
     }
-  }
+  };
 
   const doMigrateOffline = async (): Promise<boolean> => {
     try {
-      const currentUserId = user?.id ?? null
+      const currentUserId = user?.id ?? null;
       if (currentUserId) {
-        await migrateUserData(currentUserId)
+        await migrateUserData(currentUserId);
       }
-      await setAppMode("offline")
+      await setAppMode("offline");
       await updateProfile(
         user?.name ?? user?.username ?? "Me",
         user?.email ?? "",
-      )
-      if (profilePhone)
-        await setStorageItem("@profile_phone", profilePhone)
+      );
+      if (profilePhone) await setStorageItem("@profile_phone", profilePhone);
       if (profileAvatarUri)
-        await setStorageItem("@profile_avatar", profileAvatarUri)
-      return true
+        await setStorageItem("@profile_avatar", profileAvatarUri);
+      return true;
     } catch (error) {
-      console.error("Migration to offline failed:", error)
-      return false
+      console.error("Migration to offline failed:", error);
+      return false;
     }
-  }
+  };
 
   const migrateToOffline = async () => {
     alert(
@@ -733,28 +760,28 @@ export default function SettingsScreen(): React.JSX.Element {
         {
           text: "Migrate",
           onPress: async () => {
-            const ok = await doMigrateOffline()
+            const ok = await doMigrateOffline();
             if (ok) {
               alert(
                 "Success",
                 "Migrated to offline account — your data has been copied and you can continue where you left off.",
                 [{ text: "OK" }],
                 "success",
-              )
+              );
             } else {
               alert(
                 "Error",
                 "Failed to migrate to offline account",
                 [{ text: "OK" }],
                 "error",
-              )
+              );
             }
           },
         },
       ],
       "warning",
-    )
-  }
+    );
+  };
 
   const migrateToOnline = async () => {
     alert(
@@ -766,28 +793,28 @@ export default function SettingsScreen(): React.JSX.Element {
           text: "Switch",
           onPress: async () => {
             try {
-              await setAppMode("online")
+              await setAppMode("online");
               alert(
                 "Mode Changed",
                 "App switched to online mode. Please sign in or sign up from the login screen.",
                 [{ text: "OK" }],
                 "info",
-              )
+              );
             } catch (error) {
-              console.error("Switch to online failed:", error)
+              console.error("Switch to online failed:", error);
               alert(
                 "Error",
                 "Failed to switch to online mode",
                 [{ text: "OK" }],
                 "error",
-              )
+              );
             }
           },
         },
       ],
       "info",
-    )
-  }
+    );
+  };
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -1046,10 +1073,10 @@ export default function SettingsScreen(): React.JSX.Element {
                             "Select a person before editing workout history.",
                             [{ text: "OK" }],
                             "error",
-                          )
-                          return
+                          );
+                          return;
                         }
-                        setShowEditHistoryModal(true)
+                        setShowEditHistoryModal(true);
                       }}
                     >
                       <View style={{ flex: 1 }}>
@@ -1246,6 +1273,7 @@ export default function SettingsScreen(): React.JSX.Element {
                   <Image
                     source={{ uri: profileAvatarUri }}
                     style={{ width: 72, height: 72 }}
+                    contentFit='cover'
                   />
                 ) : (
                   <Text style={{ color: colors.textMuted }}>Add</Text>
@@ -1277,8 +1305,8 @@ export default function SettingsScreen(): React.JSX.Element {
             <TouchableOpacity
               style={styles.saveButtonBig}
               onPress={async () => {
-                await handleSaveProfile()
-                setShowAccountModal(false)
+                await handleSaveProfile();
+                setShowAccountModal(false);
               }}
               disabled={savingProfile}
             >
@@ -1372,22 +1400,22 @@ export default function SettingsScreen(): React.JSX.Element {
             onClose={() => setShowEditHistoryModal(false)}
             person={selectedSplit}
             onDataChanged={() => {
-              syncFromServer()
-              loadServerProgress()
+              syncFromServer();
+              loadServerProgress();
             }}
           />
         )}
       </ScrollView>
       {AlertComponent}
     </SafeAreaView>
-  )
+  );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     contentContainer: { paddingBottom: 120 },
-    content: { padding: 20, paddingTop: 60 },
+    content: { padding: 10, paddingTop: 60 },
     section: { marginBottom: 25 },
     sectionTitle: {
       fontSize: 20,
@@ -1418,7 +1446,7 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textPrimary,
       maxWidth: "50%",
     },
-    activeValue: { fontSize: 16, fontWeight: "600", color: colors.success },
+    
     warningValue: { fontSize: 16, fontWeight: "600", color: "#ff9800" },
     settingRow: {
       flexDirection: "row",
@@ -1571,19 +1599,9 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       marginBottom: 24,
     },
-    infoIconBig: { fontSize: 48, marginBottom: 12 },
-    infoTitleBig: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: colors.textPrimary,
-      marginBottom: 8,
-    },
-    infoTextBig: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      textAlign: "center",
-      lineHeight: 20,
-    },
+    
+    
+    
     settingsSection: {
       backgroundColor: colors.surface,
       borderRadius: 16,
@@ -1708,12 +1726,7 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 4,
     },
     notificationLabelActive: { color: "#6d28d9" },
-    notificationDesc: {
-      fontSize: 11,
-      color: colors.textMuted,
-      textAlign: "center",
-    },
-    summaryCard: {
+    notificationDes: {
       backgroundColor: colors.surface,
       borderRadius: 16,
       padding: 16,
@@ -1743,4 +1756,4 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: "700",
       color: colors.surface,
     },
-  })
+  });

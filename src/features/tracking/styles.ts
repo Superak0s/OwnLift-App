@@ -6,7 +6,7 @@ const { width, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
+    content: { padding: 10, paddingTop: 60, paddingBottom: 120 },
     header: { marginBottom: 25, alignItems: "center" },
     addWidgetButton: {
       backgroundColor: colors.accent,

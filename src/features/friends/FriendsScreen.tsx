@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
@@ -17,7 +17,9 @@ import {
 } from "expo-camera";
 import QRCode from "react-native-qrcode-svg";
 import { useAuth } from "@shared/context/AuthContext";
+import { isServerless } from "@shared/services/appMode";
 import { useWorkout } from "@shared/context/WorkoutContext";
+import { useJointSessionContext } from "@shared/context/JointSessionContext";
 import { useTheme } from "@shared/context/ThemeContext";
 import type { ThemeColors } from "@shared/context/ThemeContext";
 import type { WebSocketMessage } from "@shared/context/hooks/useRealtimeSocket";
@@ -27,6 +29,24 @@ import ScrollTabBar from "@shared/components/ScrollTabBar";
 import { useAlert } from "@shared/components/CustomAlert";
 import ExerciseAnalytics from "@features/analytics/components/ExerciseAnalytics";
 import LiveSessionTab from "./components/LiveSessionTab";
+import { InviteBanner } from "./components/InviteBanner";
+import {
+  LiftTogetherButton,
+  makeLiftStyles,
+} from "./components/LiftTogetherButton";
+import { makePermStyles } from "./components/PermissionRow";
+import {
+  RequestsPendingWidget,
+  RequestsSentWidget,
+} from "./components/RequestWidgets";
+import {
+  SearchContactsWidget,
+  SearchQrWidget,
+  SearchUsersWidget,
+} from "./components/SearchWidgets";
+import { FriendTabsBar } from "./components/FriendTabsBar";
+import { FriendProgramTab } from "./components/FriendProgramTab";
+import { FriendActionsTab } from "./components/FriendActionsTab";
 import { friendsApi, sharingApi } from "./services";
 import { collectHashedContactEmails } from "./services/contactsMatching";
 import { formatTime } from "@utils/timeEstimation";
@@ -71,9 +91,6 @@ import type {
 } from "./types";
 import type { WidgetInstance } from "@shared/types";
 
-type IdOrNull = number | string | null;
-type IdOrUndefined = number | string | undefined;
-
 const useFriendSessionStatuses = (
   friends: Friend[],
   socketLastMessage: WebSocketMessage | null,
@@ -81,6 +98,10 @@ const useFriendSessionStatuses = (
 ): Record<string | number, boolean> => {
   const [statuses, setStatuses] = useState<Record<string | number, boolean>>(
     {},
+  );
+  const friendIds = useMemo(
+    () => friends.map((f) => f.id).join(","),
+    [friends],
   );
 
   const refresh = useCallback(async () => {
@@ -104,7 +125,8 @@ const useFriendSessionStatuses = (
       if (r.status === "fulfilled") map[r.value.id] = r.value.active;
     });
     setStatuses(map);
-  }, [friends]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [friendIds]);
 
   useEffect(() => {
     refresh();
@@ -138,246 +160,6 @@ const useFriendSessionStatuses = (
   return statuses;
 };
 
-interface InviteBannerProps {
-  readonly invite: { fromUsername: string } | null;
-  readonly onAccept: () => void;
-  readonly onDecline: () => void;
-}
-
-function InviteBanner({
-  invite,
-  onAccept,
-  onDecline,
-}: InviteBannerProps): React.JSX.Element | null {
-  const { colors } = useTheme();
-  const bannerStyles = makeBannerStyles(colors);
-  if (!invite) return null;
-  return (
-    <View style={bannerStyles.container}>
-      <View style={bannerStyles.left}>
-        <Text style={bannerStyles.icon}>🏋️</Text>
-        <View>
-          <Text style={bannerStyles.title}>Joint Session Invite</Text>
-          <Text style={bannerStyles.sub}>
-            <Text style={bannerStyles.username}>{invite.fromUsername}</Text>
-            {" wants to lift together!"}
-          </Text>
-        </View>
-      </View>
-      <View style={bannerStyles.actions}>
-        <TouchableOpacity style={bannerStyles.decline} onPress={onDecline}>
-          <Text style={bannerStyles.declineText}>✕</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={bannerStyles.accept} onPress={onAccept}>
-          <Text style={bannerStyles.acceptText}>Join</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-const makeBannerStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    container: {
-      backgroundColor: colors.background,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-    },
-    left: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
-    icon: { fontSize: 28 },
-    title: {
-      color: colors.surface,
-      fontWeight: "700",
-      fontSize: 14,
-      marginBottom: 2,
-    },
-    sub: { color: "rgba(255,255,255,0.7)", fontSize: 13 },
-    username: { color: colors.info, fontWeight: "600" },
-    actions: { flexDirection: "row", gap: 8, alignItems: "center" },
-    decline: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
-      backgroundColor: "rgba(255,255,255,0.12)",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    declineText: { color: colors.surface, fontSize: 14, fontWeight: "bold" },
-    accept: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 8,
-      backgroundColor: colors.accentDark,
-    },
-    acceptText: { color: colors.surface, fontSize: 14, fontWeight: "700" },
-  });
-
-interface LiftTogetherButtonProps {
-  readonly onPress: () => void;
-  readonly status?: string;
-  readonly small?: boolean;
-}
-
-function LiftTogetherButton({
-  onPress,
-  status,
-  small = false,
-}: LiftTogetherButtonProps): React.JSX.Element {
-  const { colors } = useTheme();
-  const liftStyles = makeLiftStyles(colors);
-  const LABEL_BY_STATUS: Record<string, string> = {
-    sending: "Sending…",
-    waiting: "Waiting…",
-    active: "✓ In Session",
-    declined: "Declined",
-  };
-  const BG_BY_STATUS: Record<string, string> = {
-    active: colors.success,
-    waiting: colors.warning,
-    declined: colors.textSecondary,
-  };
-  const label = LABEL_BY_STATUS[status ?? ""] ?? "🏋️ Lift Together";
-  const bg = BG_BY_STATUS[status ?? ""] ?? colors.accentDark;
-  const busy = status === "sending" || status === "waiting";
-  return (
-    <TouchableOpacity
-      style={[
-        liftStyles.button,
-        small && liftStyles.buttonSmall,
-        { backgroundColor: bg },
-        busy && { opacity: 0.75 },
-      ]}
-      onPress={onPress}
-      disabled={busy || status === "active"}
-      activeOpacity={0.8}
-    >
-      {busy ? (
-        <ActivityIndicator
-          size='small'
-          color='#fff'
-          style={{ marginRight: 6 }}
-        />
-      ) : null}
-      <Text style={[liftStyles.label, small && liftStyles.labelSmall]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-const makeLiftStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    button: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 14,
-      paddingVertical: 9,
-      borderRadius: 10,
-    },
-    buttonSmall: { paddingHorizontal: 10, paddingVertical: 6 },
-    label: { color: colors.surface, fontWeight: "700", fontSize: 14 },
-    labelSmall: { fontSize: 12 },
-  });
-
-interface PermissionRowProps {
-  readonly icon: string;
-  readonly title: string;
-  readonly description: string;
-  readonly granted: boolean;
-  readonly loading: boolean;
-  readonly onGrant: () => void;
-  readonly onRevoke: () => void;
-}
-
-function PermissionRow({
-  icon,
-  title,
-  description,
-  granted,
-  loading,
-  onGrant,
-  onRevoke,
-}: PermissionRowProps): React.JSX.Element {
-  const { colors } = useTheme();
-  const permStyles = makePermStyles(colors);
-  const actionBtn = granted ? (
-    <TouchableOpacity style={permStyles.revokeBtn} onPress={onRevoke}>
-      <Text style={permStyles.revokeBtnText}>Revoke</Text>
-    </TouchableOpacity>
-  ) : (
-    <TouchableOpacity style={permStyles.grantBtn} onPress={onGrant}>
-      <Text style={permStyles.grantBtnText}>Grant</Text>
-    </TouchableOpacity>
-  );
-  return (
-    <View style={[permStyles.row, granted && permStyles.rowGranted]}>
-      <Text style={permStyles.icon}>{icon}</Text>
-      <View style={permStyles.text}>
-        <Text style={permStyles.title}>{title}</Text>
-        <Text style={permStyles.desc}>{description}</Text>
-      </View>
-      {loading ? (
-        <ActivityIndicator
-          size='small'
-          color='#667eea'
-          style={{ marginLeft: 8 }}
-        />
-      ) : actionBtn}
-    </View>
-  );
-}
-
-const makePermStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    row: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.surface,
-      borderRadius: 14,
-      padding: 14,
-      marginBottom: 10,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 3,
-      elevation: 1,
-    },
-    rowGranted: {
-      borderColor: colors.success,
-      backgroundColor: colors.successLight,
-    },
-    icon: { fontSize: 24, marginRight: 12 },
-    text: { flex: 1 },
-    title: {
-      fontSize: 14,
-      fontWeight: "700",
-      color: colors.textPrimary,
-      marginBottom: 2,
-    },
-    desc: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
-    grantBtn: {
-      backgroundColor: colors.accent,
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 10,
-      marginLeft: 8,
-    },
-    grantBtnText: { color: colors.surface, fontSize: 13, fontWeight: "700" },
-    revokeBtn: {
-      backgroundColor: colors.errorLight,
-      paddingHorizontal: 12,
-      paddingVertical: 7,
-      borderRadius: 10,
-      marginLeft: 8,
-    },
-    revokeBtnText: { color: colors.error, fontSize: 13, fontWeight: "600" },
-  });
-
 interface FriendsListWidgetProps {
   readonly friends: Friend[];
   readonly friendSessionStatuses: Record<string | number, boolean>;
@@ -394,7 +176,7 @@ interface FriendsListWidgetProps {
   readonly colors: ThemeColors;
 }
 
-function FriendsListWidget({
+const FriendsListWidget = React.memo(function FriendsListWidget({
   friends,
   friendSessionStatuses,
   hasOwnActiveSession,
@@ -426,8 +208,13 @@ function FriendsListWidget({
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.listContainer}>
-          {friends.map((friend) => {
+        <FlatList
+          data={friends}
+          keyExtractor={(friend) => String(friend.id)}
+          style={styles.friendListBounded}
+          ItemSeparatorComponent={() => <View style={styles.friendSeparator} />}
+          nestedScrollEnabled
+          renderItem={({ item: friend }) => {
             const friendIsWorkingOut = !!friendSessionStatuses[friend.id];
             const cardStatus = getInviteStatusForFriend(friend.id);
             const showLiftButton =
@@ -444,7 +231,6 @@ function FriendsListWidget({
 
             return (
               <TouchableOpacity
-                key={String(friend.id)}
                 style={[
                   styles.friendCard,
                   friendIsWorkingOut && styles.friendCardActive,
@@ -495,1291 +281,57 @@ function FriendsListWidget({
                 </View>
               </TouchableOpacity>
             );
-          })}
-        </View>
-      )}
-    </View>
-  );
-}
-
-interface RequestsPendingWidgetProps {
-  readonly pendingRequests: PendingFriendRequest[];
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly onAccept: (friendshipId: number | string) => void;
-  readonly onReject: (friendshipId: number | string, username: string) => void;
-}
-
-function RequestsPendingWidget({
-  pendingRequests,
-  styles,
-  onAccept,
-  onReject,
-}: RequestsPendingWidgetProps): React.JSX.Element {
-  return (
-    <View>
-      <Text style={styles.subsectionTitle}>
-        Pending Requests ({pendingRequests.length})
-      </Text>
-      {pendingRequests.length === 0 ? (
-        <View style={styles.emptyStateSmall}>
-          <Text style={styles.emptyTextSmall}>No pending friend requests</Text>
-        </View>
-      ) : (
-        <View style={styles.listContainer}>
-          {pendingRequests.map((request) => (
-            <View key={String(request.id)} style={styles.requestCard}>
-              <View style={styles.friendInfo}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {request.senderUsername?.charAt(0).toUpperCase() || "?"}
-                  </Text>
-                </View>
-                <View style={styles.friendDetails}>
-                  <Text style={styles.friendName}>
-                    {request.senderUsername}
-                  </Text>
-                  <Text style={styles.friendMeta}>
-                    Sent {formatDate(request.createdAt)}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.requestActions}>
-                <TouchableOpacity
-                  style={styles.acceptButton}
-                  onPress={() => onAccept(request.id)}
-                >
-                  <Text style={styles.acceptButtonText}>✓</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.rejectButton}
-                  onPress={() => onReject(request.id, request.senderUsername)}
-                >
-                  <Text style={styles.rejectButtonText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-interface RequestsSentWidgetProps {
-  readonly sentRequests: SentFriendRequest[];
-  readonly styles: ReturnType<typeof makeStyles>;
-}
-
-function RequestsSentWidget({
-  sentRequests,
-  styles,
-}: RequestsSentWidgetProps): React.JSX.Element {
-  return (
-    <View>
-      <Text style={styles.subsectionTitle}>
-        Sent Requests ({sentRequests.length})
-      </Text>
-      {sentRequests.length === 0 ? (
-        <View style={styles.emptyStateSmall}>
-          <Text style={styles.emptyTextSmall}>No sent friend requests</Text>
-        </View>
-      ) : (
-        <View style={styles.listContainer}>
-          {sentRequests.map((request) => (
-            <View key={String(request.id)} style={styles.sentRequestCard}>
-              <View style={styles.friendInfo}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {request.receiverUsername?.charAt(0).toUpperCase() || "?"}
-                  </Text>
-                </View>
-                <View style={styles.friendDetails}>
-                  <Text style={styles.friendName}>
-                    {request.receiverUsername}
-                  </Text>
-                  <Text style={styles.friendMeta}>
-                    Sent {formatDate(request.createdAt)}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusBadgeText}>Pending</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-interface SearchContactsWidgetProps {
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly permStyles: ReturnType<typeof makePermStyles>;
-  readonly loadingContactSuggestions: boolean;
-  readonly contactPermissionDenied: boolean;
-  readonly contactSuggestionsRequested: boolean;
-  readonly contactSuggestions: ContactFriendSuggestion[];
-  readonly sendingRequestTo: IdOrNull;
-  readonly onFindSuggestions: () => void;
-  readonly onSendRequest: (suggestion: ContactFriendSuggestion) => void;
-}
-
-function SearchContactsWidget({
-  styles,
-  permStyles,
-  loadingContactSuggestions,
-  contactPermissionDenied,
-  contactSuggestionsRequested,
-  contactSuggestions,
-  sendingRequestTo,
-  onFindSuggestions,
-  onSendRequest,
-}: SearchContactsWidgetProps): React.JSX.Element {
-  const showNoneFound =
-    !contactPermissionDenied &&
-    contactSuggestionsRequested &&
-    !loadingContactSuggestions &&
-    contactSuggestions.length === 0;
-
-  return (
-    <View>
-      <View style={permStyles.row}>
-        <Text style={permStyles.icon}>📱</Text>
-        <View style={permStyles.text}>
-          <Text style={permStyles.title}>Friends from Contacts</Text>
-          <Text style={permStyles.desc}>
-            We'll ask for contacts access and only send hashed emails — never
-            raw contact info — to check for matches.
-          </Text>
-        </View>
-        {loadingContactSuggestions ? (
-          <ActivityIndicator
-            size='small'
-            color='#667eea'
-            style={{ marginLeft: 8 }}
-          />
-        ) : (
-          <TouchableOpacity
-            style={permStyles.grantBtn}
-            onPress={onFindSuggestions}
-          >
-            <Text style={permStyles.grantBtnText}>Check</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {contactPermissionDenied && (
-        <View style={styles.emptyStateSmall}>
-          <Text style={styles.emptyTextSmall}>
-            Contacts access was denied. You can enable it in your device
-            settings to see friend suggestions.
-          </Text>
-        </View>
-      )}
-
-      {showNoneFound && (
-        <View style={styles.emptyStateSmall}>
-          <Text style={styles.emptyTextSmall}>
-            No contacts found on this app yet.
-          </Text>
-        </View>
-      )}
-
-      {contactSuggestions.length > 0 && (
-        <View style={styles.listContainer}>
-          {contactSuggestions.map((suggestion) => (
-            <View key={String(suggestion.id)} style={styles.searchResultCard}>
-              <View style={styles.friendInfo}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>
-                    {suggestion.username?.charAt(0).toUpperCase() || "?"}
-                  </Text>
-                </View>
-                <View style={styles.friendDetails}>
-                  <Text style={styles.friendName}>{suggestion.username}</Text>
-                  <Text style={styles.friendMeta}>From contacts</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => onSendRequest(suggestion)}
-                disabled={sendingRequestTo === suggestion.id}
-              >
-                {sendingRequestTo === suggestion.id ? (
-                  <ActivityIndicator size='small' color='#fff' />
-                ) : (
-                  <Text style={styles.addButtonText}>+ Add Friend</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-interface SearchQrWidgetProps {
-  readonly permStyles: ReturnType<typeof makePermStyles>;
-  readonly onShowMyQr: () => void;
-  readonly onScanQr: () => void;
-}
-
-function SearchQrWidget({
-  permStyles,
-  onShowMyQr,
-  onScanQr,
-}: SearchQrWidgetProps): React.JSX.Element {
-  return (
-    <View style={permStyles.row}>
-      <Text style={permStyles.icon}>🔳</Text>
-      <View style={permStyles.text}>
-        <Text style={permStyles.title}>Add via QR Code</Text>
-        <Text style={permStyles.desc}>
-          Show your code for a friend to scan, or scan theirs to add them
-          instantly.
-        </Text>
-      </View>
-      <TouchableOpacity style={permStyles.grantBtn} onPress={onShowMyQr}>
-        <Text style={permStyles.grantBtnText}>My Code</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[permStyles.grantBtn, { marginLeft: 8 }]}
-        onPress={onScanQr}
-      >
-        <Text style={permStyles.grantBtnText}>Scan</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-interface SearchUsersWidgetProps {
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly searchQuery: string;
-  readonly onChangeQuery: (text: string) => void;
-  readonly searching: boolean;
-  readonly searchResults: UserSearchResult[];
-  readonly friends: Friend[];
-  readonly sentRequests: SentFriendRequest[];
-  readonly pendingRequests: PendingFriendRequest[];
-  readonly currentUserId: IdOrUndefined;
-  readonly onGoToRequests: () => void;
-  readonly onAddFriend: (username: string) => void;
-}
-
-function SearchUserResultRow({
-  result,
-  friends,
-  sentRequests,
-  pendingRequests,
-  currentUserId,
-  styles,
-  onGoToRequests,
-  onAddFriend,
-}: {
-  readonly result: UserSearchResult;
-  readonly friends: Friend[];
-  readonly sentRequests: SentFriendRequest[];
-  readonly pendingRequests: PendingFriendRequest[];
-  readonly currentUserId: IdOrUndefined;
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly onGoToRequests: () => void;
-  readonly onAddFriend: (username: string) => void;
-}): React.JSX.Element {
-  const isFriend = friends.some((f) => f.id === result.id);
-  const hasSent = sentRequests.some((r) => r.receiverId === result.id);
-  const hasPending = pendingRequests.some((r) => r.senderId === result.id);
-
-  let action: React.ReactNode;
-  if (result.id === currentUserId) {
-    action = (
-      <View style={styles.statusBadge}>
-        <Text style={styles.statusBadgeText}>You</Text>
-      </View>
-    );
-  } else if (isFriend) {
-    action = (
-      <View style={[styles.statusBadge, styles.statusBadgeFriend]}>
-        <Text style={styles.statusBadgeText}>✓ Friends</Text>
-      </View>
-    );
-  } else if (hasSent) {
-    action = (
-      <View style={styles.statusBadge}>
-        <Text style={styles.statusBadgeText}>Pending</Text>
-      </View>
-    );
-  } else if (hasPending) {
-    action = (
-      <TouchableOpacity style={styles.respondButton} onPress={onGoToRequests}>
-        <Text style={styles.respondButtonText}>Respond</Text>
-      </TouchableOpacity>
-    );
-  } else {
-    action = (
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => onAddFriend(result.username)}
-      >
-        <Text style={styles.addButtonText}>+ Add Friend</Text>
-      </TouchableOpacity>
-    );
-  }
-
-  return (
-    <View style={styles.searchResultCard}>
-      <View style={styles.friendInfo}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {result.username?.charAt(0).toUpperCase() || "?"}
-          </Text>
-        </View>
-        <View style={styles.friendDetails}>
-          <Text style={styles.friendName}>{result.username}</Text>
-          {result.email && (
-            <Text style={styles.friendMeta}>{result.email}</Text>
-          )}
-        </View>
-      </View>
-      <View style={styles.searchResultActions}>{action}</View>
-    </View>
-  );
-}
-
-function SearchUsersWidget({
-  styles,
-  searchQuery,
-  onChangeQuery,
-  searching,
-  searchResults,
-  friends,
-  sentRequests,
-  pendingRequests,
-  currentUserId,
-  onGoToRequests,
-  onAddFriend,
-}: SearchUsersWidgetProps): React.JSX.Element {
-  const noResults =
-    searchQuery.trim() && !searching && searchResults.length === 0 ? (
-      <View style={styles.emptyStateSmall}>
-        <Text style={styles.emptyTextSmall}>No users found</Text>
-      </View>
-    ) : null;
-  return (
-    <View>
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder='Search by username...'
-          value={searchQuery}
-          onChangeText={onChangeQuery}
-          autoCapitalize='none'
-          autoCorrect={false}
+          }}
         />
-        {searching && (
-          <ActivityIndicator
-            style={styles.searchLoader}
-            size='small'
-            color='#667eea'
-          />
-        )}
-      </View>
-      {searchResults.length > 0 ? (
-        <View style={styles.listContainer}>
-          {searchResults.map((result) => (
-            <SearchUserResultRow
-              key={String(result.id)}
-              result={result}
-              friends={friends}
-              sentRequests={sentRequests}
-              pendingRequests={pendingRequests}
-              currentUserId={currentUserId}
-              styles={styles}
-              onGoToRequests={onGoToRequests}
-              onAddFriend={onAddFriend}
-            />
-          ))}
-        </View>
-      ) : noResults}
+      )}
     </View>
   );
-}
+});
 
-interface FriendTabDescriptor {
-  key: string;
-  label: string;
-  locked: boolean;
-}
-
-interface FriendTabsBarProps {
-  readonly selectedFriend: Friend | null;
-  readonly activeFriendTab: string;
-  readonly hasFriendSharedAnalyticsWith: (
-    friendId: number | string | undefined,
-  ) => boolean;
-  readonly receivedPrograms: ReceivedProgram[];
-  readonly hasReceivedPermission: (
-    friendId: number | string | undefined,
-    type: string,
-  ) => boolean;
-  readonly onSelectTab: (tabKey: string) => void;
-  readonly onLockedTab: (tabKey: string) => void;
+interface SessionExerciseGroupProps {
+  readonly exercise: GroupedExercise;
   readonly styles: ReturnType<typeof makeStyles>;
 }
 
-function FriendTabsBar({
-  selectedFriend,
-  activeFriendTab,
-  hasFriendSharedAnalyticsWith,
-  receivedPrograms,
-  hasReceivedPermission,
-  onSelectTab,
-  onLockedTab,
-  styles,
-}: FriendTabsBarProps): React.JSX.Element {
-  const hasAnalytics = hasFriendSharedAnalyticsWith(selectedFriend?.id);
-  const hasProgramFromFriend = receivedPrograms.some(
-    (p) => p.senderId === selectedFriend?.id,
-  );
-  const hasWatch = hasReceivedPermission(selectedFriend?.id, "watch_session");
-
-  const tabs: FriendTabDescriptor[] = [
-    { key: "history", label: "📅 History", locked: !hasAnalytics },
-    { key: "analytics", label: "📊 Analytics", locked: !hasAnalytics },
-    { key: "program", label: "📋 Program", locked: !hasProgramFromFriend },
-    { key: "live", label: "🔴 Live", locked: !hasWatch },
-    { key: "actions", label: "⚙️ Actions", locked: false },
-  ];
-
-  return (
-    <View style={styles.friendTabContainer}>
-      {tabs.map((tab) => (
-        <TouchableOpacity
-          key={tab.key}
-          style={[
-            styles.friendTab,
-            activeFriendTab === tab.key && styles.friendTabActive,
-            tab.locked && { opacity: 0.35 },
-          ]}
-          onPress={() =>
-            tab.locked ? onLockedTab(tab.key) : onSelectTab(tab.key)
-          }
-        >
-          <Text
-            style={[
-              styles.friendTabText,
-              activeFriendTab === tab.key && styles.friendTabTextActive,
-            ]}
-            numberOfLines={1}
-          >
-            {tab.label}
-            {tab.locked ? " 🔒" : ""}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-}
-
-type ProgramDay = NonNullable<ProgramData["days"]>[number];
-type ProgramExercise = NonNullable<ProgramDay["exercises"]>[number];
-
-function getProgramPersonEntries(
-  exercise: ProgramExercise,
-  selectedProgram: string | null,
-): Array<[string, number]> {
-  const setsByPerson = exercise.setsByPerson ?? {};
-  if (selectedProgram) {
-    return [[selectedProgram, Number(setsByPerson[selectedProgram] ?? 0)]];
-  }
-  return Object.entries(setsByPerson).map(
-    ([person, count]) => [person, Number(count)] as [string, number],
-  );
-}
-
-function getProgramDayTitle(day: ProgramDay): string {
-  if (!day.dayTitle) return "";
-  return day.dayTitle.includes("—")
-    ? day.dayTitle.split("—")[1].trim()
-    : day.dayTitle;
-}
-
-interface ProgramExerciseRowProps {
-  readonly exercise: ProgramExercise;
-  readonly exIdx: number;
-  readonly selectedProgram: string | null;
-  readonly styles: ReturnType<typeof makeStyles>;
-}
-
-function ProgramExerciseRow({
+const SessionExerciseGroup = React.memo(function SessionExerciseGroup({
   exercise,
-  exIdx,
-  selectedProgram,
   styles,
-}: ProgramExerciseRowProps): React.JSX.Element {
-  const personEntries = getProgramPersonEntries(exercise, selectedProgram);
+}: SessionExerciseGroupProps): React.JSX.Element {
   return (
-    <View style={styles.programExerciseRow}>
-      <View style={styles.programExerciseLeft}>
-        <Text style={styles.programExerciseName}>
-          {exercise.name ?? `Exercise ${exIdx + 1}`}
-        </Text>
-        {exercise.muscleGroup ? (
-          <Text style={styles.programExerciseSets}>{exercise.muscleGroup}</Text>
-        ) : null}
-      </View>
-      <View style={styles.programSetsRow}>
-        {personEntries.map(([person, count]) => (
-          <View key={person} style={styles.programSetsBadge}>
-            <Text style={styles.programSetsBadgeText}>{count}</Text>
-            <Text style={styles.programSetsBadgeLabel}>{person}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-interface ProgramDayCardProps {
-  readonly day: ProgramDay;
-  readonly dayIdx: number;
-  readonly selectedProgram: string | null;
-  readonly styles: ReturnType<typeof makeStyles>;
-}
-
-function ProgramDayCard({
-  day,
-  dayIdx,
-  selectedProgram,
-  styles,
-}: ProgramDayCardProps): React.JSX.Element | null {
-  const exercises = Array.isArray(day.exercises)
-    ? day.exercises.filter(
-        (ex) =>
-          !selectedProgram ||
-          Number(ex.setsByPerson?.[selectedProgram] ?? 0) > 0,
-      )
-    : [];
-  if (!exercises.length) return null;
-
-  return (
-    <View style={styles.programDayCard}>
-      <View style={styles.programDayHeader}>
-        <Text style={styles.programDayNumber}>
-          Day {day.dayNumber ?? dayIdx + 1}
-        </Text>
-        <Text style={styles.programDayTitle} numberOfLines={2}>
-          {getProgramDayTitle(day)}
+    <View style={styles.exerciseCard}>
+      <View style={styles.exerciseHeader}>
+        <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+        <Text style={styles.exerciseSetsCount}>
+          {exercise.sets.length} sets
         </Text>
       </View>
-        {exercises.map((exercise, exIdx) => (
-          <ProgramExerciseRow
-            key={exercise.name ?? `exercise-${exIdx}`}
-          exercise={exercise}
-          exIdx={exIdx}
-          selectedProgram={selectedProgram}
-          styles={styles}
-        />
+      {exercise.sets.map((set) => (
+        <View
+          key={set.id ?? `set-${set.set_index}`}
+          style={styles.setTimingCard}
+        >
+          <Text style={styles.setTimingTitle}>Set {set.set_index + 1}</Text>
+          <Text style={styles.setTimingDetail}>
+            {parseFloat(String(set.weight ?? 0))}kg ×{" "}
+            {Number.parseInt(String(set.reps ?? 0))}
+          </Text>
+        </View>
       ))}
     </View>
   );
-}
-
-interface ProgramPeopleSelectorProps {
-  readonly options: string[];
-  readonly selectedProgram: string | null;
-  readonly onSelect: (option: string | null) => void;
-  readonly styles: ReturnType<typeof makeStyles>;
-}
-
-function ProgramPeopleSelector({
-  options,
-  selectedProgram,
-  onSelect,
-  styles,
-}: ProgramPeopleSelectorProps): React.JSX.Element {
-  return (
-    <View style={styles.peopleSelectorContainer}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.peopleSelectorScroll}
-      >
-        {options.map((option) => {
-          const active =
-            selectedProgram === option ||
-            (option === "All" && !selectedProgram);
-          return (
-            <TouchableOpacity
-              key={option}
-              style={[styles.peoplePill, active && styles.peoplePillActive]}
-              onPress={() => onSelect(option === "All" ? null : option)}
-            >
-              <Text
-                style={[
-                  styles.peoplePillText,
-                  active && styles.peoplePillTextActive,
-                ]}
-              >
-                {option}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-interface FriendProgramTabProps {
-  readonly selectedFriend: Friend | null;
-  readonly receivedPrograms: ReceivedProgram[];
-  readonly selectedProgram: string | null;
-  readonly setSelectedProgram: (option: string | null) => void;
-  readonly styles: ReturnType<typeof makeStyles>;
-}
-
-function FriendProgramTab({
-  selectedFriend,
-  receivedPrograms,
-  selectedProgram,
-  setSelectedProgram,
-  styles,
-}: FriendProgramTabProps): React.JSX.Element {
-  const programsFromFriend = receivedPrograms.filter(
-    (p) => p.senderId === selectedFriend?.id,
-  );
-
-  if (!programsFromFriend.length) {
-    return (
-      <View style={styles.emptyState}>
-        <Text style={styles.emptyIcon}>🔒</Text>
-        <Text style={styles.emptyTitle}>No program shared</Text>
-        <Text style={styles.emptyText}>
-          {selectedFriend?.username} hasn't shared a program with you.
-        </Text>
-      </View>
-    );
-  }
-
-  const program = programsFromFriend[0];
-  const pd = program.programData;
-  const splitNames = pd?.days?.[0]?.exercises?.[0]?.setsByPerson
-    ? Object.keys(pd.days[0].exercises[0].setsByPerson)
-    : [];
-  const allOptions = ["All", ...splitNames];
-
-  return (
-    <View style={{ flex: 1 }}>
-      <ProgramPeopleSelector
-        options={allOptions}
-        selectedProgram={selectedProgram}
-        onSelect={setSelectedProgram}
-        styles={styles}
-      />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-      >
-        <View style={styles.programViewHeader}>
-          <Text style={styles.programViewTitle}>
-            {pd?.name || "Shared Program"}
-          </Text>
-          <Text style={styles.programViewMeta}>
-            {pd?.totalDays} days
-            {splitNames.length ? ` • ${splitNames.join(" / ")}` : ""}
-          </Text>
-          <Text style={styles.programViewShared}>
-            Shared {formatDate(program.sharedAt)}
-          </Text>
-        </View>
-        {Array.isArray(pd?.days) &&
-          pd.days!.map((day, dayIdx) => (
-            <ProgramDayCard
-              key={day.dayNumber ?? `day-${dayIdx}`}
-              day={day}
-              dayIdx={dayIdx}
-              selectedProgram={selectedProgram}
-              styles={styles}
-            />
-          ))}
-      </ScrollView>
-    </View>
-  );
-}
-
-const RECEIVED_PERMISSION_TYPES: Array<{
-  type: string;
-  icon: string;
-  label: string;
-}> = [
-  { type: "history", icon: "📅", label: "History Access" },
-  { type: "analytics", icon: "📊", label: "Analytics Access" },
-  { type: "program", icon: "📋", label: "Shared Program" },
-  { type: "joint_session", icon: "🏋️", label: "Joint Session" },
-  { type: "watch_session", icon: "👀", label: "Watch Session" },
-];
-
-function getShareProgramDescription(
-  workoutData: unknown,
-  username: string | undefined,
-): string {
-  if (!workoutData)
-    return "No program loaded. Load a workout program first to share it.";
-  const wd = workoutData as unknown as {
-    split?: string[];
-    people?: string[];
-    totalDays?: number;
-  };
-  const split = wd.split ?? wd.people;
-  return `Share your current program (${split?.join("/")} — ${wd.totalDays} days) with ${username}.`;
-}
-
-interface FriendGrantedPermissionsProps {
-  readonly selectedFriend: Friend | null;
-  readonly workoutData: unknown;
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly getGrantedPermission: (
-    friendId: number | string,
-    type: string,
-  ) => GrantedPermission | undefined;
-  readonly isPermLoading: (
-    friendId: number | string | undefined,
-    type: string,
-  ) => boolean;
-  readonly onGrantPermission: (friend: Friend, type: string) => void;
-  readonly onGrantProgramPermission: (friend: Friend) => void;
-  readonly onRevokePermission: (friend: Friend, type: string) => void;
-}
-
-function FriendGrantedPermissions({
-  selectedFriend,
-  workoutData,
-  styles,
-  getGrantedPermission,
-  isPermLoading,
-  onGrantPermission,
-  onGrantProgramPermission,
-  onRevokePermission,
-}: FriendGrantedPermissionsProps): React.JSX.Element {
-  const friendId = selectedFriend?.id as number | string;
-  return (
-    <>
-      <Text style={styles.actionsTabSectionTitle}>
-        Permissions for {selectedFriend?.username}
-      </Text>
-      <Text style={styles.actionsTabSectionHint}>
-        Control what {selectedFriend?.username} is allowed to see and do.
-      </Text>
-
-      <PermissionRow
-        icon='📅'
-        title='History Access'
-        description={`Let ${selectedFriend?.username} view your workout history calendar and session details.`}
-        granted={!!getGrantedPermission(friendId, "history")}
-        loading={isPermLoading(selectedFriend?.id, "history")}
-        onGrant={() =>
-          selectedFriend && onGrantPermission(selectedFriend, "history")
-        }
-        onRevoke={() =>
-          selectedFriend && onRevokePermission(selectedFriend, "history")
-        }
-      />
-
-      <PermissionRow
-        icon='📊'
-        title='Analytics Access'
-        description={`Let ${selectedFriend?.username} view your workout analytics and progress charts.`}
-        granted={!!getGrantedPermission(friendId, "analytics")}
-        loading={isPermLoading(selectedFriend?.id, "analytics")}
-        onGrant={() =>
-          selectedFriend && onGrantPermission(selectedFriend, "analytics")
-        }
-        onRevoke={() =>
-          selectedFriend && onRevokePermission(selectedFriend, "analytics")
-        }
-      />
-
-      <PermissionRow
-        icon='📋'
-        title='Share My Program'
-        description={getShareProgramDescription(
-          workoutData,
-          selectedFriend?.username,
-        )}
-        granted={!!getGrantedPermission(friendId, "program")}
-        loading={isPermLoading(selectedFriend?.id, "program")}
-        onGrant={() =>
-          selectedFriend && onGrantProgramPermission(selectedFriend)
-        }
-        onRevoke={() =>
-          selectedFriend && onRevokePermission(selectedFriend, "program")
-        }
-      />
-
-      <PermissionRow
-        icon='🏋️'
-        title='Joint Session'
-        description={`Let ${selectedFriend?.username} invite you to lift together when you're both working out.`}
-        granted={!!getGrantedPermission(friendId, "joint_session")}
-        loading={isPermLoading(selectedFriend?.id, "joint_session")}
-        onGrant={() =>
-          selectedFriend && onGrantPermission(selectedFriend, "joint_session")
-        }
-        onRevoke={() =>
-          selectedFriend && onRevokePermission(selectedFriend, "joint_session")
-        }
-      />
-
-      <PermissionRow
-        icon='👀'
-        title='Watch Session'
-        description={`Let ${selectedFriend?.username} watch your active workout session live.`}
-        granted={!!getGrantedPermission(friendId, "watch_session")}
-        loading={isPermLoading(selectedFriend?.id, "watch_session")}
-        onGrant={() =>
-          selectedFriend && onGrantPermission(selectedFriend, "watch_session")
-        }
-        onRevoke={() =>
-          selectedFriend && onRevokePermission(selectedFriend, "watch_session")
-        }
-      />
-    </>
-  );
-}
-
-interface FriendReceivedPermissionsProps {
-  readonly selectedFriend: Friend | null;
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly permStyles: ReturnType<typeof makePermStyles>;
-  readonly colors: ThemeColors;
-  readonly hasReceivedPermission: (
-    friendId: number | string | undefined,
-    type: string,
-  ) => boolean;
-}
-
-function FriendReceivedPermissions({
-  selectedFriend,
-  styles,
-  permStyles,
-  colors,
-  hasReceivedPermission,
-}: FriendReceivedPermissionsProps): React.JSX.Element {
-  return (
-    <>
-      <Text style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}>
-        {selectedFriend?.username}'s Permissions for You
-      </Text>
-      <Text style={styles.actionsTabSectionHint}>
-        What {selectedFriend?.username} has allowed you to do.
-      </Text>
-
-      {RECEIVED_PERMISSION_TYPES.map(({ type, icon, label }) => {
-        const has = hasReceivedPermission(selectedFriend?.id, type);
-        return (
-          <View
-            key={type}
-            style={[
-              permStyles.row,
-              has ? permStyles.rowGranted : { opacity: 0.5 },
-            ]}
-          >
-            <Text style={permStyles.icon}>{icon}</Text>
-            <View style={permStyles.text}>
-              <Text style={permStyles.title}>{label}</Text>
-              <Text style={permStyles.desc}>
-                {has
-                  ? `${selectedFriend?.username} has granted you this.`
-                  : `${selectedFriend?.username} hasn't granted this yet.`}
-              </Text>
-            </View>
-            <View
-              style={[
-                permStyles.grantBtn,
-                {
-                  backgroundColor: has ? colors.successLight : colors.separator,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  permStyles.grantBtnText,
-                  { color: has ? colors.success : colors.textMuted },
-                ]}
-              >
-                {has ? "✓ Granted" : "Not yet"}
-              </Text>
-            </View>
-          </View>
-        );
-      })}
-    </>
-  );
-}
-
-interface LiveSessionActionProps {
-  readonly selectedFriend: Friend | null;
-  readonly friendSessionStatuses: Record<string | number, boolean>;
-  readonly isWatching: boolean;
-  readonly watchTarget: { friendId?: string } | null;
-  readonly checkingActiveSession: boolean;
-  readonly onWatch: (friend: Friend) => void;
-  readonly onStopWatching: () => void;
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly watchStyles: ReturnType<typeof makeWatchStyles>;
-  readonly colors: ThemeColors;
-}
-
-function LiveSessionAction({
-  selectedFriend,
-  friendSessionStatuses,
-  isWatching,
-  watchTarget,
-  checkingActiveSession,
-  onWatch,
-  onStopWatching,
-  styles,
-  watchStyles,
-  colors,
-}: LiveSessionActionProps): React.JSX.Element {
-  const friendActive =
-    !!friendSessionStatuses[selectedFriend?.id as number | string];
-  const alreadyWatchingThis =
-    isWatching && watchTarget?.friendId === String(selectedFriend?.id);
-
-  return (
-    <>
-      <Text style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}>
-        Live Session
-      </Text>
-      {alreadyWatchingThis && (
-        <View style={[styles.actionRow, watchStyles.activeRow]}>
-          <Text style={styles.actionRowIcon}>👀</Text>
-          <View style={styles.actionRowText}>
-            <Text style={[styles.actionRowTitle, { color: colors.info }]}>
-              Watching Now
-            </Text>
-            <Text style={styles.actionRowSub}>
-              Switch to the Workout tab to see {selectedFriend?.username}'s live
-              session.
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={watchStyles.stopBtn}
-            onPress={onStopWatching}
-          >
-            <Text style={watchStyles.stopBtnText}>Stop</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      {!alreadyWatchingThis && !friendActive && (
-        <View style={[styles.actionRow, { opacity: 0.55 }]}>
-          <Text style={styles.actionRowIcon}>👀</Text>
-          <View style={styles.actionRowText}>
-            <Text style={styles.actionRowTitle}>View Current Session</Text>
-            <Text style={styles.actionRowSub}>
-              {selectedFriend?.username} isn't working out right now.
-            </Text>
-          </View>
-        </View>
-      )}
-      {!alreadyWatchingThis && friendActive && (
-        <TouchableOpacity
-          style={[
-            styles.actionRow,
-            watchStyles.availableRow,
-            checkingActiveSession && { opacity: 0.7 },
-          ]}
-          onPress={() => selectedFriend && onWatch(selectedFriend)}
-          disabled={checkingActiveSession}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.actionRowIcon}>👀</Text>
-          <View style={styles.actionRowText}>
-            <Text style={[styles.actionRowTitle, { color: colors.info }]}>
-              View Current Session
-            </Text>
-            <Text style={styles.actionRowSub}>
-              {selectedFriend?.username} is working out now — watch their
-              session live.
-            </Text>
-          </View>
-          {checkingActiveSession ? (
-            <ActivityIndicator size='small' color='#2563eb' />
-          ) : (
-            <Text style={[styles.actionRowArrow, { color: colors.info }]}>
-              ›
-            </Text>
-          )}
-        </TouchableOpacity>
-      )}
-    </>
-  );
-}
-
-interface LiftTogetherActionProps {
-  readonly selectedFriend: Friend | null;
-  readonly friendSessionStatuses: Record<string | number, boolean>;
-  readonly isInJointSession: boolean;
-  readonly getInviteStatusForFriend: (friendId: number | string) => string;
-  readonly onLeaveJointSession: () => void;
-  readonly onSendInvite: (friend: Friend) => void;
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly jointStyles: ReturnType<typeof makeJointStyles>;
-  readonly colors: ThemeColors;
-}
-
-function LiftTogetherAction({
-  selectedFriend,
-  friendSessionStatuses,
-  isInJointSession,
-  getInviteStatusForFriend,
-  onLeaveJointSession,
-  onSendInvite,
-  styles,
-  jointStyles,
-  colors,
-}: LiftTogetherActionProps): React.JSX.Element {
-  const friendActive =
-    !!friendSessionStatuses[selectedFriend?.id as number | string];
-  const cs = getInviteStatusForFriend(selectedFriend?.id as number | string);
-  const jointActive = isInJointSession && cs === "active";
-  const busy = cs === "sending" || cs === "waiting";
-
-  return (
-    <>
-      <Text style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}>
-        Lift Together
-      </Text>
-      {jointActive && (
-        <View style={[styles.actionRow, jointStyles.activeRow]}>
-          <View style={jointStyles.liveDot} />
-          <View style={styles.actionRowText}>
-            <Text style={[styles.actionRowTitle, { color: "#047857" }]}>
-              Joint session active 🎉
-            </Text>
-            <Text style={styles.actionRowSub}>
-              Your sets are synced – open the Workout tab.
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={jointStyles.leaveBtn}
-            onPress={onLeaveJointSession}
-          >
-            <Text style={jointStyles.leaveBtnText}>Leave</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      {!jointActive && !friendActive && (
-        <View style={[styles.actionRow, { opacity: 0.6 }]}>
-          <Text style={styles.actionRowIcon}>🏋️</Text>
-          <View style={styles.actionRowText}>
-            <Text style={styles.actionRowTitle}>Lift Together</Text>
-            <Text style={styles.actionRowSub}>
-              {selectedFriend?.username} is not currently in a workout session.
-            </Text>
-          </View>
-        </View>
-      )}
-      {!jointActive && friendActive && (
-        <TouchableOpacity
-          style={[
-            styles.actionRow,
-            jointStyles.inviteRow,
-            cs === "waiting" && { opacity: 0.7 },
-          ]}
-          onPress={() => selectedFriend && onSendInvite(selectedFriend)}
-          disabled={busy}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.actionRowIcon}>🏋️</Text>
-          <View style={styles.actionRowText}>
-            <Text style={[styles.actionRowTitle, { color: colors.accentDark }]}>
-              {cs === "waiting"
-                ? "Waiting for response…"
-                : "Invite to Lift Together"}
-            </Text>
-            <Text style={styles.actionRowSub}>
-              {selectedFriend?.username} is working out. Sync up!
-            </Text>
-          </View>
-          {busy ? (
-            <ActivityIndicator size='small' color='#7c3aed' />
-          ) : (
-            <Text style={[styles.actionRowArrow, { color: colors.accentDark }]}>
-              ›
-            </Text>
-          )}
-        </TouchableOpacity>
-      )}
-    </>
-  );
-}
-
-interface FriendActionsTabProps {
-  readonly selectedFriend: Friend | null;
-  readonly styles: ReturnType<typeof makeStyles>;
-  readonly permStyles: ReturnType<typeof makePermStyles>;
-  readonly watchStyles: ReturnType<typeof makeWatchStyles>;
-  readonly jointStyles: ReturnType<typeof makeJointStyles>;
-  readonly colors: ThemeColors;
-  readonly workoutData: unknown;
-  readonly getGrantedPermission: (
-    friendId: number | string,
-    type: string,
-  ) => GrantedPermission | undefined;
-  readonly isPermLoading: (
-    friendId: number | string | undefined,
-    type: string,
-  ) => boolean;
-  readonly hasReceivedPermission: (
-    friendId: number | string | undefined,
-    type: string,
-  ) => boolean;
-  readonly onGrantPermission: (friend: Friend, type: string) => void;
-  readonly onRevokePermission: (friend: Friend, type: string) => void;
-  readonly onGrantProgramPermission: (friend: Friend) => void;
-  readonly friendSessionStatuses: Record<string | number, boolean>;
-  readonly isWatching: boolean;
-  readonly watchTarget: { friendId?: string } | null;
-  readonly checkingActiveSession: boolean;
-  readonly onWatchSession: (friend: Friend) => void;
-  readonly onStopWatching: () => void;
-  readonly hasOwnActiveSession: boolean;
-  readonly isInJointSession: boolean;
-  readonly getInviteStatusForFriend: (friendId: number | string) => string;
-  readonly onLeaveJointSession: () => void;
-  readonly onSendInvite: (friend: Friend) => void;
-  readonly onRemoveFriend: (friend: Friend) => void;
-}
-
-function FriendActionsTab({
-  selectedFriend,
-  styles,
-  permStyles,
-  watchStyles,
-  jointStyles,
-  colors,
-  workoutData,
-  getGrantedPermission,
-  isPermLoading,
-  hasReceivedPermission,
-  onGrantPermission,
-  onRevokePermission,
-  onGrantProgramPermission,
-  friendSessionStatuses,
-  isWatching,
-  watchTarget,
-  checkingActiveSession,
-  onWatchSession,
-  onStopWatching,
-  hasOwnActiveSession,
-  isInJointSession,
-  getInviteStatusForFriend,
-  onLeaveJointSession,
-  onSendInvite,
-  onRemoveFriend,
-}: FriendActionsTabProps): React.JSX.Element {
-  const showLiveSession = hasReceivedPermission(
-    selectedFriend?.id,
-    "watch_session",
-  );
-  const showLiftTogether =
-    hasOwnActiveSession &&
-    hasReceivedPermission(selectedFriend?.id, "joint_session");
-
-  return (
-    <ScrollView style={styles.modalScroll}>
-      <View style={styles.actionsTabContent}>
-        <FriendGrantedPermissions
-          selectedFriend={selectedFriend}
-          workoutData={workoutData}
-          styles={styles}
-          getGrantedPermission={getGrantedPermission}
-          isPermLoading={isPermLoading}
-          onGrantPermission={onGrantPermission}
-          onGrantProgramPermission={onGrantProgramPermission}
-          onRevokePermission={onRevokePermission}
-        />
-
-        <FriendReceivedPermissions
-          selectedFriend={selectedFriend}
-          styles={styles}
-          permStyles={permStyles}
-          colors={colors}
-          hasReceivedPermission={hasReceivedPermission}
-        />
-
-        {showLiveSession && (
-          <LiveSessionAction
-            selectedFriend={selectedFriend}
-            friendSessionStatuses={friendSessionStatuses}
-            isWatching={isWatching}
-            watchTarget={watchTarget}
-            checkingActiveSession={checkingActiveSession}
-            onWatch={onWatchSession}
-            onStopWatching={onStopWatching}
-            styles={styles}
-            watchStyles={watchStyles}
-            colors={colors}
-          />
-        )}
-
-        {showLiftTogether && (
-          <LiftTogetherAction
-            selectedFriend={selectedFriend}
-            friendSessionStatuses={friendSessionStatuses}
-            isInJointSession={isInJointSession}
-            getInviteStatusForFriend={getInviteStatusForFriend}
-            onLeaveJointSession={onLeaveJointSession}
-            onSendInvite={onSendInvite}
-            styles={styles}
-            jointStyles={jointStyles}
-            colors={colors}
-          />
-        )}
-
-        {/* ═══ Danger Zone ══════════════════════════════════════════ */}
-        <Text style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}>
-          Danger Zone
-        </Text>
-        <TouchableOpacity
-          style={[styles.actionRow, styles.actionRowDanger]}
-          onPress={() => selectedFriend && onRemoveFriend(selectedFriend)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.actionRowIcon}>🚫</Text>
-          <View style={styles.actionRowText}>
-            <Text style={[styles.actionRowTitle, { color: colors.error }]}>
-              Remove Friend
-            </Text>
-            <Text style={styles.actionRowSub}>
-              Remove {selectedFriend?.username} from your friends list
-            </Text>
-          </View>
-          <Text style={[styles.actionRowArrow, { color: colors.error }]}>
-            ›
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
-}
+});
 
 export default function FriendsScreen(): React.JSX.Element {
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const liftStyles = makeLiftStyles(colors);
   const permStyles = makePermStyles(colors);
   const watchStyles = makeWatchStyles(colors);
   const jointStyles = makeJointStyles(colors);
   const { user } = useAuth();
+  const { workoutData, workoutStartTime, currentSessionId } = useWorkout();
+
   const {
-    workoutData,
-    workoutStartTime,
-    currentSessionId,
     isInJointSession,
     jointSession,
     pendingJointInvite,
@@ -1793,11 +345,12 @@ export default function FriendsScreen(): React.JSX.Element {
     startWatching,
     stopWatching,
     socketLastMessage,
-  } = useWorkout();
+  } = useJointSessionContext();
 
   const { alert, AlertComponent } = useAlert();
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [isOffline, setIsOffline] = useState<boolean>(false);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("friends");
 
@@ -2183,6 +736,12 @@ export default function FriendsScreen(): React.JSX.Element {
 
   const loadData = async () => {
     setLoading(true);
+    if (await isServerless()) {
+      setIsOffline(true);
+      setLoading(false);
+      return;
+    }
+    setIsOffline(false);
     try {
       await Promise.all([loadFriends(), loadPermissions()]);
     } catch (_error) {
@@ -2664,6 +1223,17 @@ export default function FriendsScreen(): React.JSX.Element {
     );
   }
 
+  if (isOffline) {
+    return (
+      <SafeAreaView style={styles.loadingContainer} edges={["top"]}>
+        <Text style={styles.loadingText}>
+          Friends require an internet connection. Switch to Server Mode in
+          Settings to use this feature.
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────
   // RENDER HELPERS — WIDGET CONTENT
   // ─────────────────────────────────────────────────────────────
@@ -3042,7 +1612,6 @@ export default function FriendsScreen(): React.JSX.Element {
             <FriendActionsTab
               selectedFriend={selectedFriend}
               styles={styles}
-              permStyles={permStyles}
               watchStyles={watchStyles}
               jointStyles={jointStyles}
               colors={colors}
@@ -3150,7 +1719,7 @@ export default function FriendsScreen(): React.JSX.Element {
                       selectedSession.muscle_groups.length > 0 && (
                         <View style={styles.muscleGroupsRow}>
                           {selectedSession.muscle_groups.map((g) => (
-                              <View key={String(g)} style={styles.muscleTag}>
+                            <View key={String(g)} style={styles.muscleTag}>
                               <Text style={styles.muscleTagText}>
                                 {String(g)}
                               </Text>
@@ -3190,31 +1759,13 @@ export default function FriendsScreen(): React.JSX.Element {
                     selectedSession.groupedExercises.length > 0 && (
                       <View style={styles.detailSection}>
                         <Text style={styles.detailSectionTitle}>Exercises</Text>
-                        {selectedSession.groupedExercises.map(
-                          (exercise) => (
-                            <View key={exercise.exerciseName} style={styles.exerciseCard}>
-                              <View style={styles.exerciseHeader}>
-                                <Text style={styles.exerciseName}>
-                                  {exercise.exerciseName}
-                                </Text>
-                                <Text style={styles.exerciseSetsCount}>
-                                  {exercise.sets.length} sets
-                                </Text>
-                              </View>
-                                {exercise.sets.map((set) => (
-                                  <View key={set.id ?? `set-${set.set_index}`} style={styles.setTimingCard}>
-                                  <Text style={styles.setTimingTitle}>
-                                    Set {set.set_index + 1}
-                                  </Text>
-                                  <Text style={styles.setTimingDetail}>
-                                    {parseFloat(String(set.weight ?? 0))}kg ×{" "}
-                                    {Number.parseInt(String(set.reps ?? 0))}
-                                  </Text>
-                                </View>
-                              ))}
-                            </View>
-                          ),
-                        )}
+                        {selectedSession.groupedExercises.map((exercise) => (
+                          <SessionExerciseGroup
+                            key={exercise.exerciseName}
+                            exercise={exercise}
+                            styles={styles}
+                          />
+                        ))}
                       </View>
                     )}
                 </>
@@ -3298,7 +1849,7 @@ export default function FriendsScreen(): React.JSX.Element {
   );
 }
 
-const makeWatchStyles = (colors: ThemeColors) =>
+export const makeWatchStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     pill: {
       backgroundColor: colors.infoLight,
@@ -3330,7 +1881,7 @@ const makeWatchStyles = (colors: ThemeColors) =>
     stopBtnText: { color: colors.error, fontSize: 13, fontWeight: "600" },
   });
 
-const makeJointStyles = (colors: ThemeColors) =>
+export const makeJointStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     activeRow: {
       backgroundColor: "#ecfdf5",
@@ -3363,10 +1914,10 @@ const makeJointStyles = (colors: ThemeColors) =>
     leaveBtnText: { color: colors.error, fontSize: 13, fontWeight: "600" },
   });
 
-const makeStyles = (colors: ThemeColors) =>
+export const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 20, paddingTop: 60, paddingBottom: 120 },
+    content: { padding: 10, paddingTop: 60, paddingBottom: 120 },
     loadingContainer: {
       flex: 1,
       justifyContent: "center",
@@ -3450,6 +2001,8 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 12,
     },
     listContainer: { gap: 12 },
+    friendListBounded: { maxHeight: 480 },
+    friendSeparator: { height: 12 },
     friendCard: {
       backgroundColor: colors.surface,
       borderRadius: 12,

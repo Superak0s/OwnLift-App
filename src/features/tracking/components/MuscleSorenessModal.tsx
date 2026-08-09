@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   TextInput,
   ScrollView,
 } from "react-native";
@@ -11,6 +10,9 @@ import { useTheme } from "@shared/context/ThemeContext";
 import { domsApi } from "../services";
 import { MuscleGroup, MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 import ModalSheet from "@shared/components/ModalSheet";
+import { IntensityPicker } from "@shared/components/IntensityPicker";
+import { FillBar } from "@shared/components/FillBar";
+import { getSeverityColor } from "@utils/severityColor";
 
 interface MuscleSorenessModalProps {
   readonly visible: boolean;
@@ -19,8 +21,6 @@ interface MuscleSorenessModalProps {
   readonly onSuccess: () => void;
   readonly stayOpen?: boolean;
 }
-
-const INTENSITY_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export const MuscleSorenessModal: React.FC<MuscleSorenessModalProps> = ({
   visible,
@@ -43,14 +43,6 @@ export const MuscleSorenessModal: React.FC<MuscleSorenessModalProps> = ({
     if (value <= 6) return "Moderate";
     if (value <= 8) return "Severe";
     return "Extreme";
-  };
-
-  const getIntensityColor = (value: number) => {
-    if (value <= 2) return "#6BCB77";
-    if (value <= 4) return "#FFD93D";
-    if (value <= 6) return "#FFA94D";
-    if (value <= 8) return "#FF8787";
-    return "#FF6B6B";
   };
 
   const handleSubmit = async () => {
@@ -96,7 +88,7 @@ export const MuscleSorenessModal: React.FC<MuscleSorenessModalProps> = ({
         </Text>
 
         <View style={styles.intensityDisplay}>
-          <Text style={[styles.intensityValue, { color: getIntensityColor(intensity) }]}>
+          <Text style={[styles.intensityValue, { color: getSeverityColor(intensity) }]}>
             {intensity}
           </Text>
           <Text style={[styles.intensityLabel, { color: colors.textPrimary }]}>
@@ -104,42 +96,25 @@ export const MuscleSorenessModal: React.FC<MuscleSorenessModalProps> = ({
           </Text>
         </View>
 
-        <View style={styles.intensityPicker}>
-          {INTENSITY_OPTIONS.map((value) => (
-            <TouchableOpacity
-              key={value}
-              style={[
-                styles.intensityButton,
-                {
-                  backgroundColor: intensity === value ? getIntensityColor(value) : colors.surface,
-                  borderColor: intensity === value ? getIntensityColor(value) : colors.inputBorder,
-                },
-              ]}
-              onPress={() => setIntensity(value)}
-            >
-              <Text
-                style={[
-                  styles.intensityButtonText,
-                  { color: intensity === value ? "white" : colors.textPrimary },
-                ]}
-              >
-                {value}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <IntensityPicker
+          value={intensity}
+          onChange={setIntensity}
+          getColor={getSeverityColor}
+          unselectedBackground={colors.surface}
+          unselectedBorder={colors.inputBorder}
+          unselectedTextColor={colors.textPrimary}
+          styles={{
+            container: styles.intensityPicker,
+            button: styles.intensityButton,
+            buttonText: styles.intensityButtonText,
+          }}
+        />
 
-        <View style={styles.intensityBar}>
-          <View
-            style={[
-              styles.intensityBarFill,
-              {
-                width: `${(intensity / 10) * 100}%`,
-                backgroundColor: getIntensityColor(intensity),
-              },
-            ]}
-          />
-        </View>
+        <FillBar
+          percentage={(intensity / 10) * 100}
+          color={getSeverityColor(intensity)}
+          styles={{ track: styles.intensityBar, fill: styles.intensityBarFill }}
+        />
 
         <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>
           Notes (optional)

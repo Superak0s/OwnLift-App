@@ -10,8 +10,11 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useRealtimeSocket } from "./hooks/useRealtimeSocket";
+import { sinceBoot } from "../services/debugClock";
+import logger from "../services/logger";
 import { authService } from "@features/auth/services";
 import { workoutApi } from "@features/workout/services";
+import { programApi } from "@features/plan/services";
 import type { WorkoutAnalytics } from "@features/workout/services/on/workout";
 
 import {
@@ -39,7 +42,10 @@ import {
 
 import { Platform } from "react-native";
 import { initializeSupplementNotifications } from "../../../tasks/supplementLocationTask";
-import { getNotifications, scheduleNotification } from "../services/notifications";
+import {
+  getNotifications,
+  scheduleNotification,
+} from "../services/notifications";
 
 import {
   isSetComplete,
@@ -54,7 +60,7 @@ import { useSyncManager } from "./hooks/useSyncManager";
 import { useSessionOperations } from "./hooks/useSessionOperations";
 import { useProgramOperations } from "./hooks/useProgramOperations";
 import { useServerSync } from "./hooks/useServerSync";
-import { useJointSession } from "./hooks/useJointSession";
+import { JointSessionProvider } from "./JointSessionContext";
 
 import type {
   WorkoutData,
@@ -65,20 +71,13 @@ import type {
   Exercise,
 } from "../types";
 import type { WebSocketMessage } from "./hooks/useRealtimeSocket";
-import type {
-  JointSession,
-  PartnerProgress,
-  PartnerCompletedSet,
-  WatchTarget,
-  JointExerciseEntry,
-} from "./hooks/useJointSession";
+import type { JointExerciseEntry } from "./hooks/useJointSession";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ServerAnalyticsType = WorkoutAnalytics | null;
 
 interface WorkoutContextValue {
-  socketLastMessage: WebSocketMessage | null;
   userId: string | null;
   workoutData: WorkoutData | null;
   selectedSplit: string | null;
@@ -93,8 +92,6 @@ interface WorkoutContextValue {
   isDemoMode: boolean;
   serverAnalytics: ServerAnalyticsType;
   useManualTime: boolean;
-  pendingSyncs: PendingSync[];
-  isSyncing: boolean;
   lastActivityTime: number | null;
   weightUnit: "kg" | "lbs";
   saveWorkoutData: (data: WorkoutData | null) => Promise<void>;
@@ -177,37 +174,6 @@ interface WorkoutContextValue {
   cleanupInvalidSyncs: () => Promise<void>;
   clearAllData: () => Promise<void>;
   checkAndEndStaleSession: () => Promise<boolean>;
-  jointSession: JointSession | null;
-  isInJointSession: boolean;
-  partnerProgress: PartnerProgress | null;
-  partnerExerciseList: Array<{ name: string; sets: number }>;
-  myJointProgress: Record<string, unknown> | null;
-  pendingJointInvite: WebSocketMessage | null;
-  jointInviteStatus: string;
-  isPartnerReady: boolean;
-  syncPulse: boolean;
-  sendJointInvite: (toUserId: string) => Promise<boolean>;
-  acceptJointInvite: () => Promise<boolean>;
-  declineJointInvite: () => Promise<void>;
-  leaveJointSession: () => Promise<void>;
-  pushJointProgress: (args: {
-    exerciseIndex: number | null;
-    setIndex: number | null;
-    exerciseName: string | null;
-    readyForNext?: boolean;
-  }) => Promise<void>;
-  partnerCompletedSets: PartnerCompletedSet[];
-  isWatching: boolean;
-  watchTarget: WatchTarget | null;
-  watchSession: unknown;
-  watchLoading: boolean;
-  watchError: string | null;
-  startWatching: (
-    friendId: string,
-    friendUsername: string,
-    sessionId: string,
-  ) => Promise<boolean>;
-  stopWatching: () => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -223,10 +189,31 @@ export const useWorkout = (): WorkoutContextValue => {
   return context;
 };
 
+// isSyncing/pendingSyncs live in their own context so the 30s background-sync
+// tick doesn't re-render every useWorkout() consumer — only SettingsScreen
+// (the one place that displays sync status) subscribes to this.
+interface WorkoutSyncStatus {
+  pendingSyncs: PendingSync[];
+  isSyncing: boolean;
+}
+
+const WorkoutSyncStatusContext = createContext<WorkoutSyncStatus | undefined>(
+  undefined,
+);
+
+export const useWorkoutSyncStatus = (): WorkoutSyncStatus => {
+  const context = useContext(WorkoutSyncStatusContext);
+  if (!context)
+    throw new Error(
+      "useWorkoutSyncStatus must be used within a WorkoutProvider",
+    );
+  return context;
+};
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const userId = user?.id ?? null;
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -280,7 +267,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   >(null);
 
   const handleSocketMessage = useCallback((msg: WebSocketMessage) => {
-    console.log("[CONTEXT_WS_MESSAGE]", msg.type);
     jointSessionMessageHandlerRef.current?.(msg);
   }, []);
 
@@ -290,30 +276,33 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     onMessage: handleSocketMessage,
   });
 
-  const jointSessionHook = useJointSession({
-    userId,
-    currentSessionId,
-    workoutStartTime,
-    currentDayExercises: currentDayAllExercises,
-    selectedSplit,
-    socket,
-  });
-
   // ── Fetch analytics ────────────────────────────────────────────────────────
+  // On boot, both the selectedSplit-change effect and the stale-session-check
+  // effect can call this in the same tick (the latter needs fresh numbers
+  // after auto-ending a stale session) — coalesce overlapping calls into one.
+  const fetchAnalyticsInFlightRef = useRef<Promise<void> | null>(null);
   const fetchAnalytics = useCallback(async () => {
-    try {
-      const analytics = await workoutApi.getAnalytics(
-        selectedSplit,
-        currentDay,
-      );
-      if (analytics) {
-        setServerAnalytics(analytics as WorkoutAnalytics);
-        const avg = (analytics as WorkoutAnalytics).averageTimeBetweenSets;
-        if (!useManualTime && avg && avg > 0) setTimeBetweenSets(avg);
+    if (fetchAnalyticsInFlightRef.current)
+      return fetchAnalyticsInFlightRef.current;
+    const run = (async () => {
+      try {
+        const analytics = await workoutApi.getAnalytics(
+          selectedSplit,
+          currentDay,
+        );
+        if (analytics) {
+          setServerAnalytics(analytics as WorkoutAnalytics);
+          const avg = (analytics as WorkoutAnalytics).averageTimeBetweenSets;
+          if (!useManualTime && avg && avg > 0) setTimeBetweenSets(avg);
+        }
+      } catch (error) {
+        console.error("Error fetching analytics:", error);
+      } finally {
+        fetchAnalyticsInFlightRef.current = null;
       }
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
-    }
+    })();
+    fetchAnalyticsInFlightRef.current = run;
+    return run;
   }, [selectedSplit, currentDay, useManualTime]);
   // ── Sub-hooks ──────────────────────────────────────────────────────────────
   const syncManager = useSyncManager({
@@ -406,7 +395,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const saveCurrentDay = useCallback(
     async (day: number) => {
       if (day !== currentDay && workoutStartTime) {
-        console.log(
+        logger.debug(
           `Switching from day ${currentDay} to day ${day}, clearing active workout`,
         );
         await sessionOps.clearActiveWorkout();
@@ -540,7 +529,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       try {
         const newMondayDate = shouldResetForMonday(resetDate);
         if (newMondayDate) {
-          console.log("Resetting completed days and locked days for new week!");
+          logger.info("Resetting completed days and locked days for new week!");
           const empty: CompletedDays = {};
           await saveToStorage(STORAGE_KEYS.COMPLETED_DAYS, empty, userId);
           await saveToStorage(STORAGE_KEYS.LOCKED_DAYS, {}, userId);
@@ -605,19 +594,41 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       const activity = str(STORAGE_KEYS.LAST_ACTIVITY_TIME);
       const weightUnitLoaded = str(STORAGE_KEYS.WEIGHT_UNIT);
 
-      if (data) setWorkoutData(data as WorkoutData);
+      let resolvedData = data;
+      if (!resolvedData) {
+        // No program under the user-scoped key yet — fall back to the
+        // legacy unscoped one (pre-multi-user storage / first-run import).
+        try {
+          const saved = await programApi.fetchSavedProgram();
+          if (saved && (saved as { success?: boolean }).success) {
+            resolvedData = saved as unknown as WorkoutData;
+            await saveToStorage(
+              STORAGE_KEYS.WORKOUT_DATA,
+              resolvedData,
+              userId,
+            );
+          }
+        } catch (error) {
+          if ((error as Error)?.message === "SESSION_EXPIRED") await logout();
+        }
+      }
+      if (resolvedData) {
+        setWorkoutData(resolvedData as WorkoutData);
+      }
       if (person) setSelectedSplit(person as string);
       if (day) setCurrentDay(Number.parseInt(day as string, 10));
       if (completed) setCompletedDays(completed as CompletedDays);
       if (locked) setLockedDays(locked as LockedDays);
       if (overrides) setUnlockedOverrides(overrides as Record<number, boolean>);
-      if (timeBetween) setTimeBetweenSets(Number.parseInt(timeBetween as string, 10));
+      if (timeBetween)
+        setTimeBetweenSets(Number.parseInt(timeBetween as string, 10));
       if (startTime) setWorkoutStartTime(startTime as string);
       if (sessionId) setCurrentSessionId(sessionId as string);
       if (demoMode) setIsDemoMode(demoMode === "true");
       if (manualTime) setUseManualTime(manualTime === "true");
       if (syncs) setPendingSyncs(syncs as PendingSync[]);
-      if (activity) setLastActivityTime(Number.parseInt(activity as string, 10));
+      if (activity)
+        setLastActivityTime(Number.parseInt(activity as string, 10));
       if (weightUnitLoaded) setWeightUnit(weightUnitLoaded as "kg" | "lbs");
 
       const loadedLastReset = lastReset ? (lastReset as string) : null;
@@ -630,14 +641,14 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [userId, checkMondayReset]);
+  }, [userId, checkMondayReset, logout]);
 
   const checkAndEndStaleSession = useCallback(async (): Promise<boolean> => {
     if (!workoutStartTime || !currentSessionId || !lastSetEndTime) return false;
     if (isSessionInactive(lastSetEndTime)) {
-      console.log("🔍 Detected stale session, auto-ending...");
+      logger.info("🔍 Detected stale session, auto-ending...");
       await sessionOps.endWorkout(true);
-      console.log("✅ Stale session ended");
+      logger.info("✅ Stale session ended");
       return true;
     }
     return false;
@@ -770,11 +781,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   // ── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    jointSessionMessageHandlerRef.current =
-      jointSessionHook.handleSocketMessage;
-  }, [jointSessionHook.handleSocketMessage]);
-
-  useEffect(() => {
     if (userId) void loadSavedData();
     else resetAllState();
   }, [userId]);
@@ -897,11 +903,15 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   }, [userId]);
 
   // ── Wrapped session ops that also notify the socket ───────────────────────
+  // Depend on socket.send (stable across messages) rather than the socket
+  // object itself (a fresh reference on every message) so these — and the
+  // memoised value below, which depends on them — don't churn on every
+  // incoming WebSocket message.
   const startWorkout = useCallback(async (): Promise<string | null> => {
     const sessionId = await sessionOps.startWorkout();
     if (sessionId) socket.send({ type: "session_started", sessionId });
     return sessionId as string | null;
-  }, [sessionOps, socket]);
+  }, [sessionOps, socket.send]);
 
   const endWorkout = useCallback(
     async (autoCompleted = false) => {
@@ -909,7 +919,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       socket.send({ type: "session_ended" });
       return result;
     },
-    [sessionOps, socket],
+    [sessionOps, socket.send],
   );
 
   const syncFromServer = useCallback(async (): Promise<void> => {
@@ -919,7 +929,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   // ── Context value (memoised to prevent all-consumers re-render) ───────────
   const value = useMemo<WorkoutContextValue>(
     () => ({
-      socketLastMessage: socket.lastMessage,
       userId,
       workoutData,
       selectedSplit,
@@ -934,8 +943,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       isDemoMode,
       serverAnalytics,
       useManualTime,
-      pendingSyncs,
-      isSyncing,
       lastActivityTime,
       weightUnit,
       saveWorkoutData,
@@ -976,31 +983,8 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       cleanupInvalidSyncs: syncManager.cleanupInvalidSyncs,
       clearAllData,
       checkAndEndStaleSession,
-      jointSession: jointSessionHook.jointSession,
-      isInJointSession: jointSessionHook.isInJointSession,
-      partnerProgress: jointSessionHook.partnerProgress,
-      partnerExerciseList: jointSessionHook.partnerExerciseList,
-      myJointProgress: jointSessionHook.myProgress,
-      pendingJointInvite: jointSessionHook.pendingInvite,
-      jointInviteStatus: jointSessionHook.inviteStatus,
-      isPartnerReady: jointSessionHook.isPartnerReady,
-      syncPulse: jointSessionHook.syncPulse,
-      sendJointInvite: jointSessionHook.sendInvite,
-      acceptJointInvite: jointSessionHook.acceptInvite,
-      declineJointInvite: jointSessionHook.declineInvite,
-      leaveJointSession: jointSessionHook.leaveJointSession,
-      pushJointProgress: jointSessionHook.pushProgress,
-      partnerCompletedSets: jointSessionHook.partnerCompletedSets,
-      isWatching: jointSessionHook.isWatching,
-      watchTarget: jointSessionHook.watchTarget,
-      watchSession: jointSessionHook.watchSession,
-      watchLoading: jointSessionHook.watchLoading,
-      watchError: jointSessionHook.watchError,
-      startWatching: jointSessionHook.startWatching,
-      stopWatching: jointSessionHook.stopWatching,
     }),
     [
-      socket.lastMessage,
       userId,
       workoutData,
       selectedSplit,
@@ -1015,8 +999,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       isDemoMode,
       serverAnalytics,
       useManualTime,
-      pendingSyncs,
-      isSyncing,
       lastActivityTime,
       weightUnit,
       saveWorkoutData,
@@ -1057,32 +1039,29 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       syncManager.cleanupInvalidSyncs,
       clearAllData,
       checkAndEndStaleSession,
-      jointSessionHook.jointSession,
-      jointSessionHook.isInJointSession,
-      jointSessionHook.partnerProgress,
-      jointSessionHook.partnerExerciseList,
-      jointSessionHook.myProgress,
-      jointSessionHook.pendingInvite,
-      jointSessionHook.inviteStatus,
-      jointSessionHook.isPartnerReady,
-      jointSessionHook.syncPulse,
-      jointSessionHook.sendInvite,
-      jointSessionHook.acceptInvite,
-      jointSessionHook.declineInvite,
-      jointSessionHook.leaveJointSession,
-      jointSessionHook.pushProgress,
-      jointSessionHook.partnerCompletedSets,
-      jointSessionHook.isWatching,
-      jointSessionHook.watchTarget,
-      jointSessionHook.watchSession,
-      jointSessionHook.watchLoading,
-      jointSessionHook.watchError,
-      jointSessionHook.startWatching,
-      jointSessionHook.stopWatching,
     ],
   );
 
+  const syncStatusValue = useMemo<WorkoutSyncStatus>(
+    () => ({ pendingSyncs, isSyncing }),
+    [pendingSyncs, isSyncing],
+  );
+
   return (
-    <WorkoutContext.Provider value={value}>{children}</WorkoutContext.Provider>
+    <WorkoutContext.Provider value={value}>
+      <WorkoutSyncStatusContext.Provider value={syncStatusValue}>
+        <JointSessionProvider
+          socket={socket}
+          messageHandlerRef={jointSessionMessageHandlerRef}
+          userId={userId}
+          currentSessionId={currentSessionId}
+          workoutStartTime={workoutStartTime}
+          currentDayExercises={currentDayAllExercises}
+          selectedSplit={selectedSplit}
+        >
+          {children}
+        </JointSessionProvider>
+      </WorkoutSyncStatusContext.Provider>
+    </WorkoutContext.Provider>
   );
 };

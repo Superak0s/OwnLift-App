@@ -1,4 +1,4 @@
-import React, { useState, useCallback, type ReactElement } from "react"
+import React, { useState, useCallback, useMemo, type ReactElement } from "react"
 import { useTheme } from "../context/ThemeContext"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import ModalSheet from "./ModalSheet"
@@ -200,7 +200,7 @@ function CustomAlert({
   onDismiss,
 }: CustomAlertProps) {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const ACCENT_COLORS = makeAccentColors(colors)
   const safeButtons =
     Array.isArray(buttons) && buttons.length > 0 ? buttons : [{ text: "OK" }]
@@ -214,7 +214,7 @@ function CustomAlert({
       onClose={onDismiss}
       showCancelButton={false}
       showConfirmButton={false}
-      dismissOnBackdropPress={false}
+      dismissOnBackdropPress={true}
     >
       <View style={styles.header}>
         <View style={[styles.iconBadge, { backgroundColor: accent + "17" }]}>

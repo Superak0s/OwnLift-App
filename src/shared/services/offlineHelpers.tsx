@@ -94,10 +94,12 @@ export function createRecordStore<T>(
     return migration
   }
 
-  // Multiple screens read the full collection around the same time on boot
+  // Multiple screens read the same collection around the same time on boot
   // (e.g. the home widget and the server-sync pass both list all sessions) —
-  // share one in-flight scan instead of hitting SQLite twice for the same data.
+  // share one in-flight scan per limit instead of hitting SQLite twice for
+  // the same data.
   let inFlightGetAll: Promise<T[]> | null = null
+  const inFlightGetRecent = new Map<number, Promise<T[]>>()
 
   return {
     async getAll() {
@@ -113,8 +115,16 @@ export function createRecordStore<T>(
     },
     async getRecent(limit) {
       await ensureMigrated()
-      const rows = await listRecords(collection, limit)
-      return rows.map((v) => JSON.parse(v) as T)
+      let inFlight = inFlightGetRecent.get(limit)
+      if (!inFlight) {
+        inFlight = listRecords(collection, limit)
+          .then((rows) => rows.map((v) => JSON.parse(v) as T))
+          .finally(() => {
+            inFlightGetRecent.delete(limit)
+          })
+        inFlightGetRecent.set(limit, inFlight)
+      }
+      return inFlight
     },
     async getSince(sinceSortKey) {
       await ensureMigrated()

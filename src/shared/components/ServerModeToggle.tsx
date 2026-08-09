@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import type { AppMode } from "@shared/services/appMode"
 
@@ -22,7 +22,7 @@ export default function ServerModeToggle({
   disabled = false,
   showHelperText = true,
 }: ServerModeToggleProps): React.JSX.Element {
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   return (
     <View style={styles.wrapper}>

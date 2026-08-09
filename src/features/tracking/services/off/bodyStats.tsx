@@ -7,6 +7,11 @@ import type {
   Gender,
   WeightUnit,
 } from "../../types"
+import type {
+  BodyFatEntry,
+  ProgressPhoto,
+  WeightHistoryResponse,
+} from "@shared/types"
 
 const WEIGHT_KEY = "@off_body_weight_history"
 const BODYFAT_KEY = "@off_body_fat_history"
@@ -91,7 +96,9 @@ export const bodyTrackingApi = {
   /**
    * Get weight history, most recent first.
    */
-  getWeightHistory: async (limit: number = 90): Promise<unknown> => {
+  getWeightHistory: async (
+    limit: number = 90,
+  ): Promise<WeightHistoryResponse> => {
     try {
       const entries = await weightStore.getRecent(limit)
       return { entries }
@@ -174,10 +181,12 @@ export const bodyTrackingApi = {
   /**
    * List progress photos (most recent first), mirrors on/bodyStats.tsx shape.
    */
-  getProgressPhotos: async (limit: number = 200): Promise<unknown> => {
+  getProgressPhotos: async (
+    limit: number = 200,
+  ): Promise<{ photos: ProgressPhoto[] }> => {
     try {
       const photos = await photosStore.getRecent(limit)
-      return { success: true, photos }
+      return { photos }
     } catch (error) {
       console.error("Error getting local progress photos:", error)
       throw error
@@ -263,7 +272,9 @@ export const bodyFatApi = {
     }
   },
 
-  getBodyFatHistory: async (limit: number = 90): Promise<unknown> => {
+  getBodyFatHistory: async (
+    limit: number = 90,
+  ): Promise<{ entries: BodyFatEntry[] }> => {
     try {
       const entries = await bodyFatStore.getRecent(limit)
       return { entries }

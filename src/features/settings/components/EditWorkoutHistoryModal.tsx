@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect } from "react"
+import React, { useState, useCallback, useEffect, useMemo } from "react"
 import {
   View,
   Text,
   StyleSheet,
   Modal,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
@@ -26,6 +27,7 @@ import {
 } from "@utils/exerciseMatching"
 import { formatDate, formatDateTime } from "@utils/format"
 import ModalSheet from "@shared/components/ModalSheet"
+import { SuggestionsBox } from "@shared/components/SuggestionsBox"
 import { useAlert } from "@shared/components/CustomAlert"
 import { useTheme } from "@shared/context/ThemeContext"
 import type { ThemeColors } from "@shared/context/ThemeContext"
@@ -124,53 +126,59 @@ function SessionListView({
   colors,
 }: SessionListViewProps): React.JSX.Element {
   return (
-    <ScrollView contentContainerStyle={styles.listContent}>
-      <TouchableOpacity
-        style={[
-          styles.filterPill,
-          showImportedOnly && styles.filterPillActive,
-        ]}
-        onPress={() => setShowImportedOnly((prev) => !prev)}
-      >
-        <Text
+    <FlatList
+      contentContainerStyle={styles.listContent}
+      data={visibleSessions}
+      keyExtractor={(session) => String(session.id)}
+      ListHeaderComponent={
+        <TouchableOpacity
           style={[
-            styles.filterPillText,
-            showImportedOnly && styles.filterPillTextActive,
+            styles.filterPill,
+            showImportedOnly && styles.filterPillActive,
           ]}
+          onPress={() => setShowImportedOnly((prev) => !prev)}
         >
-          {showImportedOnly
-            ? "✓ Imported sessions only"
-            : "Show imported sessions only"}
-        </Text>
-      </TouchableOpacity>
-
-      {loadingSessions
-        ? <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
-        : visibleSessions.length === 0
-          ? <Text style={styles.emptyText}>
-              {showImportedOnly
-                ? "No imported sessions found for this person."
-                : "No sessions found for this person."}
+          <Text
+            style={[
+              styles.filterPillText,
+              showImportedOnly && styles.filterPillTextActive,
+            ]}
+          >
+            {showImportedOnly
+              ? "✓ Imported sessions only"
+              : "Show imported sessions only"}
+          </Text>
+        </TouchableOpacity>
+      }
+      ListEmptyComponent={
+        loadingSessions ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
+        ) : (
+          <Text style={styles.emptyText}>
+            {showImportedOnly
+              ? "No imported sessions found for this person."
+              : "No sessions found for this person."}
+          </Text>
+        )
+      }
+      renderItem={({ item: session }) => (
+        <TouchableOpacity
+          style={styles.sessionRow}
+          onPress={() => openSession(session)}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sessionTitle}>
+              {formatSessionLabel(session)}
             </Text>
-          : visibleSessions.map((session) => (
-              <TouchableOpacity
-                key={session.id}
-                style={styles.sessionRow}
-                onPress={() => openSession(session)}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sessionTitle}>
-                    {formatSessionLabel(session)}
-                  </Text>
-                  <Text style={styles.sessionSubtitle}>
-                    {session.set_count ?? 0} set
-                    {(session.set_count ?? 0) === 1 ? "" : "s"}
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
-            ))}
-    </ScrollView>
+            <Text style={styles.sessionSubtitle}>
+              {session.set_count ?? 0} set
+              {(session.set_count ?? 0) === 1 ? "" : "s"}
+            </Text>
+          </View>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+      )}
+    />
   );
 }
 
@@ -249,7 +257,7 @@ export default function EditWorkoutHistoryModal({
   onDataChanged,
 }: Props): React.JSX.Element {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const { alert, AlertComponent } = useAlert()
 
   const [sessions, setSessions] = useState<WorkoutSession[]>([])
@@ -385,14 +393,14 @@ export default function EditWorkoutHistoryModal({
   }, [muscleGroupInput, editingExercise, knownMuscleGroups])
 
   const handleSuggestionPress = (
-    suggestion: SimilarityMatch,
+    name: string,
     field: "name" | "muscleGroup",
   ) => {
     if (field === "muscleGroup") {
-      setMuscleGroupInput(suggestion.name)
+      setMuscleGroupInput(name)
       setMuscleGroupSuggestions([])
     } else {
-      setExerciseNameInput(suggestion.name)
+      setExerciseNameInput(name)
       setNameSuggestions([])
     }
   }
@@ -702,21 +710,15 @@ export default function EditWorkoutHistoryModal({
           placeholderTextColor='#999'
         />
         {nameSuggestions.length > 0 && (
-          <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
-            {nameSuggestions.map((s, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.suggestionButton}
-                onPress={() => handleSuggestionPress(s, "name")}
-              >
-                <Text style={styles.suggestionText}>{s.name}</Text>
-                <Text style={styles.suggestionMatch}>
-                  {Math.round(s.similarity * 100)}% match
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <SuggestionsBox
+            title='💡 Did you mean:'
+            variant='highlight'
+            items={nameSuggestions.map((s) => ({
+              label: s.name,
+              meta: `${Math.round(s.similarity * 100)}% match`,
+            }))}
+            onSelect={(name) => handleSuggestionPress(name, "name")}
+          />
         )}
         <Text style={styles.fieldLabel}>Muscle Group</Text>
         <TextInput
@@ -727,21 +729,15 @@ export default function EditWorkoutHistoryModal({
           placeholderTextColor='#999'
         />
         {muscleGroupSuggestions.length > 0 && (
-          <View style={styles.suggestionsContainer}>
-            <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
-            {muscleGroupSuggestions.map((s, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.suggestionButton}
-                onPress={() => handleSuggestionPress(s, "muscleGroup")}
-              >
-                <Text style={styles.suggestionText}>{s.name}</Text>
-                <Text style={styles.suggestionMatch}>
-                  {Math.round(s.similarity * 100)}% match
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <SuggestionsBox
+            title='💡 Did you mean:'
+            variant='highlight'
+            items={muscleGroupSuggestions.map((s) => ({
+              label: s.name,
+              meta: `${Math.round(s.similarity * 100)}% match`,
+            }))}
+            onSelect={(name) => handleSuggestionPress(name, "muscleGroup")}
+          />
         )}
       </ModalSheet>
 
@@ -924,36 +920,4 @@ const makeStyles = (colors: ThemeColors) =>
       borderColor: colors.surfaceBorder,
       marginBottom: 12,
     },
-    suggestionsContainer: {
-      backgroundColor: "#fffbeb",
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: colors.warning,
-    },
-    suggestionsTitle: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: "#92400e",
-      marginBottom: 12,
-    },
-    suggestionButton: {
-      backgroundColor: colors.surface,
-      borderRadius: 8,
-      padding: 12,
-      marginBottom: 8,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      borderWidth: 1,
-      borderColor: colors.warning,
-    },
-    suggestionText: {
-      fontSize: 16,
-      fontWeight: "500",
-      color: colors.textPrimary,
-      flex: 1,
-    },
-    suggestionMatch: { fontSize: 12, color: "#92400e", fontWeight: "600" },
   })

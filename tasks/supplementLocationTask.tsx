@@ -8,6 +8,7 @@ import * as TaskManager from "expo-task-manager";
 import * as Location from "expo-location";
 import { getStorageItem, setStorageItem } from "../src/shared/services/sqliteStorage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
+import logger from "../src/shared/services/logger";
 
 // ─── Expo Go detection ─────────────────────────────────────────────────────
 // Remote/local push infra in expo-notifications triggers a load-time warning
@@ -180,7 +181,7 @@ async function evaluateSupplementReminder(
   const distance = calculateDistance(latitude, longitude, lat, lng);
   const withinRadius = distance <= radius;
 
-  console.log(
+  logger.debug(
     `[${config.name}] Distance: ${distance.toFixed(0)}m/${radius}m ${withinRadius ? "✅" : "❌"}`,
   );
 
@@ -207,7 +208,7 @@ async function evaluateSupplementReminder(
   );
   if (await getStorageItem(shownKey)) return false;
 
-  console.log(`[${config.name}] 🔔 Sending notification!`);
+  logger.info(`[${config.name}] 🔔 Sending notification!`);
 
   await Notifications.scheduleNotificationAsync({
     content: {
@@ -237,7 +238,7 @@ TaskManager.defineTask(
     locations: Location.LocationObject[];
   }>) => {
     if (error) {
-      console.log("❌ Location task error: " + error.message);
+      logger.error("❌ Location task error: " + error.message);
       return;
     }
     if (!data?.locations?.length) return;
@@ -246,7 +247,7 @@ TaskManager.defineTask(
     if (!location) return;
 
     const { latitude, longitude } = location.coords;
-    console.log(
+    logger.debug(
       `📍 Location: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
     );
 
@@ -267,7 +268,7 @@ TaskManager.defineTask(
         await evaluateSupplementReminder(userId, config, latitude, longitude);
       }
     } catch (err) {
-      console.log(
+      logger.error(
         "❌ Error: " + (err instanceof Error ? err.message : String(err)),
       );
     }
@@ -488,7 +489,7 @@ export const registerLocationTask = async (): Promise<boolean> => {
       await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
     if (isRegistered) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-      console.log("🔄 Unregistering to update settings...");
+      logger.info("🔄 Unregistering to update settings...");
     }
 
     const battery = await getBatterySettings();
@@ -499,10 +500,10 @@ export const registerLocationTask = async (): Promise<boolean> => {
       showsBackgroundLocationIndicator: false,
     });
 
-    console.log("✅ Location task registered");
+    logger.info("✅ Location task registered");
     return true;
   } catch (error) {
-    console.log(
+    logger.error(
       "❌ Error registering: " +
         (error instanceof Error ? error.message : String(error)),
     );
@@ -514,11 +515,11 @@ export const unregisterLocationTask = async (): Promise<boolean> => {
   try {
     if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-      console.log("✅ Task unregistered");
+      logger.info("✅ Task unregistered");
     }
     return true;
   } catch (error) {
-    console.log(
+    logger.error(
       "❌ Error unregistering: " +
         (error instanceof Error ? error.message : String(error)),
     );
@@ -536,7 +537,7 @@ export const isLocationTaskRegistered = async (): Promise<boolean> => {
 
 export const triggerImmediateLocationCheck = async (): Promise<boolean> => {
   try {
-    console.log("🚀 Immediate check...");
+    logger.debug("🚀 Immediate check...");
 
     let location: Location.LocationObject | null = null;
     try {

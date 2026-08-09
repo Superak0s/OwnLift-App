@@ -45,9 +45,19 @@
       "expo-secure-store",
       "expo-sharing",
       "expo-status-bar",
-      "expo-splash-screen",
       "./plugins/withGradleTuning.js",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-image",
+      "@sentry/react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
     ],
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [
@@ -62,8 +72,9 @@
       "checkAutomatically": "ON_LOAD"
     },
     "android": {
+      "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon-foreground.png",
         "backgroundColor": "#667eea"
       },
       "permissions": [

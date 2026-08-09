@@ -42,7 +42,7 @@ export function useWidgets<T extends string>(
   userId: string | null,
   { registry, defaults, storageKey, enabled = true }: UseWidgetsConfig<T>,
 ) {
-  const [widgets, setWidgets] = useState<WidgetInstance<T>[]>([])
+  const [widgets, setWidgets] = useState<WidgetInstance<T>[]>(defaults)
   const [isLoaded, setIsLoaded] = useState<boolean>(false)
   const isMountedRef = useRef<boolean>(true)
   // Keep a ref mirror of widgets so callbacks that must be stable

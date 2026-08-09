@@ -160,6 +160,14 @@ const WIDTH_BY_SIZE: Record<WidgetSize, "48%" | "100%"> = {
   large: "100%",
 }
 
+// medium and large share a width (both full-row), so size only reads as a
+// visible change if it also grows the card's height.
+const MIN_HEIGHT_BY_SIZE: Record<WidgetSize, number> = {
+  small: 70,
+  medium: 70,
+  large: 160,
+}
+
 type LayoutBox = { x: number; y: number; width: number; height: number }
 
 export default function WidgetsPanel<T extends string>({
@@ -178,7 +186,7 @@ export default function WidgetsPanel<T extends string>({
   containerBorderRadius,
 }: WidgetsPanelProps<T>): React.JSX.Element | null {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   // Live order shown on screen. Mirrors `widgets` except mid-drag, when we
   // own it locally for smooth reordering before committing.
@@ -537,7 +545,6 @@ export default function WidgetsPanel<T extends string>({
     [findTargetIndex, retargetSlots, resetSlots, pan, liftAnim],
   )
 
-  if (!isLoaded) return null
   if (widgets.length === 0) return null
 
   const ordered = orderIds
@@ -572,7 +579,10 @@ export default function WidgetsPanel<T extends string>({
 
         const cardStyle = [
           styles.widget,
-          { width: WIDTH_BY_SIZE[instance.size] },
+          {
+            width: WIDTH_BY_SIZE[instance.size],
+            minHeight: MIN_HEIGHT_BY_SIZE[instance.size],
+          },
           editMode && styles.widgetEditing,
           isDragging && styles.widgetHiddenPlaceholder,
           { transform: slotAnim.getTranslateTransform() },
@@ -670,6 +680,7 @@ export default function WidgetsPanel<T extends string>({
             styles.floatingWidget,
             {
               width: WIDTH_BY_SIZE[draggingInstance.size],
+              minHeight: MIN_HEIGHT_BY_SIZE[draggingInstance.size],
               left: startBox.x,
               top: startBox.y,
               transform: [

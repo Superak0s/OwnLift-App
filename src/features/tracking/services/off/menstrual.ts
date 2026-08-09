@@ -100,9 +100,9 @@ export const menstrualApi = {
     return { success: true, data }
   },
 
-  getCycleStats: async (): Promise<ApiResponse<CycleStats>> => {
+  getCycleStats: async (settingsOverride?: MenstrualSettings): Promise<ApiResponse<CycleStats>> => {
     const history = await store.getAll()
-    const settings = await readSettings()
+    const settings = settingsOverride ?? (await readSettings())
 
     const sorted = [...history].sort(
       (a, b) => new Date(b.cycleStart).getTime() - new Date(a.cycleStart).getTime(),

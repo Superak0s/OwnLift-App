@@ -1,3 +1,9 @@
+import { sinceBoot } from "./src/shared/services/debugClock";
+import logger from "./src/shared/services/logger";
+import { initSentry, Sentry } from "./src/shared/services/sentry";
+
+initSentry();
+
 import React, { useState, useEffect, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -13,6 +19,7 @@ import {
   PanResponder,
   ScrollView,
   AppState,
+  InteractionManager,
   type AppStateStatus,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -81,27 +88,32 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // No-op in Expo Go — the Notifications module is never loaded there.
-void (async () => {
-  try {
-    const Notifications = await getNotifications();
-    if (Notifications?.setNotificationHandler) {
-      Notifications.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowAlert: true,
-          shouldPlaySound: true,
-          shouldSetBadge: false,
-          shouldShowBanner: true,
-          shouldShowList: true,
-        }),
-      });
+// Deferred past first interaction so the dynamic import() of
+// expo-notifications' large dependency tree doesn't stall the JS thread
+// (and the queued SQLite calls behind it) during app boot.
+InteractionManager.runAfterInteractions(() => {
+  void (async () => {
+    try {
+      const Notifications = await getNotifications();
+      if (Notifications?.setNotificationHandler) {
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+      }
+    } catch (error) {
+      logger.warn(
+        "Notifications not available in Expo Go:",
+        (error as Error).message,
+      );
     }
-  } catch (error) {
-    console.log(
-      "Notifications not available in Expo Go:",
-      (error as Error).message,
-    );
-  }
-})();
+  })();
+});
 
 const hideNavBar = async () => {
   if (Platform.OS === "android") {
@@ -109,7 +121,7 @@ const hideNavBar = async () => {
       // @ts-ignore deprecated API, no replacement
       await NavigationBar.setVisibilityAsync("hidden");
     } catch (error) {
-      console.log("Failed to hide navigation bar:", (error as Error).message);
+      logger.warn("Failed to hide navigation bar:", (error as Error).message);
     }
   }
 };
@@ -121,7 +133,7 @@ const showNavBarTemporarily = async (ms = 3000) => {
     await NavigationBar.setVisibilityAsync("visible");
     setTimeout(() => void hideNavBar(), ms);
   } catch (error) {
-    console.log("Failed to show navigation bar:", (error as Error).message);
+    logger.warn("Failed to show navigation bar:", (error as Error).message);
   }
 };
 
@@ -572,6 +584,28 @@ function MainTabs() {
   );
 }
 
+function ErrorFallback({ resetError }: { resetError: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[styles.loadingContainer, { backgroundColor: colors.background }]}
+    >
+      <Text style={styles.loadingText}>⚠️</Text>
+      <Text style={[styles.errorTitle, { color: colors.textPrimary }]}>
+        Something went wrong
+      </Text>
+      <TouchableOpacity
+        style={[styles.errorButton, { backgroundColor: colors.accent }]}
+        onPress={resetError}
+      >
+        <Text style={[styles.errorButtonText, { color: colors.surface }]}>
+          Try Again
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
   const { colors } = useTheme();
@@ -616,7 +650,13 @@ export default function App() {
                     <StatusBar style='auto' />
                     <VersionGuard>
                       <UpdateChecker />
-                      <AppNavigator />
+                      <Sentry.ErrorBoundary
+                        fallback={({ resetError }) => (
+                          <ErrorFallback resetError={resetError} />
+                        )}
+                      >
+                        <AppNavigator />
+                      </Sentry.ErrorBoundary>
                     </VersionGuard>
                   </NavigationContainer>
                 </WorkoutProvider>
@@ -719,6 +759,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    padding: 24,
   },
   loadingText: { fontSize: 64 },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  errorButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+  },
+  errorButtonText: { fontSize: 16, fontWeight: "700" },
 });

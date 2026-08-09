@@ -421,13 +421,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-  mapHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-    paddingHorizontal: 4,
-  },
+  
   viewToggle: {
     flexDirection: "row",
     gap: 4,
@@ -440,56 +434,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 6,
   },
-  mapHint: {
-    fontSize: 12,
-    fontStyle: "italic",
-  },
-  currentlySoreRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 12,
-    paddingHorizontal: 4,
-  },
-  soreChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  sessionSummary: {
-    marginTop: 12,
-    paddingHorizontal: 4,
-    backgroundColor: "rgba(0,0,0,0.03)",
-    borderRadius: 12,
-    padding: 12,
-  },
-  sessionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  sessionTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  sessionDone: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  sessionMusclesRow: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  sessionMuscleChip: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  sessionMuscleText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 });

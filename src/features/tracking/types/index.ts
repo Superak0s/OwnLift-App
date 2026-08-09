@@ -1,4 +1,4 @@
-// features/tracking/types.ts
+// features/tracking/types/index.ts
 import type { ProgressPhoto, MacrosEntry, BodyFatEntry } from "@shared/types";
 
 export type WeightUnit = "kg" | "lbs";
@@ -104,7 +104,7 @@ export interface CustomMeasurementType {
 }
 
 // ─── Soreness / DOMS Tracking ────────────────────────────────────────────────
-// MuscleGroup is defined in types/muscleRecovery.ts (canonical definition).
+// MuscleGroup is defined in muscleRecovery.ts (canonical definition).
 // Re-exported here for convenience.
-export type { MuscleGroup } from "./types/muscleRecovery";
+export type { MuscleGroup } from "./muscleRecovery";
 

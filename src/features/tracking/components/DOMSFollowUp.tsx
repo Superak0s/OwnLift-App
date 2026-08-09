@@ -11,6 +11,9 @@ import { useTheme } from "@shared/context/ThemeContext";
 import { domsApi } from "../services";
 import { ActiveSoreness, SorenessFollowUp } from "../types/muscleRecovery";
 import { MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
+import { IntensityPicker } from "@shared/components/IntensityPicker";
+import { FillBar } from "@shared/components/FillBar";
+import { getSeverityColor } from "@utils/severityColor";
 
 const FOLLOW_UP_OPTIONS = [
   {
@@ -27,8 +30,6 @@ const FOLLOW_UP_OPTIONS = [
     color: "#6BCB77",
   },
 ];
-
-const INTENSITY_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 interface DOMSFollowUpProps {
   readonly onMuscleRecovered?: (muscle: string) => void;
@@ -112,18 +113,6 @@ export const DOMSFollowUp: React.FC<DOMSFollowUpProps> = ({
     }
   };
 
-  const getIntensityColor = (intensity: number) => {
-    if (intensity <= 2) return "#6BCB77";
-    if (intensity <= 4) return "#FFD93D";
-    if (intensity <= 6) return "#FFA94D";
-    if (intensity <= 8) return "#FF8787";
-    return "#FF6B6B";
-  };
-
-  const getIntensityBarWidth = (intensity: number) => {
-    return (intensity / 10) * 100;
-  };
-
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -177,14 +166,10 @@ export const DOMSFollowUp: React.FC<DOMSFollowUpProps> = ({
                 </Text>
               </TouchableOpacity>
               <View style={styles.intensityBadge}>
-                <View
-                  style={[
-                    styles.intensityBar,
-                    {
-                      width: getIntensityBarWidth(soreness.intensity),
-                      backgroundColor: getIntensityColor(soreness.intensity),
-                    },
-                  ]}
+                <FillBar
+                  percentage={(soreness.intensity / 10) * 100}
+                  color={getSeverityColor(soreness.intensity)}
+                  styles={{ track: styles.intensityBar, fill: styles.intensityBarFill }}
                 />
                 <Text style={[styles.intensityText, { color: colors.textPrimary }]}>
                   {soreness.intensity}/10
@@ -201,35 +186,24 @@ export const DOMSFollowUp: React.FC<DOMSFollowUpProps> = ({
             <Text style={[styles.followUpLabel, { color: colors.textSecondary }]}>
               Update Intensity:
             </Text>
-            <View style={styles.intensityPickerRow}>
-              {INTENSITY_OPTIONS.map((val) => (
-                <TouchableOpacity
-                  key={val}
-                  style={[
-                    styles.intensityPill,
-                    {
-                      backgroundColor: update.intensity === val ? getIntensityColor(val) : colors.background,
-                      borderColor: update.intensity === val ? getIntensityColor(val) : colors.inputBorder,
-                    },
-                  ]}
-                  onPress={() =>
-                    setPendingUpdates((prev) => ({
-                      ...prev,
-                      [soreness.id]: { ...update, intensity: val },
-                    }))
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.intensityPillText,
-                      { color: update.intensity === val ? "white" : colors.textPrimary },
-                    ]}
-                  >
-                    {val}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <IntensityPicker
+              value={update.intensity}
+              onChange={(val) =>
+                setPendingUpdates((prev) => ({
+                  ...prev,
+                  [soreness.id]: { ...update, intensity: val },
+                }))
+              }
+              getColor={getSeverityColor}
+              unselectedBackground={colors.background}
+              unselectedBorder={colors.inputBorder}
+              unselectedTextColor={colors.textPrimary}
+              styles={{
+                container: styles.intensityPickerRow,
+                button: styles.intensityPill,
+                buttonText: styles.intensityPillText,
+              }}
+            />
 
             <Text style={[styles.followUpLabel, { color: colors.textSecondary }]}>
               Current Status:
@@ -379,9 +353,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   intensityBar: {
+    width: 100,
     height: 8,
     borderRadius: 4,
     minWidth: 20,
+  },
+  intensityBarFill: {
+    height: "100%",
+    borderRadius: 4,
   },
   intensityText: {
     fontSize: 14,

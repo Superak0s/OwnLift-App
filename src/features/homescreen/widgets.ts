@@ -9,18 +9,17 @@
 // own storage key, and wires them into useWidgets/WidgetsPanel the same way
 // HomeScreen does with these.
 
-import { STORAGE_KEYS } from "@shared/services/storage"
-import type { WidgetDefinition, WidgetInstance } from "@shared/types"
+import { STORAGE_KEYS } from "@shared/services/storage";
+import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
 export type HomeWidgetType =
   | "next_workout"
   | "weekly_progress"
   | "workout_calendar"
-  | "getting_started"
   | "body_weight_trend"
   | "supplement_reminders"
   | "recent_prs"
-  | "workout_streak"
+  | "workout_streak";
 
 export const HOME_WIDGET_REGISTRY: Record<
   HomeWidgetType,
@@ -53,15 +52,6 @@ export const HOME_WIDGET_REGISTRY: Record<
     icon: "📅",
     availableSizes: ["medium", "large"],
     defaultSize: "large",
-    singleton: true,
-  },
-  getting_started: {
-    type: "getting_started",
-    title: "Getting Started",
-    description: "Quick steps for setting up and running your first workout",
-    icon: "📝",
-    availableSizes: ["small", "medium", "large"],
-    defaultSize: "medium",
     singleton: true,
   },
   body_weight_trend: {
@@ -100,7 +90,7 @@ export const HOME_WIDGET_REGISTRY: Record<
     defaultSize: "small",
     singleton: true,
   },
-}
+};
 
 export const DEFAULT_HOME_WIDGETS: WidgetInstance<HomeWidgetType>[] = [
   {
@@ -127,6 +117,6 @@ export const DEFAULT_HOME_WIDGETS: WidgetInstance<HomeWidgetType>[] = [
     size: "small",
     order: 3,
   },
-]
+];
 
-export const HOME_WIDGETS_STORAGE_KEY = STORAGE_KEYS.HOME_WIDGETS
+export const HOME_WIDGETS_STORAGE_KEY = STORAGE_KEYS.HOME_WIDGETS;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import {
   View,
   Text,
@@ -32,7 +32,7 @@ export default function BatterySettingsModal({
   onSave,
 }: BatterySettingsModalProps) {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const [selectedPreset, setSelectedPreset] = useState<PresetKey>("MEDIUM")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [customTimeInterval, setCustomTimeInterval] = useState("10")
@@ -132,24 +132,12 @@ export default function BatterySettingsModal({
       fullHeight
       showCancelButton={false}
       showConfirmButton={false}
+      headerActions={{
+        title: "Battery Impact",
+        onConfirm: () => void handleSave(),
+        confirmDisabled: loading,
+      }}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.headerButton}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Battery Impact</Text>
-        <TouchableOpacity
-          onPress={() => void handleSave()}
-          style={styles.headerButton}
-          disabled={loading}
-        >
-          <Text style={[styles.saveText, loading && styles.saveTextDisabled]}>
-            Save
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size='large' color={colors.accent} />
@@ -306,21 +294,6 @@ export default function BatterySettingsModal({
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 16,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.inputBorder,
-    },
-    headerButton: { padding: 8 },
-    cancelText: { fontSize: 16, color: colors.error, fontWeight: "600" },
-    headerTitle: { fontSize: 18, fontWeight: "700", color: colors.textPrimary },
-    saveText: { fontSize: 16, color: colors.accent, fontWeight: "600" },
-    saveTextDisabled: { opacity: 0.4 },
     loadingContainer: {
       flex: 1,
       alignItems: "center",

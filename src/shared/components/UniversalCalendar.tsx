@@ -92,7 +92,7 @@ export default function UniversalCalendar({
 }: UniversalCalendarProps) {
   const { colors } = useTheme();
   const resolvedDotColor = dotColor ?? colors.accent;
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -361,7 +361,7 @@ const makeStyles = (colors: any) =>
       color: colors.textPrimary,
     },
     todayCell: { backgroundColor: "#667eea15" },
-    futureCell: { opacity: 0.5 },
+    futureCell: { opacity: 0.2 },
     todayText: { color: colors.accent },
     futureText: { color: colors.textSecondary },
     dot: { width: 6, height: 6, borderRadius: 3, marginTop: 3 },

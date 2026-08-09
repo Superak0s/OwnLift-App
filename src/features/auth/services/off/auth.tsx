@@ -6,6 +6,11 @@ import type { AuthResponse, AuthUser } from "../../types"
 const LOCAL_USER_KEY = "@offline_user"
 const LOCAL_USER_ID = "local"
 
+// checkAuthStatus calls isAuthenticated() then getCurrentUser() back to
+// back on every app boot — both resolve to the same stored user, so cache
+// it in memory instead of hitting SQLite twice. Invalidated on every write.
+let cachedUser: AuthUser | null | undefined
+
 export const authService = {
   signup: async (
     username: string,
@@ -20,6 +25,7 @@ export const authService = {
       ...(name && { name }),
     }
     await setStorageItem(LOCAL_USER_KEY, JSON.stringify(user))
+    cachedUser = user
     await tokenStorage.set(generateId("offline"))
     return { success: true, token: "offline", user }
   },
@@ -35,6 +41,7 @@ export const authService = {
       email: "",
     }
     await setStorageItem(LOCAL_USER_KEY, JSON.stringify(user))
+    cachedUser = user
     await tokenStorage.set(generateId("offline"))
     return { success: true, token: "offline", user }
   },
@@ -53,6 +60,7 @@ export const authService = {
     }
     const updated: AuthUser = { ...existing, name, email }
     await setStorageItem(LOCAL_USER_KEY, JSON.stringify(updated))
+    cachedUser = updated
     return updated
   },
 
@@ -69,8 +77,10 @@ export const authService = {
   },
 
   getStoredUser: async (): Promise<AuthUser | null> => {
+    if (cachedUser !== undefined) return cachedUser
     const userJson = await getStorageItem(LOCAL_USER_KEY)
-    return userJson ? (JSON.parse(userJson) as AuthUser) : null
+    cachedUser = userJson ? (JSON.parse(userJson) as AuthUser) : null
+    return cachedUser
   },
 
   refreshToken: async (): Promise<string | null> => {

@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Image,
   Dimensions,
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setStorageItem } from "@shared/services/sqliteStorage"
+import logger from "@shared/services/logger"
 import { useAuth } from "@shared/context/AuthContext";
 import { useTheme } from "@shared/context/ThemeContext";
 import ModalSheet from "@shared/components/ModalSheet";
@@ -157,7 +158,7 @@ export default function TrackingScreen() {
   });
   const modalState = useTrackingModalsCtx();
   const { alert } = useAlert();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   // ─────────────────────────────────────────────────────────────
   // SCREEN-LOCAL STATE
@@ -334,25 +335,30 @@ export default function TrackingScreen() {
   // not all eight at once on mount — avoids hammering SQLite for tabs the
   // user may never open this session.
   const tabLoaders: Record<string, () => Promise<void>> = {
-    weight: async () => { const w = await bodyTrackingApi.getWeightHistory(200); _weight.setWeightHistory((w as any)?.entries ?? []); },
-    macros: async () => { const m = await macrosTrackingApi.getMacrosHistory(90); _macros.setMacrosEntries((m as any)?.entries ?? []); },
-    bodyfat: async () => { const b = await bodyFatApi.getBodyFatHistory(200); _bodyFat.setBodyFatHistory((b as any)?.entries ?? []); },
-    measurements: async () => { const me = await bodyMeasurementsApi.getMeasurementHistory(200); _measurements.setMeasurementHistory((me as any)?.data ?? []); },
-    hydration: async () => { const h = await hydrationApi.getHydrationHistory(200); _hydration.setHydrationEntries((h as any)?.data ?? []); },
-    soreness: async () => { const s = await sorenessApi.getSorenessHistory(200); _soreness.setSorenessEntries((s as any)?.data ?? []); },
+    weight: async () => { const w = await bodyTrackingApi.getWeightHistory(200); _weight.setWeightHistory(w?.entries ?? []); },
+    macros: async () => { const m = await macrosTrackingApi.getMacrosHistory(90); _macros.setMacrosEntries(m?.entries ?? []); },
+    bodyfat: async () => { const b = await bodyFatApi.getBodyFatHistory(200); _bodyFat.setBodyFatHistory(b?.entries ?? []); },
+    measurements: async () => { const me = await bodyMeasurementsApi.getMeasurementHistory(200); _measurements.setMeasurementHistory(me?.data ?? []); },
+    hydration: async () => { const h = await hydrationApi.getHydrationHistory(200); _hydration.setHydrationEntries(h?.data ?? []); },
+    soreness: async () => { const s = await sorenessApi.getSorenessHistory(200); _soreness.setSorenessEntries(s?.data ?? []); },
     menstrual: async () => { await _menstrual.loadMenstrualData(); },
-    photos: async () => { const p = await bodyTrackingApi.getProgressPhotos(200); _photos.setProgressPhotos((p as any)?.photos ?? []); },
+    photos: async () => { const p = await bodyTrackingApi.getProgressPhotos(200); _photos.setProgressPhotos(p?.photos ?? []); },
   };
   const tabLoadersRef = useRef(tabLoaders);
   tabLoadersRef.current = tabLoaders;
   const loadedTabsRef = useRef<Set<string>>(new Set());
+  const [tabLoadError, setTabLoadError] = useState<string | null>(null);
 
   const loadTab = useCallback(async (tab: string, force = false) => {
     if (!force && loadedTabsRef.current.has(tab)) return;
     try {
       await tabLoadersRef.current[tab]?.();
       loadedTabsRef.current.add(tab);
-    } catch {}
+      setTabLoadError(null);
+    } catch (error) {
+      logger.error(`Failed to load ${tab} tab data:`, error);
+      setTabLoadError(tab);
+    }
   }, []);
 
   const activeTabRef = useRef(activeTab);
@@ -538,7 +544,7 @@ export default function TrackingScreen() {
               return (
                 <TouchableOpacity key={photo.id} style={styles.photoThumbWrap} activeOpacity={isReady ? 0.8 : 1} onPress={() => isReady && setExpandedPhoto({ uri, photo })}>
                   {isReady ? (
-                    <Image source={{ uri }} style={styles.photoThumb} resizeMode='cover' />
+                    <Image source={{ uri }} style={styles.photoThumb} contentFit='cover' />
                   ) : isError ? (
                     <View style={[styles.photoThumb, styles.photoThumbError]}>
                       <Text style={{ fontSize: 20 }}>⚠️</Text>
@@ -797,6 +803,15 @@ export default function TrackingScreen() {
           </View>
 
           <ScrollTabBar tabs={TRACKING_TABS} activeTab={activeTab} onTabChange={setActiveTab} storageKey="trackingScreen_tabConfig" />
+
+          {tabLoadError === activeTab && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>Couldn't load this tab's data</Text>
+              <TouchableOpacity style={styles.primaryButton} onPress={() => loadTab(activeTab, true)}>
+                <Text style={styles.primaryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View style={styles.widgetsSectionHeader}>
             <Text style={styles.widgetsSectionTitle}>{widgetEditMode ? "Editing Widgets" : " "}</Text>

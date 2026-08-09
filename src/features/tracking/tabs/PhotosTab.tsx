@@ -13,14 +13,15 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   Animated,
   Easing,
   TextInput,
   Modal,
 } from "react-native";
+import { Image } from "expo-image";
 import PagerView from "react-native-pager-view";
 import { useTheme } from "@shared/context/ThemeContext";
 import { progressPhotoApi } from "../services";
@@ -139,64 +140,72 @@ export function PhotosCalendarWidget() {
     );
   }
 
-  return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      {photoDates.size === 0 ? (
+  if (photoDates.size === 0) {
+    return (
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
           No photos taken yet. Take your first progress photo!
         </Text>
-      ) : (
-        Array.from(photoDates.entries()).map(([date, dayPhotos]) => {
-          const isExpanded = expandedDate === date;
-          return (
-            <View key={date}>
-              <TouchableOpacity
-                style={[styles.dateRow, { backgroundColor: colors.surface, borderColor: colors.inputBorder }]}
-                onPress={() => setExpandedDate(isExpanded ? null : date)}
-              >
-                <View style={styles.dateInfo}>
-                  <Text style={[styles.dateText, { color: colors.textPrimary }]}>
-                    {new Date(date).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </Text>
-                  <Text style={[styles.photoCount, { color: colors.textSecondary }]}>
-                    {dayPhotos.length} photo{dayPhotos.length > 1 ? "s" : ""}
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>{isExpanded ? "⌄" : "›"}</Text>
-              </TouchableOpacity>
-              {isExpanded && (
-                <View style={styles.photoGrid}>
-                  {dayPhotos.map((photo) => (
-                    <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
-                      <Image source={{ uri: photo.uri }} style={styles.photoImage} resizeMode="cover" />
-                      <View style={styles.photoInfo}>
-                        <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
-                          {getAngleLabel(photo)}
+      </ScrollView>
+    );
+  }
+
+  return (
+    <FlatList
+      data={Array.from(photoDates.entries())}
+      keyExtractor={([date]) => date}
+      style={styles.calendarListBounded}
+      contentContainerStyle={styles.scrollContent}
+      renderItem={({ item: [date, dayPhotos] }) => {
+        const isExpanded = expandedDate === date;
+        return (
+          <View>
+            <TouchableOpacity
+              style={[styles.dateRow, { backgroundColor: colors.surface, borderColor: colors.inputBorder }]}
+              onPress={() => setExpandedDate(isExpanded ? null : date)}
+            >
+              <View style={styles.dateInfo}>
+                <Text style={[styles.dateText, { color: colors.textPrimary }]}>
+                  {new Date(date).toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </Text>
+                <Text style={[styles.photoCount, { color: colors.textSecondary }]}>
+                  {dayPhotos.length} photo{dayPhotos.length > 1 ? "s" : ""}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>{isExpanded ? "⌄" : "›"}</Text>
+            </TouchableOpacity>
+            {isExpanded && (
+              <View style={styles.photoGrid}>
+                {dayPhotos.map((photo) => (
+                  <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
+                    <Image source={{ uri: photo.uri }} style={styles.photoImage} contentFit="cover" />
+                    <View style={styles.photoInfo}>
+                      <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
+                        {getAngleLabel(photo)}
+                      </Text>
+                      {photo.muscleGroups && photo.muscleGroups.length > 0 && (
+                        <Text style={[styles.photoMuscles, { color: colors.accent }]}>
+                          {photo.muscleGroups.map(m => MUSCLE_GROUP_LABELS[m]?.split(" ")[0] ?? m).slice(0, 3).join(", ")}
                         </Text>
-                        {photo.muscleGroups && photo.muscleGroups.length > 0 && (
-                          <Text style={[styles.photoMuscles, { color: colors.accent }]}>
-                            {photo.muscleGroups.map(m => MUSCLE_GROUP_LABELS[m]?.split(" ")[0] ?? m).slice(0, 3).join(", ")}
-                          </Text>
-                        )}
-                        {photo.notes && photo.notes.trim().length > 0 && (
-                          <Text style={[styles.notePhotoMuscles, { color: colors.textPrimary }]}>
-                            {photo.notes}
-                          </Text>
-                        )}
-                      </View>
+                      )}
+                      {photo.notes && photo.notes.trim().length > 0 && (
+                        <Text style={[styles.notePhotoMuscles, { color: colors.textPrimary }]}>
+                          {photo.notes}
+                        </Text>
+                      )}
                     </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          );
-        })
-      )}
-    </ScrollView>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+      }}
+    />
   );
 }
 
@@ -348,7 +357,7 @@ export function PhotosGalleryWidget() {
     [photos]
   );
 
-  const visiblePhotos = sortedPhotos.slice(0, visibleCount);
+  const visiblePhotos = useMemo(() => sortedPhotos.slice(0, visibleCount), [sortedPhotos, visibleCount]);
 
   const photosByDate = useMemo(() => {
     const map = new Map<string, ProgressPhotoMuscle[]>();
@@ -370,74 +379,78 @@ export function PhotosGalleryWidget() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <View style={[styles.galleryHeader, { justifyContent: "flex-end" }]}>
-        <TouchableOpacity
-          style={[styles.captureButton, { backgroundColor: colors.accent }]}
-          onPress={() => setShowUploadModal(true)}
-        >
-          <Text style={styles.captureButtonText}>📸 Capture</Text>
-        </TouchableOpacity>
-      </View>
-      {uploadState && <UploadProgressBar state={uploadState} />}
-      {photos.length === 0 ? (
+    <FlatList
+      contentContainerStyle={styles.scrollContent}
+      data={Array.from(photosByDate.entries())}
+      keyExtractor={([date]) => date}
+      ListHeaderComponent={
+        <>
+          <View style={[styles.galleryHeader, { justifyContent: "flex-end" }]}>
+            <TouchableOpacity
+              style={[styles.captureButton, { backgroundColor: colors.accent }]}
+              onPress={() => setShowUploadModal(true)}
+            >
+              <Text style={styles.captureButtonText}>📸 Capture</Text>
+            </TouchableOpacity>
+          </View>
+          {uploadState && <UploadProgressBar state={uploadState} />}
+        </>
+      }
+      ListEmptyComponent={
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
           No photos yet. Tap Capture to take your first progress photo!
         </Text>
-      ) : (
-        Array.from(photosByDate.entries()).map(([date, dayPhotos]) => (
-          <View key={date} style={styles.photoGroup}>
-            <Text style={[styles.groupDate, { color: colors.textSecondary }]}>
-              {new Date(date).toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
-            </Text>
-            <View style={styles.photoGrid}>
-              {dayPhotos.map((photo) => (
-                <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
-                  <Image
-                    source={{ uri: photo.uri }}
-                    style={styles.photoImage}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.photoInfo}>
-                    <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
-                      {getAngleLabel(photo)}
+      }
+      renderItem={({ item: [date, dayPhotos] }) => (
+        <View style={styles.photoGroup}>
+          <Text style={[styles.groupDate, { color: colors.textSecondary }]}>
+            {new Date(date).toLocaleDateString("en-US", {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}
+          </Text>
+          <View style={styles.photoGrid}>
+            {dayPhotos.map((photo) => (
+              <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
+                <Image
+                  source={{ uri: photo.uri }}
+                  style={styles.photoImage}
+                  contentFit="cover"
+                />
+                <View style={styles.photoInfo}>
+                  <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
+                    {getAngleLabel(photo)}
+                  </Text>
+                  {photo.muscleGroups && photo.muscleGroups.length > 0 && (
+                    <Text style={[styles.photoMuscles, { color: colors.accent }]}>
+                      {photo.muscleGroups.map(m => MUSCLE_GROUP_LABELS[m]?.split(" ")[0] ?? m).slice(0, 3).join(", ")}
                     </Text>
-                    {photo.muscleGroups && photo.muscleGroups.length > 0 && (
-                      <Text style={[styles.photoMuscles, { color: colors.accent }]}>
-                        {photo.muscleGroups.map(m => MUSCLE_GROUP_LABELS[m]?.split(" ")[0] ?? m).slice(0, 3).join(", ")}
-                      </Text>
-                    )}
-                  </View>
+                  )}
                 </View>
-              ))}
-            </View>
+              </View>
+            ))}
           </View>
-        ))
+        </View>
       )}
-      {visibleCount < sortedPhotos.length && (
-        <TouchableOpacity
-          style={[styles.loadMoreButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.inputBorder }]}
-          onPress={() => setVisibleCount((c) => c + 4)}
-        >
-          <Text style={[styles.loadMoreText, { color: colors.textPrimary }]}>Load More</Text>
-        </TouchableOpacity>
-      )}
-      <LogProgressPhotoModal
-        visible={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-        onSuccess={() => {
-          setShowUploadModal(false);
-          setVisibleCount(4);
-          refresh();
-        }}
-        onUploadStart={handleUploadStart}
-        onUploadEnd={handleUploadEnd}
-      />
-    </ScrollView>
+      onEndReachedThreshold={0.5}
+      onEndReached={() => {
+        if (visibleCount < sortedPhotos.length) setVisibleCount((c) => c + 4);
+      }}
+      ListFooterComponent={
+        <LogProgressPhotoModal
+          visible={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onSuccess={() => {
+            setShowUploadModal(false);
+            setVisibleCount(4);
+            refresh();
+          }}
+          onUploadStart={handleUploadStart}
+          onUploadEnd={handleUploadEnd}
+        />
+      }
+    />
   );
 }
 
@@ -615,10 +628,14 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
               Select two dates to compare:
             </Text>
             <View style={styles.dateSelectRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
-                {availableDates.map(([date]) => (
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.dateScroll}
+                data={availableDates}
+                keyExtractor={([date]) => date}
+                renderItem={({ item: [date] }) => (
                   <TouchableOpacity
-                    key={date}
                     style={[
                       styles.datePill,
                       {
@@ -644,8 +661,8 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
                       {new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+                )}
+              />
             </View>
           </View>
           {selectedDate1 && selectedDate2 ? (
@@ -663,7 +680,7 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
                   </Text>
                   {photosForDate1.map((photo) => (
                     <TouchableOpacity key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]} onPress={() => setFullscreenOpen(true)}>
-                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
+                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} contentFit="cover" />
                       <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
                       {photo.notes && photo.notes.trim().length > 0 && (
                         <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
@@ -677,7 +694,7 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
                   </Text>
                   {photosForDate2.map((photo) => (
                     <TouchableOpacity key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]} onPress={() => setFullscreenOpen(true)}>
-                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
+                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} contentFit="cover" />
                       <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
                       {photo.notes && photo.notes.trim().length > 0 && (
                         <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
@@ -776,6 +793,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
+  calendarListBounded: {
+    maxHeight: 480,
+  },
   emptyText: {
     fontSize: 14,
     textAlign: "center",
@@ -821,16 +841,6 @@ const styles = StyleSheet.create({
   },
   photoGroup: {
     marginBottom: 24,
-  },
-  loadMoreButton: {
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  loadMoreText: {
-    fontSize: 13,
-    fontWeight: "600",
   },
   groupDate: {
     fontSize: 14,

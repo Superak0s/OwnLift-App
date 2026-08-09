@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import * as Device from "expo-device";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
@@ -18,7 +18,6 @@ import UniversalCalendar from "@shared/components/UniversalCalendar";
 import ModalSheet from "@shared/components/ModalSheet";
 import { useAlert } from "@shared/components/CustomAlert";
 import { workoutApi } from "@features/workout/services/index";
-import { programApi } from "@features/plan/services/index";
 import { formatTime as formatDuration } from "@utils/timeEstimation";
 import { formatDate as formatDateUtil } from "@utils/format";
 import { useWidgets } from "@shared/context/hooks/useWidgets";
@@ -325,27 +324,6 @@ function WorkoutCalendarWidget({
   );
 }
 
-function GettingStartedWidget({
-  styles,
-}: {
-  readonly styles: ReturnType<typeof makeStyles>;
-}): React.JSX.Element {
-  return (
-    <View style={styles.instructionsCard}>
-      <Text style={styles.instructionsTitle}>📝 How to get started:</Text>
-      <Text style={styles.instructionStep}>
-        1. Select which day you want to do
-      </Text>
-      <Text style={styles.instructionStep}>
-        2. Go to the Workout tab to start!
-      </Text>
-      <Text style={styles.instructionStep}>
-        3. Pull down with two fingers anytime to add widgets
-      </Text>
-    </View>
-  );
-}
-
 // Shared by NextWorkoutWidget (and available for reuse anywhere day titles
 // are needed) — kept as a plain helper rather than a hook since it derives
 // its result purely from its arguments.
@@ -435,12 +413,11 @@ export default function HomeScreen({
   navigation,
 }: HomeScreenProps): React.JSX.Element {
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     workoutData,
     selectedSplit,
     currentDay,
-    saveWorkoutData,
     saveCurrentDay,
     isDayLocked,
     fetchSessionHistory,
@@ -548,8 +525,6 @@ export default function HomeScreen({
             styles={styles}
           />
         );
-      case "getting_started":
-        return <GettingStartedWidget styles={styles} />;
       default:
         return <Text style={styles.widgetLineMuted}>Coming soon</Text>;
     }
@@ -611,25 +586,6 @@ export default function HomeScreen({
       });
     }
   }, [selectedSplit]);
-
-  useEffect(() => {
-    const restoreProgram = async () => {
-      if (workoutData) return;
-
-      try {
-        const saved = await programApi.fetchSavedProgram();
-        if (saved && (saved as { success?: boolean }).success) {
-          await saveWorkoutData(saved);
-        }
-      } catch (error) {
-        if ((error as Error)?.message === "SESSION_EXPIRED") {
-          navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-        }
-      }
-    };
-
-    restoreProgram();
-  }, []);
 
   const loadSessionHistory = async (): Promise<void> => {
     setLoadingHistory(true);
@@ -723,20 +679,30 @@ export default function HomeScreen({
     return parts.length > 1 ? parts[1].trim() : session.day_title;
   };
 
-  const getSessionsForDate = (date: Date): WorkoutSession[] => {
-    const targetStr = toLocalDateStr(date);
-
-    return sessionHistory.filter((session) => {
-      const sessionDateStr = String(session.start_time)
+  const sessionsByDate = useMemo(() => {
+    const map = new Map<string, WorkoutSession[]>();
+    for (const session of sessionHistory) {
+      const dateStr = String(session.start_time)
         .replace("T", " ")
         .split(" ")[0];
-      return sessionDateStr === targetStr;
-    });
-  };
+      const existing = map.get(dateStr);
+      if (existing) existing.push(session);
+      else map.set(dateStr, [session]);
+    }
+    return map;
+  }, [sessionHistory]);
 
-  const hasSessionOnDate = (date: Date): boolean => {
-    return getSessionsForDate(date).length > 0;
-  };
+  const getSessionsForDate = useCallback(
+    (date: Date): WorkoutSession[] =>
+      sessionsByDate.get(toLocalDateStr(date)) ?? [],
+    [sessionsByDate],
+  );
+
+  const hasSessionOnDate = useCallback(
+    (date: Date): boolean =>
+      (sessionsByDate.get(toLocalDateStr(date))?.length ?? 0) > 0,
+    [sessionsByDate],
+  );
 
   const formatDate = (date: Date): string =>
     formatDateUtil(date, {
@@ -1224,12 +1190,7 @@ const makeStyles = (colors: ThemeColors) =>
     currentDayCardLocked: {
       backgroundColor: colors.textSecondary,
     },
-    currentDayTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: colors.surface,
-      marginBottom: 8,
-    },
+    
     currentDayText: {
       fontSize: 20,
       fontWeight: "bold",

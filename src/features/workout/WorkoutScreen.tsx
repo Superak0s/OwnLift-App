@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useWorkout } from "@shared/context/WorkoutContext";
+import { useJointSessionContext } from "@shared/context/JointSessionContext";
 import { useAuth } from "@shared/context/AuthContext";
 import { useTabBar } from "@shared/context/TabBarContext";
 import { useTheme } from "@shared/context/ThemeContext";
@@ -38,7 +39,6 @@ import {
   saveToStorage,
   STORAGE_KEYS,
 } from "@shared/services/storage";
-import { initializeSupplementNotifications } from "../../../tasks/supplementLocationTask";
 import { formatDate as formatDateUtil } from "@utils/format";
 import { useWidgets } from "@shared/context/hooks/useWidgets";
 import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull";
@@ -51,602 +51,33 @@ import {
   type WorkoutWidgetType,
 } from "./widgets";
 import type { WidgetInstance } from "@shared/types";
-import type { SetDetail, SimilarityMatch, PartnerBannerProps } from "./types";
-
-import { getNotifications, scheduleNotification } from "@shared/services/notifications";
-
-// ─── Unit helpers ─────────────────────────────────────────────────────────────
-const LBS_TO_KG = 0.45359237;
-const KG_TO_LBS = 2.20462262;
-
-/** Convert a kg value (as stored) to the display unit, rounded to 1 dp. */
-function kgToDisplay(kg: number, unit: "kg" | "lbs"): string {
-  if (unit === "lbs") {
-    return (kg * KG_TO_LBS).toFixed(1);
-  }
-  return kg % 1 === 0 ? String(kg) : kg.toFixed(1);
-}
-
-/** Parse a user-entered string in the chosen unit and return kg for storage. */
-function displayToKg(value: string, unit: "kg" | "lbs"): number {
-  const n = Number.parseFloat(value);
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return unit === "lbs" ? n * LBS_TO_KG : n;
-}
-
-// ─── Widget group visuals ──────────────────────────────────────────────────
-// The four "day status" header widgets (day_number, total_sets, progress,
-// session_stats) are fused into one seamless card outside of edit mode —
-// see getWidgetCardStyleOverride below, which zeroes out the margin/border
-// between them and rounds only the group's outer corners. Kept as a
-// constant so every widget's corner radius agrees exactly.
-const WIDGET_GROUP_RADIUS = 14;
-
-// ─── Pure helpers extracted out of WorkoutScreen ───────────────────────────
-// Pulling these out as plain functions (rather than leaving the logic
-// inline in the component) keeps WorkoutScreen's own Cognitive Complexity
-// under the SonarQube threshold — every branch below lives in its own
-// function scope instead of adding to the component's score.
-
-type EmptyStateInfo = { icon: string; title: string; text: string };
-
-function getEmptyStateInfo(
-  workoutData: unknown,
-  selectedSplit: string | null,
-  dayWorkout: unknown,
-  currentDay: number,
-): EmptyStateInfo | null {
-  if (!workoutData) {
-    return {
-      icon: "📁",
-      title: "No Workout Plan",
-      text: "Go to the Home tab to upload your workout file",
-    };
-  }
-  if (!selectedSplit) {
-    return {
-      icon: "👤",
-      title: "No Split Selected",
-      text: "Go to the Plan tab to select your split",
-    };
-  }
-  if (!dayWorkout) {
-    return {
-      icon: "🤷",
-      title: "No Workout for This Day",
-      text: `${selectedSplit} has no exercises scheduled for Day ${currentDay}`,
-    };
-  }
-  return null;
-}
-
-function getDayOverviewTint(
-  colors: ThemeColors,
-  isCurrentDayLocked: boolean,
-  setsCompleteAndUnlocked: boolean,
-): string {
-  if (isCurrentDayLocked) return colors.textSecondary;
-  return setsCompleteAndUnlocked ? colors.success : colors.accent;
-}
-
-function computeProgressPercentage(
-  completedSetsCount: number,
-  totalSetsCount: number,
-): number {
-  return totalSetsCount > 0 ? (completedSetsCount / totalSetsCount) * 100 : 0;
-}
-
-function getPullHintText(pullDistance: number): string {
-  return pullDistance > 90
-    ? "Release to add a widget ✨"
-    : "Pull to add a widget ↓";
-}
-
-function getWidgetContainerStyle(
-  widgetEditMode: boolean,
-  dayOverviewTint: string,
-): { backgroundColor?: string; borderRadius?: number } {
-  if (widgetEditMode) return {};
-  return {
-    backgroundColor: dayOverviewTint,
-    borderRadius: WIDGET_GROUP_RADIUS,
-  };
-}
-
-function getAddingSetsSubtitle(
-  addingSetsExercise: Record<string, unknown> | null,
-): string | undefined {
-  if (!addingSetsExercise) return undefined;
-  const exercise = addingSetsExercise.exercise as { name: string };
-  return `Adding sets to: ${exercise.name}`;
-}
-
-function checkIsSelectedSetAssisted(
-  selectedSet: { exerciseIndex: number; setIndex: number } | null,
-  dayWorkout: Record<string, unknown> | null,
-): boolean {
-  if (!selectedSet || !dayWorkout) return false;
-  const exercises = dayWorkout.exercises as Array<{ name: string }> | undefined;
-  const exercise = exercises?.[selectedSet.exerciseIndex];
-  if (!exercise) return false;
-  return exercise.name.toLowerCase().includes("assisted");
-}
-
-// ─── Performance-history collection helpers ────────────────────────────────
-// Split out of loadPerformanceHistory so no single function nests more than
-// a couple of levels deep (SonarQube flagged the previous inline version
-// for both excess Cognitive Complexity and >4 levels of function nesting).
-
-type PerformanceEntry = {
-  date: Date;
-  weight: number;
-  reps: number;
-  volume: number;
-  note: string;
-  isWarmup: boolean;
-};
-
-function toPerformanceEntry(
-  completedAt: string | number | Date | undefined,
-  weight: number | undefined,
-  reps: number | undefined,
-  note: string | undefined,
-  isWarmup: boolean | undefined,
-): PerformanceEntry {
-  const w = weight ?? 0;
-  const r = reps ?? 0;
-  return {
-    date: new Date(completedAt ?? Date.now()),
-    weight: Number.isFinite(w) ? w : 0,
-    reps: Number.isFinite(r) ? r : 0,
-    volume: Number.isFinite(w * r) ? w * r : 0,
-    note: note || "",
-    isWarmup: Boolean(isWarmup),
-  };
-}
-
-function collectSetsForExercise(
-  sets:
-    | Record<
-        string,
-        {
-          weight?: number;
-          reps?: number;
-          completedAt?: string;
-          note?: string;
-          isWarmup?: boolean;
-        }
-      >
-    | undefined,
-): PerformanceEntry[] {
-  if (!sets) return [];
-  return Object.keys(sets).map((si) => {
-    const s = sets[si];
-    return toPerformanceEntry(
-      s.completedAt,
-      s.weight,
-      s.reps,
-      s.note,
-      s.isWarmup,
-    );
-  });
-}
-
-function getSetsForDayExercise(
-  workoutData: { days: Array<Record<string, any>> } | null | undefined,
-  selectedSplit: string | null,
-  completedDays: Record<string, Record<number, Record<string, unknown>>>,
-  dayNumber: string,
-  canonicalName: string,
-  allExerciseNames: string[],
-): PerformanceEntry[] {
-  const day = workoutData?.days.find(
-    (d) => d.dayNumber === Number.parseInt(dayNumber, 10),
-  );
-  const pw = day && selectedSplit ? day.split[selectedSplit] : null;
-  if (!pw?.exercises) return [];
-
-  const entries: PerformanceEntry[] = [];
-  pw.exercises.forEach((ex: { name: string }, exerciseIndex: number) => {
-    const matches =
-      getCanonicalName(ex.name, allExerciseNames).toLowerCase() ===
-      canonicalName.toLowerCase();
-    if (!matches) return;
-    const sets = completedDays[dayNumber]?.[exerciseIndex] as
-      | Record<
-          string,
-          {
-            weight?: number;
-            reps?: number;
-            completedAt?: string;
-            note?: string;
-            isWarmup?: boolean;
-          }
-        >
-      | undefined;
-    entries.push(...collectSetsForExercise(sets));
-  });
-  return entries;
-}
-
-function getLocalHistoryEntries(
-  completedDays: Record<string, Record<number, Record<string, unknown>>>,
-  workoutData: { days: Array<Record<string, any>> } | null | undefined,
-  selectedSplit: string | null,
-  canonicalName: string,
-  allExerciseNames: string[],
-): PerformanceEntry[] {
-  return Object.keys(completedDays).flatMap((dayNumber) =>
-    getSetsForDayExercise(
-      workoutData,
-      selectedSplit,
-      completedDays,
-      dayNumber,
-      canonicalName,
-      allExerciseNames,
-    ),
-  );
-}
-
-function collectSessionTimings(
-  session: any,
-  exerciseName: string,
-  canonicalName: string,
-  allExerciseNames: string[],
-): PerformanceEntry[] {
-  if (!session?.set_timings) return [];
-  return session.set_timings
-    .filter((t: any) => {
-      const timingName = t.exercise_name || exerciseName || "";
-      return (
-        getCanonicalName(timingName, allExerciseNames).toLowerCase() ===
-        canonicalName.toLowerCase()
-      );
-    })
-    .map((t: any) =>
-      toPerformanceEntry(
-        t.end_time ?? session.end_time ?? session.start_time,
-        t.weight,
-        t.reps,
-        t.note,
-        t.is_warmup,
-      ),
-    );
-}
-
-async function getServerHistoryEntries(
-  fetchSessionHistory: (limit: number, flag: boolean) => Promise<any[]>,
-  exerciseName: string,
-  canonicalName: string,
-  allExerciseNames: string[],
-): Promise<PerformanceEntry[]> {
-  try {
-    const sessions = await fetchSessionHistory(50, true);
-    if (!sessions?.length) return [];
-    return sessions.flatMap((session) =>
-      collectSessionTimings(
-        session,
-        exerciseName,
-        canonicalName,
-        allExerciseNames,
-      ),
-    );
-  } catch (err) {
-    // ignore server lookup failures — we simply won't show history
-    console.warn(
-      "Failed to fetch server session history for performance:",
-      err,
-    );
-    return [];
-  }
-}
-
-function pickBestPerformanceSummary(history: PerformanceEntry[]): {
-  last: PerformanceEntry;
-  best: PerformanceEntry;
-  totalAttempts: number;
-} | null {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const prev = history.filter((e) => e.date < today && !e.isWarmup);
-  if (!prev.length) return null;
-
-  prev.sort((a, b) => b.date.getTime() - a.date.getTime());
-  const last = prev[0];
-  const best = prev.reduce((b, c) => (c.volume > b.volume ? c : b), prev[0]);
-  return { last, best, totalAttempts: prev.length };
-}
-
-// ─── Partner-progress label helpers ────────────────────────────────────────
-// Extracted so PartnerBanner's render body doesn't need a nested ternary
-// (SonarQube typescript:S3358) — each label is resolved by its own small,
-// single-purpose function instead.
-
-function getPartnerExerciseLabel(
-  partnerProgress: Record<string, unknown> | null,
-): string {
-  if (!partnerProgress) return "—";
-  const exerciseName = partnerProgress.exerciseName as string | undefined;
-  if (exerciseName) return exerciseName;
-  const exerciseIndex = partnerProgress.exerciseIndex as number | undefined;
-  if (exerciseIndex != null) return `Ex ${exerciseIndex + 1}`;
-  return "—";
-}
-
-function getPartnerSetLabel(
-  partnerProgress: Record<string, unknown> | null,
-): string {
-  const setIndex = partnerProgress?.setIndex as number | undefined;
-  return setIndex == null ? "—" : `Set ${setIndex + 1}`;
-}
-
-function getPartnerStatusText(
-  isPartnerReady: boolean,
-  partnerProgress: Record<string, unknown> | null,
-): string {
-  if (isPartnerReady) return "✅ Ready for next set";
-  if (!partnerProgress) return "Waiting…";
-  return `${getPartnerExerciseLabel(partnerProgress)} · ${getPartnerSetLabel(partnerProgress)}`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Partner banner – compact strip pinned to the very top of the screen
-// ─────────────────────────────────────────────────────────────────────────────
-function PartnerBanner({
-  partnerProgress,
-  isPartnerReady,
-  syncPulse,
-  partnerUsername,
-  onLeave,
-}: Readonly<PartnerBannerProps>): React.JSX.Element {
-  const { colors } = useTheme();
-  const bannerStyles = makeBannerStyles(colors);
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (syncPulse) {
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1.04,
-          duration: 120,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 120,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1.04,
-          duration: 120,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 120,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [syncPulse, pulse]);
-
-  const statusText = getPartnerStatusText(isPartnerReady, partnerProgress);
-
-  return (
-    <Animated.View
-      style={[bannerStyles.container, { transform: [{ scale: pulse }] }]}
-    >
-      <View style={bannerStyles.liveDot} />
-      <View style={bannerStyles.avatarRing}>
-        <Text style={bannerStyles.avatarText}>
-          {partnerUsername?.charAt(0).toUpperCase() || "?"}
-        </Text>
-      </View>
-      <Text style={bannerStyles.label} numberOfLines={1}>
-        <Text style={bannerStyles.name}>{partnerUsername}</Text>
-        {"  "}
-        <Text style={bannerStyles.status}>{statusText}</Text>
-      </Text>
-      <TouchableOpacity style={bannerStyles.leaveBtn} onPress={onLeave}>
-        <Text style={bannerStyles.leaveBtnText}>Leave</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-}
-
-const makeBannerStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    container: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.background,
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      gap: 8,
-    },
-    liveDot: {
-      width: 7,
-      height: 7,
-      borderRadius: 3.5,
-      backgroundColor: colors.success,
-    },
-    avatarRing: {
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      backgroundColor: colors.accentDark,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1.5,
-      borderColor: colors.info,
-    },
-    avatarText: { color: colors.surface, fontWeight: "700", fontSize: 12 },
-    label: { flex: 1, fontSize: 12 },
-    name: { color: colors.surface, fontWeight: "700" },
-    status: { color: "rgba(255,255,255,0.6)" },
-    leaveBtn: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 6,
-      backgroundColor: "rgba(255,255,255,0.1)",
-    },
-    leaveBtnText: {
-      color: "rgba(255,255,255,0.7)",
-      fontSize: 11,
-      fontWeight: "600",
-    },
-  });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// "Partner is here" pill
-// ─────────────────────────────────────────────────────────────────────────────
-function PartnerExercisePill({ username }: Readonly<{ username: string }>) {
-  const { colors } = useTheme();
-  const pillStyles = makePillStyles(colors);
-  return (
-    <View style={pillStyles.pill}>
-      <View style={pillStyles.dot} />
-      <Text style={pillStyles.text}>{username} is here</Text>
-    </View>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Badge showing set-count difference for shared exercises
-// ─────────────────────────────────────────────────────────────────────────────
-function getSetDiffLabel(diff: number): string {
-  if (diff === 0) return "Same sets";
-  return diff > 0 ? `+${diff} partner sets` : `${diff} partner sets`;
-}
-
-function getSetDiffColors(
-  colors: ThemeColors,
-  diff: number,
-): { text: string; bg: string; border: string } {
-  if (diff === 0) {
-    return { text: "#78350f", bg: "#fef9c3", border: "#fde68a" };
-  }
-  if (diff > 0) {
-    return { text: "#92400e", bg: colors.warningLight, border: "#fcd34d" };
-  }
-  return { text: "#78350f", bg: "#fef9c3", border: "#fde68a" };
-}
-
-function PartnerExerciseMatchBadge({
-  partnerSets,
-  mySets,
-}: Readonly<{
-  partnerSets: number | null;
-  mySets: number;
-}>) {
-  const { colors } = useTheme();
-  const diff = (partnerSets ?? 0) - mySets;
-  const diffText = getSetDiffLabel(diff);
-  const {
-    text: diffColor,
-    bg: bgColor,
-    border: borderColor,
-  } = getSetDiffColors(colors, diff);
-  return (
-    <View
-      style={[matchStyles.badge, { backgroundColor: bgColor, borderColor }]}
-    >
-      <Text style={[matchStyles.setsText, { color: diffColor }]}>
-        🤝 {diffText}
-      </Text>
-    </View>
-  );
-}
-
-const makePillStyles = (colors: ThemeColors) =>
-  StyleSheet.create({
-    pill: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-      backgroundColor: colors.infoLight,
-      borderRadius: 12,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      alignSelf: "flex-start",
-      marginBottom: 8,
-    },
-    dot: {
-      width: 7,
-      height: 7,
-      borderRadius: 3.5,
-      backgroundColor: colors.accentDark,
-    },
-    text: { fontSize: 11, fontWeight: "700", color: colors.accentDark },
-  });
-
-const matchStyles = StyleSheet.create({
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: 8,
-  },
-  setsText: { fontSize: 11, fontWeight: "700" },
-});
-
-// ─── Partner-matching helpers for the exercise list ────────────────────────
-// Extracted so the .map() callback below doesn't itself add to
-// WorkoutScreen's Cognitive Complexity score.
-
-type PartnerMatchInfo = {
-  partnerMatchesByName: boolean;
-  partnerOnThis: boolean;
-  partnerSetCount: number | null;
-};
-
-function getPartnerMatchInfo(
-  isInJointSession: boolean,
-  partnerNameSet: Set<string>,
-  partnerProgress: Record<string, unknown> | null,
-  partnerParticipant:
-    | { exerciseNames?: Array<string | { name: string; sets?: number }> }
-    | null
-    | undefined,
-  exerciseNameLower: string,
-): PartnerMatchInfo {
-  const partnerMatchesByName =
-    isInJointSession && partnerNameSet.has(exerciseNameLower);
-  const partnerActiveExercise = partnerProgress?.exerciseName as
-    | string
-    | undefined;
-  const partnerActiveNameLower = partnerActiveExercise
-    ? normalizeExerciseName(partnerActiveExercise)
-    : undefined;
-  const partnerOnThis =
-    isInJointSession &&
-    !!partnerActiveNameLower &&
-    partnerMatchesByName &&
-    partnerActiveNameLower === exerciseNameLower;
-
-  let partnerSetCount: number | null = null;
-  if (partnerMatchesByName) {
-    const entry = (partnerParticipant?.exerciseNames ?? []).find(
-      (e) =>
-        (typeof e === "string" ? e : e.name).trim().toLowerCase() ===
-        exerciseNameLower,
-    );
-    partnerSetCount = typeof entry === "object" ? (entry?.sets ?? null) : null;
-  }
-
-  return { partnerMatchesByName, partnerOnThis, partnerSetCount };
-}
+import type { SetDetail, SimilarityMatch } from "./types";
+import {
+  WIDGET_GROUP_RADIUS,
+  LBS_TO_KG,
+  KG_TO_LBS,
+  kgToDisplay,
+  displayToKg,
+  getEmptyStateInfo,
+  getDayOverviewTint,
+  computeProgressPercentage,
+  getPullHintText,
+  getAddingSetsSubtitle,
+  checkIsSelectedSetAssisted,
+  getLocalHistoryEntries,
+  getServerHistoryEntries,
+  pickBestPerformanceSummary,
+} from "./utils";
+import { PartnerBanner } from "./components/PartnerBanner";
+import { ExerciseCard } from "./components/ExerciseCard";
+import { SessionStatsWidget } from "./components/SessionStatsTicker";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main screen
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WorkoutScreen(): React.JSX.Element {
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
   const { isTabBarCollapsed } = useTabBar();
   const {
@@ -670,13 +101,12 @@ export default function WorkoutScreen(): React.JSX.Element {
     addExtraSetsToExercise,
     addNewExercise,
     lastActivityTime,
-    getSessionAverageRestTime,
-    getTotalSessionTime,
-    getCurrentRestTime,
-    getSessionStats,
     weightUnit,
     saveWeightUnit,
     fetchSessionHistory,
+  } = useWorkout();
+
+  const {
     isInJointSession,
     jointSession,
     partnerProgress,
@@ -686,7 +116,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     pushJointProgress,
     leaveJointSession,
     partnerCompletedSets,
-  } = useWorkout();
+  } = useJointSessionContext();
 
   const { alert, AlertComponent } = useAlert();
 
@@ -756,17 +186,10 @@ export default function WorkoutScreen(): React.JSX.Element {
   const [restReminderEnabled, setRestReminderEnabled] =
     useState<boolean>(false);
   const [restReminderSeconds, setRestReminderSeconds] = useState<number>(0);
-  const hasNotifiedRef = useRef<boolean>(false);
   const [showRestReminderModal, setShowRestReminderModal] =
     useState<boolean>(false);
   const [tempRestReminderSeconds, setTempRestReminderSeconds] =
     useState<string>("");
-
-  const [currentRestTimer, setCurrentRestTimer] = useState<number>(0);
-  const [sessionStats, setSessionStats] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
 
   // ── Header-card widgets ──────────────────────────────────────────────
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
@@ -827,9 +250,11 @@ export default function WorkoutScreen(): React.JSX.Element {
   };
   const dayWorkout = getCurrentDayWorkout();
 
-  // ── session stats ticker ─────────────────────────────────────────────
+  // Load stored rest reminder for this user once when a session starts.
+  // The per-second ticking itself lives in SessionStatsWidget so it doesn't
+  // re-render this whole screen every second.
   useEffect(() => {
-    if (!workoutStartTime || isCurrentDayLocked) return; // Load stored rest reminder for this user once when session starts
+    if (!workoutStartTime || isCurrentDayLocked) return;
     (async () => {
       try {
         const stored = await loadFromStorage<number | null>(
@@ -843,60 +268,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         console.warn("Failed to load rest reminder setting:", err);
       }
     })();
-
-    const interval = setInterval(() => {
-      setSessionStats(
-        getSessionStats(currentDay) as Record<string, unknown> | null,
-      );
-      const crt = getCurrentRestTime();
-      setCurrentRestTimer(crt);
-
-      // Reset notification flag when rest resets (new set / user activity)
-      if (crt <= 1) {
-        hasNotifiedRef.current = false;
-      }
-
-      // Trigger notification when threshold is reached and not already sent
-      if (
-        restReminderEnabled &&
-        restReminderSeconds > 0 &&
-        crt >= restReminderSeconds &&
-        !hasNotifiedRef.current
-      ) {
-        hasNotifiedRef.current = true;
-        (async () => {
-          try {
-            // No-op in Expo Go — Notifications module is never loaded there.
-            const Notifications = await getNotifications();
-            if (!Notifications) return;
-            const ready = await initializeSupplementNotifications();
-            if (!ready) return;
-            await scheduleNotification({
-              content: {
-                title: `⏱️ Time to start your next set`,
-                body: `You've rested ${formatDuration(crt)}. Start your next set when ready.`,
-                data: { type: "rest_reminder" },
-                priority: Notifications.AndroidNotificationPriority.HIGH,
-                ...(Platform.OS === "android" && {
-                  channelId: "supplement-reminders",
-                }),
-              },
-              trigger: null,
-            });
-          } catch (err) {
-            console.warn("Failed to send rest reminder:", err);
-          }
-        })();
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [
-    workoutStartTime,
-    isCurrentDayLocked,
-    currentDay,
-    restReminderEnabled,
-    restReminderSeconds,
-  ]);
+  }, [workoutStartTime, isCurrentDayLocked, user?.id]);
 
   useEffect(() => {
     if (showSetModal && selectedSet) loadPerformanceHistory();
@@ -1027,16 +399,19 @@ export default function WorkoutScreen(): React.JSX.Element {
   ]);
 
   // ── set press ────────────────────────────────────────────────────────
-  const openSetModalForNewEntry = (exerciseIndex: number, setIndex: number) => {
-    setSelectedSet({ exerciseIndex, setIndex });
-    setWeight("");
-    setReps("");
-    setSetNote("");
-    setIsWarmupSet(false);
-    setShowSetModal(true);
-  };
+  const openSetModalForNewEntry = useCallback(
+    (exerciseIndex: number, setIndex: number) => {
+      setSelectedSet({ exerciseIndex, setIndex });
+      setWeight("");
+      setReps("");
+      setSetNote("");
+      setIsWarmupSet(false);
+      setShowSetModal(true);
+    },
+    [],
+  );
 
-  const showCompletedSetAlert = (
+  const showCompletedSetAlert = useCallback((
     exerciseIndex: number,
     setIndex: number,
     existing: SetDetail,
@@ -1075,32 +450,43 @@ export default function WorkoutScreen(): React.JSX.Element {
       ],
       "info",
     );
-  };
+  }, [weightUnit, alert, currentDay, deleteSetDetails]);
 
-  const handleSetPress = (exerciseIndex: number, setIndex: number) => {
-    if (isCurrentDayLocked) {
-      alert(
-        "Day Locked",
-        "This day has been completed and locked.",
-        [{ text: "OK" }],
-        "lock",
-      );
-      return;
-    }
-    const existing = getSetDetails(
+  const handleSetPress = useCallback(
+    (exerciseIndex: number, setIndex: number) => {
+      if (isCurrentDayLocked) {
+        alert(
+          "Day Locked",
+          "This day has been completed and locked.",
+          [{ text: "OK" }],
+          "lock",
+        );
+        return;
+      }
+      const existing = getSetDetails(
+        currentDay,
+        exerciseIndex,
+        setIndex,
+      ) as SetDetail | null;
+      if (existing) {
+        showCompletedSetAlert(exerciseIndex, setIndex, existing);
+      } else {
+        openSetModalForNewEntry(exerciseIndex, setIndex);
+      }
+    },
+    [
+      isCurrentDayLocked,
+      alert,
+      getSetDetails,
       currentDay,
-      exerciseIndex,
-      setIndex,
-    ) as SetDetail | null;
-    if (existing) {
-      showCompletedSetAlert(exerciseIndex, setIndex, existing);
-    } else {
-      openSetModalForNewEntry(exerciseIndex, setIndex);
-    }
-  };
+      showCompletedSetAlert,
+      openSetModalForNewEntry,
+    ],
+  );
 
   // ── save set ─────────────────────────────────────────────────────────
-  const handleSaveSetDetails = useCallback(async () => {
+  const isSavingSetRef = useRef(false);
+  const saveSetDetailsImpl = useCallback(async () => {
     if (!selectedSet) return;
 
     // Convert entered value to kg for storage/server
@@ -1163,6 +549,16 @@ export default function WorkoutScreen(): React.JSX.Element {
     alert,
     weightUnit,
   ]);
+
+  const handleSaveSetDetails = useCallback(async () => {
+    if (isSavingSetRef.current) return;
+    isSavingSetRef.current = true;
+    try {
+      await saveSetDetailsImpl();
+    } finally {
+      isSavingSetRef.current = false;
+    }
+  }, [saveSetDetailsImpl]);
 
   // Rest reminder modal handlers
   const handleOpenRestReminderModal = () => {
@@ -1294,18 +690,21 @@ export default function WorkoutScreen(): React.JSX.Element {
     applyExerciseNameEdit(trimmed, trimmedMG);
   };
 
-  const handleQuickAddSet = (exerciseIndex: number) => {
-    if (isCurrentDayLocked) {
-      alert(
-        "Day Locked",
-        "Cannot add sets to a locked day.",
-        [{ text: "OK" }],
-        "lock",
-      );
-      return;
-    }
-    addExtraSetsToExercise(currentDay, selectedSplit!, exerciseIndex, 1);
-  };
+  const handleQuickAddSet = useCallback(
+    (exerciseIndex: number) => {
+      if (isCurrentDayLocked) {
+        alert(
+          "Day Locked",
+          "Cannot add sets to a locked day.",
+          [{ text: "OK" }],
+          "lock",
+        );
+        return;
+      }
+      addExtraSetsToExercise(currentDay, selectedSplit!, exerciseIndex, 1);
+    },
+    [isCurrentDayLocked, alert, addExtraSetsToExercise, currentDay, selectedSplit],
+  );
 
   const handleAddMultipleSets = useCallback(
     (exerciseIndex: number) => {
@@ -1669,8 +1068,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     totalSetsCount,
   );
   const allSetsComplete = areAllSetsComplete && !isCurrentDayLocked;
-  const totalSessionTime = getTotalSessionTime();
-  const sessionAvgRest = getSessionAverageRestTime(currentDay);
   const estimatedRemaining = getEstimatedTimeRemaining(currentDay) as
     | number
     | null;
@@ -1755,66 +1152,18 @@ export default function WorkoutScreen(): React.JSX.Element {
           </View>
         );
 
-      case "session_stats": {
-        if (!workoutStartTime || isCurrentDayLocked || !sessionStats) {
-          return (
-            <Text style={styles.widgetLineMuted}>
-              Starts once you begin a session.
-            </Text>
-          );
-        }
-        const currentRest = getCurrentRestTime();
+      case "session_stats":
         return (
-          <View>
-            <View style={styles.sessionStatsRow}>
-              <View style={styles.sessionStat}>
-                <Text style={styles.sessionStatLabel}>⏱️ Total Time</Text>
-                <Text style={styles.sessionStatValue}>
-                  {formatTime(totalSessionTime)}
-                </Text>
-              </View>
-              <View style={styles.sessionStat}>
-                <Text style={styles.sessionStatLabel}>💤 Avg Rest/Set</Text>
-                <Text style={styles.sessionStatValue}>
-                  {formatTime(Math.round(sessionAvgRest))}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.sessionStat}
-                onPress={handleOpenRestReminderModal}
-              >
-                <Text style={styles.sessionStatLabel}>⏰ Reminder</Text>
-                <Text style={styles.sessionStatValue}>
-                  {restReminderEnabled && restReminderSeconds > 0
-                    ? formatTime(restReminderSeconds)
-                    : "Off"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {currentRest > 0 && (
-              <View style={styles.currentRestContainer}>
-                <Text style={styles.currentRestLabel}>
-                  Rest since last set:
-                </Text>
-                <Text
-                  style={[
-                    styles.currentRestValue,
-                    currentRest > sessionAvgRest && styles.currentRestOvertime,
-                  ]}
-                >
-                  {formatTime(currentRest)}
-                  {currentRest > sessionAvgRest && (
-                    <Text style={styles.overtimeText}>
-                      {" "}
-                      (+{formatTime(Math.round(currentRest - sessionAvgRest))})
-                    </Text>
-                  )}
-                </Text>
-              </View>
-            )}
-          </View>
+          <SessionStatsWidget
+            workoutStartTime={workoutStartTime}
+            isCurrentDayLocked={isCurrentDayLocked}
+            currentDay={currentDay}
+            restReminderEnabled={restReminderEnabled}
+            restReminderSeconds={restReminderSeconds}
+            onOpenReminderModal={handleOpenRestReminderModal}
+            styles={styles}
+          />
         );
-      }
 
       default:
         return null;
@@ -1893,205 +1242,32 @@ export default function WorkoutScreen(): React.JSX.Element {
           />
 
           {((dayWorkout as any)?.exercises as any[]).map(
-            (exercise: any, exerciseIndex: number) => {
-              const completedSets = getExerciseCompletedSets(
-                currentDay,
-                exerciseIndex,
-              ) as number;
-              const allDone = completedSets === exercise.sets;
-              const isAssisted = isAssistedExercise(exercise.name);
-              const exerciseNameLower = exercise.name
-                ? normalizeExerciseName(exercise.name)
-                : "";
-              const { partnerMatchesByName, partnerOnThis, partnerSetCount } =
-                getPartnerMatchInfo(
-                  isInJointSession,
-                  partnerNameSet,
-                  partnerProgress as Record<string, unknown> | null,
-                  partnerParticipant,
-                  exerciseNameLower,
-                );
-
-              return (
-                <View
-                  key={exercise.name || exerciseIndex}
-                  style={[
-                    styles.exerciseCard,
-                    allDone && styles.exerciseCardComplete,
-                    isCurrentDayLocked && styles.exerciseCardLocked,
-                    partnerMatchesByName && styles.exerciseCardShared,
-                    partnerOnThis && styles.exerciseCardPartner,
-                  ]}
-                >
-                  {partnerOnThis && (
-                    <PartnerExercisePill username={partnerUsername} />
-                  )}
-                  {partnerMatchesByName &&
-                    !partnerOnThis &&
-                    partnerSetCount !== null && (
-                      <PartnerExerciseMatchBadge
-                        partnerSets={partnerSetCount}
-                        mySets={exercise.sets}
-                      />
-                    )}
-
-                  <View style={styles.exerciseHeader}>
-                    <View style={styles.exerciseInfo}>
-                      <View style={styles.exerciseNameRow}>
-                        <Text
-                          style={[
-                            styles.exerciseName,
-                            allDone && styles.exerciseNameComplete,
-                          ]}
-                        >
-                          {exercise.name}
-                          {isAssisted && " 🤝"}
-                        </Text>
-                        {!isCurrentDayLocked && (
-                          <TouchableOpacity
-                            onPress={() =>
-                              handleEditExerciseName(exerciseIndex)
-                            }
-                            style={styles.editButton}
-                          >
-                            <Text style={styles.editButtonText}>✏️</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      {exercise.muscleGroup && (
-                        <Text style={styles.muscleGroup}>
-                          {exercise.muscleGroup}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.exerciseProgress}>
-                      <Text style={styles.exerciseProgressText}>
-                        {completedSets}/{exercise.sets}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.setsContainer}>
-                    {Array.from({ length: exercise.sets }, (_, setIndex) => {
-                      const done = isSetComplete(
-                        currentDay,
-                        exerciseIndex,
-                        setIndex,
-                      );
-                      if (isCurrentDayLocked && !done) return null;
-                      const setDetails = getSetDetails(
-                        currentDay,
-                        exerciseIndex,
-                        setIndex,
-                      ) as SetDetail | null;
-                      const partnerDoneThisSet =
-                        isInJointSession &&
-                        partnerCompletedSets.some(
-                          (s) =>
-                            (s.exerciseName
-                              ? normalizeExerciseName(s.exerciseName)
-                              : undefined) === exerciseNameLower &&
-                            s.setIndex === setIndex,
-                        );
-                      const partnerOnSet =
-                        partnerOnThis &&
-                        (partnerProgress?.setIndex as number | undefined) ===
-                          setIndex;
-                      return (
-                        <TouchableOpacity
-                          key={`${exercise.name || exerciseIndex}-set-${setIndex}`}
-                          style={[
-                            styles.setButton,
-                            done && styles.setButtonComplete,
-                            isCurrentDayLocked &&
-                              done &&
-                              styles.setButtonLocked,
-                            setDetails?.isWarmup && styles.setButtonWarmup,
-                            partnerDoneThisSet && styles.setButtonPartnerDone,
-                            partnerOnSet && styles.setButtonPartner,
-                          ]}
-                          onPress={() =>
-                            handleSetPress(exerciseIndex, setIndex)
-                          }
-                          activeOpacity={isCurrentDayLocked ? 1 : 0.7}
-                          disabled={isCurrentDayLocked && !done}
-                        >
-                          {partnerOnSet && (
-                            <View style={styles.partnerSetDot} />
-                          )}
-                          <Text
-                            style={[
-                              styles.setButtonNumber,
-                              done && styles.setButtonNumberComplete,
-                              isCurrentDayLocked &&
-                                done && { color: colors.textPrimary },
-                              setDetails?.isWarmup && styles.warmupText,
-                              partnerDoneThisSet &&
-                                done && { color: colors.accentDark },
-                            ]}
-                          >
-                            {setDetails?.isWarmup ? "W" : setIndex + 1}
-                          </Text>
-                          {done && setDetails && (
-                            <View style={styles.setDetailsPreview}>
-                              {/* Display stored kg value in user's preferred unit */}
-                              <Text
-                                style={[
-                                  styles.setDetailsText,
-                                  isCurrentDayLocked && {
-                                    color: colors.textPrimary,
-                                  },
-                                ]}
-                              >
-                                {setDetails.weight
-                                  ? kgToDisplay(setDetails.weight, weightUnit)
-                                  : "0"}
-                                {weightUnit}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.setDetailsText,
-                                  isCurrentDayLocked && {
-                                    color: colors.textPrimary,
-                                  },
-                                ]}
-                              >
-                                ×{setDetails.reps || 0}
-                              </Text>
-                              {setDetails.note && (
-                                <Text style={styles.setNoteIndicator}>📝</Text>
-                              )}
-                            </View>
-                          )}
-                          {done && (
-                            <View style={styles.setCheckmark}>
-                              <Text style={styles.setCheckmarkText}>✓</Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {!isCurrentDayLocked && (
-                      <TouchableOpacity
-                        style={styles.addSetButton}
-                        onPress={() => handleQuickAddSet(exerciseIndex)}
-                        onLongPress={() => handleAddMultipleSets(exerciseIndex)}
-                      >
-                        <Text style={styles.addSetButtonIcon}>+</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {!isCurrentDayLocked && (
-                    <View style={styles.exerciseHint}>
-                      <Text style={styles.exerciseHintText}>
-                        Tap + to add 1 set · Long press for multiple
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              );
-            },
+            (exercise: any, exerciseIndex: number) => (
+              <ExerciseCard
+                key={exercise.name || exerciseIndex}
+                exercise={exercise}
+                exerciseIndex={exerciseIndex}
+                currentDay={currentDay}
+                isCurrentDayLocked={isCurrentDayLocked}
+                colors={colors}
+                styles={styles}
+                weightUnit={weightUnit}
+                isInJointSession={isInJointSession}
+                partnerNameSet={partnerNameSet}
+                partnerProgress={partnerProgress as Record<string, unknown> | null}
+                partnerParticipant={partnerParticipant}
+                partnerCompletedSets={partnerCompletedSets}
+                partnerUsername={partnerUsername}
+                getExerciseCompletedSets={getExerciseCompletedSets}
+                isSetComplete={isSetComplete}
+                getSetDetails={getSetDetails}
+                isAssistedExercise={isAssistedExercise}
+                onEditExerciseName={handleEditExerciseName}
+                onSetPress={handleSetPress}
+                onQuickAddSet={handleQuickAddSet}
+                onAddMultipleSets={handleAddMultipleSets}
+              />
+            ),
           )}
 
           {!isCurrentDayLocked && (
@@ -2641,7 +1817,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   );
 }
 
-const makeStyles = (colors: ThemeColors) =>
+export const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     emptyContainer: {

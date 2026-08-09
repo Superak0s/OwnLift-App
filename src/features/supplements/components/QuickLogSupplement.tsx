@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useMemo } from "react"
 import {
   View,
   Text,
@@ -34,7 +34,7 @@ export default function QuickLogSupplement({
   quickAmounts = DEFAULT_QUICK_AMOUNTS,
 }: QuickLogSupplementProps) {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const [amount, setAmount] = useState(String(defaultAmount))
   const [note, setNote] = useState("")
   const { alert, AlertComponent } = useAlert()

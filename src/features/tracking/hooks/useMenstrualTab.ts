@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { menstrualApi } from "../services";
 import type { MenstrualPrefs } from "../services/types";
 import { saveToStorage, loadFromStorage, STORAGE_KEYS } from "@shared/services/storage";
@@ -93,7 +93,10 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
       }
 
       try {
-        const statsResp = await menstrualApi.getCycleStats();
+        const statsResp = await menstrualApi.getCycleStats({
+          periodDays: currentPrefs.periodLengthDays,
+          cycleLengthDays: currentPrefs.cycleLengthDays,
+        });
         const stats = statsResp?.data;
         setCycleStats(stats ?? null);
 
@@ -140,10 +143,6 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
     // setMenstrualPrefs, so depending on it would re-create the callback
     // every load and re-trigger the effect below forever.
   }, [user]);
-
-  useEffect(() => {
-    loadMenstrualData();
-  }, [loadMenstrualData]);
 
   const toggleExpandedCycle = useCallback((id: number | string | null | undefined) => {
     if (id == null) return;

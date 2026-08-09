@@ -13,7 +13,6 @@ const FORCED_PROPERTIES = {
   "org.gradle.daemon": "true",
   "kotlin.incremental": "true",
   "kotlin.daemon.jvm.options": "-Xmx4g",
-  "android.enableR8.fullMode": "false",
 };
 
 // Properties removed if present (deprecated / conflicting)

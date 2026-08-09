@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
@@ -91,7 +92,7 @@ export default function ExerciseAnalytics({
   userId = null,
 }: Readonly<ExerciseAnalyticsProps>) {
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
   const [exerciseData, setExerciseData] = useState<
     ExerciseHistoryEntry[] | null
@@ -466,7 +467,10 @@ export default function ExerciseAnalytics({
     }
   };
 
-  const getChartData = (metric: "weight" | "volume" | "reps"): ChartData => {
+  const computeChartData = (
+    exerciseData: ExerciseHistoryEntry[] | null,
+    metric: "weight" | "volume" | "reps",
+  ): ChartData => {
     if (!exerciseData?.length) {
       return { labels: ["No data"], datasets: [{ data: [0] }] };
     }
@@ -531,7 +535,9 @@ export default function ExerciseAnalytics({
     };
   };
 
-  const getStats = (): ExerciseStats => {
+  const computeStats = (
+    exerciseData: ExerciseHistoryEntry[] | null,
+  ): ExerciseStats => {
     const empty: ExerciseStats = {
       totalSets: 0,
       totalWorkouts: 0,
@@ -579,6 +585,16 @@ export default function ExerciseAnalytics({
     };
   };
 
+  const stats = useMemo(() => computeStats(exerciseData), [exerciseData]);
+  const chartDataByMetric = useMemo(
+    () => ({
+      weight: computeChartData(exerciseData, "weight"),
+      volume: computeChartData(exerciseData, "volume"),
+      reps: computeChartData(exerciseData, "reps"),
+    }),
+    [exerciseData],
+  );
+
   const getSetsForDate = (date: Date): ExerciseHistoryEntry[] => {
     if (!exerciseData) return [];
     const target = new Date(date);
@@ -610,17 +626,26 @@ export default function ExerciseAnalytics({
 
   const formatTime = (date: Date): string => formatClockTime(date);
 
-  const filteredExercises = availableExercises.filter((exercise) => {
-    const matchesSearch =
-      searchQuery.length === 0 ||
-      exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (exercise.muscleGroup
-        ?.toLowerCase()
-        .includes(searchQuery.toLowerCase()) ??
-        false);
-    const hasData = exercise.totalSets > 0 || showZeroSetExercises;
-    return matchesSearch && hasData;
-  });
+  const filteredExercises = useMemo(
+    () =>
+      availableExercises.filter((exercise) => {
+        const matchesSearch =
+          searchQuery.length === 0 ||
+          exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (exercise.muscleGroup
+            ?.toLowerCase()
+            .includes(searchQuery.toLowerCase()) ??
+            false);
+        const hasData = exercise.totalSets > 0 || showZeroSetExercises;
+        return matchesSearch && hasData;
+      }),
+    [availableExercises, searchQuery, showZeroSetExercises],
+  );
+
+  const zeroSetExerciseCount = useMemo(
+    () => availableExercises.filter((e) => e.totalSets === 0).length,
+    [availableExercises],
+  );
 
   const selectedExerciseMeta = availableExercises.find(
     (e) => e.name === selectedExercise,
@@ -690,7 +715,7 @@ export default function ExerciseAnalytics({
         </View>
       );
     }
-    const s = getStats();
+    const s = stats;
     return (
       <View>
         <View style={styles.statsGrid}>
@@ -745,7 +770,7 @@ export default function ExerciseAnalytics({
         </View>
       );
     }
-    const s = getStats();
+    const s = stats;
     if (!s.lastWorkout) {
       return (
         <Text style={styles.widgetLineMuted}>
@@ -848,7 +873,7 @@ export default function ExerciseAnalytics({
       <ProgressChart
         title={config.title}
         icon={config.icon}
-        data={getChartData(config.metric)}
+        data={chartDataByMetric[config.metric]}
         yAxisSuffix={config.yAxisSuffix}
         chartWidth={chartWidth}
       />
@@ -988,7 +1013,6 @@ export default function ExerciseAnalytics({
           title='Select Exercise'
           showCancelButton={false}
           showConfirmButton={false}
-          scrollable
         >
           <View style={styles.searchContainer}>
             <TextInput
@@ -1023,61 +1047,64 @@ export default function ExerciseAnalytics({
               </Text>
             </TouchableOpacity>
             <Text style={styles.filterHint}>
-              {availableExercises.filter((e) => e.totalSets === 0).length}{" "}
-              exercises hidden
+              {zeroSetExerciseCount} exercises hidden
             </Text>
           </View>
 
-          {filteredExercises.map((exercise) => (
-            <TouchableOpacity
-              key={exercise.name}
-              style={[
-                styles.dropdownItem,
-                selectedExercise === exercise.name &&
-                  styles.dropdownItemSelected,
-              ]}
-              onPress={() => {
-                setSelectedExercise(exercise.name);
-                setShowDropdown(false);
-                setSearchQuery("");
-              }}
-            >
-              <View style={styles.dropdownItemContent}>
-                <Text
-                  style={[
-                    styles.dropdownItemText,
-                    selectedExercise === exercise.name &&
-                      styles.dropdownItemTextSelected,
-                  ]}
-                >
-                  {exercise.name}
+          <FlatList
+            data={filteredExercises}
+            keyExtractor={(exercise) => exercise.name}
+            style={styles.dropdownList}
+            keyboardShouldPersistTaps='handled'
+            ListEmptyComponent={
+              <View style={styles.noResultsContainer}>
+                <Text style={styles.noResultsText}>
+                  {searchQuery.length > 0
+                    ? `No exercises match "${searchQuery}"`
+                    : "No exercises with data"}
                 </Text>
-                <View style={styles.dropdownItemMeta}>
-                  {exercise.muscleGroup && (
-                    <Text style={styles.dropdownItemMuscle}>
-                      {exercise.muscleGroup}
-                    </Text>
-                  )}
-                  <Text style={styles.dropdownItemSets}>
-                    {exercise.totalSets} sets
-                  </Text>
-                </View>
               </View>
-              {selectedExercise === exercise.name && (
-                <Text style={styles.dropdownItemCheck}>✓</Text>
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {filteredExercises.length === 0 && (
-            <View style={styles.noResultsContainer}>
-              <Text style={styles.noResultsText}>
-                {searchQuery.length > 0
-                  ? `No exercises match "${searchQuery}"`
-                  : "No exercises with data"}
-              </Text>
-            </View>
-          )}
+            }
+            renderItem={({ item: exercise }) => (
+              <TouchableOpacity
+                style={[
+                  styles.dropdownItem,
+                  selectedExercise === exercise.name &&
+                    styles.dropdownItemSelected,
+                ]}
+                onPress={() => {
+                  setSelectedExercise(exercise.name);
+                  setShowDropdown(false);
+                  setSearchQuery("");
+                }}
+              >
+                <View style={styles.dropdownItemContent}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      selectedExercise === exercise.name &&
+                        styles.dropdownItemTextSelected,
+                    ]}
+                  >
+                    {exercise.name}
+                  </Text>
+                  <View style={styles.dropdownItemMeta}>
+                    {exercise.muscleGroup && (
+                      <Text style={styles.dropdownItemMuscle}>
+                        {exercise.muscleGroup}
+                      </Text>
+                    )}
+                    <Text style={styles.dropdownItemSets}>
+                      {exercise.totalSets} sets
+                    </Text>
+                  </View>
+                </View>
+                {selectedExercise === exercise.name && (
+                  <Text style={styles.dropdownItemCheck}>✓</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          />
         </ModalSheet>
 
         <ModalSheet
@@ -1321,6 +1348,7 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: 6,
       textAlign: "center",
     },
+    dropdownList: { flex: 1 },
     dropdownItem: {
       flexDirection: "row",
       justifyContent: "space-between",

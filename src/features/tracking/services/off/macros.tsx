@@ -2,6 +2,7 @@ import { setStorageItem } from "@shared/services/sqliteStorage"
 import { createRecordStore } from "@shared/services/offlineHelpers"
 import { generateId } from "@utils/format"
 import type { LogMacrosParams, MacrosGoals } from "../../types"
+import type { MacrosEntry } from "@shared/types"
 
 interface StoredMacrosEntry {
   id: string
@@ -75,11 +76,13 @@ export const macrosTrackingApi = {
     }
   },
 
-  getMacrosHistory: async (days: number = 30): Promise<unknown> => {
+  getMacrosHistory: async (
+    days: number = 30,
+  ): Promise<{ entries: MacrosEntry[] }> => {
     try {
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
       const entries = await entriesStore.getSince(cutoff)
-      return { entries }
+      return { entries: entries.map((e) => ({ ...e, name: e.name ?? undefined })) }
     } catch (error) {
       console.error("Error getting macros history (offline):", error)
       throw error

@@ -95,7 +95,7 @@ export const HYDRATION_TAB_CONFIG = {
 
 // ─── Log Hydration Modal ──────────────────────────────────────────────────────
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -150,7 +150,7 @@ export function LogHydrationModal({
   const [editingPresets, setEditingPresets] = useState(false);
   const [errorPercent, setErrorPercent] = useState(0);
 
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   useEffect(() => {
     if (visible) {
@@ -930,12 +930,7 @@ const makeHydrationSettingsStyles = (colors: any) =>
       textAlign: "center",
       backgroundColor: colors.background,
     },
-    errorRange: {
-      fontSize: 11,
-      color: colors.textSecondary,
-      marginTop: 4,
-      textAlign: "center",
-    },
+    
     hint: {
       fontSize: 11,
       color: colors.textSecondary,

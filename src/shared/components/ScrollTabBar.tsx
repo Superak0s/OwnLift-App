@@ -185,7 +185,7 @@ export default function ScrollTabBar({
   containerStyle,
 }: Props) {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [config, setConfig] = useState<TabConfig[]>(
     tabs.map((t) => ({ key: t.key, visible: true })),

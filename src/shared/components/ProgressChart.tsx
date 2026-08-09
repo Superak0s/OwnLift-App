@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
-import { LineChart } from "react-native-chart-kit";
+import { LineChart, BarChart } from "react-native-chart-kit";
 import { useTheme } from "../context/ThemeContext";
 
 interface ChartData {
@@ -16,6 +16,10 @@ interface ProgressChartProps {
   readonly chartWidth?: number;
   readonly chartColor?: string; // override the gradient/dot color
   readonly chartColorDark?: string; // override the darker shade (optional)
+  readonly chartType?: "line" | "bar";
+  /** Per-bar color override, only used when chartType is "bar". */
+  readonly barColors?: string[];
+  readonly showValuesOnTopOfBars?: boolean;
 }
 
 const { width } = Dimensions.get("window");
@@ -47,6 +51,9 @@ export default function ProgressChart({
   chartWidth,
   chartColor,
   chartColorDark,
+  chartType = "line",
+  barColors,
+  showValuesOnTopOfBars,
 }: ProgressChartProps) {
   const { colors, resolvedChartColor, resolvedChartColorDark } = useTheme();
   // Explicit prop overrides > user setting > theme default
@@ -57,7 +64,19 @@ export default function ProgressChart({
     effectiveColor,
     effectiveColorDark,
   );
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const barData = useMemo(() => {
+    if (chartType !== "bar" || !barColors) return data;
+    return {
+      ...data,
+      datasets: data.datasets.map((dataset) => ({
+        ...dataset,
+        colors: barColors.map((barColor) => () => barColor),
+      })),
+    };
+  }, [chartType, barColors, data]);
+
   return (
     <View style={styles.chartSection}>
       {title && (
@@ -66,20 +85,37 @@ export default function ProgressChart({
           {title}
         </Text>
       )}
-      <LineChart
-        data={data}
-        width={chartWidth ?? width - 40}
-        height={220}
-        chartConfig={chartConfig}
-        bezier
-        style={styles.chart}
-        yAxisSuffix={yAxisSuffix}
-        withInnerLines={false}
-        withOuterLines
-        withVerticalLines={false}
-        withHorizontalLines
-        fromZero
-      />
+      {chartType === "bar" ? (
+        <BarChart
+          data={barData}
+          width={chartWidth ?? width - 40}
+          height={220}
+          chartConfig={chartConfig}
+          style={styles.chart}
+          yAxisLabel=""
+          yAxisSuffix={yAxisSuffix}
+          withInnerLines={false}
+          fromZero
+          withCustomBarColorFromData={!!barColors}
+          flatColor={!!barColors}
+          showValuesOnTopOfBars={showValuesOnTopOfBars}
+        />
+      ) : (
+        <LineChart
+          data={data}
+          width={chartWidth ?? width - 40}
+          height={220}
+          chartConfig={chartConfig}
+          bezier
+          style={styles.chart}
+          yAxisSuffix={yAxisSuffix}
+          withInnerLines={false}
+          withOuterLines
+          withVerticalLines={false}
+          withHorizontalLines
+          fromZero
+        />
+      )}
     </View>
   );
 }

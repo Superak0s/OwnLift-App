@@ -38,11 +38,13 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   type ReactNode,
 } from "react"
 import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
 import { useColorScheme } from "react-native"
 import themesData from "./themes.json"
+import logger from "@shared/services/logger"
 
 // ─── Storage key ─────────────────────────────────────────────────────────────
 
@@ -166,8 +168,8 @@ function normalizeColors(
     }
   }
 
-  if (missing.length > 0 && typeof __DEV__ !== "undefined" && __DEV__) {
-    console.warn(
+  if (missing.length > 0) {
+    logger.warn(
       `[ThemeContext] Theme "${themeId}" in themes.json is missing color key(s): ${missing.join(
         ", ",
       )}. Using fallback values for those keys.`,
@@ -188,28 +190,22 @@ function loadBuiltInThemes(): AppTheme[] {
 
   for (const entry of raw) {
     if (!entry || typeof entry.id !== "string" || !entry.id) {
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn(
-          "[ThemeContext] Skipping invalid entry in themes.json:",
-          entry,
-        )
-      }
+      logger.warn(
+        "[ThemeContext] Skipping invalid entry in themes.json:",
+        entry,
+      )
       continue
     }
     if (entry.id === "system") {
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn(
-          '[ThemeContext] "system" is a reserved theme id and is handled automatically; skipping this entry in themes.json.',
-        )
-      }
+      logger.warn(
+        '[ThemeContext] "system" is a reserved theme id and is handled automatically; skipping this entry in themes.json.',
+      )
       continue
     }
     if (seen.has(entry.id)) {
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn(
-          `[ThemeContext] Duplicate theme id "${entry.id}" in themes.json; keeping the first occurrence.`,
-        )
-      }
+      logger.warn(
+        `[ThemeContext] Duplicate theme id "${entry.id}" in themes.json; keeping the first occurrence.`,
+      )
       continue
     }
     seen.add(entry.id)
@@ -225,8 +221,8 @@ function loadBuiltInThemes(): AppTheme[] {
     })
   }
 
-  if (result.length === 0 && typeof __DEV__ !== "undefined" && __DEV__) {
-    console.warn(
+  if (result.length === 0) {
+    logger.warn(
       "[ThemeContext] No valid themes found in themes.json — falling back to a single built-in light theme.",
     )
     result.push({
@@ -390,10 +386,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
-  const allThemes: AppTheme[] = [...BUILT_IN_THEMES, ...customThemes]
+  const allThemes: AppTheme[] = useMemo(
+    () => [...BUILT_IN_THEMES, ...customThemes],
+    [customThemes],
+  )
 
   // Resolve the active theme
-  const resolveTheme = useCallback((): AppTheme => {
+  const theme = useMemo<AppTheme>(() => {
     if (activeThemeId === "system") {
       const systemColors = systemScheme === "dark" ? DARK_COLORS : LIGHT_COLORS
       return {
@@ -406,9 +405,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (found) return found
     // Fallback to the first preset theme (light)
     return BUILT_IN_THEMES[1] ?? BUILT_IN_THEMES[0]!
-  }, [activeThemeId, customThemes, systemScheme])
-
-  const theme = resolveTheme()
+  }, [activeThemeId, allThemes, systemScheme])
   const colors = theme.colors
   const isDark = colors.background < "#888888" // cheap luminance heuristic
 
@@ -514,30 +511,47 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      theme,
+      colors,
+      isDark,
+      activeThemeId,
+      allThemes,
+      setTheme,
+      saveCustomTheme,
+      deleteCustomTheme,
+      exportTheme,
+      importTheme,
+      chartColorOverride,
+      chartColorDarkOverride,
+      setChartColorOverride,
+      resolvedChartColor,
+      resolvedChartColorDark,
+    }),
+    [
+      theme,
+      colors,
+      isDark,
+      activeThemeId,
+      allThemes,
+      setTheme,
+      saveCustomTheme,
+      deleteCustomTheme,
+      exportTheme,
+      importTheme,
+      chartColorOverride,
+      chartColorDarkOverride,
+      setChartColorOverride,
+      resolvedChartColor,
+      resolvedChartColorDark,
+    ],
+  )
+
   if (!loaded) return null // avoid flash before theme is ready
 
   return (
-    <ThemeContext.Provider
-      value={{
-        theme,
-        colors,
-        isDark,
-        activeThemeId,
-        allThemes,
-        setTheme,
-        saveCustomTheme,
-        deleteCustomTheme,
-        exportTheme,
-        importTheme,
-        chartColorOverride,
-        chartColorDarkOverride,
-        setChartColorOverride,
-        resolvedChartColor,
-        resolvedChartColorDark,
-      }}
-    >
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   )
 }
 

@@ -4,7 +4,7 @@
 // same idea as Android's widget drawer. Lists every widget that isn't
 // already placed and lets the user tap to add it.
 
-import React from "react"
+import React, { useMemo } from "react"
 import {
   Modal,
   View,
@@ -39,7 +39,7 @@ export default function WidgetGallery<T extends string>({
   onEditWidgets,
 }: WidgetGalleryProps<T>): React.JSX.Element {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const handleAdd = (type: T) => {
     onAddWidget(type)

@@ -8,6 +8,11 @@ import type {
   Gender,
   WeightUnit,
 } from "../../types"
+import type {
+  BodyFatEntry,
+  ProgressPhoto,
+  WeightHistoryResponse,
+} from "@shared/types"
 
 /**
  * Body Tracking API - Weight, Height, Progress Photos
@@ -51,7 +56,9 @@ export const bodyTrackingApi = {
    * Get weight history
    * GET /api/tracking/bodystats/weight
    */
-  getWeightHistory: async (limit: number = 90): Promise<unknown> =>
+  getWeightHistory: async (
+    limit: number = 90,
+  ): Promise<WeightHistoryResponse> =>
     apiCall(`/api/tracking/bodystats/weight?limit=${limit}`),
 
   /**
@@ -109,7 +116,9 @@ export const bodyTrackingApi = {
    * List progress photos (metadata only, not image bytes)
    * GET /api/tracking/photos
    */
-  getProgressPhotos: async (limit: number = 200): Promise<unknown> =>
+  getProgressPhotos: async (
+    limit: number = 200,
+  ): Promise<{ photos: ProgressPhoto[] }> =>
     apiCall(`/api/tracking/photos?limit=${limit}`),
 
   /**
@@ -199,7 +208,9 @@ export const bodyFatApi = {
    * Get body fat history
    * GET /api/tracking/bodystats/bodyfat/log
    */
-  getBodyFatHistory: async (limit: number = 90): Promise<unknown> =>
+  getBodyFatHistory: async (
+    limit: number = 90,
+  ): Promise<{ entries: BodyFatEntry[] }> =>
     apiCall(`/api/tracking/bodystats/bodyfat/log?limit=${limit}`),
 
   /**

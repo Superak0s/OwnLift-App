@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, type ReactNode } from "react"
+import React, { createContext, useContext, useMemo, useState, type ReactNode } from "react"
 
 interface TabBarContextValue {
   isTabBarCollapsed: boolean
@@ -9,8 +9,12 @@ const TabBarContext = createContext<TabBarContextValue | undefined>(undefined)
 
 export function TabBarProvider({ children }: { children: ReactNode }) {
   const [isTabBarCollapsed, setIsTabBarCollapsed] = useState(false)
+  const value = useMemo(
+    () => ({ isTabBarCollapsed, setIsTabBarCollapsed }),
+    [isTabBarCollapsed],
+  )
   return (
-    <TabBarContext.Provider value={{ isTabBarCollapsed, setIsTabBarCollapsed }}>
+    <TabBarContext.Provider value={value}>
       {children}
     </TabBarContext.Provider>
   )

@@ -6,6 +6,7 @@ import {
 } from "../../../utils/session"
 import { generateId } from "../../../utils/format"
 import { workoutApi } from "@features/workout/services/index"
+import logger from "../../services/logger"
 import type { WorkoutData } from "../../types"
 import type { CompletedDays, LockedDays } from "../../../utils/dayCompletion"
 import type { PendingSync } from "../../types"
@@ -154,7 +155,7 @@ export const useSessionOperations = ({
    */
   const clearActiveWorkout = useCallback(async (): Promise<void> => {
     try {
-      console.log("Clearing active workout session...")
+      logger.debug("Clearing active workout session...")
 
       await removeFromStorage(STORAGE_KEYS.WORKOUT_START_TIME, userId)
       await removeFromStorage(STORAGE_KEYS.CURRENT_SESSION_ID, userId)
@@ -165,7 +166,7 @@ export const useSessionOperations = ({
       setLastSetEndTime(null)
       setLastActivityTime(null)
 
-      console.log("✓ Active workout session cleared")
+      logger.info("✓ Active workout session cleared")
     } catch (error) {
       console.error("Error clearing active workout:", error)
     }
@@ -205,7 +206,7 @@ export const useSessionOperations = ({
   const startWorkoutImpl = useCallback(async (): Promise<string | null> => {
     try {
       if (workoutStartTime && currentSessionId) {
-        console.log(
+        logger.debug(
           "Workout already started, returning existing session ID:",
           currentSessionId,
         )
@@ -258,7 +259,7 @@ export const useSessionOperations = ({
             userId,
           )
           setCurrentSessionId(newSessionId)
-          console.log("✓ Session started, ID:", newSessionId)
+          logger.info("✓ Session started, ID:", newSessionId)
         } else {
           // FIX: previously fell through silently when the server call
           // resolved (no throw) but returned a falsy id. Now treat it the
@@ -288,7 +289,7 @@ export const useSessionOperations = ({
             },
             timestamp: startTime,
           })
-          console.log(
+          logger.warn(
             "⚠ Session queued for sync with local ID (no id returned):",
             newSessionId,
           )
@@ -315,7 +316,7 @@ export const useSessionOperations = ({
           },
           timestamp: startTime,
         })
-        console.log("⚠ Session queued for sync with local ID:", newSessionId)
+        logger.warn("⚠ Session queued for sync with local ID:", newSessionId)
       }
 
       setLastSetEndTime(null)
@@ -353,7 +354,7 @@ export const useSessionOperations = ({
         const sessionIdToEnd = currentSessionId
 
         if (isLocalSessionId(sessionIdToEnd)) {
-          console.log(
+          logger.debug(
             "🧹 Cleaning up pending syncs for local session:",
             sessionIdToEnd,
           )
@@ -368,7 +369,7 @@ export const useSessionOperations = ({
 
           await saveToStorage(STORAGE_KEYS.PENDING_SYNCS, cleanedSyncs, userId)
           setPendingSyncs(cleanedSyncs)
-          console.log(
+          logger.debug(
             `🧹 Cleaned ${pendingSyncs.length - cleanedSyncs.length} invalid syncs`,
           )
         }
@@ -376,7 +377,7 @@ export const useSessionOperations = ({
         if (sessionIdToEnd && !isLocalSessionId(sessionIdToEnd)) {
           try {
             await workoutApi.endSession(sessionIdToEnd, getLocalISOString())
-            console.log("✓ Session ended")
+            logger.info("✓ Session ended")
           } catch (error) {
             console.error("Failed to end session:", error)
 
@@ -389,15 +390,15 @@ export const useSessionOperations = ({
                 data: { sessionId: sessionIdToEnd },
                 timestamp: getLocalISOString(),
               })
-              console.log("⚠ endSession queued for sync")
+              logger.warn("⚠ endSession queued for sync")
             } else {
-              console.log(
+              logger.warn(
                 "⚠ Session doesn't exist anymore - not queuing sync",
               )
             }
           }
         } else if (isLocalSessionId(sessionIdToEnd)) {
-          console.log("⚠ Local session - will be ended when startSession syncs")
+          logger.warn("⚠ Local session - will be ended when startSession syncs")
         }
 
         await clearActiveWorkout()
@@ -448,13 +449,16 @@ export const useSessionOperations = ({
     ): Promise<void> => {
       try {
         let sessionId = currentSessionId
-        if (!workoutStartTime || !sessionId) {
-          console.log("Starting new workout session...")
+        const startingNewSession = !workoutStartTime || !sessionId
+        if (startingNewSession) {
+          logger.debug("Starting new workout session...")
           sessionId = await startWorkout()
-          console.log("Workout session started, session ID:", sessionId)
+          logger.debug("Workout session started, session ID:", sessionId)
         }
 
-        await updateLastActivityTime()
+        // startWorkout() already stamps activity time when it starts a new
+        // session — avoid writing it twice in the same action.
+        if (!startingNewSession) await updateLastActivityTime()
 
         const setStartTime =
           lastSetEndTime || workoutStartTime || getLocalISOString()
@@ -497,7 +501,7 @@ export const useSessionOperations = ({
               isWarmup,
               muscleGroup,
             )
-            console.log("✓ Set recorded")
+            logger.debug("✓ Set recorded")
           } catch (error) {
             console.error("Failed to record set:", error)
             await addPendingSync({
@@ -516,7 +520,7 @@ export const useSessionOperations = ({
               },
               timestamp: setEndTime,
             })
-            console.log("⚠ Set queued for sync")
+            logger.warn("⚠ Set queued for sync")
           }
         } else {
           console.error("No session ID available - this should not happen!")

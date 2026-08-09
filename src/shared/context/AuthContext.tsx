@@ -4,94 +4,93 @@ import React, {
   useContext,
   useEffect,
   useCallback,
+  useMemo,
   type ReactNode,
-} from "react"
-import { authService } from "@features/auth/services/index"
-import { onServerUrlChange } from "../services/config"
-import {
-  getAppMode,
-  isServerless,
-  onAppModeChange,
-} from "../services/appMode"
-import { Alert } from "react-native"
-import { tokenStorage } from "../services/tokenStorage"
-import type { User } from "../types"
+} from "react";
+import { authService } from "@features/auth/services/index";
+import { onServerUrlChange } from "../services/config";
+import { getAppMode, isServerless, onAppModeChange } from "../services/appMode";
+import { Alert } from "react-native";
+import { tokenStorage } from "../services/tokenStorage";
+import { sinceBoot } from "../services/debugClock";
+import logger from "../services/logger";
+import type { User } from "../types";
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────
-export type { User }
+export type { User };
 
 interface AuthResult {
-  success: boolean
-  error?: string
+  success: boolean;
+  error?: string;
 }
 
 interface AuthContextValue {
-  user: User | null
+  user: User | null;
   /** Raw JWT string, always up-to-date */
-  authToken: string
-  isAuthenticated: boolean
-  isLoading: boolean
+  authToken: string;
+  isAuthenticated: boolean;
+  isLoading: boolean;
   signup: (
     username: string,
     email: string,
     password: string,
     name: string,
-  ) => Promise<AuthResult>
-  signin: (username: string, password: string) => Promise<AuthResult>
-  logout: () => Promise<void>
-  updateProfile: (name: string, email: string) => Promise<AuthResult>
-  refreshUser: () => Promise<AuthResult>
+  ) => Promise<AuthResult>;
+  signin: (username: string, password: string) => Promise<AuthResult>;
+  logout: () => Promise<void>;
+  updateProfile: (name: string, email: string) => Promise<AuthResult>;
+  refreshUser: () => Promise<AuthResult>;
   /** Call this to attempt a silent token refresh. Returns true on success. */
-  refreshToken: () => Promise<boolean>
+  refreshToken: () => Promise<boolean>;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined)
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const useAuth = (): AuthContextValue => {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
-}
+  return context;
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Read the stored JWT without throwing. Returns empty string on failure. */
 const readStoredToken = async (): Promise<string> => {
   try {
-    return (await tokenStorage.get()) ?? ""
+    return (await tokenStorage.get()) ?? "";
   } catch {
-    return ""
+    return "";
   }
-}
+};
 
 // How often to proactively refresh the token (ms).
 // Set to 55 minutes so a 1-hour expiry is covered with headroom.
-const TOKEN_REFRESH_INTERVAL_MS = 55 * 60 * 1000
+const TOKEN_REFRESH_INTERVAL_MS = 55 * 60 * 1000;
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [authToken, setAuthToken] = useState("")
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authToken, setAuthToken] = useState("");
 
   // ── logout ────────────────────────────────────────────────────────────────
   const logout = useCallback(async (): Promise<void> => {
     try {
-      await authService.logout()
+      await authService.logout();
     } catch (error) {
-      console.error("Error logging out:", error)
+      console.error("Error logging out:", error);
     } finally {
-      setAuthToken("")
-      setUser(null)
-      setIsAuthenticated(false)
+      setAuthToken("");
+      setUser(null);
+      setIsAuthenticated(false);
     }
-  }, [])
+  }, []);
 
   // ── Offline auto-connect ────────────────────────────────────────────────────
   /**
@@ -103,20 +102,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const autoConnectOffline = useCallback(async (): Promise<void> => {
     try {
       const data = (await authService.signin("Me", "")) as {
-        success: boolean
-        user?: User
-        token?: string
-      }
+        success: boolean;
+        user?: User;
+        token?: string;
+      };
       if (data.success && data.user) {
-        const token = data.token ?? (await readStoredToken())
-        setAuthToken(token)
-        setUser(data.user)
-        setIsAuthenticated(true)
+        const token = data.token ?? (await readStoredToken());
+        setAuthToken(token);
+        setUser(data.user);
+        setIsAuthenticated(true);
       }
     } catch (error) {
-      console.error("Offline auto-connect failed:", error)
+      console.error("Offline auto-connect failed:", error);
     }
-  }, [])
+  }, []);
 
   // ── Token refresh ─────────────────────────────────────────────────────────
   /**
@@ -128,226 +127,246 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       // authService.refreshToken() should POST to your /auth/refresh endpoint
       // and persist the new JWT in SQLite storage.
-      const newToken = await authService.refreshToken()
+      const newToken = await authService.refreshToken();
       if (newToken) {
-        setAuthToken(newToken)
-        console.log("✅ Token refreshed silently")
-        return true
+        setAuthToken(newToken);
+        logger.info("✅ Token refreshed silently");
+        return true;
       }
       // Refresh returned nothing — token is gone, force logout
-      console.warn("⚠️ Token refresh returned empty — logging out")
-      await logout()
-      return false
+      console.warn("⚠️ Token refresh returned empty — logging out");
+      await logout();
+      return false;
     } catch (error) {
-      console.warn("⚠️ Token refresh failed, logging out:", error)
-      await logout()
-      return false
+      console.warn("⚠️ Token refresh failed, logging out:", error);
+      await logout();
+      return false;
     }
-  }, [logout])
+  }, [logout]);
 
   // Proactive refresh interval — keeps the session alive without the user
   // noticing. If the server doesn't support /auth/refresh yet, this is a
   // no-op until that endpoint is added.
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated) return;
     const interval = setInterval(() => {
-      void refreshToken()
-    }, TOKEN_REFRESH_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [isAuthenticated, refreshToken])
+      void refreshToken();
+    }, TOKEN_REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, refreshToken]);
 
   useEffect(() => {
-    void checkAuthStatus()
-  }, [])
+    void checkAuthStatus();
+  }, []);
 
   // React to runtime app-mode toggles (e.g. the Login screen's toggle):
   // switching to offline auto-connects with no login; switching to server
   // mode drops the local session so a real login is required.
   useEffect(() => {
     const unsubscribe = onAppModeChange.subscribe((mode) => {
-      if (mode === "offline") void autoConnectOffline()
-      else void logout()
-    })
-    return unsubscribe
-  }, [autoConnectOffline, logout])
+      if (mode === "offline") void autoConnectOffline();
+      else void logout();
+    });
+    return unsubscribe;
+  }, [autoConnectOffline, logout]);
 
   useEffect(() => {
     const unsubscribe = onServerUrlChange(() => {
       if (isAuthenticated) {
-        console.log("🔄 Server URL changed, logging out user")
+        logger.info("🔄 Server URL changed, logging out user");
         Alert.alert(
           "Server Changed",
           "The server URL has been changed. You will be logged out.",
           [{ text: "OK", onPress: () => void logout() }],
-        )
+        );
       }
-    })
-    return unsubscribe
-  }, [isAuthenticated, logout])
+    });
+    return unsubscribe;
+  }, [isAuthenticated, logout]);
 
   // ── checkAuthStatus ───────────────────────────────────────────────────────
   const checkAuthStatus = useCallback(async (): Promise<void> => {
     try {
       // Make sure the persisted app mode is loaded before we decide whether
       // this is a serverless session (which never shows a login screen).
-      await getAppMode()
-      const isAuth = await authService.isAuthenticated()
+      await getAppMode();
+      const isAuth = await authService.isAuthenticated();
       if (isAuth) {
         try {
-          const currentUser = (await authService.getCurrentUser()) as User
-          const token = await readStoredToken()
-          setAuthToken(token)
-          setUser(currentUser)
-          setIsAuthenticated(true)
-          console.log("✅ Valid session restored for:", currentUser.username)
+          const currentUser = (await authService.getCurrentUser()) as User;
+          const token = await readStoredToken();
+          setAuthToken(token);
+          setUser(currentUser);
+          setIsAuthenticated(true);
+          logger.info("✅ Valid session restored for:", currentUser.username);
         } catch {
           console.warn(
             "⚠️ Stored token is expired or invalid — attempting refresh",
-          )
+          );
           // Try a refresh before giving up and clearing the session
-          const refreshed = await refreshToken()
+          const refreshed = await refreshToken();
           if (!refreshed) {
-            await authService.logout()
-            setAuthToken("")
-            setUser(null)
-            setIsAuthenticated(false)
+            await authService.logout();
+            setAuthToken("");
+            setUser(null);
+            setIsAuthenticated(false);
           } else {
             // Retry loading the user after a successful refresh
             try {
-              const currentUser = (await authService.getCurrentUser()) as User
-              setUser(currentUser)
-              setIsAuthenticated(true)
+              const currentUser = (await authService.getCurrentUser()) as User;
+              setUser(currentUser);
+              setIsAuthenticated(true);
             } catch {
-              await logout()
+              await logout();
             }
           }
         }
       } else if (await isServerless()) {
         // Offline mode: connect automatically, no login screen.
-        await autoConnectOffline()
+        await autoConnectOffline();
       } else {
-        setAuthToken("")
-        setUser(null)
-        setIsAuthenticated(false)
+        setAuthToken("");
+        setUser(null);
+        setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error("Error checking auth status:", error)
-      setIsAuthenticated(false)
-      setAuthToken("")
-      setUser(null)
+      console.error("Error checking auth status:", error);
+      setIsAuthenticated(false);
+      setAuthToken("");
+      setUser(null);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [logout, refreshToken, autoConnectOffline])
+  }, [logout, refreshToken, autoConnectOffline]);
 
   // ── signup ────────────────────────────────────────────────────────────────
-  const signup = async (
-    username: string,
-    email: string,
-    password: string,
-    name: string,
-  ): Promise<AuthResult> => {
-    try {
-      const data = (await authService.signup(
-        username,
-        email,
-        password,
-        name,
-      )) as { success: boolean; user?: User; token?: string; error?: string }
-      if (data.success && data.user) {
-        const token = data.token ?? (await readStoredToken())
-        setAuthToken(token)
-        setUser(data.user)
-        setIsAuthenticated(true)
-        return { success: true }
+  const signup = useCallback(
+    async (
+      username: string,
+      email: string,
+      password: string,
+      name: string,
+    ): Promise<AuthResult> => {
+      try {
+        const data = (await authService.signup(
+          username,
+          email,
+          password,
+          name,
+        )) as { success: boolean; user?: User; token?: string; error?: string };
+        if (data.success && data.user) {
+          const token = data.token ?? (await readStoredToken());
+          setAuthToken(token);
+          setUser(data.user);
+          setIsAuthenticated(true);
+          return { success: true };
+        }
+        return { success: false, error: data.error ?? "Signup failed" };
+      } catch (error) {
+        console.error("Signup error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Network error",
+        };
       }
-      return { success: false, error: data.error ?? "Signup failed" }
-    } catch (error) {
-      console.error("Signup error:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      }
-    }
-  }
+    },
+    [],
+  );
 
   // ── signin ────────────────────────────────────────────────────────────────
-  const signin = async (
-    username: string,
-    password: string,
-  ): Promise<AuthResult> => {
-    try {
-      const data = (await authService.signin(username, password)) as {
-        success: boolean
-        user?: User
-        token?: string
-        error?: string
-        message?: string // ← add thi
+  const signin = useCallback(
+    async (username: string, password: string): Promise<AuthResult> => {
+      try {
+        const data = (await authService.signin(username, password)) as {
+          success: boolean;
+          user?: User;
+          token?: string;
+          error?: string;
+          message?: string;
+        };
+        if (data.success && data.user) {
+          const token = data.token ?? (await readStoredToken());
+          setAuthToken(token);
+          setUser(data.user);
+          setIsAuthenticated(true);
+          return { success: true };
+        }
+        return {
+          success: false,
+          error: data.error ?? data.message ?? "Invalid username or password",
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Network error",
+        };
       }
-      if (data.success && data.user) {
-        const token = data.token ?? (await readStoredToken())
-        setAuthToken(token)
-        setUser(data.user)
-        setIsAuthenticated(true)
-        return { success: true }
-      }
-      return {
-        success: false,
-        error: data.error ?? data.message ?? "Invalid username or password", // ← fallback chain
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Network error",
-      }
-    }
-  }
+    },
+    [],
+  );
 
   // ── updateProfile ─────────────────────────────────────────────────────────
-  const updateProfile = async (
-    name: string,
-    email: string,
-  ): Promise<AuthResult> => {
-    try {
-      const updatedUser = (await authService.updateProfile(name, email)) as User
-      setUser(updatedUser)
-      return { success: true }
-    } catch (error) {
-      console.error("Update profile error:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Update failed",
+  const updateProfile = useCallback(
+    async (name: string, email: string): Promise<AuthResult> => {
+      try {
+        const updatedUser = (await authService.updateProfile(
+          name,
+          email,
+        )) as User;
+        setUser(updatedUser);
+        return { success: true };
+      } catch (error) {
+        console.error("Update profile error:", error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Update failed",
+        };
       }
-    }
-  }
+    },
+    [],
+  );
 
   // ── refreshUser ───────────────────────────────────────────────────────────
-  const refreshUser = async (): Promise<AuthResult> => {
+  const refreshUser = useCallback(async (): Promise<AuthResult> => {
     try {
-      const currentUser = (await authService.getCurrentUser()) as User
-      setUser(currentUser)
-      return { success: true }
+      const currentUser = (await authService.getCurrentUser()) as User;
+      setUser(currentUser);
+      return { success: true };
     } catch (error) {
-      console.error("Refresh user error:", error)
+      console.error("Refresh user error:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Refresh failed",
-      }
+      };
     }
-  }
+  }, []);
 
-  const value: AuthContextValue = {
-    user,
-    authToken,
-    isAuthenticated,
-    isLoading,
-    signup,
-    signin,
-    logout,
-    updateProfile,
-    refreshUser,
-    refreshToken,
-  }
+  const value: AuthContextValue = useMemo(
+    () => ({
+      user,
+      authToken,
+      isAuthenticated,
+      isLoading,
+      signup,
+      signin,
+      logout,
+      updateProfile,
+      refreshUser,
+      refreshToken,
+    }),
+    [
+      user,
+      authToken,
+      isAuthenticated,
+      isLoading,
+      signup,
+      signin,
+      logout,
+      updateProfile,
+      refreshUser,
+      refreshToken,
+    ],
+  );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import * as Device from "expo-device";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
@@ -12,6 +12,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useWorkout } from "@shared/context/WorkoutContext";
@@ -57,28 +58,23 @@ import {
   type SplitColumnCandidate,
 } from "@utils/clientWorkoutParser";
 import SplitColumnPicker from "./utils/splitColumnPicker";
+import { sinceBoot } from "@shared/services/debugClock";
+import logger from "@shared/services/logger";
+import type { ExerciseDraft, DayDraft, WdDay } from "./types";
+import { SplitDayRow } from "./components/SplitDayRow";
+import { ProgramDayCard } from "./components/ProgramDayCard";
+import {
+  allDayIndices,
+  getDayExerciseList,
+} from "./components/programDayHelpers";
 
-interface ExerciseDraft {
-  name: string;
-  muscleGroup: string;
-  setsByPerson: Record<string, string>;
-}
+export type Styles = ReturnType<typeof makeStyles>;
 
-interface DayDraft {
-  exercises: ExerciseDraft[];
-}
-
-interface WdDay {
-  dayNumber?: number;
-  dayTitle?: string;
-  exercises?: Array<{
-    name?: string;
-    muscleGroup?: string;
-    setsByPerson?: Record<string, number>;
-  }>;
-}
-
-type Styles = ReturnType<typeof makeStyles>;
+// Rendering every day card at once is what makes Plan feel slow to load for
+// large imported programs — each card is a full nested tree (exercises,
+// sets-by-person badges). Showing a bounded slice up front keeps first paint
+// fast; "Show more" reveals the rest on demand.
+const INITIAL_DAYS_SHOWN = 10;
 
 const EMPTY_EXERCISE = (splits: string[]): ExerciseDraft => ({
   name: "",
@@ -93,616 +89,6 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// ─── Extracted sub-components ──────────────────────────────────────────────
-//
-// These were previously inlined as nested JSX/arrow-functions inside
-// PlanScreen's renderWidgetContent switch statement. SonarQube flagged that
-// function for excessive cognitive complexity and several call sites for
-// nesting functions more than 4 levels deep (map -> JSX -> onPress -> map...).
-// Pulling each repeated/nested block out into its own named component
-// resets the nesting count at each boundary and gives renderWidgetContent
-// far less to do directly.
-
-interface SplitDayRowProps {
-  readonly index: number;
-  readonly day: { dayTitle: string; muscleGroups: string };
-  readonly canRemove: boolean;
-  readonly colors: ThemeColors;
-  readonly styles: Styles;
-  readonly onChangeField: (
-    idx: number,
-    field: "dayTitle" | "muscleGroups",
-    value: string,
-  ) => void;
-  readonly onRemove: (idx: number) => void;
-}
-
-function SplitDayRow({
-  index,
-  day,
-  canRemove,
-  colors,
-  styles,
-  onChangeField,
-  onRemove,
-}: SplitDayRowProps): React.JSX.Element {
-  const handleRemove = () => onRemove(index);
-  const handleTitleChange = (v: string) => onChangeField(index, "dayTitle", v);
-  const handleGroupsChange = (v: string) =>
-    onChangeField(index, "muscleGroups", v);
-
-  return (
-    <View style={{ marginTop: 12 }}>
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Text style={styles.editFieldLabel}>Day {index + 1} title</Text>
-        {canRemove && (
-          <TouchableOpacity onPress={handleRemove}>
-            <Text style={styles.removeExerciseBtnText}>− Remove day</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      <TextInput
-        style={styles.editInput}
-        value={day.dayTitle}
-        onChangeText={handleTitleChange}
-        placeholder='e.g. Push Day'
-        placeholderTextColor={colors.textMuted}
-      />
-      <Text style={styles.editFieldLabel}>Muscle groups (comma separated)</Text>
-      <TextInput
-        style={styles.editInput}
-        value={day.muscleGroups}
-        onChangeText={handleGroupsChange}
-        placeholder='Chest, Shoulders, Triceps'
-        placeholderTextColor={colors.textMuted}
-      />
-    </View>
-  );
-}
-
-interface SuggestionsBoxProps {
-  readonly suggestions: string[];
-  readonly styles: Styles;
-  readonly onSelect: (value: string) => void;
-}
-
-function SuggestionsBox({
-  suggestions,
-  styles,
-  onSelect,
-}: SuggestionsBoxProps): React.JSX.Element {
-  return (
-    <View style={styles.suggestionsBox}>
-      {suggestions.map((s) => (
-        <SuggestionItem key={s} value={s} styles={styles} onSelect={onSelect} />
-      ))}
-    </View>
-  );
-}
-
-interface SuggestionItemProps {
-  readonly value: string;
-  readonly styles: Styles;
-  readonly onSelect: (value: string) => void;
-}
-
-function SuggestionItem({
-  value,
-  styles,
-  onSelect,
-}: SuggestionItemProps): React.JSX.Element {
-  const handlePress = () => onSelect(value);
-  return (
-    <TouchableOpacity style={styles.suggestionItem} onPress={handlePress}>
-      <Text style={styles.suggestionText}>{value}</Text>
-    </TouchableOpacity>
-  );
-}
-
-interface SetsEditRowProps {
-  readonly personKeys: string[];
-  readonly setsByPerson: Record<string, string>;
-  readonly colors: ThemeColors;
-  readonly styles: Styles;
-  readonly onChange: (person: string, value: string) => void;
-}
-
-function SetsEditRow({
-  personKeys,
-  setsByPerson,
-  colors,
-  styles,
-  onChange,
-}: SetsEditRowProps): React.JSX.Element {
-  return (
-    <View style={styles.editSetsRow}>
-      {personKeys.map((person) => (
-        <SetEditItem
-          key={person}
-          person={person}
-          value={setsByPerson[person]}
-          colors={colors}
-          styles={styles}
-          onChange={onChange}
-        />
-      ))}
-    </View>
-  );
-}
-
-interface SetEditItemProps {
-  readonly person: string;
-  readonly value: string;
-  readonly colors: ThemeColors;
-  readonly styles: Styles;
-  readonly onChange: (person: string, value: string) => void;
-}
-
-function SetEditItem({
-  person,
-  value,
-  colors,
-  styles,
-  onChange,
-}: SetEditItemProps): React.JSX.Element {
-  const handleChange = (v: string) => onChange(person, v);
-  return (
-    <View style={styles.editSetItem}>
-      <Text style={styles.editSetPersonLabel}>{person}</Text>
-      <TextInput
-        style={styles.editSetInput}
-        value={value}
-        onChangeText={handleChange}
-        keyboardType='numeric'
-        maxLength={3}
-        placeholderTextColor={colors.textMuted}
-        placeholder='0'
-      />
-    </View>
-  );
-}
-
-interface ExerciseEditBlockProps {
-  readonly draft: ExerciseDraft;
-  readonly exIdx: number;
-  readonly colors: ThemeColors;
-  readonly styles: Styles;
-  readonly nameSuggestions: string[];
-  readonly mgSuggestions: string[];
-  readonly showNameSuggestions: boolean;
-  readonly showMgSuggestions: boolean;
-  readonly onChangeField: (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-  ) => void;
-  readonly onFocusName: (exIdx: number) => void;
-  readonly onBlurName: () => void;
-  readonly onFocusMg: (exIdx: number) => void;
-  readonly onBlurMg: () => void;
-  readonly onApplySuggestion: (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-  ) => void;
-  readonly onRemove: (exIdx: number) => void;
-  readonly onChangeSets: (exIdx: number, person: string, value: string) => void;
-}
-
-function ExerciseEditBlock({
-  draft,
-  exIdx,
-  colors,
-  styles,
-  nameSuggestions,
-  mgSuggestions,
-  showNameSuggestions,
-  showMgSuggestions,
-  onChangeField,
-  onFocusName,
-  onBlurName,
-  onFocusMg,
-  onBlurMg,
-  onApplySuggestion,
-  onRemove,
-  onChangeSets,
-}: ExerciseEditBlockProps): React.JSX.Element {
-  const personKeys = Object.keys(draft.setsByPerson);
-
-  const handleRemove = () => onRemove(exIdx);
-  const handleNameChange = (v: string) => onChangeField(exIdx, "name", v);
-  const handleNameFocus = () => onFocusName(exIdx);
-  const handleMgChange = (v: string) => onChangeField(exIdx, "muscleGroup", v);
-  const handleMgFocus = () => onFocusMg(exIdx);
-  const handleSelectName = (value: string) =>
-    onApplySuggestion(exIdx, "name", value);
-  const handleSelectMg = (value: string) =>
-    onApplySuggestion(exIdx, "muscleGroup", value);
-  const handleSetsChange = (person: string, value: string) =>
-    onChangeSets(exIdx, person, value);
-
-  return (
-    <View style={styles.editExerciseBlock}>
-      <TouchableOpacity
-        style={styles.removeExerciseBtn}
-        onPress={handleRemove}
-        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-      >
-        <Text style={styles.removeExerciseBtnText}>− Remove</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.editFieldLabel}>Exercise name</Text>
-      <TextInput
-        style={styles.editInput}
-        value={draft.name}
-        onChangeText={handleNameChange}
-        onFocus={handleNameFocus}
-        onBlur={onBlurName}
-        placeholderTextColor={colors.textMuted}
-        placeholder='Exercise name'
-      />
-      {showNameSuggestions && (
-        <SuggestionsBox
-          suggestions={nameSuggestions}
-          styles={styles}
-          onSelect={handleSelectName}
-        />
-      )}
-
-      <Text style={styles.editFieldLabel}>Muscle group</Text>
-      <TextInput
-        style={styles.editInput}
-        value={draft.muscleGroup}
-        onChangeText={handleMgChange}
-        onFocus={handleMgFocus}
-        onBlur={onBlurMg}
-        placeholderTextColor={colors.textMuted}
-        placeholder='Muscle group'
-      />
-      {showMgSuggestions && (
-        <SuggestionsBox
-          suggestions={mgSuggestions}
-          styles={styles}
-          onSelect={handleSelectMg}
-        />
-      )}
-
-      <Text style={styles.editFieldLabel}>Sets</Text>
-      <SetsEditRow
-        personKeys={personKeys}
-        setsByPerson={draft.setsByPerson}
-        colors={colors}
-        styles={styles}
-        onChange={handleSetsChange}
-      />
-    </View>
-  );
-}
-
-interface ProgramExerciseRowProps {
-  readonly name: string;
-  readonly muscleGroup?: string;
-  readonly personEntries: Array<[string, number]>;
-  readonly styles: Styles;
-}
-
-function ProgramExerciseRow({
-  name,
-  muscleGroup,
-  personEntries,
-  styles,
-}: ProgramExerciseRowProps): React.JSX.Element {
-  return (
-    <View style={styles.programExerciseRow}>
-      <View style={styles.programExerciseLeft}>
-        <Text style={styles.programExerciseName}>{name}</Text>
-        {muscleGroup ? (
-          <Text style={styles.programExerciseSets}>{muscleGroup}</Text>
-        ) : null}
-      </View>
-      <View style={styles.programSetsRow}>
-        {personEntries.map(([person, count]) => (
-          <View key={person} style={styles.programSetsBadge}>
-            <Text style={styles.programSetsBadgeText}>{count}</Text>
-            <Text style={styles.programSetsBadgeLabel}>{person}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-interface DayEditFormProps {
-  readonly dayDraft: DayDraft;
-  readonly colors: ThemeColors;
-  readonly styles: Styles;
-  readonly nameSuggestions: Record<number, string[]>;
-  readonly mgSuggestions: Record<number, string[]>;
-  readonly focusedNameIdx: number | null;
-  readonly focusedMgIdx: number | null;
-  readonly isSubmitting: boolean;
-  readonly onChangeField: (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-  ) => void;
-  readonly onFocusName: (exIdx: number) => void;
-  readonly onBlurName: () => void;
-  readonly onFocusMg: (exIdx: number) => void;
-  readonly onBlurMg: () => void;
-  readonly onApplySuggestion: (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-  ) => void;
-  readonly onRemoveExercise: (exIdx: number) => void;
-  readonly onChangeSets: (exIdx: number, person: string, value: string) => void;
-  readonly onAddExercise: () => void;
-  readonly onCancel: () => void;
-  readonly onSubmit: () => void;
-}
-
-function DayEditForm({
-  dayDraft,
-  colors,
-  styles,
-  nameSuggestions,
-  mgSuggestions,
-  focusedNameIdx,
-  focusedMgIdx,
-  isSubmitting,
-  onChangeField,
-  onFocusName,
-  onBlurName,
-  onFocusMg,
-  onBlurMg,
-  onApplySuggestion,
-  onRemoveExercise,
-  onChangeSets,
-  onAddExercise,
-  onCancel,
-  onSubmit,
-}: DayEditFormProps): React.JSX.Element {
-  return (
-    <View>
-      <Text style={styles.editModeLabel}>Editing — tap fields to change</Text>
-
-      {dayDraft.exercises.map((draft, exIdx) => (
-        <ExerciseEditBlock
-          key={draft.name || `draft-${exIdx}`}
-          draft={draft}
-          exIdx={exIdx}
-          colors={colors}
-          styles={styles}
-          nameSuggestions={nameSuggestions[exIdx] ?? []}
-          mgSuggestions={mgSuggestions[exIdx] ?? []}
-          showNameSuggestions={
-            focusedNameIdx === exIdx &&
-            (nameSuggestions[exIdx] ?? []).length > 0
-          }
-          showMgSuggestions={
-            focusedMgIdx === exIdx && (mgSuggestions[exIdx] ?? []).length > 0
-          }
-          onChangeField={onChangeField}
-          onFocusName={onFocusName}
-          onBlurName={onBlurName}
-          onFocusMg={onFocusMg}
-          onBlurMg={onBlurMg}
-          onApplySuggestion={onApplySuggestion}
-          onRemove={onRemoveExercise}
-          onChangeSets={onChangeSets}
-        />
-      ))}
-
-      <TouchableOpacity style={styles.addExerciseBtn} onPress={onAddExercise}>
-        <Text style={styles.addExerciseBtnText}>+ Add exercise</Text>
-      </TouchableOpacity>
-
-      <View style={styles.editActions}>
-        <TouchableOpacity
-          style={styles.cancelBtn}
-          onPress={onCancel}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.cancelBtnText}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
-          onPress={onSubmit}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color='#fff' size='small' />
-          ) : (
-            <Text style={styles.submitBtnText}>Save changes</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
-function getDayExerciseList(
-  day: WdDay,
-  selectedProgram: string | null,
-): NonNullable<WdDay["exercises"]> {
-  if (!Array.isArray(day.exercises)) return [];
-  if (!selectedProgram) return day.exercises;
-  return day.exercises.filter(
-    (ex) => (ex.setsByPerson?.[selectedProgram] ?? 0) > 0,
-  );
-}
-
-function getDayLabelAndTitle(
-  day: WdDay,
-  dayIdx: number,
-): { dayLabel: string; dayTitle: string } {
-  const dayLabel = `Day ${day.dayNumber ?? dayIdx + 1}`;
-  if (!day.dayTitle) return { dayLabel, dayTitle: "" };
-  const dayTitle = day.dayTitle.includes("—")
-    ? day.dayTitle.split("—")[1].trim()
-    : day.dayTitle;
-  return { dayLabel, dayTitle };
-}
-
-function getPersonEntries(
-  exercise: NonNullable<WdDay["exercises"]>[number],
-  selectedProgram: string | null,
-): Array<[string, number]> {
-  const setsByPerson = exercise.setsByPerson ?? {};
-  if (!selectedProgram) return Object.entries(setsByPerson);
-  return [[selectedProgram, setsByPerson[selectedProgram] ?? 0]];
-}
-
-interface ProgramDayCardProps {
-  readonly day: WdDay;
-  readonly dayIdx: number;
-  readonly selectedProgram: string | null;
-  readonly isHidden: boolean;
-  readonly isEditing: boolean;
-  readonly canStartEditing: boolean;
-  readonly dayDraft: DayDraft | null;
-  readonly colors: ThemeColors;
-  readonly styles: Styles;
-  readonly nameSuggestions: Record<number, string[]>;
-  readonly mgSuggestions: Record<number, string[]>;
-  readonly focusedNameIdx: number | null;
-  readonly focusedMgIdx: number | null;
-  readonly isSubmitting: boolean;
-  readonly onStartEditing: (dayIdx: number) => void;
-  readonly onToggleHidden: (dayIdx: number) => void;
-  readonly onChangeField: (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-  ) => void;
-  readonly onFocusName: (exIdx: number) => void;
-  readonly onBlurName: () => void;
-  readonly onFocusMg: (exIdx: number) => void;
-  readonly onBlurMg: () => void;
-  readonly onApplySuggestion: (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-  ) => void;
-  readonly onRemoveExercise: (exIdx: number) => void;
-  readonly onChangeSets: (exIdx: number, person: string, value: string) => void;
-  readonly onAddExercise: () => void;
-  readonly onCancelEditing: () => void;
-  readonly onSubmitEdits: () => void;
-}
-
-function ProgramDayCard({
-  day,
-  dayIdx,
-  selectedProgram,
-  isHidden,
-  isEditing,
-  canStartEditing,
-  dayDraft,
-  colors,
-  styles,
-  nameSuggestions,
-  mgSuggestions,
-  focusedNameIdx,
-  focusedMgIdx,
-  isSubmitting,
-  onStartEditing,
-  onToggleHidden,
-  onChangeField,
-  onFocusName,
-  onBlurName,
-  onFocusMg,
-  onBlurMg,
-  onApplySuggestion,
-  onRemoveExercise,
-  onChangeSets,
-  onAddExercise,
-  onCancelEditing,
-  onSubmitEdits,
-}: ProgramDayCardProps): React.JSX.Element {
-  const exercises = getDayExerciseList(day, selectedProgram);
-  const { dayLabel, dayTitle } = getDayLabelAndTitle(day, dayIdx);
-  const handleStartEditing = () => onStartEditing(dayIdx);
-  const handleToggleHidden = () => onToggleHidden(dayIdx);
-
-  return (
-    <View style={styles.programDayCard}>
-      <View style={styles.programDayHeader}>
-        <Text style={styles.programDayNumber}>{dayLabel}</Text>
-        <Text style={styles.programDayTitle} numberOfLines={2}>
-          {dayTitle}
-        </Text>
-
-        {!isHidden && canStartEditing && (
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={handleStartEditing}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.iconBtnText}>✏️</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity
-          style={styles.iconBtn}
-          onPress={handleToggleHidden}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.chevron}>{isHidden ? "›" : "‹"}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {!isHidden && !isEditing && exercises.length === 0 && (
-        <Text style={styles.emptyDayText}>
-          No exercises yet — tap ✏️ to add some.
-        </Text>
-      )}
-      {!isHidden &&
-        !isEditing &&
-        exercises.map((exercise, exIdx) => (
-          <ProgramExerciseRow
-            key={exercise.name ?? `exercise-${exIdx}`}
-            name={exercise.name ?? `Exercise ${exIdx + 1}`}
-            muscleGroup={exercise.muscleGroup}
-            personEntries={getPersonEntries(exercise, selectedProgram)}
-            styles={styles}
-          />
-        ))}
-
-      {!isHidden && isEditing && dayDraft && (
-        <DayEditForm
-          dayDraft={dayDraft}
-          colors={colors}
-          styles={styles}
-          nameSuggestions={nameSuggestions}
-          mgSuggestions={mgSuggestions}
-          focusedNameIdx={focusedNameIdx}
-          focusedMgIdx={focusedMgIdx}
-          isSubmitting={isSubmitting}
-          onChangeField={onChangeField}
-          onFocusName={onFocusName}
-          onBlurName={onBlurName}
-          onFocusMg={onFocusMg}
-          onBlurMg={onBlurMg}
-          onApplySuggestion={onApplySuggestion}
-          onRemoveExercise={onRemoveExercise}
-          onChangeSets={onChangeSets}
-          onAddExercise={onAddExercise}
-          onCancel={onCancelEditing}
-          onSubmit={onSubmitEdits}
-        />
-      )}
-    </View>
-  );
-}
-
 type PlanScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, "Plan">;
 };
@@ -710,7 +96,7 @@ export default function PlanScreen({
   navigation,
 }: PlanScreenProps): React.JSX.Element {
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     workoutData,
     selectedSplit,
@@ -739,6 +125,15 @@ export default function PlanScreen({
     storageKey: PLAN_WIDGETS_STORAGE_KEY,
   });
 
+  const [contentReady, setContentReady] = useState(false);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setContentReady(true);
+    });
+    return () => task.cancel();
+  }, []);
+
   // Two-finger pull brings up the "deploy" panel for adding widgets — same
   // gesture as HomeScreen. Opening it and tapping "Edit Widgets" switches
   // this screen into edit mode, where placed widgets can be resized,
@@ -761,7 +156,10 @@ export default function PlanScreen({
     setShowWidgetGallery(false);
   };
 
-  const [hiddenDays, setHiddenDays] = useState<Set<number>>(new Set());
+  const [visibleDayCount, setVisibleDayCount] = useState(INITIAL_DAYS_SHOWN);
+  const [hiddenDays, setHiddenDays] = useState<Set<number>>(() =>
+    allDayIndices(workoutData),
+  );
   const [editingDayIdx, setEditingDayIdx] = useState<number | null>(null);
   const [dayDraft, setDayDraft] = useState<DayDraft | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -797,28 +195,13 @@ export default function PlanScreen({
   const [isImportingColumns, setIsImportingColumns] = useState(false);
 
   useEffect(() => {
-    const restoreProgram = async () => {
-      if (workoutData) return;
-      try {
-        const saved = await programApi.fetchSavedProgram();
-        if (saved && (saved as { success?: boolean }).success) {
-          await saveWorkoutData(saved);
-        }
-      } catch (error) {
-        if ((error as Error)?.message === "SESSION_EXPIRED") {
-          navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-        }
-      }
-    };
-    restoreProgram();
-  }, []);
-
-  useEffect(() => {
+    const days = (workoutData as unknown as { days?: unknown[] })?.days;
     setSelectedProgram(null);
-    setHiddenDays(new Set());
+    setHiddenDays(allDayIndices(workoutData));
     setEditingDayIdx(null);
     setDayDraft(null);
     setIsCreatingSplit(false);
+    setVisibleDayCount(INITIAL_DAYS_SHOWN);
   }, [workoutData]);
 
   const handleUploadFile = async (): Promise<void> => {
@@ -1483,16 +866,7 @@ export default function PlanScreen({
             {workoutData.split?.join(", ")}
           </Text>
         </View>
-        {hiddenDays.size > 0 && (
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Hidden days:</Text>
-            <TouchableOpacity onPress={handleUnhideAll}>
-              <Text style={[styles.summaryValue, { color: colors.accent }]}>
-                {hiddenDays.size} — Unhide all
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+
         <TouchableOpacity
           style={styles.exportButton}
           onPress={handleExportProgram}
@@ -1570,6 +944,14 @@ export default function PlanScreen({
         </Text>
       );
     }
+    const visibleDays = wd.days
+      .map((day, dayIdx) => ({ day, dayIdx }))
+      .filter(({ day }) => {
+        const exerciseCount = day.exercises?.length ?? 0;
+        const visibleCount = getDayExerciseList(day, selectedProgram).length;
+        return !(selectedProgram && exerciseCount > 0 && visibleCount === 0);
+      });
+
     return (
       <View>
         <ScrollView
@@ -1603,45 +985,51 @@ export default function PlanScreen({
           })}
         </ScrollView>
 
-        {wd.days.map((day, dayIdx) => {
-          const exerciseCount = day.exercises?.length ?? 0;
-          const visibleCount = getDayExerciseList(day, selectedProgram).length;
-          if (selectedProgram && exerciseCount > 0 && visibleCount === 0) {
-            return null;
-          }
-          return (
-            <ProgramDayCard
-              key={day.dayNumber ?? `day-${dayIdx}`}
-              day={day}
-              dayIdx={dayIdx}
-              selectedProgram={selectedProgram}
-              isHidden={hiddenDays.has(dayIdx)}
-              isEditing={editingDayIdx === dayIdx}
-              canStartEditing={editingDayIdx === null}
-              dayDraft={dayDraft}
-              colors={colors}
-              styles={styles}
-              nameSuggestions={nameSuggestions}
-              mgSuggestions={mgSuggestions}
-              focusedNameIdx={focusedNameIdx}
-              focusedMgIdx={focusedMgIdx}
-              isSubmitting={isSubmitting}
-              onStartEditing={startEditing}
-              onToggleHidden={toggleDayHidden}
-              onChangeField={updateDraftExercise}
-              onFocusName={handleFocusName}
-              onBlurName={handleBlurName}
-              onFocusMg={handleFocusMg}
-              onBlurMg={handleBlurMg}
-              onApplySuggestion={applySuggestion}
-              onRemoveExercise={removeExercise}
-              onChangeSets={updateDraftSets}
-              onAddExercise={addExercise}
-              onCancelEditing={cancelEditing}
-              onSubmitEdits={handleSubmitEdits}
-            />
-          );
-        })}
+        {visibleDays.slice(0, visibleDayCount).map(({ day, dayIdx }) => (
+          <ProgramDayCard
+            key={day.dayNumber ?? `day-${dayIdx}`}
+            day={day}
+            dayIdx={dayIdx}
+            selectedProgram={selectedProgram}
+            isHidden={hiddenDays.has(dayIdx)}
+            isEditing={editingDayIdx === dayIdx}
+            canStartEditing={editingDayIdx === null}
+            dayDraft={dayDraft}
+            colors={colors}
+            styles={styles}
+            nameSuggestions={nameSuggestions}
+            mgSuggestions={mgSuggestions}
+            focusedNameIdx={focusedNameIdx}
+            focusedMgIdx={focusedMgIdx}
+            isSubmitting={isSubmitting}
+            onStartEditing={startEditing}
+            onToggleHidden={toggleDayHidden}
+            onChangeField={updateDraftExercise}
+            onFocusName={handleFocusName}
+            onBlurName={handleBlurName}
+            onFocusMg={handleFocusMg}
+            onBlurMg={handleBlurMg}
+            onApplySuggestion={applySuggestion}
+            onRemoveExercise={removeExercise}
+            onChangeSets={updateDraftSets}
+            onAddExercise={addExercise}
+            onCancelEditing={cancelEditing}
+            onSubmitEdits={handleSubmitEdits}
+          />
+        ))}
+
+        {visibleDays.length > visibleDayCount && (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() =>
+              setVisibleDayCount((prev) => prev + INITIAL_DAYS_SHOWN)
+            }
+          >
+            <Text style={styles.secondaryButtonText}>
+              Show more days ({visibleDays.length - visibleDayCount} left)
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -1710,16 +1098,23 @@ export default function PlanScreen({
             </View>
           )}
 
-          <WidgetsPanel
-            widgets={widgets}
-            isLoaded={widgetsLoaded}
-            editMode={widgetEditMode}
-            onCycleSize={cycleWidgetSize}
-            onRemove={removeWidget}
-            onReorder={reorderWidgets}
-            renderContent={renderWidgetContent}
-            registry={PLAN_WIDGET_REGISTRY}
-          />
+          {contentReady ? (
+            <WidgetsPanel
+              widgets={widgets}
+              isLoaded={widgetsLoaded}
+              editMode={widgetEditMode}
+              onCycleSize={cycleWidgetSize}
+              onRemove={removeWidget}
+              onReorder={reorderWidgets}
+              renderContent={renderWidgetContent}
+              registry={PLAN_WIDGET_REGISTRY}
+            />
+          ) : (
+            <ActivityIndicator
+              color={colors.accent}
+              style={{ marginTop: 20 }}
+            />
+          )}
 
           {!workoutData && (
             <View style={styles.instructionsCard}>
@@ -2109,24 +1504,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: 12,
       paddingVertical: 9,
       fontSize: 15,
-      color: colors.textPrimary,
-    },
-    suggestionsBox: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.separator,
-      borderRadius: 8,
-      marginTop: 2,
-      overflow: "hidden",
-    },
-    suggestionItem: {
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.background,
-    },
-    suggestionText: {
-      fontSize: 14,
       color: colors.textPrimary,
     },
     editSetsRow: {

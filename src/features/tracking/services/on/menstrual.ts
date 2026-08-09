@@ -33,7 +33,10 @@ export const menstrualApi = {
    * Get cycle stats
    * GET /api/tracking/menstrual/stats
    */
-  getCycleStats: async (): Promise<import("../types").ApiResponse<import("../types").CycleStats>> =>
+  getCycleStats: async (_settingsOverride?: {
+    periodDays: number
+    cycleLengthDays: number
+  }): Promise<import("../types").ApiResponse<import("../types").CycleStats>> =>
     apiCall(`/api/tracking/menstrual/stats`),
 
   /**

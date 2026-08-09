@@ -11,6 +11,9 @@ import { useTheme } from "@shared/context/ThemeContext";
 import { injuryApi } from "../services";
 import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS, InjuryType } from "../types/muscleRecovery";
 import ModalSheet from "@shared/components/ModalSheet";
+import { IntensityPicker } from "@shared/components/IntensityPicker";
+import { FillBar } from "@shared/components/FillBar";
+import { getSeverityColor } from "@utils/severityColor";
 
 interface LogInjuryModalProps {
   readonly visible: boolean;
@@ -92,12 +95,6 @@ export const LogInjuryModal: React.FC<LogInjuryModalProps> = ({
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const getPainLevelColor = (level: number) => {
-    if (level <= 3) return "#6BCB77";
-    if (level <= 6) return "#FFD93D";
-    return "#FF6B6B";
   };
 
   return (
@@ -185,44 +182,27 @@ export const LogInjuryModal: React.FC<LogInjuryModalProps> = ({
           Pain Level (0-10)
         </Text>
         <View style={styles.painLevelRow}>
-          <View style={styles.painBar}>
-            <View
-              style={[
-                styles.painBarFill,
-                {
-                  width: `${(painLevel / 10) * 100}%`,
-                  backgroundColor: getPainLevelColor(painLevel),
-                },
-              ]}
-            />
-          </View>
+          <FillBar
+            percentage={(painLevel / 10) * 100}
+            color={getSeverityColor(painLevel, 3)}
+            styles={{ track: styles.painBar, fill: styles.painBarFill }}
+          />
           <Text style={[styles.painLevelText, { color: colors.textPrimary }]}>
             {painLevel}/10
           </Text>
         </View>
-        <View style={styles.painPicker}>
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
-            <TouchableOpacity
-              key={level}
-              style={[
-                styles.painButton,
-                {
-                  backgroundColor: painLevel === level ? getPainLevelColor(level) : colors.surface,
-                },
-              ]}
-              onPress={() => setPainLevel(level)}
-            >
-              <Text
-                style={[
-                  styles.painButtonText,
-                  { color: painLevel === level ? "white" : colors.textPrimary },
-                ]}
-              >
-                {level}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <IntensityPicker
+          value={painLevel}
+          onChange={setPainLevel}
+          getColor={(level) => getSeverityColor(level, 3)}
+          unselectedBackground={colors.surface}
+          unselectedTextColor={colors.textPrimary}
+          styles={{
+            container: styles.painPicker,
+            button: styles.painButton,
+            buttonText: styles.painButtonText,
+          }}
+        />
 
         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 16 }]}>
           Notes (optional)

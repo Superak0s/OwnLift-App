@@ -1,4 +1,5 @@
 import * as SQLite from "expo-sqlite";
+import logger from "./logger";
 
 /**
  * SQLite-backed key/value storage. Replaces
@@ -49,7 +50,17 @@ db.execSync(
 // otherwise one stuck call would freeze every future storage read/write.
 const QUEUE_TIMEOUT_MS = 5000;
 let queue: Promise<unknown> = Promise.resolve();
+// Flags a label that's still in flight (queued or executing) when the same
+// label is requested again — two callers racing on the same key/record,
+// e.g. two effects or a double-tap firing the same read/write together. A
+// label reused after its prior call already resolved is normal repeat
+// access (logging another set into the same session row, etc.), not a bug.
+const inFlightLabelCounts = new Map<string, number>();
 function serialize<T>(label: string, task: () => Promise<T>): Promise<T> {
+  if ((inFlightLabelCounts.get(label) ?? 0) > 0) {
+    console.warn(`[sqlite] duplicate call: ${label}`);
+  }
+  inFlightLabelCounts.set(label, (inFlightLabelCounts.get(label) ?? 0) + 1);
   const queuedAt = Date.now();
   const timed = async () => {
     const waitMs = Date.now() - queuedAt;
@@ -57,8 +68,11 @@ function serialize<T>(label: string, task: () => Promise<T>): Promise<T> {
     try {
       return await task();
     } finally {
+      const count = inFlightLabelCounts.get(label) ?? 1;
+      if (count <= 1) inFlightLabelCounts.delete(label);
+      else inFlightLabelCounts.set(label, count - 1);
       if (waitMs > 150 || Date.now() - startedAt > 150) {
-        console.log(
+        logger.debug(
           `[sqlite] ${label} wait=${waitMs}ms exec=${Date.now() - startedAt}ms`,
         );
       }
@@ -77,7 +91,7 @@ function serialize<T>(label: string, task: () => Promise<T>): Promise<T> {
 
 export const getStorageItem = (key: string): Promise<string | null> =>
   serialize(`getStorageItem(${key})`, async () => {
-    const row = await db.getFirstAsync<{ value: string }>(
+    const row = db.getFirstSync<{ value: string }>(
       "SELECT value FROM kv_store WHERE key = ?",
       [key],
     );
@@ -86,7 +100,7 @@ export const getStorageItem = (key: string): Promise<string | null> =>
 
 export const setStorageItem = (key: string, value: string): Promise<void> =>
   serialize(`setStorageItem(${key})`, async () => {
-    await db.runAsync(
+    db.runSync(
       "INSERT INTO kv_store (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       [key, value],
     );
@@ -96,7 +110,7 @@ export const getStorageItems = (keys: string[]): Promise<Record<string, string>>
   serialize(`getStorageItems(${keys.length})`, async () => {
     if (keys.length === 0) return {}
     const placeholders = keys.map(() => "?").join(", ")
-    const rows = await db.getAllAsync<{ key: string; value: string }>(
+    const rows = db.getAllSync<{ key: string; value: string }>(
       `SELECT key, value FROM kv_store WHERE key IN (${placeholders})`,
       keys,
     )
@@ -107,14 +121,14 @@ export const getStorageItems = (keys: string[]): Promise<Record<string, string>>
 
 export const removeStorageItem = (key: string): Promise<void> =>
   serialize(`removeStorageItem(${key})`, async () => {
-    await db.runAsync("DELETE FROM kv_store WHERE key = ?", [key]);
+    db.runSync("DELETE FROM kv_store WHERE key = ?", [key]);
   });
 
 export const removeStorageItems = (keys: string[]): Promise<void> =>
   serialize(`removeStorageItems(${keys.length})`, async () => {
     if (keys.length === 0) return;
     const placeholders = keys.map(() => "?").join(", ");
-    await db.runAsync(
+    db.runSync(
       `DELETE FROM kv_store WHERE key IN (${placeholders})`,
       keys,
     );
@@ -131,7 +145,7 @@ export const getRecord = (
   id: string,
 ): Promise<string | null> =>
   serialize(`getRecord(${collection}, ${id})`, async () => {
-    const row = await db.getFirstAsync<{ value: string }>(
+    const row = db.getFirstSync<{ value: string }>(
       "SELECT value FROM kv_records WHERE collection = ? AND id = ?",
       [collection, id],
     );
@@ -147,11 +161,11 @@ export const listRecords = (
     async () => {
       const rows =
         limit == null
-          ? await db.getAllAsync<{ value: string }>(
+          ? db.getAllSync<{ value: string }>(
               "SELECT value FROM kv_records WHERE collection = ? ORDER BY sort_key DESC",
               [collection],
             )
-          : await db.getAllAsync<{ value: string }>(
+          : db.getAllSync<{ value: string }>(
               "SELECT value FROM kv_records WHERE collection = ? ORDER BY sort_key DESC LIMIT ?",
               [collection, limit],
             );
@@ -164,7 +178,7 @@ export const listRecordsSince = (
   sinceSortKey: string,
 ): Promise<string[]> =>
   serialize(`listRecordsSince(${collection})`, async () => {
-    const rows = await db.getAllAsync<{ value: string }>(
+    const rows = db.getAllSync<{ value: string }>(
       "SELECT value FROM kv_records WHERE collection = ? AND sort_key >= ? ORDER BY sort_key DESC",
       [collection, sinceSortKey],
     );
@@ -178,7 +192,7 @@ export const putRecord = (
   value: string,
 ): Promise<void> =>
   serialize(`putRecord(${collection}, ${id})`, async () => {
-    await db.runAsync(upsertRecordSql, [collection, id, sortKey, value]);
+    db.runSync(upsertRecordSql, [collection, id, sortKey, value]);
   });
 
 export interface RecordWrite {
@@ -193,24 +207,19 @@ export const putRecords = (
 ): Promise<void> =>
   serialize(`putRecords(${collection}, ${records.length})`, async () => {
     if (records.length === 0) return;
-    await db.withTransactionAsync(async () => {
+    db.withTransactionSync(() => {
       for (const r of records) {
-        await db.runAsync(upsertRecordSql, [
-          collection,
-          r.id,
-          r.sortKey,
-          r.value,
-        ]);
+        db.runSync(upsertRecordSql, [collection, r.id, r.sortKey, r.value]);
       }
     });
   });
 
 export const deleteRecord = (collection: string, id: string): Promise<void> =>
   serialize(`deleteRecord(${collection}, ${id})`, async () => {
-    await db.runAsync(
-      "DELETE FROM kv_records WHERE collection = ? AND id = ?",
-      [collection, id],
-    );
+    db.runSync("DELETE FROM kv_records WHERE collection = ? AND id = ?", [
+      collection,
+      id,
+    ]);
   });
 
 export const deleteRecords = (
@@ -220,7 +229,7 @@ export const deleteRecords = (
   serialize(`deleteRecords(${collection}, ${ids.length})`, async () => {
     if (ids.length === 0) return;
     const placeholders = ids.map(() => "?").join(", ");
-    await db.runAsync(
+    db.runSync(
       `DELETE FROM kv_records WHERE collection = ? AND id IN (${placeholders})`,
       [collection, ...ids],
     );
@@ -228,7 +237,5 @@ export const deleteRecords = (
 
 export const clearCollection = (collection: string): Promise<void> =>
   serialize(`clearCollection(${collection})`, async () => {
-    await db.runAsync("DELETE FROM kv_records WHERE collection = ?", [
-      collection,
-    ]);
+    db.runSync("DELETE FROM kv_records WHERE collection = ?", [collection]);
   });

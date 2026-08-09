@@ -1,5 +1,6 @@
 import { apiCall } from "@shared/services/apiClient"
 import type { LogMacrosParams, MacrosGoals } from "../../types"
+import type { MacrosEntry } from "@shared/types"
 
 /**
  * Macros Tracking API
@@ -49,7 +50,9 @@ export const macrosTrackingApi = {
    * Get macros intake history
    * GET /api/tracking/macros/log?days=N
    */
-  getMacrosHistory: async (days: number = 30): Promise<unknown> =>
+  getMacrosHistory: async (
+    days: number = 30,
+  ): Promise<{ entries: MacrosEntry[] }> =>
     apiCall(`/api/tracking/macros/log?days=${days}`),
 
   /**

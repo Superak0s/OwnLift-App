@@ -422,7 +422,7 @@ export default function SignupScreen({
                   </TouchableOpacity>
                 </View>
 
-                 {password && passwordStrength != null && (
+                {password && passwordStrength != null && (
                   <View style={styles.strengthContainer}>
                     <View style={styles.strengthBarContainer}>
                       {[0, 1, 2, 3, 4].map((index) => (
@@ -451,15 +451,17 @@ export default function SignupScreen({
                   </View>
                 )}
 
-                 {password && passwordStrength != null && passwordStrength.score < 3 && (
-                  <View style={styles.feedbackContainer}>
+                {password &&
+                  passwordStrength != null &&
+                  passwordStrength.score < 3 && (
+                    <View style={styles.feedbackContainer}>
                       {passwordStrength.feedback.map((tip) => (
-                       <Text key={tip} style={styles.feedbackText}>
-                        • {tip}
-                      </Text>
-                    ))}
-                  </View>
-                )}
+                        <Text key={tip} style={styles.feedbackText}>
+                          • {tip}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
 
                 <Text style={styles.inputHint}>
                   Minimum 8 characters with uppercase, lowercase, and numbers
@@ -492,7 +494,9 @@ export default function SignupScreen({
                     </Text>
                   </TouchableOpacity>
                 </View>
-                {password && confirmPassword && password !== confirmPassword && (
+                {password &&
+                  confirmPassword &&
+                  password !== confirmPassword && (
                     <Text style={styles.errorText}>Passwords do not match</Text>
                   )}
               </View>
@@ -539,7 +543,7 @@ const makeStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     scrollContent: { flexGrow: 1, paddingBottom: 40 },
-    content: { padding: 20, paddingTop: 60, paddingBottom: 40 },
+    content: { padding: 10, paddingTop: 60, paddingBottom: 40 },
     header: { marginBottom: 30, alignItems: "center" },
     title: {
       fontSize: 32,

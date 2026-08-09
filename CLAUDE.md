@@ -28,9 +28,13 @@ OwnLift is an **offline-first** React Native/Expo fitness tracker. It works with
 
 ### App-mode dispatch (the core pattern)
 
-Every feature's `services/` folder is split into an **`on/`** (server) and **`off/`** (offline) implementation with the same call signature. `src/shared/services/dispatchProxy.tsx` + `appMode.tsx` route each call to the right implementation based on the persisted mode (`@app_mode` in AsyncStorage, default `on`). Switching modes in Settings takes effect immediately, no restart. When touching a feature's service layer, check both `on/` and `off/` — a change usually needs to land in both, or the behavior will silently diverge between modes.
+Every feature's `services/` folder is split into an **`on/`** (server) and **`off/`** (offline) implementation with the same call signature. `src/shared/services/dispatchProxy.tsx` + `appMode.tsx` route each call to the right implementation based on the persisted mode (`appMode` key, values `"online"`/`"offline"`, default `online`). Switching modes in Settings takes effect immediately, no restart. When touching a feature's service layer, check both `on/` and `off/` — a change usually needs to land in both, or the behavior will silently diverge between modes.
+
+All key/value persistence, including `appMode`, goes through `src/shared/services/sqliteStorage.tsx` (`expo-sqlite`, WAL mode) — not `@react-native-async-storage/async-storage`. It replaced AsyncStorage app-wide for performance (one row per record instead of re-serializing a whole JSON array per write) and serializes every call through a single queued connection because `expo-sqlite`'s native binding breaks under concurrent statements on one `openDatabaseSync` connection.
 
 Offline sessions get `local_` IDs. `useSyncManager` (`src/shared/context/hooks/`) queues `startSession`/`recordSet`/`endSession` while offline and replays them on reconnect, remapping local IDs to server IDs; failed ops stay queued.
+
+`friends` is the one feature that doesn't follow the `on`/`off` split — friend requests, sharing, and search are inherently server-mediated, so `services/index.tsx` exports straight from `on/` with no `off/` counterpart.
 
 ### Structure
 
@@ -66,64 +70,38 @@ Each screen (Home, Analytics, Workout, Plan, Friends, and each Tracking sub-tab)
 
 ## Gotchas
 
-- `tsconfig.temp.json` (currently deleted in the working tree, see `git status`) was a typecheck-only helper for tracking modals with an `@app/*` alias — not used at runtime and `src/app/` doesn't exist.
 - `app-release.apk`, `release.bat`, `release.sh`, `sonarqube/`, `.scannerwork/`, `.sonarlint/` are gitignored but committed in repo history — don't be surprised they show as tracked.
 - SonarQube: `npm run sonar:scan` (needs `SONAR_TOKEN`, targets `http://192.168.10.12:8999`).
 
 ## Code Comments
 
-Keep comments to an absolute minimum. Code should be self-documenting whenever reasonably possible. Avoid referencing the old code and why it didn't work.
+Keep comments to an absolute minimum. Code should be self-documenting whenever reasonably possible.
 
-Only add a comment when it provides important information that cannot be clearly expressed through the code itself, such as:
+Only add a comment when it conveys something a future developer genuinely needs and cannot get from the code itself:
 
-- A non-obvious **why** that a future developer genuinely needs to know
+- A non-obvious **why**
 - A non-obvious business or domain rule
 - A workaround for a bug, framework limitation, or external constraint
-- Important compatibility or integration requirements
+- A compatibility or integration requirement that isn't otherwise visible
 
-Never add comments that:
+### Never comment on
 
-- Describe what the code obviously does
-- Restate variable, function, component, or class names
-- Explain straightforward function calls, loops, conditionals, or JSX
-- Narrate implementation steps
-- Explain code that is already clear from its naming and structure
-- Document a refactoring or code organization change unless the reason is critical and would otherwise be lost
-- Explain why code was moved, extracted, split, or reorganized when the resulting code is already understandable
-- Describe static-analysis/tooling issues unless the workaround must be preserved to prevent the issue from returning
-- Summarize a block of code immediately above that block
-- Add multi-line explanatory blocks merely to make the code appear more documented
-- Write comments as an explanation of the changes you just made
+- What the code obviously does, or a restatement of variable/function/component/class names
+- Straightforward function calls, loops, conditionals, or JSX
+- Implementation steps or a summary of the block immediately below
+- Refactoring, extraction, or reorganization — including _why_ code was split, moved, or simplified — unless a genuinely persistent constraint would otherwise be lost
+- Old code, prior approaches, or why something didn't work before
+- Static-analysis/tooling quirks, unless the workaround must be preserved to prevent the issue from recurring
+- The change you just made (comments should describe the code as it is, not narrate the diff)
 
-### Comment length
+Do not add comments just to make the code look documented.
 
-Prefer a short comment over a long comment.
+### Length
 
-Do not write paragraph-length comments. Do not write comments containing several sentences explaining implementation history, refactoring details, or the reasoning behind an otherwise understandable structure.
+Prefer no comment over a short one, and a short one over a long one. 1–2 short sentences max. If it needs more than that, it probably belongs in documentation, an issue, or commit history instead — not in the code.
 
-If a comment would require more than 1–2 short sentences, first determine whether the information belongs in documentation, an issue, commit history, or the code itself.
+### Before adding a comment, ask
 
-### Refactoring
+> "Does this tell a future developer something important they can't reasonably get from the code itself?"
 
-When extracting, splitting, simplifying, or reorganizing code, do NOT add a comment explaining the refactoring.
-
-For example, do not add comments like:
-
-```ts
-// These were previously inlined inside PlanScreen's renderWidgetContent...
-// Pulling each block out into its own component reduces cognitive complexity...
-```
-
-The extracted components and their structure should speak for themselves.
-
-Only mention the reason in a comment if it represents a persistent, non-obvious constraint that a future developer could accidentally remove and thereby reintroduce a real problem.
-
-### Before adding a comment
-
-Ask:
-
-> "Does this comment tell a future developer something important that they cannot reasonably determine from the code?"
-
-If the answer is no, do not add it.
-
-When in doubt, leave the comment out.
+If no — leave it out. When in doubt, leave it out.

@@ -5,6 +5,7 @@
     "forceConsistentCasingInFileNames": true,
     "sourceMap": true,
     "resolveJsonModule": true,
+    "types": ["jest"],
     "paths": {
       "@features/*": ["./src/features/*"],
       "@shared/*": ["./src/shared/*"],

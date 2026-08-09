@@ -11,6 +11,9 @@ import { useTheme } from "@shared/context/ThemeContext";
 import { domsApi } from "../services";
 import { DOMSStats, MuscleRecoveryStats, MuscleGroup } from "../types/muscleRecovery";
 import { MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
+import { FillBar } from "@shared/components/FillBar";
+import ProgressChart from "@shared/components/ProgressChart";
+import { getSeverityColor as getTrendColor } from "@utils/severityColor";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -209,17 +212,11 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
                   <Text style={[styles.muscleLabel, { color: colors.textPrimary }]}>
                     {label}
                   </Text>
-                  <View style={styles.muscleBar}>
-                    <View
-                      style={[
-                        styles.muscleBarFill,
-                        {
-                          width: `${percentage}%`,
-                          backgroundColor: colors.accent,
-                        },
-                      ]}
-                    />
-                  </View>
+                  <FillBar
+                    percentage={percentage}
+                    color={colors.accent}
+                    styles={{ track: styles.muscleBar, fill: styles.muscleBarFill }}
+                  />
                 </View>
                 <View style={styles.muscleStats}>
                   <Text style={[styles.muscleFrequency, { color: colors.textPrimary }]}>
@@ -240,38 +237,17 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
       {/* Recovery Trends */}
       {stats.severityTrend && stats.severityTrend.length > 0 && (
         <View style={[styles.trendCard, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.trendTitle, { color: colors.textPrimary }]}>
-            Severity Trend
-          </Text>
-          <View style={styles.trendChart}>
-            {stats.severityTrend.slice(-7).map((point, index) => {
-              const maxSeverity = Math.max(...stats.severityTrend.map((p) => p.averageIntensity), 1);
-              const heightPercentage = (point.averageIntensity / maxSeverity) * 100;
-
-              return (
-                <View key={index} style={styles.trendColumn}>
-                  <View style={styles.trendBarContainer}>
-                    <View
-                      style={[
-                        styles.trendBar,
-                        {
-                          height: `${heightPercentage}%`,
-                          backgroundColor:
-                            point.averageIntensity <= 3 ? "#6BCB77" : point.averageIntensity <= 6 ? "#FFD93D" : "#FF6B6B",
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.trendDate, { color: colors.textSecondary }]}>
-                    {new Date(point.date).getDate()}
-                  </Text>
-                  <Text style={[styles.trendValue, { color: colors.textPrimary }]}>
-                    {point.averageIntensity.toFixed(1)}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+          <ProgressChart
+            title="Severity Trend"
+            chartType="bar"
+            chartWidth={SCREEN_WIDTH - 96}
+            showValuesOnTopOfBars
+            barColors={stats.severityTrend.slice(-7).map((point) => getTrendColor(point.averageIntensity, 3))}
+            data={{
+              labels: stats.severityTrend.slice(-7).map((point) => String(new Date(point.date).getDate())),
+              datasets: [{ data: stats.severityTrend.slice(-7).map((point) => point.averageIntensity) }],
+            }}
+          />
         </View>
       )}
     </ScrollView>
@@ -454,40 +430,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-  },
-  trendTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  trendChart: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-end",
-    height: 150,
-  },
-  trendColumn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
-  trendBarContainer: {
-    height: 100,
-    width: 24,
-    justifyContent: "flex-end",
-  },
-  trendBar: {
-    width: "100%",
-    borderRadius: 4,
-    minHeight: 4,
-  },
-  trendDate: {
-    fontSize: 10,
-    marginTop: 6,
-  },
-  trendValue: {
-    fontSize: 10,
-    fontWeight: "600",
   },
 });
 

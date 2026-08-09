@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
@@ -94,7 +95,7 @@ const DEFAULT_SUPPLEMENT_TEMPLATES: SupplementTemplate[] = [
 
 export default function SupplementsScreen(): React.JSX.Element {
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { alert, AlertComponent } = useAlert();
 
   const [supplements, setSupplements] = useState<SupplementSummary[]>([]);
@@ -340,7 +341,7 @@ export default function SupplementsScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      <ScrollView
+      <FlatList
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
@@ -350,45 +351,48 @@ export default function SupplementsScreen(): React.JSX.Element {
             tintColor={colors.accent}
           />
         }
-      >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Supplements</Text>
-            <Text style={styles.headerSubtitle}>
-              {supplements.length === 0
-                ? "No supplements yet"
-                : `${supplements.length} supplement${supplements.length !== 1 ? "s" : ""} · ${supplements.filter((s) => s.takenToday).length} taken today`}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowTemplateSheet(true)}
-          >
-            <Text style={styles.addButtonText}>+ Add</Text>
-          </TouchableOpacity>
-        </View>
+        data={supplements}
+        keyExtractor={(supp) => String(supp.id)}
+        ListHeaderComponent={
+          <>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.headerTitle}>Supplements</Text>
+                <Text style={styles.headerSubtitle}>
+                  {supplements.length === 0
+                    ? "No supplements yet"
+                    : `${supplements.length} supplement${supplements.length !== 1 ? "s" : ""} · ${supplements.filter((s) => s.takenToday).length} taken today`}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setShowTemplateSheet(true)}
+              >
+                <Text style={styles.addButtonText}>+ Add</Text>
+              </TouchableOpacity>
+            </View>
 
-        {supplements.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>💊</Text>
-            <Text style={styles.emptyTitle}>No supplements yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Add supplements to track your daily intake and set reminders.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => setShowTemplateSheet(true)}
-            >
-              <Text style={styles.emptyButtonText}>
-                Add your first supplement
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {supplements.map((supp) => (
+            {supplements.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>💊</Text>
+                <Text style={styles.emptyTitle}>No supplements yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Add supplements to track your daily intake and set reminders.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyButton}
+                  onPress={() => setShowTemplateSheet(true)}
+                >
+                  <Text style={styles.emptyButtonText}>
+                    Add your first supplement
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        }
+        renderItem={({ item: supp }) => (
           <SupplementCard
-            key={supp.id}
             supplement={supp}
             colors={colors}
             onLog={() => setQuickLogSupplement(supp)}
@@ -396,10 +400,9 @@ export default function SupplementsScreen(): React.JSX.Element {
             onSettings={() => setSettingsSupplement(supp)}
             onDelete={() => handleDeleteSupplement(supp)}
           />
-        ))}
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        )}
+        ListFooterComponent={<View style={{ height: 100 }} />}
+      />
 
       {quickLogSupplement && (
         <QuickLogSupplement

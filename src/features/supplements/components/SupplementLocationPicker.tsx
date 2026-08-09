@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useMemo } from "react"
 import {
   View,
   Text,
@@ -33,7 +33,7 @@ export default function SupplementLocationPicker({
   initialLocation,
 }: SupplementLocationPickerProps) {
   const { colors } = useTheme()
-  const styles = makeStyles(colors)
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const [markerPosition, setMarkerPosition] = useState<MarkerPosition | null>(
     null,
   )
@@ -360,16 +360,8 @@ export default function SupplementLocationPicker({
       fullHeight
       showCancelButton={false}
       showConfirmButton={false}
+      headerActions={{ title: "Select Reminder Location" }}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
-          <Text style={styles.cancelText}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select Reminder Location</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
       {/* Map Container */}
       <View style={styles.mapContainer}>
         {loading && (
@@ -504,25 +496,6 @@ export default function SupplementLocationPicker({
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 16,
-      backgroundColor: colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.inputBorder,
-      elevation: 3,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 3,
-    },
-    cancelButton: { padding: 8 },
-    cancelText: { fontSize: 16, color: colors.error, fontWeight: "600" },
-    headerTitle: { fontSize: 18, fontWeight: "700", color: colors.textPrimary },
-    headerSpacer: { width: 60 },
     mapContainer: { flex: 1, position: "relative" },
     map: { flex: 1, backgroundColor: colors.separator },
     loadingOverlay: {

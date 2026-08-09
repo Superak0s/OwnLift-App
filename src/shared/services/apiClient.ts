@@ -20,7 +20,7 @@ export class ApiError extends Error {
 // Centralized response parsing: handles JSON parse failures, HTTP errors,
 // and server-side `{ success: false }` envelopes in one place.
 
-export async function parseApiResponse<T = any>(res: Response): Promise<T> {
+export async function parseApiResponse<T = unknown>(res: Response): Promise<T> {
   let data: any
   try {
     data = await res.json()
@@ -49,7 +49,7 @@ export async function parseApiResponse<T = any>(res: Response): Promise<T> {
 // The path is prefixed with the server URL by authenticatedFetch already,
 // so pass relative paths ("/api/...") or absolute URLs.
 
-export async function apiCall<T = any>(
+export async function apiCall<T = unknown>(
   url: string,
   options?: RequestInit,
 ): Promise<T> {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
-import { getStorageItem, setStorageItem, removeStorageItem } from "@shared/services/sqliteStorage"
+import {
+  getStorageItem,
+  setStorageItem,
+  removeStorageItem,
+} from "@shared/services/sqliteStorage";
 
 import { supplementsApi } from "../services";
 import {
@@ -53,7 +57,7 @@ export default function SupplementSettingsModal({
   onSaved,
 }: SupplementSettingsModalProps): React.JSX.Element | null {
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { alert, AlertComponent } = useAlert();
   const { user } = useAuth();
 
@@ -410,7 +414,8 @@ export default function SupplementSettingsModal({
       supplementId: supplement.id,
       name: supplement.name,
       unit: supplement.unit,
-      defaultAmount: Number.parseFloat(defaultAmount) || supplement.defaultAmount,
+      defaultAmount:
+        Number.parseFloat(defaultAmount) || supplement.defaultAmount,
       locationBasedReminder: false,
       timeBasedEnabled: false,
       reminderTime: "00:00",
@@ -472,19 +477,9 @@ export default function SupplementSettingsModal({
       fullHeight={true}
       showCancelButton={false}
       showConfirmButton={false}
+      headerActions={{ title: `${supplement.icon || "💊"} ${supplement.name}` }}
     >
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
-            <Text style={styles.headerBtnText}>Cancel</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {supplement.icon || "💊"} {supplement.name}
-          </Text>
-          <View style={{ width: 64 }} />
-        </View>
-
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size='large' color={colors.accent} />
@@ -773,35 +768,13 @@ export default function SupplementSettingsModal({
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.surfaceBorder,
-    },
-    headerBtn: { padding: 6 },
-    headerBtnText: {
-      fontSize: 16,
-      color: colors.error,
-      fontWeight: "600",
-    },
-    headerTitle: {
-      fontSize: 17,
-      fontWeight: "700",
-      color: colors.textPrimary,
-      flex: 1,
-      textAlign: "center",
-    },
     loadingContainer: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
     },
 
-    content: { padding: 20, paddingBottom: 20 },
+    content: { padding: 10, paddingBottom: 20 },
 
     heroBanner: {
       backgroundColor: colors.infoLight,

@@ -1,6 +1,7 @@
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { workoutApi } from "@features/workout/services/index"
 import { filterOutLocalSessionSyncs, getLocalISOString } from "@utils/session"
+import logger from "../../services/logger"
 import type { PendingSync } from "../../types"
 
 /**
@@ -32,6 +33,14 @@ export interface UseSyncManagerReturn {
   cleanupInvalidSyncs: () => Promise<void>
 }
 
+// A sync that keeps failing (e.g. server permanently unreachable, or a
+// payload the server will never accept) would otherwise get retried every
+// 30s forever. Back off exponentially per sync and give up after enough
+// failures instead of hammering the server.
+const MAX_SYNC_RETRIES = 8
+const BASE_BACKOFF_MS = 30_000
+const MAX_BACKOFF_MS = 30 * 60_000
+
 export const useSyncManager = ({
   pendingSyncs,
   setPendingSyncs,
@@ -45,6 +54,10 @@ export const useSyncManager = ({
   useManualTime,
   fetchAnalytics,
 }: UseSyncManagerOptions): UseSyncManagerReturn => {
+  const retryStateRef = useRef(
+    new Map<string, { count: number; nextAttemptAt: number }>(),
+  )
+
   /**
    * Add a pending sync operation
    */
@@ -68,7 +81,7 @@ export const useSyncManager = ({
     if (isSyncing || pendingSyncs.length === 0) return
 
     setIsSyncing(true)
-    console.log(
+    logger.debug(
       `Attempting to sync ${pendingSyncs.length} pending operations...`,
     )
 
@@ -82,9 +95,27 @@ export const useSyncManager = ({
     ) as PendingSync[]
 
     const failedSyncs: PendingSync[] = []
+    // Maps a local session ID to its server ID once startSession syncs for it,
+    // so later recordSet/endSession entries can resolve it in one pass instead
+    // of each startSession rescanning the rest of the queue.
+    const localToServerId = new Map<string, string>()
+
+    const now = Date.now()
 
     for (let i = 0; i < workingSyncs.length; i++) {
       const sync = workingSyncs[i]
+      if (sync.type === "recordSet" || sync.type === "endSession") {
+        const mapped = localToServerId.get(String(sync.data.sessionId))
+        if (mapped) sync.data.sessionId = mapped
+      }
+
+      const retryKey = String(sync.timestamp)
+      const retryState = retryStateRef.current.get(retryKey)
+      if (retryState && retryState.nextAttemptAt > now) {
+        failedSyncs.push(sync)
+        continue
+      }
+
       try {
         switch (sync.type) {
           case "startSession": {
@@ -99,22 +130,11 @@ export const useSyncManager = ({
 
             if (sync.localSessionId && sessionId) {
               const serverIdStr = String(sessionId)
-              // Remap all subsequent syncs that reference this local ID.
-              // structuredClone gave us independent objects so we can mutate
-              // data in-place safely without touching the original state.
-              for (let j = i + 1; j < workingSyncs.length; j++) {
-                const ps = workingSyncs[j]
-                if (
-                  (ps.type === "recordSet" || ps.type === "endSession") &&
-                  ps.data.sessionId === sync.localSessionId
-                ) {
-                  // Without remapping endSession too, a session started AND
-                  // ended offline keeps its local ID here, hits the
-                  // startsWith("local_") guard below, gets dropped, and the
-                  // session stays open on the server forever.
-                  ps.data.sessionId = serverIdStr
-                }
-              }
+              // Without remapping endSession too, a session started AND
+              // ended offline keeps its local ID here, hits the
+              // startsWith("local_") guard below, gets dropped, and the
+              // session stays open on the server forever.
+              localToServerId.set(sync.localSessionId, serverIdStr)
               if (currentSessionId === sync.localSessionId) {
                 await saveToStorage(
                   STORAGE_KEYS.CURRENT_SESSION_ID,
@@ -124,14 +144,14 @@ export const useSyncManager = ({
                 setCurrentSessionId(serverIdStr)
               }
             }
-            console.log("✓ Synced session start")
+            logger.info("✓ Synced session start")
             break
           }
 
           case "recordSet": {
             // sync.data is RecordSetSyncData — fully typed
             if (String(sync.data.sessionId).startsWith("local_")) {
-              console.log("⚠ Skipping recordSet sync for local session ID")
+              logger.warn("⚠ Skipping recordSet sync for local session ID")
               failedSyncs.push(sync)
               break
             }
@@ -139,7 +159,7 @@ export const useSyncManager = ({
             const { weight, reps } = sync.data
 
             if (!weight || weight <= 0 || !reps || reps < 1) {
-              console.log(
+              logger.warn(
                 "⚠ Dropping invalid queued set (weight/reps = 0), discarding",
               )
               break
@@ -164,7 +184,7 @@ export const useSyncManager = ({
                 sync.data.isWarmup,
                 sync.data.muscleGroup ?? null,
               )
-              console.log("✓ Synced set record")
+              logger.info("✓ Synced set record")
             } catch (error) {
               // The session this set belonged to is gone for good (e.g. it
               // was already ended/cleared) — same "not found" handling as
@@ -174,7 +194,7 @@ export const useSyncManager = ({
                 (error as Error).message?.includes("not found") ||
                 (error as Error).message?.includes("unauthorized")
               ) {
-                console.log("⚠ Session for queued set no longer exists - dropping sync")
+                logger.warn("⚠ Session for queued set no longer exists - dropping sync")
               } else {
                 throw error
               }
@@ -185,7 +205,7 @@ export const useSyncManager = ({
           case "endSession": {
             // sync.data is EndSessionSyncData — fully typed
             if (String(sync.data.sessionId).startsWith("local_")) {
-              console.log("⚠ Skipping endSession sync for local session ID")
+              logger.warn("⚠ Skipping endSession sync for local session ID")
               break
             }
 
@@ -194,13 +214,13 @@ export const useSyncManager = ({
                 sync.data.sessionId,
                 getLocalISOString(),
               )
-              console.log("✓ Synced session end")
+              logger.info("✓ Synced session end")
             } catch (error) {
               if (
                 (error as Error).message?.includes("not found") ||
                 (error as Error).message?.includes("unauthorized")
               ) {
-                console.log("⚠ Session no longer exists - dropping sync")
+                logger.warn("⚠ Session no longer exists - dropping sync")
               } else {
                 throw error
               }
@@ -211,9 +231,27 @@ export const useSyncManager = ({
           default:
             console.warn("Unknown sync type:", (sync as PendingSync).type)
         }
+        retryStateRef.current.delete(retryKey)
       } catch (error) {
         console.error(`Failed to sync ${sync.type}:`, (error as Error).message)
-        failedSyncs.push(sync)
+
+        const nextCount = (retryState?.count ?? 0) + 1
+        if (nextCount > MAX_SYNC_RETRIES) {
+          logger.warn(
+            `⚠ Dropping ${sync.type} sync after ${nextCount} failed attempts`,
+          )
+          retryStateRef.current.delete(retryKey)
+        } else {
+          const backoff = Math.min(
+            BASE_BACKOFF_MS * 2 ** (nextCount - 1),
+            MAX_BACKOFF_MS,
+          )
+          retryStateRef.current.set(retryKey, {
+            count: nextCount,
+            nextAttemptAt: now + backoff,
+          })
+          failedSyncs.push(sync)
+        }
       }
     }
 
@@ -221,12 +259,12 @@ export const useSyncManager = ({
     setPendingSyncs(failedSyncs)
 
     if (failedSyncs.length === 0) {
-      console.log("✓ All pending syncs completed successfully!")
+      logger.info("✓ All pending syncs completed successfully!")
       if (!useManualTime && fetchAnalytics) {
         await fetchAnalytics()
       }
     } else {
-      console.log(`⚠ ${failedSyncs.length} syncs still pending`)
+      logger.warn(`⚠ ${failedSyncs.length} syncs still pending`)
     }
 
     setIsSyncing(false)
@@ -253,7 +291,7 @@ export const useSyncManager = ({
     if (validSyncs.length !== pendingSyncs.length) {
       await saveToStorage(STORAGE_KEYS.PENDING_SYNCS, validSyncs, userId)
       setPendingSyncs(validSyncs)
-      console.log(
+      logger.debug(
         `🧹 Cleaned up ${pendingSyncs.length - validSyncs.length} invalid syncs`,
       )
     }

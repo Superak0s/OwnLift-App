@@ -4,15 +4,22 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
   TextInput,
   Alert,
+  Dimensions,
 } from "react-native";
+import { Image } from "expo-image";
 import { useTheme } from "@shared/context/ThemeContext";
 import { domsApi, injuryApi, progressPhotoApi, personalNotesApi } from "../services";
 import { MuscleGroup, MUSCLE_GROUP_LABELS, PersonalMuscleNote } from "../types/muscleRecovery";
+import { FillBar } from "@shared/components/FillBar";
+import ProgressChart from "@shared/components/ProgressChart";
+import { getSeverityColor } from "@utils/severityColor";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 interface MuscleDashboardProps {
   readonly muscleGroup: MuscleGroup;
@@ -84,14 +91,6 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
     if (!recoveryStats?.muscleRecoveryStats) return null;
     return recoveryStats.muscleRecoveryStats.find((s: any) => s.muscleGroup === muscleGroup);
   }, [recoveryStats, muscleGroup]);
-
-  const getIntensityColor = (intensity: number) => {
-    if (intensity <= 2) return "#6BCB77";
-    if (intensity <= 4) return "#FFD93D";
-    if (intensity <= 6) return "#FFA94D";
-    if (intensity <= 8) return "#FF8787";
-    return "#FF6B6B";
-  };
 
   const getRecoveryTimeLabel = (days: number) => {
     const rounded = Math.round(days);
@@ -171,14 +170,10 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
           </Text>
           <View style={styles.currentSorenessRow}>
             <View style={styles.intensityBadge}>
-              <View
-                style={[
-                  styles.intensityBar,
-                  {
-                    width: `${(currentSoreness.intensity / 10) * 100}%`,
-                    backgroundColor: getIntensityColor(currentSoreness.intensity),
-                  },
-                ]}
+              <FillBar
+                percentage={(currentSoreness.intensity / 10) * 100}
+                color={getSeverityColor(currentSoreness.intensity)}
+                styles={{ track: styles.intensityBar, fill: styles.intensityBarFill }}
               />
               <Text style={[styles.intensityText, { color: colors.textPrimary }]}>
                 {currentSoreness.intensity}/10
@@ -218,184 +213,195 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
       </View>
 
       {/* Tab Content */}
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {activeTab === "soreness" && (
-          <View>
+      {activeTab === "soreness" && (
+        <FlatList
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          data={sorenessHistory}
+          keyExtractor={(entry) => String(entry.id)}
+          ListHeaderComponent={
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               Soreness History
             </Text>
-            {sorenessHistory.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No soreness recorded for this muscle
-              </Text>
-            ) : (
-              sorenessHistory.map((entry) => (
-                <View key={entry.id} style={[styles.sorenessCard, { backgroundColor: colors.surface }]}>
-                  <View style={styles.sorenessHeader}>
-                    <Text style={[styles.sorenessDateText, { color: colors.textSecondary }]}>
-                      {new Date(entry.loggedAt).toLocaleDateString()}
-                    </Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            entry.status === "active"
-                              ? "#FF6B6B"
-                              : entry.status === "recovering"
-                              ? "#FFD93D"
-                              : "#6BCB77",
-                        },
-                      ]}
-                    >
-                      <Text style={styles.statusText}>{entry.status}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.sorenessRow}>
-                    <Text style={[styles.sorenessLabel, { color: colors.textSecondary }]}>
-                      Intensity:
-                    </Text>
-                    <View style={styles.intensityBadge}>
-                      <View
-                        style={[
-                          styles.intensityBar,
-                          {
-                            width: `${(entry.intensity / 10) * 100}%`,
-                            backgroundColor: getIntensityColor(entry.intensity),
-                          },
-                        ]}
-                      />
-                      <Text style={[styles.intensityText, { color: colors.textPrimary }]}>
-                        {entry.intensity}/10
-                      </Text>
-                    </View>
-                  </View>
-                  {entry.notes && (
-                    <Text style={[styles.sorenessNotes, { color: colors.textSecondary }]}>
-                      {entry.notes}
-                    </Text>
-                  )}
-                  {entry.followUps && entry.followUps.length > 0 && (
-                    <View style={styles.followUpsSection}>
-                      <Text style={[styles.followUpsLabel, { color: colors.textSecondary }]}>
-                        Follow-ups ({entry.followUps.length}):
-                      </Text>
-                      {entry.followUps.map((fu: any, idx: number) => (
-                        <View key={idx} style={styles.followUpRow}>
-                          <Text style={[styles.followUpDate, { color: colors.textSecondary }]}>
-                            {new Date(fu.date).toLocaleDateString()}:
-                          </Text>
-                          <Text style={[styles.followUpStatus, { color: colors.textPrimary }]}>
-                            {fu.status} - {fu.intensity}/10
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
+          }
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No soreness recorded for this muscle
+            </Text>
+          }
+          renderItem={({ item: entry }) => (
+            <View style={[styles.sorenessCard, { backgroundColor: colors.surface }]}>
+              <View style={styles.sorenessHeader}>
+                <Text style={[styles.sorenessDateText, { color: colors.textSecondary }]}>
+                  {new Date(entry.loggedAt).toLocaleDateString()}
+                </Text>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor:
+                        entry.status === "active"
+                          ? "#FF6B6B"
+                          : entry.status === "recovering"
+                          ? "#FFD93D"
+                          : "#6BCB77",
+                    },
+                  ]}
+                >
+                  <Text style={styles.statusText}>{entry.status}</Text>
                 </View>
-              ))
-            )}
-          </View>
-        )}
+              </View>
+              <View style={styles.sorenessRow}>
+                <Text style={[styles.sorenessLabel, { color: colors.textSecondary }]}>
+                  Intensity:
+                </Text>
+                <View style={styles.intensityBadge}>
+                  <FillBar
+                    percentage={(entry.intensity / 10) * 100}
+                    color={getSeverityColor(entry.intensity)}
+                    styles={{ track: styles.intensityBar, fill: styles.intensityBarFill }}
+                  />
+                  <Text style={[styles.intensityText, { color: colors.textPrimary }]}>
+                    {entry.intensity}/10
+                  </Text>
+                </View>
+              </View>
+              {entry.notes && (
+                <Text style={[styles.sorenessNotes, { color: colors.textSecondary }]}>
+                  {entry.notes}
+                </Text>
+              )}
+              {entry.followUps && entry.followUps.length > 0 && (
+                <View style={styles.followUpsSection}>
+                  <Text style={[styles.followUpsLabel, { color: colors.textSecondary }]}>
+                    Follow-ups ({entry.followUps.length}):
+                  </Text>
+                  {entry.followUps.map((fu: any, idx: number) => (
+                    <View key={idx} style={styles.followUpRow}>
+                      <Text style={[styles.followUpDate, { color: colors.textSecondary }]}>
+                        {new Date(fu.date).toLocaleDateString()}:
+                      </Text>
+                      <Text style={[styles.followUpStatus, { color: colors.textPrimary }]}>
+                        {fu.status} - {fu.intensity}/10
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+        />
+      )}
 
-        {activeTab === "photos" && (
-          <View>
+      {activeTab === "photos" && (
+        <FlatList
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          data={photos}
+          keyExtractor={(photo) => String(photo.id)}
+          numColumns={2}
+          columnWrapperStyle={styles.photoGrid}
+          ListHeaderComponent={
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               Progress Photos
             </Text>
-            {photos.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No photos for this muscle yet
-              </Text>
-            ) : (
-              <View style={styles.photoGrid}>
-                {photos.map((photo) => (
-                  <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
-                    <Image
-                      source={{ uri: photo.uri }}
-                      style={styles.photoImage}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.photoInfo}>
-                      <Text style={[styles.photoDate, { color: colors.textSecondary }]}>
-                        {new Date(photo.dateTaken).toLocaleDateString()}
-                      </Text>
-                      <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
-                        {photo.angle}
-                      </Text>
-                      {photo.notes && (
-                        <Text style={[styles.photoNotes, { color: colors.textSecondary }]} numberOfLines={2}>
-                          {photo.notes}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
+          }
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No photos for this muscle yet
+            </Text>
+          }
+          renderItem={({ item: photo }) => (
+            <View style={[styles.photoCard, { backgroundColor: colors.surface }]}>
+              <Image
+                source={{ uri: photo.uri }}
+                style={styles.photoImage}
+                contentFit="cover"
+              />
+              <View style={styles.photoInfo}>
+                <Text style={[styles.photoDate, { color: colors.textSecondary }]}>
+                  {new Date(photo.dateTaken).toLocaleDateString()}
+                </Text>
+                <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
+                  {photo.angle}
+                </Text>
+                {photo.notes && (
+                  <Text style={[styles.photoNotes, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {photo.notes}
+                  </Text>
+                )}
               </View>
-            )}
-          </View>
-        )}
+            </View>
+          )}
+        />
+      )}
 
-        {activeTab === "injuries" && (
-          <View>
+      {activeTab === "injuries" && (
+        <FlatList
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          data={injuries}
+          keyExtractor={(injury) => String(injury.id)}
+          ListHeaderComponent={
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               Injury History
             </Text>
-            {injuries.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No injuries recorded for this muscle
-              </Text>
-            ) : (
-              injuries.map((injury) => (
-                <View key={injury.id} style={[styles.injuryCard, { backgroundColor: colors.surface }]}>
-                  <View style={styles.injuryHeader}>
-                    <Text style={[styles.injuryType, { color: colors.textPrimary }]}>
-                      {injury.injuryType}
-                    </Text>
-                    <View
-                      style={[
-                        styles.injuryStatusBadge,
-                        {
-                          backgroundColor:
-                            injury.status === "active"
-                              ? "#FF6B6B"
-                              : injury.status === "recovering"
-                              ? "#FFD93D"
-                              : "#6BCB77",
-                        },
-                      ]}
-                    >
-                      <Text style={styles.injuryStatusText}>{injury.status}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.injuryRow}>
-                    <Text style={[styles.injuryLabel, { color: colors.textSecondary }]}>
-                      Pain Level:
-                    </Text>
-                    <Text style={[styles.injuryValue, { color: colors.textPrimary }]}>
-                      {injury.painLevel}/10
-                    </Text>
-                  </View>
-                  <View style={styles.injuryRow}>
-                    <Text style={[styles.injuryLabel, { color: colors.textSecondary }]}>
-                      Date:
-                    </Text>
-                    <Text style={[styles.injuryValue, { color: colors.textPrimary }]}>
-                      {new Date(injury.dateLogged).toLocaleDateString()}
-                    </Text>
-                  </View>
-                  {injury.notes && (
-                    <Text style={[styles.injuryNotes, { color: colors.textSecondary }]}>
-                      {injury.notes}
-                    </Text>
-                  )}
+          }
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No injuries recorded for this muscle
+            </Text>
+          }
+          renderItem={({ item: injury }) => (
+            <View style={[styles.injuryCard, { backgroundColor: colors.surface }]}>
+              <View style={styles.injuryHeader}>
+                <Text style={[styles.injuryType, { color: colors.textPrimary }]}>
+                  {injury.injuryType}
+                </Text>
+                <View
+                  style={[
+                    styles.injuryStatusBadge,
+                    {
+                      backgroundColor:
+                        injury.status === "active"
+                          ? "#FF6B6B"
+                          : injury.status === "recovering"
+                          ? "#FFD93D"
+                          : "#6BCB77",
+                    },
+                  ]}
+                >
+                  <Text style={styles.injuryStatusText}>{injury.status}</Text>
                 </View>
-              ))
-            )}
-          </View>
-        )}
+              </View>
+              <View style={styles.injuryRow}>
+                <Text style={[styles.injuryLabel, { color: colors.textSecondary }]}>
+                  Pain Level:
+                </Text>
+                <Text style={[styles.injuryValue, { color: colors.textPrimary }]}>
+                  {injury.painLevel}/10
+                </Text>
+              </View>
+              <View style={styles.injuryRow}>
+                <Text style={[styles.injuryLabel, { color: colors.textSecondary }]}>
+                  Date:
+                </Text>
+                <Text style={[styles.injuryValue, { color: colors.textPrimary }]}>
+                  {new Date(injury.dateLogged).toLocaleDateString()}
+                </Text>
+              </View>
+              {injury.notes && (
+                <Text style={[styles.injuryNotes, { color: colors.textSecondary }]}>
+                  {injury.notes}
+                </Text>
+              )}
+            </View>
+          )}
+        />
+      )}
 
-        {activeTab === "stats" && (
+      {activeTab === "stats" && (
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
           <View>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               Recovery Statistics
@@ -451,111 +457,101 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
 
                 {recoveryStat.severityTrend && recoveryStat.severityTrend.length > 0 && (
                   <View style={[styles.trendCard, { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.trendTitle, { color: colors.textPrimary }]}>
-                      Severity Trend
-                    </Text>
-                    <View style={styles.trendChart}>
-                      {recoveryStat.severityTrend.slice(-7).map((point: any, index: number) => {
-                        const maxSeverity = Math.max(
-                          ...recoveryStat.severityTrend.map((p: any) => p.averageIntensity),
-                          1
-                        );
-                        const heightPercentage = (point.averageIntensity / maxSeverity) * 100;
-
-                        return (
-                          <View key={index} style={styles.trendColumn}>
-                            <View style={styles.trendBarContainer}>
-                              <View
-                                style={[
-                                  styles.trendBar,
-                                  {
-                                    height: `${heightPercentage}%`,
-                                    backgroundColor:
-                                      point.averageIntensity <= 3
-                                        ? "#6BCB77"
-                                        : point.averageIntensity <= 6
-                                        ? "#FFD93D"
-                                        : "#FF6B6B",
-                                  },
-                                ]}
-                              />
-                            </View>
-                            <Text style={[styles.trendDate, { color: colors.textSecondary }]}>
-                              {new Date(point.date).getDate()}
-                            </Text>
-                          </View>
-                        );
-                      })}
-                    </View>
+                    <ProgressChart
+                      title="Severity Trend"
+                      chartType="bar"
+                      chartWidth={SCREEN_WIDTH - 96}
+                      barColors={recoveryStat.severityTrend
+                        .slice(-7)
+                        .map((point: any) => getSeverityColor(point.averageIntensity, 3))}
+                      data={{
+                        labels: recoveryStat.severityTrend
+                          .slice(-7)
+                          .map((point: any) => String(new Date(point.date).getDate())),
+                        datasets: [
+                          {
+                            data: recoveryStat.severityTrend
+                              .slice(-7)
+                              .map((point: any) => point.averageIntensity),
+                          },
+                        ],
+                      }}
+                    />
                   </View>
                 )}
               </View>
             )}
           </View>
-        )}
+        </ScrollView>
+      )}
 
-        {activeTab === "notes" && (
-          <View>
-            <View style={styles.notesHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
-                Personal Notes
-              </Text>
-              <TouchableOpacity
-                style={[styles.addNoteButton, { backgroundColor: colors.accent }]}
-                onPress={() => setShowNoteInput(!showNoteInput)}
-              >
-                <Text style={styles.addNoteButtonText}>
-                  {showNoteInput ? "Cancel" : "+ Add Note"}
+      {activeTab === "notes" && (
+        <FlatList
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          data={personalNotes}
+          keyExtractor={(note) => String(note.id)}
+          ListHeaderComponent={
+            <>
+              <View style={styles.notesHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                  Personal Notes
                 </Text>
-              </TouchableOpacity>
-            </View>
-
-            {showNoteInput && (
-              <View style={[styles.noteInputCard, { backgroundColor: colors.surface }]}>
-                <TextInput
-                  style={[styles.noteInput, { color: colors.textPrimary, borderColor: colors.inputBorder }]}
-                  placeholder="Write a note about this muscle..."
-                  placeholderTextColor={colors.textSecondary}
-                  value={newNoteText}
-                  onChangeText={setNewNoteText}
-                  multiline
-                  numberOfLines={4}
-                />
-                <View style={styles.noteInputActions}>
-                  <TouchableOpacity
-                    style={[styles.saveNoteButton, { backgroundColor: colors.accent, opacity: savingNote ? 0.6 : 1 }]}
-                    onPress={handleAddNote}
-                    disabled={savingNote || !newNoteText.trim()}
-                  >
-                    {savingNote ? (
-                      <ActivityIndicator size="small" color="white" />
-                    ) : (
-                      <Text style={styles.saveNoteButtonText}>Save Note</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  style={[styles.addNoteButton, { backgroundColor: colors.accent }]}
+                  onPress={() => setShowNoteInput(!showNoteInput)}
+                >
+                  <Text style={styles.addNoteButtonText}>
+                    {showNoteInput ? "Cancel" : "+ Add Note"}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            )}
 
-            {personalNotes.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No notes for this muscle yet
-              </Text>
-            ) : (
-              personalNotes.map((note) => (
-                <View key={note.id} style={[styles.noteCard, { backgroundColor: colors.surface }]}>
-                  <Text style={[styles.noteContent, { color: colors.textPrimary }]}>
-                    {note.content}
-                  </Text>
-                  <Text style={[styles.noteDate, { color: colors.textSecondary }]}>
-                    {new Date(note.createdAt).toLocaleDateString()}
-                  </Text>
+              {showNoteInput && (
+                <View style={[styles.noteInputCard, { backgroundColor: colors.surface }]}>
+                  <TextInput
+                    style={[styles.noteInput, { color: colors.textPrimary, borderColor: colors.inputBorder }]}
+                    placeholder="Write a note about this muscle..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={newNoteText}
+                    onChangeText={setNewNoteText}
+                    multiline
+                    numberOfLines={4}
+                  />
+                  <View style={styles.noteInputActions}>
+                    <TouchableOpacity
+                      style={[styles.saveNoteButton, { backgroundColor: colors.accent, opacity: savingNote ? 0.6 : 1 }]}
+                      onPress={handleAddNote}
+                      disabled={savingNote || !newNoteText.trim()}
+                    >
+                      {savingNote ? (
+                        <ActivityIndicator size="small" color="white" />
+                      ) : (
+                        <Text style={styles.saveNoteButtonText}>Save Note</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              ))
-            )}
-          </View>
-        )}
-      </ScrollView>
+              )}
+            </>
+          }
+          ListEmptyComponent={
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No notes for this muscle yet
+            </Text>
+          }
+          renderItem={({ item: note }) => (
+            <View style={[styles.noteCard, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.noteContent, { color: colors.textPrimary }]}>
+                {note.content}
+              </Text>
+              <Text style={[styles.noteDate, { color: colors.textSecondary }]}>
+                {new Date(note.createdAt).toLocaleDateString()}
+              </Text>
+            </View>
+          )}
+        />
+      )}
     </View>
   );
 };
@@ -632,9 +628,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   intensityBar: {
+    width: 100,
     height: 8,
     borderRadius: 4,
     minWidth: 20,
+  },
+  intensityBarFill: {
+    height: "100%",
+    borderRadius: 4,
   },
   intensityText: {
     fontSize: 14,
@@ -935,36 +936,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
-  },
-  trendTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  trendChart: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "flex-end",
-    height: 120,
-  },
-  trendColumn: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-end",
-  },
-  trendBarContainer: {
-    height: 80,
-    width: 20,
-    justifyContent: "flex-end",
-  },
-  trendBar: {
-    width: "100%",
-    borderRadius: 4,
-    minHeight: 4,
-  },
-  trendDate: {
-    fontSize: 10,
-    marginTop: 4,
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,71 +9,70 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from "react-native"
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { useAuth } from "@shared/context/AuthContext"
-import { useTheme } from "@shared/context/ThemeContext"
-import ModalSheet from "@shared/components/ModalSheet"
-import ServerModeToggle from "@shared/components/ServerModeToggle"
-import { useAlert } from "@shared/components/CustomAlert"
+} from "react-native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "@shared/context/AuthContext";
+import { useTheme } from "@shared/context/ThemeContext";
+import ModalSheet from "@shared/components/ModalSheet";
+import ServerModeToggle from "@shared/components/ServerModeToggle";
+import { useAlert } from "@shared/components/CustomAlert";
 import {
   getServerUrl,
   setServerUrl,
   resetServerUrl,
   getDefaultServerUrl,
-} from "@shared/services/config"
+} from "@shared/services/config";
 import {
   getAppMode,
   setAppMode,
-
   onAppModeChange,
-} from "@shared/services/appMode"
-import type { AppMode } from "@shared/services/appMode"
-import type { RootStackParamList } from "./types"
+} from "@shared/services/appMode";
+import type { AppMode } from "@shared/services/appMode";
+import type { RootStackParamList } from "./types";
 
 type LoginScreenProps = {
-  readonly navigation: NativeStackNavigationProp<RootStackParamList, "Login">
-}
+  readonly navigation: NativeStackNavigationProp<RootStackParamList, "Login">;
+};
 export default function LoginScreen({
   navigation,
 }: LoginScreenProps): React.JSX.Element {
-  const { colors } = useTheme()
-  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [usernameOrEmail, setUsernameOrEmail] = useState<string>("")
-  const [password, setPassword] = useState<string>("")
-  const [showPassword, setShowPassword] = useState<boolean>(false)
-  const [isLoading, setIsLoading] = useState<boolean>(false)
-  const [showServerModal, setShowServerModal] = useState<boolean>(false)
-  const [tempServerUrl, setTempServerUrl] = useState<string>("")
-  const [currentServerUrl, setCurrentServerUrl] = useState<string>("")
-  const [appMode, setAppModeState] = useState<AppMode>("online")
+  const [usernameOrEmail, setUsernameOrEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [showServerModal, setShowServerModal] = useState<boolean>(false);
+  const [tempServerUrl, setTempServerUrl] = useState<string>("");
+  const [currentServerUrl, setCurrentServerUrl] = useState<string>("");
+  const [appMode, setAppModeState] = useState<AppMode>("online");
 
-  const { signin } = useAuth()
-  const { alert, AlertComponent } = useAlert()
+  const { signin } = useAuth();
+  const { alert, AlertComponent } = useAlert();
 
   useEffect(() => {
-    setCurrentServerUrl(getServerUrl())
-    void getAppMode().then(setAppModeState)
-    return onAppModeChange.subscribe(setAppModeState)
-  }, [])
+    setCurrentServerUrl(getServerUrl());
+    void getAppMode().then(setAppModeState);
+    return onAppModeChange.subscribe(setAppModeState);
+  }, []);
 
   const handleModeChange = useCallback(
     async (mode: AppMode): Promise<void> => {
-      const success = await setAppMode(mode)
+      const success = await setAppMode(mode);
       if (success) {
-        setAppModeState(mode)
+        setAppModeState(mode);
       } else {
-        alert("Error", "Failed to switch mode", [{ text: "OK" }], "error")
+        alert("Error", "Failed to switch mode", [{ text: "OK" }], "error");
       }
     },
     [alert],
-  )
+  );
 
   const clearSensitiveData = useCallback(() => {
-    setPassword("")
-  }, [])
+    setPassword("");
+  }, []);
 
   const handleLogin = async (): Promise<void> => {
     if (!usernameOrEmail.trim() || !password) {
@@ -82,16 +81,16 @@ export default function LoginScreen({
         "Please enter your username/email and password",
         [{ text: "OK" }],
         "error",
-      )
-      return
+      );
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
-      const result = await signin(usernameOrEmail.trim(), password)
+      const result = await signin(usernameOrEmail.trim(), password);
 
-      clearSensitiveData()
+      clearSensitiveData();
 
       if (!result.success) {
         alert(
@@ -99,33 +98,33 @@ export default function LoginScreen({
           result.error || "Invalid username or password",
           [{ text: "OK" }],
           "error",
-        )
+        );
       }
     } catch (error) {
-      clearSensitiveData()
-      console.error("Unexpected login error:", error)
+      clearSensitiveData();
+      console.error("Unexpected login error:", error);
       alert(
         "Error",
         "An unexpected error occurred. Please check your connection and try again.",
         [{ text: "OK" }],
         "error",
-      )
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleOpenServerModal = useCallback((): void => {
-    setTempServerUrl(currentServerUrl)
-    setShowServerModal(true)
-  }, [currentServerUrl])
+    setTempServerUrl(currentServerUrl);
+    setShowServerModal(true);
+  }, [currentServerUrl]);
 
   const validateServerUrl = useCallback(
     (url: string): { valid: boolean; message?: string } => {
-      const trimmedUrl = url.trim()
+      const trimmedUrl = url.trim();
 
       if (!trimmedUrl) {
-        return { valid: false, message: "Please enter a server URL" }
+        return { valid: false, message: "Please enter a server URL" };
       }
 
       if (
@@ -135,7 +134,7 @@ export default function LoginScreen({
         return {
           valid: false,
           message: "URL must start with http:// or https://",
-        }
+        };
       }
 
       if (
@@ -149,22 +148,22 @@ export default function LoginScreen({
           valid: false,
           message:
             "HTTP is not secure. Please use HTTPS for production servers.",
-        }
+        };
       }
 
       try {
-        new URL(trimmedUrl)
-        return { valid: true }
+        new URL(trimmedUrl);
+        return { valid: true };
       } catch {
-        return { valid: false, message: "Invalid URL format" }
+        return { valid: false, message: "Invalid URL format" };
       }
     },
     [],
-  )
+  );
 
   const handleSaveServerUrl = useCallback(async (): Promise<void> => {
-    const url = tempServerUrl.trim()
-    const validation = validateServerUrl(url)
+    const url = tempServerUrl.trim();
+    const validation = validateServerUrl(url);
 
     if (!validation.valid) {
       alert(
@@ -172,8 +171,8 @@ export default function LoginScreen({
         validation.message || "Please enter a valid URL",
         [{ text: "OK" }],
         "error",
-      )
-      return
+      );
+      return;
     }
 
     if (
@@ -191,33 +190,33 @@ export default function LoginScreen({
           {
             text: "Continue",
             onPress: async () => {
-              await saveUrl(url)
+              await saveUrl(url);
             },
           },
         ],
         "warning",
-      )
-      return
+      );
+      return;
     }
 
-    await saveUrl(url)
-  }, [tempServerUrl, validateServerUrl])
+    await saveUrl(url);
+  }, [tempServerUrl, validateServerUrl]);
 
   const saveUrl = async (url: string): Promise<void> => {
-    const success = await setServerUrl(url)
+    const success = await setServerUrl(url);
     if (success) {
-      setCurrentServerUrl(url)
-      setShowServerModal(false)
+      setCurrentServerUrl(url);
+      setShowServerModal(false);
       alert(
         "Success",
         "Server URL updated successfully!",
         [{ text: "OK" }],
         "success",
-      )
+      );
     } else {
-      alert("Error", "Failed to save server URL", [{ text: "OK" }], "error")
+      alert("Error", "Failed to save server URL", [{ text: "OK" }], "error");
     }
-  }
+  };
 
   const handleResetServerUrl = useCallback(async (): Promise<void> => {
     alert(
@@ -228,31 +227,31 @@ export default function LoginScreen({
         {
           text: "Reset",
           onPress: async () => {
-            const success = await resetServerUrl()
+            const success = await resetServerUrl();
             if (success) {
-              setCurrentServerUrl(getDefaultServerUrl())
-              setTempServerUrl(getDefaultServerUrl())
-              setShowServerModal(false)
+              setCurrentServerUrl(getDefaultServerUrl());
+              setTempServerUrl(getDefaultServerUrl());
+              setShowServerModal(false);
               alert(
                 "Success",
                 "Server URL reset to default successfully!",
                 [{ text: "OK" }],
                 "success",
-              )
+              );
             } else {
               alert(
                 "Error",
                 "Failed to reset server URL",
                 [{ text: "OK" }],
                 "error",
-              )
+              );
             }
           },
         },
       ],
       "warning",
-    )
-  }, [alert])
+    );
+  }, [alert]);
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
@@ -439,14 +438,14 @@ export default function LoginScreen({
         {AlertComponent}
       </KeyboardAvoidingView>
     </SafeAreaView>
-  )
+  );
 }
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     scrollContent: { flexGrow: 1, paddingBottom: 40 },
-    content: { padding: 20, paddingTop: 60, minHeight: "100%" },
+    content: { padding: 10, paddingTop: 60, minHeight: "100%" },
     header: { marginBottom: 24, alignItems: "center" },
     title: {
       fontSize: 36,
@@ -628,4 +627,5 @@ const makeStyles = (colors: any) =>
       textAlign: "center",
       fontStyle: "italic",
     },
-  })
+    
+  });
