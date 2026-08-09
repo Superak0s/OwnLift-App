@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import UniversalCalendar from "@shared/components/UniversalCalendar";
 import { CycleSettingsWidget } from "../tabs";
-import { getCycleStartIso, getCycleDuration, getCycleFlowLabel, getCyclePhaseLabel, computeUpcomingPredictedDays, formatDateLabel } from "../utils";
+import { getCycleStartIso, getCycleDuration, getCyclePhaseLabel, computeUpcomingPredictedDays, formatDateLabel } from "../utils";
 import { toDateString } from "@utils/format";
 
 export interface MenstrualRenderCtx {
@@ -15,13 +15,13 @@ export interface MenstrualRenderCtx {
   openCycleModal: () => void;
   setSelectedLogDate: (date: Date | null) => void;
   hasDataOnDate: (date: Date) => boolean;
+  isOnPeriod: boolean;
+  markPeriodOver: () => void;
   styles: any;
   handleCalendarDatePress: (date: Date, type: string) => void;
 }
 
-export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): React.ReactNode {
-  const { entries, prefs, setPrefs, actualDays, predictedDays, setPredictedDays, openCycleModal, setSelectedLogDate, hasDataOnDate, styles, handleCalendarDatePress } = ctx;
-
+function MenstrualHistoryList({ entries, prefs, isOnPeriod, styles }: { entries: any[]; prefs: MenstrualRenderCtx["prefs"]; isOnPeriod: boolean; styles: any }) {
   const [expandedCycleIds, setExpandedCycleIds] = useState<Set<string>>(new Set());
   const toggleExpandedCycle = useCallback((id: string) => {
     setExpandedCycleIds(prev => {
@@ -30,6 +30,46 @@ export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): Re
       return next;
     });
   }, []);
+
+  if (entries.length === 0) return <Text style={styles.widgetLineMuted}>No cycle history yet.</Text>;
+  return (
+    <View>
+      {entries.map((c: any, i: number) => {
+        const entryId = c.id ?? i;
+        const entryKey = String(entryId);
+        const isExpanded = expandedCycleIds.has(entryKey);
+        const startDateLabel = formatDateLabel(getCycleStartIso(c));
+        const stillOngoing = i === 0 && isOnPeriod;
+        const durationLabel = stillOngoing ? "Ongoing" : `${getCycleDuration(c)} days`;
+        return (
+          <View key={entryKey} style={styles.cycleHistoryRow}>
+            <TouchableOpacity style={[styles.weightEntryRow, i < entries.length - 1 && styles.weightEntryRowBorder]} onPress={() => toggleExpandedCycle(entryKey)}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.weightEntryDate}>{startDateLabel}</Text>
+                <Text style={styles.weightEntryTime}>{stillOngoing ? "Ongoing" : `Duration: ${durationLabel}`}</Text>
+              </View>
+              <Text style={styles.cycleToggleText}>{isExpanded ? "Hide details" : "Show details"}</Text>
+            </TouchableOpacity>
+            {isExpanded && (
+              <View style={styles.cycleDetailsBox}>
+                {i === 0 && (() => {
+                  const phase = getCyclePhaseLabel(getCycleStartIso(c), prefs.periodLengthDays, prefs.cycleLengthDays);
+                  return phase ? <Text style={styles.cycleDetailsLine}>Phase: {phase}</Text> : null;
+                })()}
+                <Text style={styles.cycleDetailsLine}>Cycle start: {startDateLabel}</Text>
+                {!stillOngoing && <Text style={styles.cycleDetailsLine}>Period length: {durationLabel}</Text>}
+                {(c.notes || c.note) && <Text style={styles.cycleDetailsNote}>Note: {Array.isArray(c.notes) ? c.notes[0] : (c.notes ?? c.note)}</Text>}
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): React.ReactNode {
+  const { entries, prefs, setPrefs, actualDays, predictedDays, setPredictedDays, openCycleModal, setSelectedLogDate, hasDataOnDate, isOnPeriod, markPeriodOver, styles, handleCalendarDatePress } = ctx;
 
   switch (type) {
     case "menstrual_overview": {
@@ -41,6 +81,11 @@ export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): Re
           <Text style={styles.statsTitle}>Cycle Status</Text>
           <Text style={styles.statsValue}>{`Phase: ${lastPhase}`}</Text>
           <Text style={styles.statsDate}>{`Started: ${formatDateLabel(getCycleStartIso(last))}`}</Text>
+          {isOnPeriod && (
+            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: "#ef4444", marginTop: 8 }]} onPress={markPeriodOver}>
+              <Text style={styles.primaryButtonText}>Period is over</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.primaryButton} onPress={() => { setSelectedLogDate(null); openCycleModal(); }}>
             <Text style={styles.primaryButtonText}>+ Log Cycle</Text>
           </TouchableOpacity>
@@ -51,15 +96,18 @@ export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): Re
     case "menstrual_calendar":
       return (
         <UniversalCalendar
-          hasDataOnDate={hasDataOnDate}
+          hasDataOnDate={(date: Date) => {
+            const ds = toDateString(date);
+            return actualDays.has(ds) || predictedDays.has(ds) || hasDataOnDate(date);
+          }}
           onDatePress={(date: Date) => handleCalendarDatePress(date, "menstrual")}
           initialView="month"
-          legendText="Cycle start · tap any day to view/add"
+          legendText="Red = period logged · Pink = predicted"
           dotColor="#ec4899"
           getDayDecoration={(date: Date) => {
             const ds = toDateString(date);
-            if (actualDays.has(ds)) return { backgroundColor: "rgba(224,79,95,0.12)", dotColor: "#e04f5f" };
-            if (predictedDays.has(ds)) return { backgroundColor: "rgba(239,68,68,0.20)", dotColor: "#ef4444" };
+            if (actualDays.has(ds)) return { backgroundColor: "#ef4444", dotColor: "transparent", textColor: "#ffffff" };
+            if (predictedDays.has(ds)) return { backgroundColor: "rgba(239,68,68,0.35)", dotColor: "transparent" };
             return null;
           }}
         />
@@ -83,41 +131,8 @@ export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): Re
         </View>
       );
 
-    case "menstrual_history": {
-      if (entries.length === 0) return <Text style={styles.widgetLineMuted}>No cycle history yet.</Text>;
-      return (
-        <View>
-          {entries.map((c: any, i: number) => {
-            const entryId = c.id ?? i;
-            const entryKey = String(entryId);
-            const isExpanded = expandedCycleIds.has(entryKey);
-            const startDateLabel = formatDateLabel(getCycleStartIso(c));
-            return (
-              <View key={entryKey} style={styles.cycleHistoryRow}>
-                <TouchableOpacity style={[styles.weightEntryRow, i < entries.length - 1 && styles.weightEntryRowBorder]} onPress={() => toggleExpandedCycle(entryKey)}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.weightEntryDate}>{startDateLabel}</Text>
-                    <Text style={styles.weightEntryTime}>{`Duration: ${getCycleDuration(c)} days · Flow: ${getCycleFlowLabel(c)}`}</Text>
-                  </View>
-                  <Text style={styles.cycleToggleText}>{isExpanded ? "Hide details" : "Show details"}</Text>
-                </TouchableOpacity>
-                {isExpanded && (
-                  <View style={styles.cycleDetailsBox}>
-                    {i === 0 && (() => {
-                      const phase = getCyclePhaseLabel(getCycleStartIso(c), prefs.periodLengthDays, prefs.cycleLengthDays);
-                      return phase ? <Text style={styles.cycleDetailsLine}>Phase: {phase}</Text> : null;
-                    })()}
-                    <Text style={styles.cycleDetailsLine}>Cycle start: {startDateLabel}</Text>
-                    <Text style={styles.cycleDetailsLine}>Period length: {getCycleDuration(c)} days</Text>
-                    {(c.notes || c.note) && <Text style={styles.cycleDetailsNote}>Note: {Array.isArray(c.notes) ? c.notes[0] : (c.notes ?? c.note)}</Text>}
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      );
-    }
+    case "menstrual_history":
+      return <MenstrualHistoryList entries={entries} prefs={prefs} isOnPeriod={isOnPeriod} styles={styles} />;
 
     default: return <Text style={styles.widgetLineMuted}>Coming soon</Text>;
   }

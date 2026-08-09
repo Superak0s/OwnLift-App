@@ -15,6 +15,7 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
   const { alert, loadFromServer, user } = deps;
 
   const [cycleEntries, setCycleEntries] = useState<any[]>([]);
+  const [periodOverrides, setPeriodOverrides] = useState<Record<string, number>>({});
   const [menstrualPrefs, setMenstrualPrefs] = useState<MenstrualPrefs>({
     cycleLengthDays: 28,
     periodLengthDays: 5,
@@ -39,8 +40,31 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
     if (!user?.id) return;
     try {
       const cyclesResp = await menstrualApi.getMenstrualHistory(24);
-      const cycles = cyclesResp?.data || [];
+      const rawCycles = cyclesResp?.data || [];
+
+      const overrides =
+        (await loadFromStorage<Record<string, number>>(
+          STORAGE_KEYS.MENSTRUAL_PERIOD_OVERRIDES,
+          String(user.id),
+        )) || {};
+      setPeriodOverrides(overrides);
+      const cycles = rawCycles
+        .map((c: any) =>
+          overrides[String(c.id)] ? { ...c, duration_days: overrides[String(c.id)] } : c,
+        )
+        .sort((a: any, b: any) => {
+          const bStart = parseSafeDate(getCycleStartIso(b))?.getTime() ?? 0;
+          const aStart = parseSafeDate(getCycleStartIso(a))?.getTime() ?? 0;
+          return bStart - aStart;
+        });
       setCycleEntries(cycles);
+
+      // Resolved fresh below and used for the actual/predicted day-range math
+      // further down instead of the closured `menstrualPrefs` state, which is
+      // deliberately excluded from this callback's deps (see note below) and
+      // would otherwise stay stuck at whatever it was when the callback was
+      // first created — usually the hardcoded default, not the user's setting.
+      let currentPrefs = menstrualPrefs;
 
       try {
         const settingsResp = await menstrualApi.getSettings();
@@ -51,6 +75,7 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
             periodLengthDays: settings.periodDays ?? menstrualPrefs.periodLengthDays,
           };
           setMenstrualPrefs(prefs);
+          currentPrefs = prefs;
           await saveToStorage(STORAGE_KEYS.MENSTRUAL_PREFS, prefs, String(user.id));
         }
       } catch (e) {
@@ -59,7 +84,10 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
 
       try {
         const prefs = await loadFromStorage<MenstrualPrefs>(STORAGE_KEYS.MENSTRUAL_PREFS, String(user.id));
-        if (prefs) setMenstrualPrefs(prefs);
+        if (prefs) {
+          setMenstrualPrefs(prefs);
+          currentPrefs = prefs;
+        }
       } catch (e) {
         console.warn("Failed to load menstrual prefs", e);
       }
@@ -71,7 +99,7 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
 
         const actualSet = new Set<string>();
         const predictedSet = new Set<string>();
-        const pd = menstrualPrefs.periodLengthDays || 5;
+        const pd = currentPrefs.periodLengthDays || 5;
 
         const addRangeToSet = (startDate: Date, length: number, set: Set<string>) => {
           for (let i = 0; i < length; i++) {
@@ -92,7 +120,7 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
         const mostRecentStartIso = cycles.length > 0 ? getCycleStartIso(cycles[0]) : null;
         const upcomingPredicted = computeUpcomingPredictedDays(
           mostRecentStartIso,
-          menstrualPrefs.cycleLengthDays,
+          currentPrefs.cycleLengthDays,
           pd,
         );
         upcomingPredicted.forEach((d) => predictedSet.add(d));
@@ -108,7 +136,10 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
     } catch (e) {
       console.warn("Failed to load menstrual history:", e);
     }
-  }, [user, menstrualPrefs]);
+    // menstrualPrefs intentionally excluded: this function itself calls
+    // setMenstrualPrefs, so depending on it would re-create the callback
+    // every load and re-trigger the effect below forever.
+  }, [user]);
 
   useEffect(() => {
     loadMenstrualData();
@@ -153,6 +184,34 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
     }
   }, [flowModalDate, flowModalIntensity, loadFromServer, alert]);
 
+  const isOnPeriod = useMemo(() => {
+    if (cycleEntries.length === 0) return false;
+    const latest = cycleEntries[0];
+    if (periodOverrides[String(latest.id)]) return false;
+    const start = parseSafeDate(getCycleStartIso(latest));
+    if (!start) return false;
+    const daysSince = Math.floor((Date.now() - start.getTime()) / (24 * 60 * 60 * 1000));
+    return daysSince >= 0 && daysSince < menstrualPrefs.periodLengthDays;
+  }, [cycleEntries, periodOverrides, menstrualPrefs.periodLengthDays]);
+
+  const markPeriodOver = useCallback(async () => {
+    if (!user?.id || cycleEntries.length === 0) return;
+    const latest = cycleEntries[0];
+    const start = parseSafeDate(getCycleStartIso(latest));
+    if (!start) return;
+    const daysSince = Math.floor((Date.now() - start.getTime()) / (24 * 60 * 60 * 1000));
+    const durationDays = Math.max(1, daysSince + 1);
+    try {
+      const updated = { ...periodOverrides, [String(latest.id)]: durationDays };
+      setPeriodOverrides(updated);
+      await saveToStorage(STORAGE_KEYS.MENSTRUAL_PERIOD_OVERRIDES, updated, String(user.id));
+      await loadMenstrualData();
+      alert("Saved", "Period marked as over", [{ text: "OK" }], "success");
+    } catch (err) {
+      alert("Error", err instanceof Error ? err.message : String(err), [{ text: "OK" }], "error");
+    }
+  }, [user, cycleEntries, periodOverrides, loadMenstrualData, alert]);
+
   const handleDeletePeriod = useCallback(async () => {
     if (!flowModalCycleEntry?.id) return;
     try {
@@ -186,5 +245,7 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
     loadMenstrualData,
     handleFlowModalConfirm,
     handleDeletePeriod,
+    isOnPeriod,
+    markPeriodOver,
   };
 }

@@ -1,4 +1,5 @@
 import { getStorageItem, setStorageItem, removeStorageItem } from "@shared/services/sqliteStorage"
+import { getAppMode } from "@shared/services/appMode"
 
 const SERVER_URL_KEY = "@server_url"
 const DEFAULT_API_BASE_URL = "https://ownlift.superak0s.com"
@@ -15,8 +16,12 @@ export const onServerUrlChange = (callback: (v: string) => void): (() => void) =
   }
 }
 
-// Initialize on module load (fire-and-forget)
-getStorageItem(SERVER_URL_KEY)
+// Offline mode never talks to a server, so there's nothing to load.
+getAppMode()
+  .then((mode) => {
+    if (mode === "offline") return null
+    return getStorageItem(SERVER_URL_KEY)
+  })
   .then((raw) => {
     if (raw) currentServerUrl = raw
   })

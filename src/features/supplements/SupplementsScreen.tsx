@@ -351,7 +351,6 @@ export default function SupplementsScreen(): React.JSX.Element {
           />
         }
       >
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>Supplements</Text>
@@ -369,7 +368,6 @@ export default function SupplementsScreen(): React.JSX.Element {
           </TouchableOpacity>
         </View>
 
-        {/* Empty state */}
         {supplements.length === 0 && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>💊</Text>
@@ -388,7 +386,6 @@ export default function SupplementsScreen(): React.JSX.Element {
           </View>
         )}
 
-        {/* Supplement cards */}
         {supplements.map((supp) => (
           <SupplementCard
             key={supp.id}
@@ -404,7 +401,6 @@ export default function SupplementsScreen(): React.JSX.Element {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Quick log sheet */}
       {quickLogSupplement && (
         <QuickLogSupplement
           visible={!!quickLogSupplement}
@@ -427,7 +423,6 @@ export default function SupplementsScreen(): React.JSX.Element {
         />
       )}
 
-      {/* Template picker sheet */}
       <ModalSheet
         visible={showTemplateSheet}
         onClose={() => setShowTemplateSheet(false)}
@@ -488,7 +483,6 @@ export default function SupplementsScreen(): React.JSX.Element {
         </TouchableOpacity>
       </ModalSheet>
 
-      {/* Custom supplement sheet */}
       <ModalSheet visible={showAddSheet} onClose={() => setShowAddSheet(false)}>
         <Text style={styles.sheetTitle}>Custom Supplement</Text>
 
@@ -556,7 +550,6 @@ export default function SupplementsScreen(): React.JSX.Element {
         </View>
       </ModalSheet>
 
-      {/* History sheet */}
       <ModalSheet
         visible={showHistorySheet}
         onClose={() => setShowHistorySheet(false)}
@@ -605,7 +598,6 @@ export default function SupplementsScreen(): React.JSX.Element {
         )}
       </ModalSheet>
 
-      {/* Per-supplement settings modal */}
       {settingsSupplement && (
         <SupplementSettingsModal
           visible={!!settingsSupplement}
@@ -644,7 +636,6 @@ function SupplementCard({
 
   return (
     <View style={cardStyles(colors).card}>
-      {/* Main row */}
       <TouchableOpacity
         style={cardStyles(colors).mainRow}
         onPress={() => setExpanded((v) => !v)}
@@ -682,7 +673,6 @@ function SupplementCard({
         </View>
       </TouchableOpacity>
 
-      {/* Expanded actions */}
       {expanded && (
         <View style={cardStyles(colors).actions}>
           {s.takenToday && (

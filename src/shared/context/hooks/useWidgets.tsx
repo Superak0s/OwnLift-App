@@ -34,11 +34,13 @@ export interface UseWidgetsConfig<T extends string> {
   defaults: WidgetInstance<T>[]
   /** Storage key this screen's widget layout is persisted under. */
   storageKey: string
+  /** Skip the storage load until true — for boards on tabs not yet visited. Defaults to true. */
+  enabled?: boolean
 }
 
 export function useWidgets<T extends string>(
   userId: string | null,
-  { registry, defaults, storageKey }: UseWidgetsConfig<T>,
+  { registry, defaults, storageKey, enabled = true }: UseWidgetsConfig<T>,
 ) {
   const [widgets, setWidgets] = useState<WidgetInstance<T>[]>([])
   const [isLoaded, setIsLoaded] = useState<boolean>(false)
@@ -59,8 +61,12 @@ export function useWidgets<T extends string>(
     }
   }, [])
 
-  // (Re)load whenever the active user (or the screen's storage key) changes
+  // (Re)load whenever the active user (or the screen's storage key) changes.
+  // `enabled` lets a screen with several tabbed boards defer a board's load
+  // until its tab is actually visited, instead of hitting SQLite for all of
+  // them on mount.
   useEffect(() => {
+    if (!enabled) return
     let cancelled = false
     setIsLoaded(false)
     ;(async () => {
@@ -81,7 +87,7 @@ export function useWidgets<T extends string>(
     return () => {
       cancelled = true
     }
-  }, [userId, storageKey, defaults])
+  }, [userId, storageKey, defaults, enabled])
 
   const persist = useCallback(
     async (next: WidgetInstance<T>[]) => {

@@ -105,8 +105,23 @@ import {
   TextInput,
 } from "react-native";
 import { useTheme } from "@shared/context/ThemeContext";
+import { useAuth } from "@shared/context/AuthContext";
 import ModalSheet from "@shared/components/ModalSheet";
 import { hydrationApi } from "../services";
+import { saveToStorage, loadFromStorage } from "@shared/services/storage";
+
+interface HydrationPreset {
+  label: string;
+  ml: number;
+  icon: string;
+}
+
+const DEFAULT_HYDRATION_PRESETS: HydrationPreset[] = [
+  { label: "Small Glass", ml: 250, icon: "🥃" },
+  { label: "Regular Glass", ml: 500, icon: "🥤" },
+  { label: "Water Bottle", ml: 750, icon: "🍶" },
+  { label: "Large Bottle", ml: 1000, icon: "💧" },
+];
 
 interface LogHydrationModalProps {
   readonly visible: boolean;
@@ -122,6 +137,7 @@ export function LogHydrationModal({
   onSuccess,
 }: LogHydrationModalProps) {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [amountMl, setAmountMl] = useState<number>(500);
   const [note, setNote] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -130,20 +146,39 @@ export function LogHydrationModal({
     goalMl: number;
     measurementErrorPercent: number;
   } | null>(null);
+  const [presets, setPresets] = useState<HydrationPreset[]>(DEFAULT_HYDRATION_PRESETS);
+  const [editingPresets, setEditingPresets] = useState(false);
+  const [errorPercent, setErrorPercent] = useState(0);
 
   const styles = makeStyles(colors);
 
   useEffect(() => {
     if (visible) {
       loadSettings();
+      loadPresets();
     }
   }, [visible]);
+
+  const loadPresets = async () => {
+    const saved = await loadFromStorage<HydrationPreset[]>(STORAGE_KEYS.HYDRATION_PRESETS, user?.id ?? null);
+    if (saved?.length) setPresets(saved);
+  };
+
+  const updatePresetMl = (index: number, ml: number) => {
+    setPresets((prev) => prev.map((p, i) => (i === index ? { ...p, ml } : p)));
+  };
+
+  const savePresets = async () => {
+    await saveToStorage(STORAGE_KEYS.HYDRATION_PRESETS, presets, user?.id ?? null);
+    setEditingPresets(false);
+  };
 
   const loadSettings = async () => {
     try {
       const response = await hydrationApi.getSettings();
       if (response.success && response.data) {
         setSettings(response.data);
+        setErrorPercent(response.data.measurementErrorPercent);
       }
     } catch (err) {
       console.error("Failed to load hydration settings:", err);
@@ -155,6 +190,9 @@ export function LogHydrationModal({
       setLoading(true);
       setError("");
 
+      if (settings && errorPercent !== settings.measurementErrorPercent) {
+        await hydrationApi.setSettings(undefined, errorPercent);
+      }
       await hydrationApi.logHydration(amountMl, note || undefined);
 
       setAmountMl(500);
@@ -168,18 +206,10 @@ export function LogHydrationModal({
     }
   };
 
-  const quickPresets = [
-    { label: "Small Glass", ml: 250, icon: "🥃" },
-    { label: "Regular Glass", ml: 500, icon: "🥤" },
-    { label: "Water Bottle", ml: 750, icon: "🍶" },
-    { label: "Large Bottle", ml: 1000, icon: "💧" },
-  ];
-
   const progressPercentage = settings
     ? Math.min((amountMl / settings.goalMl) * 100, 100)
     : 0;
 
-  const errorPercent = settings?.measurementErrorPercent ?? 0;
   const errorMl = Math.round((amountMl * errorPercent) / 100);
   const rangeLow = Math.max(0, amountMl - errorMl);
   const rangeHigh = amountMl + errorMl;
@@ -218,14 +248,30 @@ export function LogHydrationModal({
             </TouchableOpacity>
           </View>
 
-          {errorPercent > 0 && (
-            <View style={styles.errorRangeBadge}>
+          <View style={styles.errorRangeBadge}>
+            <View style={styles.errorStepperRow}>
+              <TouchableOpacity
+                style={styles.errorStepperButton}
+                onPress={() => setErrorPercent((v) => Math.max(0, v - 1))}
+              >
+                <Text style={styles.errorStepperButtonText}>−</Text>
+              </TouchableOpacity>
               <Text style={styles.errorRangeText}>
-                ≈ {rangeLow}–{rangeHigh}ml with ±{errorPercent}% measurement
-                error
+                ±{errorPercent}% measurement error
               </Text>
+              <TouchableOpacity
+                style={styles.errorStepperButton}
+                onPress={() => setErrorPercent((v) => Math.min(20, v + 1))}
+              >
+                <Text style={styles.errorStepperButtonText}>+</Text>
+              </TouchableOpacity>
             </View>
-          )}
+            {errorPercent > 0 && (
+              <Text style={styles.errorRangeText}>
+                ≈ {rangeLow}–{rangeHigh}ml
+              </Text>
+            )}
+          </View>
 
           {settings && (
             <>
@@ -261,36 +307,54 @@ export function LogHydrationModal({
 
         {/* Quick Presets */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Presets</Text>
+          <View style={styles.presetHeaderRow}>
+            <Text style={styles.sectionTitle}>Quick Presets</Text>
+            <TouchableOpacity onPress={() => (editingPresets ? savePresets() : setEditingPresets(true))}>
+              <Text style={styles.presetEditLink}>{editingPresets ? "Done" : "Edit"}</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.presetGrid}>
-            {quickPresets.map((preset) => (
-              <TouchableOpacity
-                key={preset.ml}
-                style={[
-                  styles.presetButton,
-                  amountMl === preset.ml && styles.presetButtonActive,
-                ]}
-                onPress={() => setAmountMl(preset.ml)}
-              >
-                <Text style={styles.presetButtonIcon}>{preset.icon}</Text>
-                <Text
+            {presets.map((preset, index) =>
+              editingPresets ? (
+                <View key={preset.label} style={styles.presetButton}>
+                  <Text style={styles.presetButtonIcon}>{preset.icon}</Text>
+                  <Text style={styles.presetButtonText}>{preset.label}</Text>
+                  <TextInput
+                    style={styles.presetEditInput}
+                    value={String(preset.ml)}
+                    onChangeText={(text) => updatePresetMl(index, Math.max(0, Number.parseInt(text, 10) || 0))}
+                    keyboardType='number-pad'
+                  />
+                </View>
+              ) : (
+                <TouchableOpacity
+                  key={preset.label}
                   style={[
-                    styles.presetButtonText,
-                    amountMl === preset.ml && styles.presetButtonTextActive,
+                    styles.presetButton,
+                    amountMl === preset.ml && styles.presetButtonActive,
                   ]}
+                  onPress={() => setAmountMl(preset.ml)}
                 >
-                  {preset.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.presetButtonSubtext,
-                    amountMl === preset.ml && styles.presetButtonSubtextActive,
-                  ]}
-                >
-                  {preset.ml}ml
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={styles.presetButtonIcon}>{preset.icon}</Text>
+                  <Text
+                    style={[
+                      styles.presetButtonText,
+                      amountMl === preset.ml && styles.presetButtonTextActive,
+                    ]}
+                  >
+                    {preset.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.presetButtonSubtext,
+                      amountMl === preset.ml && styles.presetButtonSubtextActive,
+                    ]}
+                  >
+                    {preset.ml}ml
+                  </Text>
+                </TouchableOpacity>
+              ),
+            )}
           </View>
         </View>
 
@@ -333,6 +397,30 @@ const makeStyles = (colors: any) =>
       fontWeight: "600",
       color: colors.textPrimary,
       marginBottom: 12,
+    },
+    presetHeaderRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    presetEditLink: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.accent,
+      marginBottom: 12,
+    },
+    presetEditInput: {
+      marginTop: 4,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      fontSize: 12,
+      color: colors.textPrimary,
+      textAlign: "center",
+      backgroundColor: colors.background,
+      minWidth: 60,
     },
     amountBox: {
       backgroundColor: "#e0f2fe",
@@ -395,6 +483,27 @@ const makeStyles = (colors: any) =>
     errorRangeText: {
       fontSize: 11,
       fontWeight: "600",
+      color: "#0369a1",
+    },
+    errorStepperRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+    },
+    errorStepperButton: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: "#fff",
+      borderWidth: 1,
+      borderColor: "#7dd3fc",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    errorStepperButtonText: {
+      fontSize: 14,
+      fontWeight: "700",
       color: "#0369a1",
     },
     progressBar: {
@@ -621,50 +730,6 @@ export function HydrationSettingsWidget({
                 ))}
               </V2>
             </V2>
-          </V2>
-
-          {/* Measurement Error */}
-          <V2 style={styles.section}>
-            <T2 style={styles.sectionTitle}>Measurement Error (%)</T2>
-            <V2 style={styles.inputRow}>
-              <TS2
-                style={styles.button}
-                onPress={() =>
-                  setMeasurementErrorPercent(
-                    Math.max(0, measurementErrorPercent - 1),
-                  )
-                }
-              >
-                <T2 style={styles.buttonText}>−</T2>
-              </TS2>
-              <V2 style={styles.errorInputWrapper}>
-                <TI2
-                  style={styles.input}
-                  value={String(measurementErrorPercent)}
-                  onChangeText={(text) =>
-                    setMeasurementErrorPercent(Math.max(0, Number.parseInt(text, 10) || 0))
-                  }
-                  keyboardType='number-pad'
-                />
-                <T2 style={styles.errorRange}>
-                  Range: ±{(goalMl * measurementErrorPercent) / 100}ml
-                </T2>
-              </V2>
-              <TS2
-                style={styles.button}
-                onPress={() =>
-                  setMeasurementErrorPercent(
-                    Math.min(20, measurementErrorPercent + 1),
-                  )
-                }
-              >
-                <T2 style={styles.buttonText}>+</T2>
-              </TS2>
-            </V2>
-            <T2 style={styles.hint}>
-              Like the macros tab, the system adjusts displayed values by this
-              percentage
-            </T2>
           </V2>
 
           {/* Info Messages */}

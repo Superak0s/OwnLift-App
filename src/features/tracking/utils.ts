@@ -24,7 +24,7 @@ export function buildLocalISOForDate(date: Date, timeStr = "09:00"): string {
   return `${dateStr}T${timeStr}:00`;
 }
 
-export const MONTHS_TO_PREDICT = 6;
+export const MONTHS_TO_PREDICT = 12;
 
 export function getCycleStartIso(entry: any): string | null {
   return (

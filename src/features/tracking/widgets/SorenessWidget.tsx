@@ -1,7 +1,7 @@
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import UniversalCalendar from "@shared/components/UniversalCalendar";
-import { DOMSFollowUpWidget, DOMSHeatmapWidget, InjuryTrackerWidget } from "../tabs/SorenessTab";
+import { DOMSFollowUpWidget, DOMSHeatmapWidget, InjuryTrackerWidget, MuscleMapWidget } from "../tabs/SorenessTab";
 
 export interface SorenessRenderCtx {
   entries: any[];
@@ -83,6 +83,7 @@ export function renderSorenessWidget(type: string, ctx: SorenessRenderCtx): Reac
       );
     }
 
+    case "muscle_map": return <MuscleMapWidget />;
     case "doms_followup": return <DOMSFollowUpWidget />;
     case "doms_heatmap": return <DOMSHeatmapWidget />;
     case "injury_tracker": return <InjuryTrackerWidget />;

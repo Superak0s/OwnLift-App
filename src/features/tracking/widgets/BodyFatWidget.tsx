@@ -61,7 +61,7 @@ export function renderBodyFatWidget(type: string, ctx: BodyFatRenderCtx): React.
             <View style={styles.bodyFatCard}>
               <Text style={styles.bodyFatLabel}>Latest Measurement</Text>
               <Text style={styles.bodyFatValue}>{Number(history[0].percentage ?? (history[0] as any).body_fat_percentage ?? 0).toFixed(1)}%</Text>
-              <Text style={styles.bodyFatDate}>{new Date(history[0].date ?? history[0].recorded_at ?? "").toLocaleDateString()}</Text>
+              <Text style={styles.bodyFatDate}>{new Date(history[0].date ?? history[0].recorded_at ?? (history[0] as any).calculated_at ?? "").toLocaleDateString()}</Text>
               <Text style={styles.bodyFatMethod}>US Navy Method</Text>
               <TouchableOpacity style={styles.bodyFatDeleteBtn} onPress={() => deleteBodyFatEntry(history[0])}>
                 <Text style={styles.bodyFatDeleteBtnText}>🗑 Delete this reading</Text>

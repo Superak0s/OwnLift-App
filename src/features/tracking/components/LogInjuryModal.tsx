@@ -37,15 +37,22 @@ export const LogInjuryModal: React.FC<LogInjuryModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const colors = theme.colors;
-  const [muscleGroup, setMuscleGroup] = useState<string>("");
+  const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
+  const [muscleSearch, setMuscleSearch] = useState("");
   const [injuryType, setInjuryType] = useState<InjuryType | "">("");
   const [painLevel, setPainLevel] = useState(5);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const filteredMuscles = MUSCLE_GROUPS.filter((muscle) =>
+    MUSCLE_GROUP_LABELS[muscle].toLowerCase().includes(muscleSearch.trim().toLowerCase()),
+  );
+
   const handleSelectMuscle = (muscle: string) => {
-    setMuscleGroup(muscle);
+    setSelectedMuscles((prev) =>
+      prev.includes(muscle) ? prev.filter((m) => m !== muscle) : [...prev, muscle],
+    );
   };
 
   const handleSelectInjuryType = (type: InjuryType) => {
@@ -53,23 +60,28 @@ export const LogInjuryModal: React.FC<LogInjuryModalProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!muscleGroup || !injuryType) {
-      setError("Please select a muscle group and injury type");
+    if (selectedMuscles.length === 0 || !injuryType) {
+      setError("Please select at least one muscle group and an injury type");
       return;
     }
 
     try {
       setError("");
       setSubmitting(true);
-      await injuryApi.logInjury({
-        muscleGroup: muscleGroup as any,
-        injuryType: injuryType as InjuryType,
-        painLevel,
-        startDate: new Date().toISOString(),
-        notes: notes.trim() || undefined,
-      });
+      await Promise.all(
+        selectedMuscles.map((muscleGroup) =>
+          injuryApi.logInjury({
+            muscleGroup: muscleGroup as any,
+            injuryType: injuryType as InjuryType,
+            painLevel,
+            startDate: new Date().toISOString(),
+            notes: notes.trim() || undefined,
+          }),
+        ),
+      );
       onSuccess();
-      setMuscleGroup("");
+      setSelectedMuscles([]);
+      setMuscleSearch("");
       setInjuryType("");
       setPainLevel(5);
       setNotes("");
@@ -94,7 +106,7 @@ export const LogInjuryModal: React.FC<LogInjuryModalProps> = ({
       title="Log Injury"
       onClose={onClose}
       confirmText="Save"
-      confirmDisabled={submitting || !muscleGroup || !injuryType}
+      confirmDisabled={submitting || selectedMuscles.length === 0 || !injuryType}
       onConfirm={handleSubmit}
       cancelText="Cancel"
     >
@@ -102,32 +114,42 @@ export const LogInjuryModal: React.FC<LogInjuryModalProps> = ({
         {error ? <Text style={[styles.error, { color: "#FF6B6B" }]}>{error}</Text> : null}
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>
-          Affected Muscle Group *
+          Affected Muscle Group{selectedMuscles.length > 1 ? "s" : ""} * {selectedMuscles.length > 0 ? `(${selectedMuscles.length} selected)` : ""}
         </Text>
+        <TextInput
+          style={[styles.searchInput, { backgroundColor: colors.surface, color: colors.textPrimary, borderColor: colors.inputBorder }]}
+          placeholder="Search muscle groups..."
+          placeholderTextColor={colors.textSecondary}
+          value={muscleSearch}
+          onChangeText={setMuscleSearch}
+        />
         <View style={styles.muscleGrid}>
-          {MUSCLE_GROUPS.map((muscle) => (
-            <TouchableOpacity
-              key={muscle}
-              style={[
-                styles.muscleButton,
-                {
-                  backgroundColor: muscleGroup === muscle ? colors.accent : colors.surface,
-                  borderColor: muscleGroup === muscle ? colors.accent : colors.inputBorder,
-                },
-              ]}
-              onPress={() => handleSelectMuscle(muscle)}
-            >
-              <Text
+          {filteredMuscles.map((muscle) => {
+            const isSelected = selectedMuscles.includes(muscle);
+            return (
+              <TouchableOpacity
+                key={muscle}
                 style={[
-                  styles.muscleButtonText,
-                  { color: muscleGroup === muscle ? "white" : colors.textPrimary },
+                  styles.muscleButton,
+                  {
+                    backgroundColor: isSelected ? colors.accent : colors.surface,
+                    borderColor: isSelected ? colors.accent : colors.inputBorder,
+                  },
                 ]}
-                numberOfLines={1}
+                onPress={() => handleSelectMuscle(muscle)}
               >
-                {MUSCLE_GROUP_LABELS[muscle]}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.muscleButtonText,
+                    { color: isSelected ? "white" : colors.textPrimary },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {MUSCLE_GROUP_LABELS[muscle]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <Text style={[styles.label, { color: colors.textSecondary, marginTop: 16 }]}>
@@ -235,6 +257,14 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
+    marginBottom: 8,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
     marginBottom: 8,
   },
   muscleGrid: {

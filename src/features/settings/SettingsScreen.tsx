@@ -298,8 +298,6 @@ export default function SettingsScreen(): React.JSX.Element {
                 await clearActiveWorkout()
               }
 
-              console.log("asdasdadssad")
-
               if (selectedSplit) {
                 // deleteAllSessionsForPerson is imported at the top of the file
                 try {

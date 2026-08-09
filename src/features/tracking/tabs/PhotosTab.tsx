@@ -19,13 +19,16 @@ import {
   Animated,
   Easing,
   TextInput,
+  Modal,
 } from "react-native";
+import PagerView from "react-native-pager-view";
 import { useTheme } from "@shared/context/ThemeContext";
 import { progressPhotoApi } from "../services";
 import { ProgressPhotoMuscle, MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 import { STORAGE_KEYS } from "@shared/services/storage";
 import { LogProgressPhotoModal } from "../components/LogProgressPhotoModal";
 import ModalSheet from "@shared/components/ModalSheet";
+import ZoomableImage from "@shared/components/ZoomableImage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
 // ─── Photos tab widget types ────────────────────────────────────────────────
@@ -138,9 +141,6 @@ export function PhotosCalendarWidget() {
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.widgetTitle, { color: colors.textPrimary }]}>
-        Photo Calendar
-      </Text>
       {photoDates.size === 0 ? (
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
           No photos taken yet. Take your first progress photo!
@@ -371,10 +371,7 @@ export function PhotosGalleryWidget() {
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <View style={styles.galleryHeader}>
-        <Text style={[styles.widgetTitle, { color: colors.textPrimary }]}>
-          Progress Photos
-        </Text>
+      <View style={[styles.galleryHeader, { justifyContent: "flex-end" }]}>
         <TouchableOpacity
           style={[styles.captureButton, { backgroundColor: colors.accent }]}
           onPress={() => setShowUploadModal(true)}
@@ -452,9 +449,6 @@ export function PhotosComparisonWidget() {
 
   return (
     <View style={styles.comparisonLauncher}>
-      <Text style={[styles.widgetTitle, { color: colors.textPrimary }]}>
-        Side-by-Side Comparison
-      </Text>
       <Text style={[styles.hintText, { color: colors.textSecondary }]}>
         Filter and compare two progress photos from different dates.
       </Text>
@@ -542,6 +536,8 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
     if (!selectedDate2) return [];
     return filteredPhotos.filter(p => new Date(p.takenAt ?? p.taken_at ?? p.createdAt ?? new Date()).toISOString().split("T")[0] === selectedDate2);
   }, [filteredPhotos, selectedDate2]);
+
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
 
   return (
     <ModalSheet
@@ -653,36 +649,52 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
             </View>
           </View>
           {selectedDate1 && selectedDate2 ? (
-            <View style={styles.comparisonRow}>
-              <View style={styles.comparisonColumn}>
-                <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
-                  {new Date(selectedDate1).toLocaleDateString()}
-                </Text>
-                {photosForDate1.map((photo) => (
-                  <View key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]}>
-                    <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
-                    <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
-                    {photo.notes && photo.notes.trim().length > 0 && (
-                      <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
-                    )}
-                  </View>
-                ))}
+            <>
+              <TouchableOpacity
+                style={[styles.captureButton, { backgroundColor: colors.accent, alignSelf: "flex-start", marginBottom: 12 }]}
+                onPress={() => setFullscreenOpen(true)}
+              >
+                <Text style={styles.captureButtonText}>🔍 Fullscreen Compare</Text>
+              </TouchableOpacity>
+              <View style={styles.comparisonRow}>
+                <View style={styles.comparisonColumn}>
+                  <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
+                    {new Date(selectedDate1).toLocaleDateString()}
+                  </Text>
+                  {photosForDate1.map((photo) => (
+                    <TouchableOpacity key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]} onPress={() => setFullscreenOpen(true)}>
+                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
+                      <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
+                      {photo.notes && photo.notes.trim().length > 0 && (
+                        <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.comparisonColumn}>
+                  <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
+                    {new Date(selectedDate2).toLocaleDateString()}
+                  </Text>
+                  {photosForDate2.map((photo) => (
+                    <TouchableOpacity key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]} onPress={() => setFullscreenOpen(true)}>
+                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
+                      <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
+                      {photo.notes && photo.notes.trim().length > 0 && (
+                        <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-              <View style={styles.comparisonColumn}>
-                <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
-                  {new Date(selectedDate2).toLocaleDateString()}
-                </Text>
-                {photosForDate2.map((photo) => (
-                  <View key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]}>
-                    <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
-                    <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
-                    {photo.notes && photo.notes.trim().length > 0 && (
-                      <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
-                    )}
-                  </View>
-                ))}
-              </View>
-            </View>
+              <FullscreenCompareViewer
+                visible={fullscreenOpen}
+                onClose={() => setFullscreenOpen(false)}
+                photosForDate1={photosForDate1}
+                photosForDate2={photosForDate2}
+                dateLabel1={new Date(selectedDate1).toLocaleDateString()}
+                dateLabel2={new Date(selectedDate2).toLocaleDateString()}
+              />
+            </>
           ) : (
             <Text style={[styles.hintText, { color: colors.textSecondary }]}>
               {selectedDate1 ? "Select a second date to compare" : "Select two dates above to compare your progress"}
@@ -691,6 +703,65 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
         </>
       )}
     </ModalSheet>
+  );
+}
+
+function FullscreenCompareColumn({ photos, label }: { readonly photos: ProgressPhotoMuscle[]; readonly label: string }) {
+  const [page, setPage] = useState(0);
+  if (photos.length === 0) {
+    return (
+      <View style={styles.fullscreenColumn}>
+        <Text style={styles.fullscreenLabel}>{label}</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.fullscreenColumn}>
+      <Text style={styles.fullscreenLabel}>{label}</Text>
+      <PagerView style={styles.fullscreenPager} initialPage={0} onPageSelected={(e) => setPage(e.nativeEvent.position)}>
+        {photos.map((photo) => (
+          <ZoomableImage key={photo.id} uri={photo.uri ?? ""} style={styles.fullscreenImage} />
+        ))}
+      </PagerView>
+      {photos.length > 1 && (
+        <View style={styles.fullscreenDots}>
+          {photos.map((photo, i) => (
+            <View key={photo.id} style={[styles.fullscreenDot, i === page && styles.fullscreenDotActive]} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function FullscreenCompareViewer({
+  visible,
+  onClose,
+  photosForDate1,
+  photosForDate2,
+  dateLabel1,
+  dateLabel2,
+}: {
+  readonly visible: boolean;
+  readonly onClose: () => void;
+  readonly photosForDate1: ProgressPhotoMuscle[];
+  readonly photosForDate2: ProgressPhotoMuscle[];
+  readonly dateLabel1: string;
+  readonly dateLabel2: string;
+}) {
+  return (
+    <Modal visible={visible} animationType="fade" onRequestClose={onClose} transparent={false}>
+      <View style={styles.fullscreenContainer}>
+        <TouchableOpacity style={styles.fullscreenClose} onPress={onClose}>
+          <Text style={styles.fullscreenCloseText}>✕</Text>
+        </TouchableOpacity>
+        <View style={styles.fullscreenRow}>
+          <FullscreenCompareColumn photos={photosForDate1} label={dateLabel1} />
+          <FullscreenCompareColumn photos={photosForDate2} label={dateLabel2} />
+        </View>
+        <Text style={styles.fullscreenHint}>Pinch to zoom · double-tap to reset · swipe to browse</Text>
+      </View>
+    </Modal>
   );
 }
 
@@ -704,11 +775,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  widgetTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 16,
   },
   emptyText: {
     fontSize: 14,
@@ -852,6 +918,69 @@ const styles = StyleSheet.create({
   comparisonRow: {
     flexDirection: "row",
     gap: 12,
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+    paddingTop: 48,
+  },
+  fullscreenClose: {
+    position: "absolute",
+    top: 48,
+    right: 16,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fullscreenCloseText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  fullscreenRow: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  fullscreenColumn: {
+    flex: 1,
+  },
+  fullscreenLabel: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  fullscreenPager: {
+    flex: 1,
+  },
+  fullscreenImage: {
+    flex: 1,
+  },
+  fullscreenDots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+  },
+  fullscreenDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  fullscreenDotActive: {
+    backgroundColor: "#fff",
+  },
+  fullscreenHint: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    textAlign: "center",
+    paddingVertical: 10,
   },
   comparisonColumn: {
     flex: 1,

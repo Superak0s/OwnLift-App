@@ -154,9 +154,6 @@ export const DOMSFollowUp: React.FC<DOMSFollowUpProps> = ({
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
     >
-      <Text style={[styles.title, { color: colors.textPrimary }]}>
-        Morning Recovery Check ☀️
-      </Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         How are your muscles feeling today?
       </Text>
@@ -351,11 +348,6 @@ const styles = StyleSheet.create({
   noSorenessSubtext: {
     fontSize: 14,
     textAlign: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,

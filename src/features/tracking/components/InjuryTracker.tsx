@@ -111,10 +111,7 @@ export const InjuryTracker: React.FC<InjuryTrackerProps> = ({ onLogInjury }) => 
         </View>
       )}
 
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>
-          Injury History 🏥
-        </Text>
+      <View style={[styles.header, { justifyContent: "flex-end" }]}>
         <TouchableOpacity
           style={[styles.logInjuryButton, { backgroundColor: colors.accent }]}
           onPress={onLogInjury}
@@ -286,10 +283,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
   },
   logInjuryButton: {
     paddingVertical: 8,

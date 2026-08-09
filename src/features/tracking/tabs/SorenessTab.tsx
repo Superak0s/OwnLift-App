@@ -144,6 +144,99 @@ function MuscleDashboardOverlay({
   );
 }
 
+// ─── Widget: Interactive Muscle Map (tap a muscle to log soreness) ─────────
+
+export function MuscleMapWidget() {
+  const { colors } = useTheme();
+  const [view, setView] = useState<"front" | "back">("front");
+  const [activeSoreness, setActiveSoreness] = useState<ActiveSoreness[]>([]);
+  const [tappedMuscle, setTappedMuscle] = useState<MuscleGroup | null>(null);
+
+  const loadActiveSoreness = useCallback(async () => {
+    try {
+      const response = await domsApi.getActiveSoreness();
+      const data = (response as any)?.data ?? response;
+      setActiveSoreness(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load active soreness:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadActiveSoreness();
+  }, [loadActiveSoreness]);
+
+  const sorenessMap = buildSorenessMap(activeSoreness);
+
+  return (
+    <View>
+      <View style={mapWidgetStyles.viewToggle}>
+        {(["front", "back"] as const).map((v) => (
+          <TouchableOpacity
+            key={v}
+            style={[
+              mapWidgetStyles.viewToggleBtn,
+              { backgroundColor: view === v ? colors.accent : "transparent" },
+            ]}
+            onPress={() => setView(v)}
+          >
+            <Text
+              style={{
+                color: view === v ? "white" : colors.textSecondary,
+                fontSize: 12,
+                fontWeight: "700",
+              }}
+            >
+              {v === "front" ? "Front" : "Back"}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <MuscleMap
+        view={view}
+        selectedMuscles={new Set()}
+        sorenessMap={sorenessMap as Record<MuscleGroup, number>}
+        onPressMuscle={(muscle) => setTappedMuscle(muscle)}
+        showLabels
+      />
+      <Text style={[mapWidgetStyles.mapHint, { color: colors.textSecondary }]}>
+        Tap a muscle to log soreness
+      </Text>
+      {tappedMuscle && (
+        <MuscleSorenessModal
+          visible={!!tappedMuscle}
+          muscleGroup={tappedMuscle}
+          onClose={() => setTappedMuscle(null)}
+          onSuccess={loadActiveSoreness}
+        />
+      )}
+    </View>
+  );
+}
+
+const mapWidgetStyles = StyleSheet.create({
+  viewToggle: {
+    flexDirection: "row",
+    gap: 4,
+    backgroundColor: "#00000010",
+    borderRadius: 8,
+    padding: 2,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  viewToggleBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  mapHint: {
+    fontSize: 12,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 4,
+  },
+});
+
 // ─── Widget: Morning DOMS Follow-up ─────────────────────────────────────────
 
 export function DOMSFollowUpWidget() {

@@ -18,6 +18,7 @@ import {
   STORAGE_KEYS,
   saveToStorage,
   loadFromStorage,
+  loadMultipleFromStorage,
   removeFromStorage,
   removeMultipleFromStorage,
 } from "../services/storage";
@@ -561,40 +562,48 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   const loadSavedData = useCallback(async () => {
     try {
-      // Parallel load — all SQLite reads happen concurrently
-      const [
-        data,
-        person,
-        day,
-        completed,
-        locked,
-        overrides,
-        lastReset,
-        timeBetween,
-        startTime,
-        sessionId,
-        demoMode,
-        manualTime,
-        syncs,
-        activity,
-        weightUnitLoaded,
-      ] = await Promise.all([
-        loadFromStorage(STORAGE_KEYS.WORKOUT_DATA, userId),
-        loadFromStorage(STORAGE_KEYS.SELECTED_PERSON, userId, false),
-        loadFromStorage(STORAGE_KEYS.CURRENT_DAY, userId, false),
-        loadFromStorage(STORAGE_KEYS.COMPLETED_DAYS, userId),
-        loadFromStorage(STORAGE_KEYS.LOCKED_DAYS, userId),
-        loadFromStorage(STORAGE_KEYS.UNLOCKED_OVERRIDES, userId),
-        loadFromStorage(STORAGE_KEYS.LAST_RESET_DATE, userId, false),
-        loadFromStorage(STORAGE_KEYS.TIME_BETWEEN_SETS, userId, false),
-        loadFromStorage(STORAGE_KEYS.WORKOUT_START_TIME, userId, false),
-        loadFromStorage(STORAGE_KEYS.CURRENT_SESSION_ID, userId, false),
-        loadFromStorage(STORAGE_KEYS.IS_DEMO_MODE, userId, false),
-        loadFromStorage(STORAGE_KEYS.USE_MANUAL_TIME, userId, false),
-        loadFromStorage(STORAGE_KEYS.PENDING_SYNCS, userId),
-        loadFromStorage(STORAGE_KEYS.LAST_ACTIVITY_TIME, userId, false),
-        loadFromStorage(STORAGE_KEYS.WEIGHT_UNIT, userId, false),
-      ]);
+      // Single batched SQLite round-trip instead of 15 serialized reads
+      const raw = await loadMultipleFromStorage(
+        [
+          STORAGE_KEYS.WORKOUT_DATA,
+          STORAGE_KEYS.SELECTED_PERSON,
+          STORAGE_KEYS.CURRENT_DAY,
+          STORAGE_KEYS.COMPLETED_DAYS,
+          STORAGE_KEYS.LOCKED_DAYS,
+          STORAGE_KEYS.UNLOCKED_OVERRIDES,
+          STORAGE_KEYS.LAST_RESET_DATE,
+          STORAGE_KEYS.TIME_BETWEEN_SETS,
+          STORAGE_KEYS.WORKOUT_START_TIME,
+          STORAGE_KEYS.CURRENT_SESSION_ID,
+          STORAGE_KEYS.IS_DEMO_MODE,
+          STORAGE_KEYS.USE_MANUAL_TIME,
+          STORAGE_KEYS.PENDING_SYNCS,
+          STORAGE_KEYS.LAST_ACTIVITY_TIME,
+          STORAGE_KEYS.WEIGHT_UNIT,
+        ],
+        userId,
+      );
+      const json = <T,>(key: string): T | null =>
+        raw[key] ? (JSON.parse(raw[key]) as T) : null;
+      const str = (key: string): string | null => raw[key] ?? null;
+
+      const data = json<WorkoutData>(STORAGE_KEYS.WORKOUT_DATA);
+      const person = str(STORAGE_KEYS.SELECTED_PERSON);
+      const day = str(STORAGE_KEYS.CURRENT_DAY);
+      const completed = json<CompletedDays>(STORAGE_KEYS.COMPLETED_DAYS);
+      const locked = json<LockedDays>(STORAGE_KEYS.LOCKED_DAYS);
+      const overrides = json<Record<number, boolean>>(
+        STORAGE_KEYS.UNLOCKED_OVERRIDES,
+      );
+      const lastReset = str(STORAGE_KEYS.LAST_RESET_DATE);
+      const timeBetween = str(STORAGE_KEYS.TIME_BETWEEN_SETS);
+      const startTime = str(STORAGE_KEYS.WORKOUT_START_TIME);
+      const sessionId = str(STORAGE_KEYS.CURRENT_SESSION_ID);
+      const demoMode = str(STORAGE_KEYS.IS_DEMO_MODE);
+      const manualTime = str(STORAGE_KEYS.USE_MANUAL_TIME);
+      const syncs = json<PendingSync[]>(STORAGE_KEYS.PENDING_SYNCS);
+      const activity = str(STORAGE_KEYS.LAST_ACTIVITY_TIME);
+      const weightUnitLoaded = str(STORAGE_KEYS.WEIGHT_UNIT);
 
       if (data) setWorkoutData(data as WorkoutData);
       if (person) setSelectedSplit(person as string);

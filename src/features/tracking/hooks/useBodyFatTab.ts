@@ -95,6 +95,7 @@ export function useBodyFatTab(deps: UseBodyFatTabDeps) {
         dateStr,
       );
       setSelectedLogDate(null);
+      setShowBodyFatModal(false);
       alert("Body Fat Calculated", `Your body fat is ${bodyFatPercentage.toFixed(1)}%`, [{ text: "OK" }], "success");
       loadData();
     } catch (error) {
@@ -106,7 +107,7 @@ export function useBodyFatTab(deps: UseBodyFatTabDeps) {
     (date: Date) => {
       const dateStr = toDateString(date);
       return bodyFatHistory.some((b) => {
-        const d = b?.date;
+        const d = b?.date ?? b?.recorded_at ?? (b as any)?.calculated_at;
         if (!d) return false;
         if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d === dateStr;
         const parsed = new Date(d);

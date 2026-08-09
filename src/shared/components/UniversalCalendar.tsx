@@ -16,6 +16,7 @@ interface UniversalCalendarProps {
   readonly getDayDecoration?: (date: Date) => {
     backgroundColor?: string;
     dotColor?: string;
+    textColor?: string;
   } | null;
 }
 
@@ -162,6 +163,9 @@ export default function UniversalCalendar({
       ? { backgroundColor: decoration.backgroundColor, borderRadius: 10 }
       : undefined;
     const dotColorToUse = decoration?.dotColor ?? resolvedDotColor;
+    const textColorStyle = decoration?.textColor
+      ? { color: decoration.textColor }
+      : undefined;
 
     return (
       <TouchableOpacity
@@ -182,6 +186,7 @@ export default function UniversalCalendar({
               styles.dayName,
               isToday && styles.todayText,
               isFuture && styles.futureText,
+              textColorStyle,
             ]}
           >
             {dayName}
@@ -193,6 +198,7 @@ export default function UniversalCalendar({
               styles.monthDayName,
               isToday && styles.todayText,
               isFuture && styles.futureText,
+              textColorStyle,
             ]}
           >
             {dayName.slice(0, 1)}
@@ -203,6 +209,7 @@ export default function UniversalCalendar({
             compact ? styles.monthDayNumber : styles.dayNumber,
             isToday && styles.todayText,
             isFuture && styles.futureText,
+            textColorStyle,
           ]}
         >
           {dayNumber}
@@ -354,7 +361,7 @@ const makeStyles = (colors: any) =>
       color: colors.textPrimary,
     },
     todayCell: { backgroundColor: "#667eea15" },
-    futureCell: { opacity: 0.55 },
+    futureCell: { opacity: 0.5 },
     todayText: { color: colors.accent },
     futureText: { color: colors.textSecondary },
     dot: { width: 6, height: 6, borderRadius: 3, marginTop: 3 },

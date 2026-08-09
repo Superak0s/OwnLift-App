@@ -1,24 +1,24 @@
-import React from "react"
-import { View, Text, StyleSheet, Dimensions } from "react-native"
-import { LineChart } from "react-native-chart-kit"
-import { useTheme } from "../context/ThemeContext"
+import React from "react";
+import { View, Text, StyleSheet, Dimensions } from "react-native";
+import { LineChart } from "react-native-chart-kit";
+import { useTheme } from "../context/ThemeContext";
 
 interface ChartData {
-  labels: string[]
-  datasets: { data: number[] }[]
+  labels: string[];
+  datasets: { data: number[] }[];
 }
 
 interface ProgressChartProps {
-  readonly title: string
-  readonly icon: string
-  readonly data: ChartData
-  readonly yAxisSuffix?: string
-  readonly chartWidth?: number
-  readonly chartColor?: string // override the gradient/dot color
-  readonly chartColorDark?: string // override the darker shade (optional)
+  readonly title?: string;
+  readonly icon?: string;
+  readonly data: ChartData;
+  readonly yAxisSuffix?: string;
+  readonly chartWidth?: number;
+  readonly chartColor?: string; // override the gradient/dot color
+  readonly chartColorDark?: string; // override the darker shade (optional)
 }
 
-const { width } = Dimensions.get("window")
+const { width } = Dimensions.get("window");
 
 const makeChartConfig = (
   colors: any,
@@ -37,7 +37,7 @@ const makeChartConfig = (
     strokeWidth: "2",
     stroke: chartColorDark,
   },
-})
+});
 
 export default function ProgressChart({
   title,
@@ -48,21 +48,24 @@ export default function ProgressChart({
   chartColor,
   chartColorDark,
 }: ProgressChartProps) {
-  const { colors, resolvedChartColor, resolvedChartColorDark } = useTheme()
+  const { colors, resolvedChartColor, resolvedChartColorDark } = useTheme();
   // Explicit prop overrides > user setting > theme default
-  const effectiveColor = chartColor ?? resolvedChartColor
-  const effectiveColorDark = chartColorDark ?? resolvedChartColorDark
+  const effectiveColor = chartColor ?? resolvedChartColor;
+  const effectiveColorDark = chartColorDark ?? resolvedChartColorDark;
   const chartConfig = makeChartConfig(
     colors,
     effectiveColor,
     effectiveColorDark,
-  )
-  const styles = makeStyles(colors)
+  );
+  const styles = makeStyles(colors);
   return (
     <View style={styles.chartSection}>
-      <Text style={styles.chartTitle}>
-        {icon} {title}
-      </Text>
+      {title && (
+        <Text style={styles.chartTitle}>
+          {icon ? `${icon} ` : ""}
+          {title}
+        </Text>
+      )}
       <LineChart
         data={data}
         width={chartWidth ?? width - 40}
@@ -78,7 +81,7 @@ export default function ProgressChart({
         fromZero
       />
     </View>
-  )
+  );
 }
 
 const makeStyles = (colors: any) =>
@@ -91,4 +94,4 @@ const makeStyles = (colors: any) =>
       marginBottom: 15,
     },
     chart: { marginVertical: 8, borderRadius: 16 },
-  })
+  });

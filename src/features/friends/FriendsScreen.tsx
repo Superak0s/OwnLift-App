@@ -378,15 +378,6 @@ const makePermStyles = (colors: ThemeColors) =>
     revokeBtnText: { color: colors.error, fontSize: 13, fontWeight: "600" },
   });
 
-// ─────────────────────────────────────────────────────────────
-// WIDGET CONTENT COMPONENTS
-// ─────────────────────────────────────────────────────────────
-// Each of these used to be an inline `case` body inside a single giant
-// `renderWidgetContent` switch living inside FriendsScreen. Pulling them
-// out into their own top-level components keeps every widget's own
-// branching/looping logic self-contained, instead of it all rolling up
-// into FriendsScreen's cognitive complexity.
-
 interface FriendsListWidgetProps {
   readonly friends: Friend[];
   readonly friendSessionStatuses: Record<string | number, boolean>;

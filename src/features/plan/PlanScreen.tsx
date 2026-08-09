@@ -725,7 +725,6 @@ export default function PlanScreen({
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
   const isEmulator = !Device.isDevice;
 
-  // ─── Widgets ────────────────────────────────────────────────────────────
   const {
     widgets,
     isLoaded: widgetsLoaded,

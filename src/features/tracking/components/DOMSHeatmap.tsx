@@ -108,10 +108,6 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
     >
-      <Text style={[styles.title, { color: colors.textPrimary }]}>
-        Recovery Analytics 📈
-      </Text>
-
       {/* Summary Stats */}
       <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
         <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>
@@ -316,11 +312,6 @@ const styles = StyleSheet.create({
   emptySubtext: {
     fontSize: 14,
     textAlign: "center",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "700",
-    marginBottom: 20,
   },
   summaryCard: {
     borderRadius: 12,

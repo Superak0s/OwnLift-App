@@ -92,7 +92,7 @@ import { useMeasurementsTab } from "./hooks/useMeasurementsTab";
 import { useHydrationTab } from "./hooks/useHydrationTab";
 import { useSorenessTab } from "./hooks/useSorenessTab";
 import { useMenstrualTab } from "./hooks/useMenstrualTab";
-import { buildLocalISOForDate, isoToLocalDateStr } from "./utils";
+import { buildLocalISOForDate, isoToLocalDateStr, getCycleStartIso, getCycleDuration } from "./utils";
 import { toDateString } from "@utils/format";
 import { getUserKey } from "@shared/services/storage";
 import makeStyles from "./styles";
@@ -306,20 +306,22 @@ export default function TrackingScreen() {
     predictedDays: _menstrual.cyclePredictedDays, setPredictedDays: _menstrual.setCyclePredictedDays,
     openCycleModal: modalState.openCycleModal,
     hasDataOnDate: _menstrual.hasCycleData,
+    isOnPeriod: _menstrual.isOnPeriod,
+    markPeriodOver: _menstrual.markPeriodOver,
   };
 
   // ─────────────────────────────────────────────────────────────
   // WIDGET BOARDS
   // ─────────────────────────────────────────────────────────────
 
-  const weightBoard = useWidgets<WeightWidgetType>(user?.id ?? null, { registry: WEIGHT_WIDGET_REGISTRY, defaults: DEFAULT_WEIGHT_WIDGETS, storageKey: WEIGHT_WIDGETS_STORAGE_KEY });
-  const photosBoard = useWidgets<PhotosWidgetType>(user?.id ?? null, { registry: PHOTOS_WIDGET_REGISTRY, defaults: DEFAULT_PHOTOS_WIDGETS, storageKey: PHOTOS_WIDGETS_STORAGE_KEY });
-  const macrosBoard = useWidgets<MacrosWidgetType>(user?.id ?? null, { registry: MACROS_WIDGET_REGISTRY, defaults: DEFAULT_MACROS_WIDGETS, storageKey: MACROS_WIDGETS_STORAGE_KEY });
-  const bodyFatBoard = useWidgets<BodyFatWidgetType>(user?.id ?? null, { registry: BODYFAT_WIDGET_REGISTRY, defaults: DEFAULT_BODYFAT_WIDGETS, storageKey: BODYFAT_WIDGETS_STORAGE_KEY });
-  const measurementsBoard = useWidgets<MeasurementsWidgetType>(user?.id ?? null, { registry: MEASUREMENTS_WIDGET_REGISTRY, defaults: DEFAULT_MEASUREMENTS_WIDGETS, storageKey: MEASUREMENTS_WIDGETS_STORAGE_KEY });
-  const hydrationBoard = useWidgets<HydrationWidgetType>(user?.id ?? null, { registry: HYDRATION_WIDGET_REGISTRY, defaults: DEFAULT_HYDRATION_WIDGETS, storageKey: HYDRATION_WIDGETS_STORAGE_KEY });
-  const sorenessBoard = useWidgets<SorenessWidgetType>(user?.id ?? null, { registry: SORENESS_WIDGET_REGISTRY, defaults: DEFAULT_SORENESS_WIDGETS, storageKey: SORENESS_WIDGETS_STORAGE_KEY });
-  const menstrualBoard = useWidgets<MenstrualWidgetType>(user?.id ?? null, { registry: MENSTRUAL_WIDGET_REGISTRY, defaults: DEFAULT_MENSTRUAL_WIDGETS, storageKey: MENSTRUAL_WIDGETS_STORAGE_KEY });
+  const weightBoard = useWidgets<WeightWidgetType>(user?.id ?? null, { registry: WEIGHT_WIDGET_REGISTRY, defaults: DEFAULT_WEIGHT_WIDGETS, storageKey: WEIGHT_WIDGETS_STORAGE_KEY, enabled: activeTab === "weight" });
+  const photosBoard = useWidgets<PhotosWidgetType>(user?.id ?? null, { registry: PHOTOS_WIDGET_REGISTRY, defaults: DEFAULT_PHOTOS_WIDGETS, storageKey: PHOTOS_WIDGETS_STORAGE_KEY, enabled: activeTab === "photos" });
+  const macrosBoard = useWidgets<MacrosWidgetType>(user?.id ?? null, { registry: MACROS_WIDGET_REGISTRY, defaults: DEFAULT_MACROS_WIDGETS, storageKey: MACROS_WIDGETS_STORAGE_KEY, enabled: activeTab === "macros" });
+  const bodyFatBoard = useWidgets<BodyFatWidgetType>(user?.id ?? null, { registry: BODYFAT_WIDGET_REGISTRY, defaults: DEFAULT_BODYFAT_WIDGETS, storageKey: BODYFAT_WIDGETS_STORAGE_KEY, enabled: activeTab === "bodyfat" });
+  const measurementsBoard = useWidgets<MeasurementsWidgetType>(user?.id ?? null, { registry: MEASUREMENTS_WIDGET_REGISTRY, defaults: DEFAULT_MEASUREMENTS_WIDGETS, storageKey: MEASUREMENTS_WIDGETS_STORAGE_KEY, enabled: activeTab === "measurements" });
+  const hydrationBoard = useWidgets<HydrationWidgetType>(user?.id ?? null, { registry: HYDRATION_WIDGET_REGISTRY, defaults: DEFAULT_HYDRATION_WIDGETS, storageKey: HYDRATION_WIDGETS_STORAGE_KEY, enabled: activeTab === "hydration" });
+  const sorenessBoard = useWidgets<SorenessWidgetType>(user?.id ?? null, { registry: SORENESS_WIDGET_REGISTRY, defaults: DEFAULT_SORENESS_WIDGETS, storageKey: SORENESS_WIDGETS_STORAGE_KEY, enabled: activeTab === "soreness" });
+  const menstrualBoard = useWidgets<MenstrualWidgetType>(user?.id ?? null, { registry: MENSTRUAL_WIDGET_REGISTRY, defaults: DEFAULT_MENSTRUAL_WIDGETS, storageKey: MENSTRUAL_WIDGETS_STORAGE_KEY, enabled: activeTab === "menstrual" });
   const boardMap: Record<string, any> = { weight: weightBoard, photos: photosBoard, macros: macrosBoard, bodyfat: bodyFatBoard, measurements: measurementsBoard, hydration: hydrationBoard, soreness: sorenessBoard, menstrual: menstrualBoard };
   const activeBoard = boardMap[activeTab] ?? weightBoard;
   const activeRegistry = registryMap[activeTab]?.registry ?? WEIGHT_WIDGET_REGISTRY;
@@ -328,37 +330,51 @@ export default function TrackingScreen() {
   // DATA LOADING
   // ─────────────────────────────────────────────────────────────
 
-  const loadAllData = useCallback(async () => {
+  // Each tab's history is fetched only once its tab is actually visited,
+  // not all eight at once on mount — avoids hammering SQLite for tabs the
+  // user may never open this session.
+  const tabLoaders: Record<string, () => Promise<void>> = {
+    weight: async () => { const w = await bodyTrackingApi.getWeightHistory(200); _weight.setWeightHistory((w as any)?.entries ?? []); },
+    macros: async () => { const m = await macrosTrackingApi.getMacrosHistory(90); _macros.setMacrosEntries((m as any)?.entries ?? []); },
+    bodyfat: async () => { const b = await bodyFatApi.getBodyFatHistory(200); _bodyFat.setBodyFatHistory((b as any)?.entries ?? []); },
+    measurements: async () => { const me = await bodyMeasurementsApi.getMeasurementHistory(200); _measurements.setMeasurementHistory((me as any)?.data ?? []); },
+    hydration: async () => { const h = await hydrationApi.getHydrationHistory(200); _hydration.setHydrationEntries((h as any)?.data ?? []); },
+    soreness: async () => { const s = await sorenessApi.getSorenessHistory(200); _soreness.setSorenessEntries((s as any)?.data ?? []); },
+    menstrual: async () => { await _menstrual.loadMenstrualData(); },
+    photos: async () => { const p = await bodyTrackingApi.getProgressPhotos(200); _photos.setProgressPhotos((p as any)?.photos ?? []); },
+  };
+  const tabLoadersRef = useRef(tabLoaders);
+  tabLoadersRef.current = tabLoaders;
+  const loadedTabsRef = useRef<Set<string>>(new Set());
+
+  const loadTab = useCallback(async (tab: string, force = false) => {
+    if (!force && loadedTabsRef.current.has(tab)) return;
     try {
-      const [w, m, b, me, h, s, c, p] = await Promise.all([
-        bodyTrackingApi.getWeightHistory(200),
-        macrosTrackingApi.getMacrosHistory(90),
-        bodyFatApi.getBodyFatHistory(200),
-        bodyMeasurementsApi.getMeasurementHistory(200),
-        hydrationApi.getHydrationHistory(200),
-        sorenessApi.getSorenessHistory(200),
-        menstrualApi.getMenstrualHistory(12),
-        bodyTrackingApi.getProgressPhotos(200),
-      ]);
-      _weight.setWeightHistory((w as any)?.entries ?? []);
-      _macros.setMacrosEntries((m as any)?.entries ?? []);
-      _bodyFat.setBodyFatHistory((b as any)?.entries ?? []);
-      _measurements.setMeasurementHistory((me as any)?.data ?? []);
-      _hydration.setHydrationEntries((h as any)?.data ?? []);
-      _soreness.setSorenessEntries((s as any)?.data ?? []);
-      _menstrual.setCycleEntries((c as any)?.data ?? []);
-      _photos.setProgressPhotos((p as any)?.photos ?? []);
+      await tabLoadersRef.current[tab]?.();
+      loadedTabsRef.current.add(tab);
     } catch {}
   }, []);
 
-  useEffect(() => { loadDataRef.current = loadAllData; });
-  useEffect(() => { loadAllData(); }, [loadAllData]);
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
+  // Stable identity (empty deps) — tab hooks depend on this in their own
+  // effects, so a new function every render would re-trigger them forever.
+  const loadActiveTab = useCallback((force = false) => loadTab(activeTabRef.current, force), [loadTab]);
+  const forceReloadActiveTab = useCallback(() => loadActiveTab(true), [loadActiveTab]);
+
+  loadDataRef.current = forceReloadActiveTab;
+  useEffect(() => { loadTab(activeTab); }, [activeTab, loadTab]);
+
+  // Used by modals/handlers that used to refresh every tab's data — they
+  // only need the tab they just changed, which is always the active one.
+  const loadAllData = useCallback(() => loadActiveTab(true), [loadActiveTab]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadAllData();
+    await loadActiveTab(true);
     setRefreshing(false);
-  }, [loadAllData]);
+  }, [loadActiveTab]);
 
   // ─────────────────────────────────────────────────────────────
   // HANDLERS
@@ -388,7 +404,17 @@ export default function TrackingScreen() {
           existingEntries = soreness.entries.filter((e: any) => onDate(e?.loggedAt ?? e?.recorded_at ?? e?.date));
           break;
         case "menstrual":
-          existingEntries = menstrual.entries.filter((e: any) => onDate(e?.cycleStart ?? e?.startDate ?? e?.recorded_at ?? e?.date));
+          existingEntries = menstrual.entries.filter((e: any) => {
+            const start = new Date(getCycleStartIso(e) ?? "");
+            if (isNaN(start.getTime())) return false;
+            const days = getCycleDuration(e, menstrual.prefs.periodLengthDays);
+            for (let d = 0; d < days; d++) {
+              const day = new Date(start);
+              day.setDate(day.getDate() + d);
+              if (onDate(day.toISOString())) return true;
+            }
+            return false;
+          });
           break;
         default:
           existingEntries = [];
@@ -401,7 +427,7 @@ export default function TrackingScreen() {
         isToday: dateStr === toDateString(new Date()),
       });
     },
-    [weight.history, macros.entries, bodyFat.history, measurements.history, hydration.entries, soreness.entries, menstrual.entries],
+    [weight.history, macros.entries, bodyFat.history, measurements.history, hydration.entries, soreness.entries, menstrual.entries, menstrual.prefs],
   );
 
   const openLogModalForTab = useCallback(
@@ -622,7 +648,6 @@ export default function TrackingScreen() {
           {existingEntries.map((entry: any, i: number) => (
             <View key={entry.id ?? i} style={styles.existingEntryRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.existingEntryValue}>Flow: {entry.flowIntensity ?? entry.flow_intensity ?? "—"}</Text>
                 {entry.symptoms?.length ? (
                   <Text style={styles.existingEntryTime}>{entry.symptoms.join(", ")}</Text>
                 ) : null}
@@ -743,6 +768,8 @@ export default function TrackingScreen() {
         openCycleModal: () => menstrual.openCycleModal(),
         setSelectedLogDate,
         hasDataOnDate: menstrual.hasDataOnDate,
+        isOnPeriod: menstrual.isOnPeriod,
+        markPeriodOver: menstrual.markPeriodOver,
         styles,
         handleCalendarDatePress,
       });

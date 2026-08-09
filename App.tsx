@@ -48,8 +48,6 @@ import {
 } from "./tasks/supplementLocationTask";
 import { getNotifications } from "./src/shared/services/notifications";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface TabIconProps {
   icon: string;
   label: string;
@@ -79,12 +77,9 @@ interface CustomTabBarProps {
   };
 }
 
-// ─── Navigation setup ─────────────────────────────────────────────────────────
-
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// ─── Notification handler ─────────────────────────────────────────────────────
 // No-op in Expo Go — the Notifications module is never loaded there.
 void (async () => {
   try {
@@ -108,8 +103,6 @@ void (async () => {
   }
 })();
 
-// ─── Android nav bar helper ───────────────────────────────────────────────────
-
 const hideNavBar = async () => {
   if (Platform.OS === "android") {
     try {
@@ -131,8 +124,6 @@ const showNavBarTemporarily = async (ms = 3000) => {
     console.log("Failed to show navigation bar:", (error as Error).message);
   }
 };
-
-// ─── Tab Icon ─────────────────────────────────────────────────────────────────
 
 const TabIcon = ({ icon, label, focused }: TabIconProps) => {
   const { colors } = useTheme();
@@ -161,8 +152,6 @@ const TabIcon = ({ icon, label, focused }: TabIconProps) => {
     </View>
   );
 };
-
-// ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
 const CustomTabBar = ({
   state,
@@ -314,7 +303,6 @@ const CustomTabBar = ({
   );
 };
 
-// ─── Tab bar render helpers ───────────────────────────────────────────────────
 // Defined once at module scope instead of inline in JSX, so React Navigation
 // isn't handed a brand-new component definition on every MainTabs render.
 
@@ -336,8 +324,6 @@ const TrackingTabBarIcon = createTabBarIcon("📈", "Track");
 const SupplementsTabBarIcon = createTabBarIcon("💊", "Supps");
 const FriendsTabBarIcon = createTabBarIcon("👥", "Friends");
 const SettingsTabBarIcon = createTabBarIcon("⚙️", "Settings");
-
-// ─── Notification Listener ────────────────────────────────────────────────────
 
 interface SupplementReminderConfig {
   supplementId: number;
@@ -411,8 +397,6 @@ function NotificationListener() {
   return null;
 }
 
-// ─── Update Checker ───────────────────────────────────────────────────────────
-
 function UpdateChecker() {
   const { AlertComponent } = useAlert();
 
@@ -459,8 +443,6 @@ function UpdateChecker() {
 
   return AlertComponent;
 }
-
-// ─── Main Tabs ────────────────────────────────────────────────────────────────
 
 function MainTabs() {
   const { user } = useAuth();
@@ -590,8 +572,6 @@ function MainTabs() {
   );
 }
 
-// ─── App Navigator ────────────────────────────────────────────────────────────
-
 function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
   const { colors } = useTheme();
@@ -623,8 +603,6 @@ function AppNavigator() {
   );
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
-
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -650,8 +628,6 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   customTabBarContainer: {

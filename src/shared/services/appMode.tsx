@@ -3,13 +3,26 @@ import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
 export const APP_MODE_KEY = "appMode"
 export type AppMode = "online" | "offline"
 
+// dispatchProxy re-reads this on every single dispatched service call so a
+// Settings toggle takes effect immediately — cache it in memory after the
+// first SQLite read instead of hitting the DB every time.
+let cachedMode: AppMode | null = null
+let loadPromise: Promise<AppMode> | null = null
+
 export const getAppMode = async (): Promise<AppMode> => {
-  const stored = await getStorageItem(APP_MODE_KEY)
-  return (stored as AppMode) || "online"
+  if (cachedMode) return cachedMode
+  if (!loadPromise) {
+    loadPromise = getStorageItem(APP_MODE_KEY).then((stored) => {
+      cachedMode = (stored as AppMode) || "online"
+      return cachedMode
+    })
+  }
+  return loadPromise
 }
 
 export const setAppMode = async (mode: AppMode): Promise<boolean> => {
   await setStorageItem(APP_MODE_KEY, mode)
+  cachedMode = mode
   onAppModeChange.trigger(mode)
   return true
 }

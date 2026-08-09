@@ -69,3 +69,61 @@ Each screen (Home, Analytics, Workout, Plan, Friends, and each Tracking sub-tab)
 - `tsconfig.temp.json` (currently deleted in the working tree, see `git status`) was a typecheck-only helper for tracking modals with an `@app/*` alias — not used at runtime and `src/app/` doesn't exist.
 - `app-release.apk`, `release.bat`, `release.sh`, `sonarqube/`, `.scannerwork/`, `.sonarlint/` are gitignored but committed in repo history — don't be surprised they show as tracked.
 - SonarQube: `npm run sonar:scan` (needs `SONAR_TOKEN`, targets `http://192.168.10.12:8999`).
+
+## Code Comments
+
+Keep comments to an absolute minimum. Code should be self-documenting whenever reasonably possible. Avoid referencing the old code and why it didn't work.
+
+Only add a comment when it provides important information that cannot be clearly expressed through the code itself, such as:
+
+- A non-obvious **why** that a future developer genuinely needs to know
+- A non-obvious business or domain rule
+- A workaround for a bug, framework limitation, or external constraint
+- Important compatibility or integration requirements
+
+Never add comments that:
+
+- Describe what the code obviously does
+- Restate variable, function, component, or class names
+- Explain straightforward function calls, loops, conditionals, or JSX
+- Narrate implementation steps
+- Explain code that is already clear from its naming and structure
+- Document a refactoring or code organization change unless the reason is critical and would otherwise be lost
+- Explain why code was moved, extracted, split, or reorganized when the resulting code is already understandable
+- Describe static-analysis/tooling issues unless the workaround must be preserved to prevent the issue from returning
+- Summarize a block of code immediately above that block
+- Add multi-line explanatory blocks merely to make the code appear more documented
+- Write comments as an explanation of the changes you just made
+
+### Comment length
+
+Prefer a short comment over a long comment.
+
+Do not write paragraph-length comments. Do not write comments containing several sentences explaining implementation history, refactoring details, or the reasoning behind an otherwise understandable structure.
+
+If a comment would require more than 1–2 short sentences, first determine whether the information belongs in documentation, an issue, commit history, or the code itself.
+
+### Refactoring
+
+When extracting, splitting, simplifying, or reorganizing code, do NOT add a comment explaining the refactoring.
+
+For example, do not add comments like:
+
+```ts
+// These were previously inlined inside PlanScreen's renderWidgetContent...
+// Pulling each block out into its own component reduces cognitive complexity...
+```
+
+The extracted components and their structure should speak for themselves.
+
+Only mention the reason in a comment if it represents a persistent, non-obvious constraint that a future developer could accidentally remove and thereby reintroduce a real problem.
+
+### Before adding a comment
+
+Ask:
+
+> "Does this comment tell a future developer something important that they cannot reasonably determine from the code?"
+
+If the answer is no, do not add it.
+
+When in doubt, leave the comment out.

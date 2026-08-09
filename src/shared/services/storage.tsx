@@ -1,4 +1,4 @@
-import { getStorageItem, setStorageItem, removeStorageItem, removeStorageItems } from "@shared/services/sqliteStorage"
+import { getStorageItem, getStorageItems, setStorageItem, removeStorageItem, removeStorageItems } from "@shared/services/sqliteStorage"
 
 /**
  * Storage Utilities
@@ -52,6 +52,24 @@ export const loadFromStorage = async <T = unknown,>(
     console.error(`Error loading ${key}:`, error)
     return null
   }
+}
+
+/**
+ * Load multiple keys in a single SQLite round-trip. Values come back raw
+ * (unparsed) keyed by the plain (non-user-scoped) key passed in.
+ */
+export const loadMultipleFromStorage = async (
+  keys: string[],
+  userId: string | null = null,
+): Promise<Record<string, string>> => {
+  const storageKeys = keys.map((key) => getUserKey(key, userId))
+  const values = await getStorageItems(storageKeys)
+  const result: Record<string, string> = {}
+  keys.forEach((key, i) => {
+    const value = values[storageKeys[i]]
+    if (value !== undefined) result[key] = value
+  })
+  return result
 }
 
 /**
@@ -118,10 +136,12 @@ export const STORAGE_KEYS = {
   BODYFAT_TAB_WIDGETS: "trackingScreen_bodyfatWidgets",
   MEASUREMENTS_TAB_WIDGETS: "trackingScreen_measurementsWidgets",
   HYDRATION_TAB_WIDGETS: "trackingScreen_hydrationWidgets",
+  HYDRATION_PRESETS: "tracking_hydration_presets",
   SLEEP_TAB_WIDGETS: "trackingScreen_sleepWidgets",
   SORENESS_TAB_WIDGETS: "trackingScreen_sorenessWidgets",
   MENSTRUAL_TAB_WIDGETS: "trackingScreen_menstrualWidgets",
   MENSTRUAL_PREFS: "tracking_menstrual_prefs",
+  MENSTRUAL_PERIOD_OVERRIDES: "tracking_menstrual_period_overrides",
   FRIENDS_TAB_WIDGETS: "friendsScreen_friendsWidgets",
   REQUESTS_TAB_WIDGETS: "friendsScreen_requestsWidgets",
   SEARCH_TAB_WIDGETS: "friendsScreen_searchWidgets",
