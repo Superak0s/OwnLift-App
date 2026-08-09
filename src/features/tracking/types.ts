@@ -68,11 +68,6 @@ export interface MacrosEntryWithFields extends MacrosEntry {
   time?: string;
 }
 
-export interface SelectedDateMacros {
-  date?: Date;
-  entries: MacrosEntryWithFields[];
-}
-
 export interface BodyFatEntryWithFields extends BodyFatEntry {
   percentage?: number;
   measurements?: {
@@ -106,44 +101,6 @@ export interface CustomMeasurementType {
   unit?: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface CustomMeasurementEntry {
-  id: number;
-  typeId: number;
-  typeLabel: string;
-  value: number;
-  measuredAt: string;
-  note?: string | null;
-  createdAt: string;
-}
-
-export interface LogCycleParams {
-  cycleStart: string;
-  flowIntensity: "light" | "moderate" | "heavy";
-  symptoms?: string[];
-}
-
-export interface DayFlowEntry {
-  id?: number;
-  date: string;
-  intensity: "light" | "moderate" | "heavy";
-  note?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface LogHydrationParams {
-  amountMl: number;
-  loggedAt?: string | null;
-  note?: string | null;
-}
-
-export interface LogCustomMeasurementParams {
-  typeId: number;
-  value: number;
-  measuredAt?: string | null;
-  note?: string | null;
 }
 
 // ─── Soreness / DOMS Tracking ────────────────────────────────────────────────

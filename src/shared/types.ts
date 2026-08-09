@@ -71,12 +71,6 @@ export interface SessionStatistics {
   totalSets: number
 }
 
-// ─── Analytics ────────────────────────────────────────────────────────────────
-
-export interface ServerAnalytics {
-  averageTimeBetweenSets?: number
-}
-
 // ─── Server session shapes ────────────────────────────────────────────────────
 
 /** Lightweight session row returned by getSessionHistory */
@@ -133,12 +127,6 @@ export interface FullSessionWithGroups extends FullSession {
   completed_sets?: number
   day_title?: string
   muscle_groups?: string[]
-}
-
-/** Server-side workout day shape returned by programApi.fetchSavedProgram */
-export interface ServerDay {
-  dayNumber: number
-  split: Record<string, PersonWorkout>
 }
 
 /**
@@ -200,13 +188,6 @@ export interface MacrosStat {
   value: number | null
   goal: number | null
   percent: number | null
-}
-
-export interface DailyMacrosStats {
-  protein: MacrosStat
-  carbs: MacrosStat
-  fat: MacrosStat
-  calories: MacrosStat
 }
 
 export interface BodyFatEntry {
@@ -312,8 +293,6 @@ export interface WidgetDefinition<T extends string = string> {
   singleton?: boolean
 }
 
-export const WIDGET_SIZE_ORDER: WidgetSize[] = ["small", "medium", "large"]
-
 export interface WidgetInstance<T extends string = string> {
   /** stable unique id for this placed instance, not the widget type */
   id: string
@@ -392,63 +371,3 @@ export const MUSCLE_GROUP_LABELS: Record<RecoveryMuscleGroup, string> = {
   hip_flexors: "Hip Flexors",
 } as const
 
-/**
- * Lookup map from Title Case names (exerciseMatching taxonomy) to snake_case
- * recovery taxonomy names. Covers the overlap; non-overlapping groups fall
- * through to the best generic match.
- */
-const TITLE_TO_SNAKE: Record<string, RecoveryMuscleGroup> = {
-  "Upper Chest": "chest_upper",
-  "Lower Chest": "chest_lower",
-  "Upper Back": "back_upper",
-  "Lower Back": "lower_back",
-  "Back": "back_upper",
-  "Chest": "chest_upper",
-  "Lats": "lats",
-  "Traps": "traps",
-  "Neck": "neck",
-  "Front Delts": "shoulders_front",
-  "Rear Delts": "shoulders_rear",
-  "Side Delts": "shoulders_side",
-  "Shoulders": "shoulders_front",
-  "Biceps": "biceps",
-  "Triceps": "triceps",
-  "Forearms": "forearms",
-  "Upper Abs": "abs_upper",
-  "Lower Abs": "abs_lower",
-  "Abs": "abs_upper",
-  "Core": "abs_upper",
-  "Obliques": "obliques",
-  "Glutes": "glutes",
-  "Quads": "quads",
-  "Hamstrings": "hamstrings",
-  "Calves": "calves",
-  "Adductors": "adductors",
-  "Abductors": "abductors",
-  "Hip Flexors": "hip_flexors",
-  "Arms": "biceps",
-  "Legs": "quads",
-  "Rhomboids": "back_upper",
-  "Full Body": "chest_upper",
-  "Push": "chest_upper",
-  "Pull": "back_upper",
-  "Inner Chest": "chest_upper",
-} as const
-
-/**
- * Normalize a muscle group string (Title Case or snake_case) to the canonical
- * recovery taxonomy (snake_case). Returns `null` if no mapping is found.
- */
-export const normalizeMuscleGroup = (
-  muscleGroup: string | null | undefined,
-): RecoveryMuscleGroup | null => {
-  if (!muscleGroup) return null
-  const trimmed = muscleGroup.trim()
-
-  // Already in recovery taxonomy
-  if (RECOVERY_MUSCLE_GROUPS.includes(trimmed as RecoveryMuscleGroup))
-    return trimmed as RecoveryMuscleGroup
-
-  // Try Title Case → snake_case lookup
-  return TITLE_TO_SNAKE[trimmed] ?? null
-}

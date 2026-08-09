@@ -16,7 +16,7 @@ export interface TypoCheckResult {
 /**
  * Calculate Levenshtein distance between two strings
  */
-export const levenshteinDistance = (str1: string, str2: string): number => {
+const levenshteinDistance = (str1: string, str2: string): number => {
   const s1 = str1.toLowerCase().trim();
   const s2 = str2.toLowerCase().trim();
 

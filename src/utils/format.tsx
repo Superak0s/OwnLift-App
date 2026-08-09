@@ -74,15 +74,3 @@ export const toDateString = (input: Date | string): string => {
   const d = String(date.getDate()).padStart(2, "0")
   return `${y}-${m}-${d}`
 }
-
-/**
- * Normalize a date argument that may be a Date instance or a YYYY-MM-DD string
- * to a proper ISO timestamp (YYYY-MM-DDT00:00:00.000Z or the original if it
- * already looks like a full timestamp).
- */
-export const normalizeToDate = (date: Date | string | null): string => {
-  if (!date) return new Date().toISOString()
-  if (date instanceof Date) return date.toISOString()
-  // Already a string — if it's a date-only string, midday it; otherwise pass through
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00` : date
-}

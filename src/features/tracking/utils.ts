@@ -49,10 +49,6 @@ export function getCycleDuration(entry: any, fallback: number = 5): number {
   return Number(len) || fallback;
 }
 
-export function getCycleFlowLabel(entry: any): string {
-  return entry.flow ?? entry.flowIntensity ?? entry.flow_intensity ?? "—";
-}
-
 export type CyclePhaseInfo = {
   phase: "Menstrual" | "Follicular" | "Ovulation" | "Luteal";
   dayOfCycle: number;

@@ -41,11 +41,6 @@ export async function writeJSON<T>(key: string, value: T): Promise<void> {
   }
 }
 
-/** Remove a key entirely. */
-export async function removeKey(key: string): Promise<void> {
-  await removeFromStorage(key)
-}
-
 /**
  * Row-per-record collection store, backed by the `kv_records` SQLite table
  * (see sqliteStorage.tsx). Replaces the old "whole collection is one JSON
