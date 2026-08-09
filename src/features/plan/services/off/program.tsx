@@ -9,25 +9,17 @@ import {
   STORAGE_KEYS,
 } from "@shared/services/storage"
 
-const loadProgram = async (
-  userId: string | null = null,
-): Promise<SavedProgram | null> => {
-  return loadFromStorage<SavedProgram>(STORAGE_KEYS.WORKOUT_DATA, userId)
+const loadProgram = async (): Promise<SavedProgram | null> => {
+  return loadFromStorage<SavedProgram>(STORAGE_KEYS.WORKOUT_DATA, null)
 }
 
-const saveProgram = async (
-  program: SavedProgram,
-  userId: string | null = null,
-): Promise<void> => {
-  const ok = await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, program, userId)
+const saveProgram = async (program: SavedProgram): Promise<void> => {
+  const ok = await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, program, null)
   if (!ok) throw new Error("Failed to save program to storage")
 }
 
 export const programApi = {
-  uploadAndSave: async (
-    fileUri: string,
-    userId: string | null = null,
-  ): Promise<unknown> => {
+  uploadAndSave: async (fileUri: string): Promise<unknown> => {
     try {
       const parsed: WorkoutData = await parseWorkoutFileClient(fileUri)
       const program: SavedProgram = {
@@ -36,7 +28,7 @@ export const programApi = {
         split: parsed.split ?? [],
         days: parsed.days,
       }
-      await saveProgram(program, userId)
+      await saveProgram(program)
       return { success: true, program }
     } catch (error) {
       console.warn(
@@ -47,10 +39,7 @@ export const programApi = {
     }
   },
 
-  saveProgram: async (
-    program: WorkoutData,
-    userId: string | null = null,
-  ): Promise<unknown> => {
+  saveProgram: async (program: WorkoutData): Promise<unknown> => {
     try {
       const toSave: SavedProgram = {
         success: true,
@@ -58,7 +47,7 @@ export const programApi = {
         split: program.split ?? [],
         days: program.days,
       }
-      await saveProgram(toSave, userId)
+      await saveProgram(toSave)
       return { success: true, program: toSave }
     } catch (error) {
       console.warn(
@@ -69,15 +58,12 @@ export const programApi = {
     }
   },
 
-  fetchSavedProgram: async (
-    userId: string | null = null,
-  ): Promise<SavedProgram | null> => {
-    return loadProgram(userId)
+  fetchSavedProgram: async (): Promise<SavedProgram | null> => {
+    return loadProgram()
   },
 
-  deleteProgram: async (userId: string | null = null): Promise<unknown> => {
+  deleteProgram: async (): Promise<unknown> => {
     try {
-      console.log(STORAGE_KEYS)
       await removeFromStorage(STORAGE_KEYS.WORKOUT_DATA, null)
       return { success: true, message: "Program deleted successfully" }
     } catch (error) {
@@ -92,10 +78,9 @@ export const programApi = {
     exerciseIndex: number,
     newName: string,
     newMuscleGroup?: string,
-    userId: string | null = null,
   ): Promise<unknown> => {
     try {
-      const program = await loadProgram(userId)
+      const program = await loadProgram()
       if (!program) return null
 
       const days = program.days
@@ -109,7 +94,7 @@ export const programApi = {
       exercise.name = newName
       if (newMuscleGroup !== undefined) exercise.muscleGroup = newMuscleGroup
 
-      await saveProgram(program, userId)
+      await saveProgram(program)
       return { success: true, program }
     } catch (error) {
       console.warn(
@@ -124,10 +109,9 @@ export const programApi = {
     dayNumber: number,
     person: string,
     exercise: ExercisePayload,
-    userId: string | null = null,
   ): Promise<unknown> => {
     try {
-      const program = await loadProgram(userId)
+      const program = await loadProgram()
       if (!program) return null
 
       const days = program.days
@@ -139,7 +123,7 @@ export const programApi = {
       if (!personData.exercises) personData.exercises = []
       personData.exercises.push(exercise)
 
-      await saveProgram(program, userId)
+      await saveProgram(program)
       return { success: true, program }
     } catch (error) {
       console.warn(
@@ -155,10 +139,9 @@ export const programApi = {
     person: string,
     exerciseIndex: number,
     additionalSets: number,
-    userId: string | null = null,
   ): Promise<unknown> => {
     try {
-      const program = await loadProgram(userId)
+      const program = await loadProgram()
       if (!program) return null
 
       const days = program.days
@@ -171,7 +154,7 @@ export const programApi = {
 
       exercise.sets = exercise.sets + additionalSets
 
-      await saveProgram(program, userId)
+      await saveProgram(program)
       return { success: true, program }
     } catch (error) {
       console.warn(

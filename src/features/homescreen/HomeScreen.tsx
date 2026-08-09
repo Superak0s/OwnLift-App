@@ -46,7 +46,6 @@ type HomeScreenProps = {
   readonly navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
 };
 
-// ─── Widget content components ───────────────────────────────────────────
 // Each home-screen widget used to be a case inside one giant switch/render
 // function, with its own conditionals and JSX nested straight inside it.
 // That's what was driving the Cognitive Complexity violation (35 vs the
@@ -319,7 +318,7 @@ function WorkoutCalendarWidget({
     <UniversalCalendar
       hasDataOnDate={hasSessionOnDate}
       onDatePress={onDatePress}
-      initialView='week'
+      initialView='month'
       legendText='Workout day'
       dotColor='#10b981'
     />
@@ -360,7 +359,6 @@ function getDayTitle(
   return day?.muscleGroups?.join("/") || `Day ${dayNumber}`;
 }
 
-// ─── Session details helpers ──────────────────────────────────────────────
 // These used to be inlined as an immediately-invoked arrow function inside
 // the JSX (`{(() => { ... })()}`) which is exactly the kind of nesting the
 // linter penalizes. Pulling them out to top-level functions removes that
@@ -408,7 +406,6 @@ function groupSetTimingsByExercise(
   return Array.from(exerciseMap.values());
 }
 
-// ─── Date helpers ──────────────────────────────────────────────────────────
 // Pure functions, no reason for them to live inside the component and be
 // recreated every render.
 
@@ -463,7 +460,6 @@ export default function HomeScreen({
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
   const isEmulator = !Device.isDevice;
 
-  // ─── Widgets ────────────────────────────────────────────────────────────
   const {
     widgets,
     isLoaded: widgetsLoaded,
@@ -559,7 +555,6 @@ export default function HomeScreen({
     }
   };
 
-  // ─── Streak ───────────────────────────────────────────────────────────────
   // "Streak" = consecutive Monday-start weeks with at least one logged
   // session, counting back from the current week. The current week doesn't
   // break the streak just for being in progress — it only starts counting
@@ -909,7 +904,6 @@ export default function HomeScreen({
   );
 }
 
-// ─── Modal row components ─────────────────────────────────────────────────
 // Same idea as the widgets above: these were `.map()` callbacks with
 // multi-branch JSX built directly inline in the parent render. Extracting
 // them removes that nesting from HomeScreen entirely.

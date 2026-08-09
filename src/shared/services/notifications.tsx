@@ -22,3 +22,21 @@ export async function getNotifications(): Promise<NotificationsModule | null> {
   }
   return cachedNotifications;
 }
+
+/**
+ * Schedule a notification safely.
+ * `sound: true` triggers "custom sound 'default' not found" in expo-notifications 57.x
+ * because it coerces to the string "default" which isn't registered in app.json.
+ * We strip `sound` so the notification channel's default (system sound) is used.
+ */
+export async function scheduleNotification(
+  options: Parameters<NotificationsModule["scheduleNotificationAsync"]>[0],
+): Promise<ReturnType<NotificationsModule["scheduleNotificationAsync"]>> {
+  const Notifications = await getNotifications();
+  if (!Notifications) throw new Error("Notifications unavailable");
+  const { sound: _, ...content } = options.content;
+  return Notifications.scheduleNotificationAsync({
+    ...options,
+    content,
+  });
+}

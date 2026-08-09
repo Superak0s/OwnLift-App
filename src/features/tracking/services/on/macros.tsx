@@ -53,15 +53,6 @@ export const macrosTrackingApi = {
     apiCall(`/api/tracking/macros/log?days=${days}`),
 
   /**
-   * Get macros stats for a specific date
-   * GET /api/tracking/macros/stats/:date
-   */
-  getMacrosStatsForDate: async (date: Date | string): Promise<unknown> => {
-    const dateStr = date instanceof Date ? date.toISOString().split("T")[0] : date
-    return apiCall(`/api/tracking/macros/stats/${dateStr}`)
-  },
-
-  /**
    * Set daily macros goals
    * PUT /api/tracking/macros/goals
    */
@@ -82,30 +73,9 @@ export const macrosTrackingApi = {
     }),
 
   /**
-   * Get macros goals
-   * GET /api/tracking/macros/goals
-   */
-  getMacrosGoals: async (): Promise<unknown> =>
-    apiCall(`/api/tracking/macros/goals`),
-
-  /**
    * Delete a macros entry
    * DELETE /api/tracking/macros/log/:id
    */
   deleteMacrosEntry: async (id: number | string): Promise<unknown> =>
     apiCall(`/api/tracking/macros/log/${id}`, { method: "DELETE" }),
-
-  /**
-   * Get weekly macros summary
-   * GET /api/tracking/macros/summary/week
-   */
-  getWeeklySummary: async (): Promise<unknown> =>
-    apiCall(`/api/tracking/macros/summary/week`),
-
-  /**
-   * Get monthly macros summary
-   * GET /api/tracking/macros/summary/month
-   */
-  getMonthlySummary: async (): Promise<unknown> =>
-    apiCall(`/api/tracking/macros/summary/month`),
 }

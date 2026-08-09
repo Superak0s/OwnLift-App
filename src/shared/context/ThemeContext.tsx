@@ -28,7 +28,7 @@
  *
  * Custom (user-created) themes are a separate, runtime concept: they can
  * be exported as JSON and shared with other users, who import them via
- * the ThemeEditorModal. Those are stored on-device with AsyncStorage and
+ * the ThemeEditorModal. Those are stored on-device with SQLite and
  * are independent of the presets in themes.json.
  */
 
@@ -40,7 +40,7 @@ import React, {
   useEffect,
   type ReactNode,
 } from "react"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
 import { useColorScheme } from "react-native"
 import themesData from "./themes.json"
 
@@ -247,23 +247,14 @@ function findPreset(id: string): AppTheme | undefined {
 }
 
 // Kept as named exports for backwards compatibility with existing imports
-// elsewhere in the app. New themes added to themes.json don't need (and
-// won't get) a named export like this — look them up via `allThemes` or
-// `PRESET_THEMES` by id instead.
+// elsewhere in the app (LIGHT_COLORS is used as the "system" theme's default
+// below). New themes added to themes.json don't need (and won't get) a named
+// export like this — look them up via `allThemes` or `PRESET_THEMES` by id
+// instead.
 export const LIGHT_COLORS: ThemeColors =
   findPreset("light")?.colors ?? FALLBACK_COLORS
 export const DARK_COLORS: ThemeColors =
   findPreset("dark")?.colors ?? FALLBACK_COLORS
-export const YELLOW_COLORS: ThemeColors =
-  findPreset("yellow")?.colors ?? FALLBACK_COLORS
-export const RED_COLORS: ThemeColors =
-  findPreset("red")?.colors ?? FALLBACK_COLORS
-export const GREEN_COLORS: ThemeColors =
-  findPreset("green")?.colors ?? FALLBACK_COLORS
-export const BLUE_COLORS: ThemeColors =
-  findPreset("blue")?.colors ?? FALLBACK_COLORS
-export const PINK_COLORS: ThemeColors =
-  findPreset("pink")?.colors ?? FALLBACK_COLORS
 
 // ─── Theme descriptor ─────────────────────────────────────────────────────────
 
@@ -350,7 +341,7 @@ interface PersistedState {
 
 async function loadState(): Promise<PersistedState> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY)
+    const raw = await getStorageItem(STORAGE_KEY)
     if (!raw) return { activeThemeId: "system", customThemes: [] }
     return JSON.parse(raw) as PersistedState
   } catch {
@@ -360,7 +351,7 @@ async function loadState(): Promise<PersistedState> {
 
 async function saveState(state: PersistedState): Promise<void> {
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    await setStorageItem(STORAGE_KEY, JSON.stringify(state))
   } catch {
     // silent
   }

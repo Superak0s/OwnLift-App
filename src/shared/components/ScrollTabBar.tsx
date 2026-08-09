@@ -6,7 +6,7 @@ import {
   View,
   StyleSheet,
 } from "react-native"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
 import { useTheme } from "../context/ThemeContext"
 import Animated, {
   useSharedValue,
@@ -39,7 +39,7 @@ interface Props {
   onTabChange: (tab: string) => void
   /** Optional badge counts keyed by tab key. A value > 0 shows a red dot. */
   badges?: Record<string, number>
-  /** AsyncStorage key to persist order + visibility. Defaults to "scrollTabBar_config". */
+  /** SQLite key to persist order + visibility. Defaults to "scrollTabBar_config". */
   storageKey?: string
   containerStyle?: object
 }
@@ -195,7 +195,7 @@ export default function ScrollTabBar({
   useEffect(() => {
     ;(async () => {
       try {
-        const raw = await AsyncStorage.getItem(storageKey)
+        const raw = await getStorageItem(storageKey)
         if (!raw) return
         const saved: TabConfig[] = JSON.parse(raw)
         const knownKeys = new Set(saved.map((c) => c.key))
@@ -211,7 +211,7 @@ export default function ScrollTabBar({
   }, [storageKey])
 
   const persist = (next: TabConfig[]) => {
-    AsyncStorage.setItem(storageKey, JSON.stringify(next)).catch(() => {})
+    setStorageItem(storageKey, JSON.stringify(next)).catch(() => {})
   }
 
   const handleReorder = useCallback((from: number, to: number) => {

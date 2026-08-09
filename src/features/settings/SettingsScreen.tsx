@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import * as DocumentPicker from "expo-document-picker"
 import * as ImagePicker from "expo-image-picker"
 import { File as ExpoFile } from "expo-file-system"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
 import {
   saveToStorage,
   loadFromStorage,
@@ -600,8 +600,8 @@ export default function SettingsScreen(): React.JSX.Element {
   useEffect(() => {
     ;(async () => {
       try {
-        const phone = await AsyncStorage.getItem("@profile_phone")
-        const avatar = await AsyncStorage.getItem("@profile_avatar")
+        const phone = await getStorageItem("@profile_phone")
+        const avatar = await getStorageItem("@profile_avatar")
         if (phone) setProfilePhone(phone)
         if (avatar) setProfileAvatarUri(avatar)
       } catch (err) {
@@ -613,7 +613,7 @@ export default function SettingsScreen(): React.JSX.Element {
   const pickAvatar = async () => {
     try {
       const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         allowsEditing: true,
         quality: 0.7,
       })
@@ -652,9 +652,9 @@ export default function SettingsScreen(): React.JSX.Element {
         setSavingProfile(false)
         return
       }
-      await AsyncStorage.setItem("@profile_phone", profilePhone)
+      await setStorageItem("@profile_phone", profilePhone)
       if (profileAvatarUri)
-        await AsyncStorage.setItem("@profile_avatar", profileAvatarUri)
+        await setStorageItem("@profile_avatar", profileAvatarUri)
       alert("Saved", "Profile updated", [{ text: "OK" }], "success")
       await refreshUser()
     } catch (error) {
@@ -694,7 +694,7 @@ export default function SettingsScreen(): React.JSX.Element {
           set_timings: s.set_timings ?? s.setTimings ?? [],
           is_demo: s.is_demo ?? false,
         })
-        await AsyncStorage.setItem(
+        await setStorageItem(
           "@offline:workout:sessions",
           JSON.stringify((sessions || []).map(mapSession)),
         )
@@ -716,9 +716,9 @@ export default function SettingsScreen(): React.JSX.Element {
         user?.email ?? "",
       )
       if (profilePhone)
-        await AsyncStorage.setItem("@profile_phone", profilePhone)
+        await setStorageItem("@profile_phone", profilePhone)
       if (profileAvatarUri)
-        await AsyncStorage.setItem("@profile_avatar", profileAvatarUri)
+        await setStorageItem("@profile_avatar", profileAvatarUri)
       return true
     } catch (error) {
       console.error("Migration to offline failed:", error)

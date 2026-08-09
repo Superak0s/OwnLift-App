@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getStorageItem, setStorageItem, removeStorageItem } from "@shared/services/sqliteStorage"
 
 import { supplementsApi } from "../services";
 import {
@@ -105,7 +105,7 @@ export default function SupplementSettingsModal({
 
   const loadLocalSettings = async () => {
     if (!user?.id) return;
-    const raw = await AsyncStorage.getItem(settingsKey(user.id));
+    const raw = await getStorageItem(settingsKey(user.id));
     if (raw) applyStoredSettings(raw);
   };
 
@@ -270,7 +270,7 @@ export default function SupplementSettingsModal({
       defaultAmount: amt,
       notificationType,
     };
-    await AsyncStorage.setItem(settingsKey(user.id), JSON.stringify(stored));
+    await setStorageItem(settingsKey(user.id), JSON.stringify(stored));
 
     await saveSupplementReminderConfig(String(user.id), {
       supplementId: supplement.id,
@@ -405,7 +405,7 @@ export default function SupplementSettingsModal({
 
   const clearLocalDisableState = async () => {
     if (!user?.id) return;
-    await AsyncStorage.removeItem(settingsKey(user.id));
+    await removeStorageItem(settingsKey(user.id));
     await saveSupplementReminderConfig(String(user.id), {
       supplementId: supplement.id,
       name: supplement.name,

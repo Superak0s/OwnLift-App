@@ -1,7 +1,7 @@
 // shared/services/tokenStorage.tsx
 //
 // Auth tokens live in the device secure enclave (Keychain on iOS, Keystore on
-// Android) via expo-secure-store — NOT AsyncStorage, which is unencrypted and
+// Android) via expo-secure-store — NOT the SQLite key-value store, which is unencrypted and
 // readable on a rooted/jailbroken or compromised device.
 import * as SecureStore from "expo-secure-store"
 

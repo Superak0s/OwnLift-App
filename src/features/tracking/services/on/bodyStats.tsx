@@ -1,12 +1,11 @@
 import { apiCall } from "@shared/services/apiClient"
-import { calculateBodyFatPercentage } from "@utils/bodyFat"
 import { getServerUrl } from "@shared/services/config"
 import { tokenStorage } from "@shared/services/tokenStorage"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem } from "@shared/services/sqliteStorage"
+import { compressImageForUpload } from "@utils/compressImage"
 import type {
   BodyFatMeasurements,
   Gender,
-  HeightInput,
   WeightUnit,
 } from "../../types"
 
@@ -25,13 +24,6 @@ import type {
  *    meant to use for raw token reads.
  */
 export const bodyTrackingApi = {
-  /**
-   * Fetch all tracking data in a single request
-   * GET /api/body/snapshot
-   */
-  fetchTrackingSnapshot: async (): Promise<unknown> =>
-    apiCall(`/api/body/snapshot`),
-
   // ── Body Weight ───────────────────────────────────────────────────────────
 
   /**
@@ -76,40 +68,6 @@ export const bodyTrackingApi = {
   getCurrentWeight: async (): Promise<{ entry?: { weight_kg: number } }> =>
     apiCall(`/api/tracking/bodystats/weight/current`),
 
-  // ── Height & Unit Preferences ─────────────────────────────────────────────
-
-  /**
-   * Save height and unit preferences
-   * PUT /api/tracking/bodystats/height
-   */
-  saveHeightAndUnits: async (
-    height: HeightInput,
-    weightUnit: WeightUnit,
-  ): Promise<unknown> => {
-    let heightCm: number
-    if (height.unit === "cm") {
-      heightCm = height.value
-    } else {
-      const totalInches = height.value * 12 + (height.inches || 0)
-      heightCm = totalInches * 2.54
-    }
-    return apiCall(`/api/tracking/bodystats/height`, {
-      method: "PUT",
-      body: JSON.stringify({
-        heightCm,
-        heightUnit: height.unit,
-        weightUnit,
-      }),
-    })
-  },
-
-  /**
-   * Get height and unit preferences
-   * GET /api/tracking/bodystats/height
-   */
-  getHeightAndUnits: async (): Promise<unknown> =>
-    apiCall(`/api/tracking/bodystats/height`),
-
   // ── Progress Photos ───────────────────────────────────────────────────────
 
   /**
@@ -124,10 +82,11 @@ export const bodyTrackingApi = {
   ): Promise<unknown> => {
     const API_BASE_URL = getServerUrl()
     const token = await tokenStorage.get()
+    const compressedUri = await compressImageForUpload(localUri)
 
     const formData = new FormData()
     formData.append("photo", {
-      uri: localUri,
+      uri: compressedUri,
       name: `photo_${Date.now()}.jpg`,
       type: mimeType,
     } as unknown as Blob)
@@ -147,10 +106,10 @@ export const bodyTrackingApi = {
   },
 
   /**
-   * Get photo metadata list
+   * List progress photos (metadata only, not image bytes)
    * GET /api/tracking/photos
    */
-  getPhotoList: async (limit: number = 50): Promise<unknown> =>
+  getProgressPhotos: async (limit: number = 200): Promise<unknown> =>
     apiCall(`/api/tracking/photos?limit=${limit}`),
 
   /**
@@ -159,28 +118,6 @@ export const bodyTrackingApi = {
   getPhotoUrl: (id: number | string): string => {
     const API_BASE_URL = getServerUrl()
     return `${API_BASE_URL}/api/tracking/photos/${id}`
-  },
-
-  /**
-   * Fetch a photo as a base64 data URI for React Native <Image>
-   */
-  fetchPhotoAsUri: async (id: number | string): Promise<string> => {
-    const API_BASE_URL = getServerUrl()
-    const token = await tokenStorage.get()
-
-    const response = await fetch(`${API_BASE_URL}/api/tracking/photos/${id}`, {
-      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
-    })
-
-    if (!response.ok) throw new Error("Photo not found")
-
-    const blob = await response.blob()
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(reader.result as string)
-      reader.onerror = reject
-      reader.readAsDataURL(blob)
-    })
   },
 
   /**
@@ -193,7 +130,7 @@ export const bodyTrackingApi = {
 
 /**
  * Helper function to get current body weight in kg.
- * Falls back to AsyncStorage if the server call fails.
+ * Falls back to local SQLite storage if the server call fails.
  */
 export const getCurrentBodyWeight = async (
   userId?: string | null,
@@ -209,7 +146,7 @@ export const getCurrentBodyWeight = async (
   }
   try {
     const key = userId ? `weightHistory_user_${userId}` : "weightHistory"
-    const saved = await AsyncStorage.getItem(key)
+    const saved = await getStorageItem(key)
     if (!saved) return null
     const history: Array<{ date: string; weight: number; unit: WeightUnit }> =
       JSON.parse(saved)
@@ -266,35 +203,9 @@ export const bodyFatApi = {
     apiCall(`/api/tracking/bodystats/bodyfat/log?limit=${limit}`),
 
   /**
-   * Get latest body fat measurement
-   * GET /api/tracking/bodystats/latest
-   */
-  getLatestBodyFat: async (): Promise<unknown> =>
-    apiCall(`/api/tracking/bodystats/latest`),
-
-  /**
    * Delete a body fat entry
    * DELETE /api/tracking/bodystats/bodyfat/log/:id
    */
   deleteBodyFatEntry: async (id: number | string): Promise<unknown> =>
     apiCall(`/api/tracking/bodystats/bodyfat/log/${id}`, { method: "DELETE" }),
-
-  /**
-   * Get body fat trend analysis
-   * GET /api/tracking/bodystats/trend
-   */
-  getBodyFatTrend: async (days: number = 90): Promise<unknown> =>
-    apiCall(`/api/tracking/bodystats/trend?days=${days}`),
-
-  /**
-    * Calculate body fat percentage client-side (US Navy method).
-    * All measurements in the same unit (cm or inches).
-    */
-   calculateBodyFatPercentage: (
-     gender: Gender,
-     height: number,
-     waist: number,
-     neck: number,
-     hip: number | null = null,
-   ): number => calculateBodyFatPercentage(gender, height, waist, neck, hip),
 }

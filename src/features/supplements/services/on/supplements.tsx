@@ -1,11 +1,9 @@
 // features/supplements/services/on/supplements.tsx
 import { apiCall } from "@shared/services/apiClient"
 import type {
-  AtLocationResult,
   CreateSupplementParams,
   LogSupplementParams,
   ReminderLocation as SupplementLocationParams,
-  SupplementEntry,
   SupplementLocation,
   SupplementLogResponse,
   SupplementSummary,
@@ -27,16 +25,6 @@ export const supplementsApi = {
       method: "POST",
       body: JSON.stringify(params),
     }),
-
-  get: (
-    id: number,
-  ): Promise<{
-    success: boolean
-    supplement: SupplementSummary
-    takenToday: boolean
-    todayEntry: SupplementEntry | null
-    streak: number
-  }> => apiCall(`/api/tracking/supplements/${id}`),
 
   update: (
     id: number,
@@ -72,9 +60,6 @@ export const supplementsApi = {
       method: "DELETE",
     }),
 
-  getStreak: (id: number): Promise<{ success: boolean; streak: number }> =>
-    apiCall(`/api/tracking/supplements/${id}/streak`),
-
   // ── Location ─────────────────────────────────────────────────
 
   saveLocation: (
@@ -103,18 +88,4 @@ export const supplementsApi = {
       body: JSON.stringify({ enabled }),
     }),
 
-  checkLocation: (
-    id: number,
-    latitude: number,
-    longitude: number,
-  ): Promise<{ success: boolean } & AtLocationResult> =>
-    apiCall(`/api/tracking/supplements/${id}/location/check`, {
-      method: "POST",
-      body: JSON.stringify({ latitude, longitude }),
-    }),
-
-  deleteLocation: (
-    id: number,
-  ): Promise<{ success: boolean; message: string }> =>
-    apiCall(`/api/tracking/supplements/${id}/location`, { method: "DELETE" }),
 }

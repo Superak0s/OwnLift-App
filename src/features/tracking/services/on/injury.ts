@@ -7,7 +7,6 @@ import type {
   ApiResponse,
   InjuryRecord,
   LogInjuryParams,
-  UpdateInjuryParams,
 } from "../../types/muscleRecovery";
 
 export const injuryApi = {
@@ -18,16 +17,6 @@ export const injuryApi = {
   logInjury: async (params: LogInjuryParams): Promise<ApiResponse<InjuryRecord>> =>
     apiCall(`/api/tracking/injuries`, {
       method: "POST",
-      body: JSON.stringify(params),
-    }),
-
-  /**
-   * Update an existing injury record
-   * PUT /api/tracking/injuries/:id
-   */
-  updateInjury: async (params: UpdateInjuryParams): Promise<ApiResponse<InjuryRecord>> =>
-    apiCall(`/api/tracking/injuries/${params.injuryId}`, {
-      method: "PUT",
       body: JSON.stringify(params),
     }),
 
@@ -51,11 +40,4 @@ export const injuryApi = {
    */
   getActiveInjuries: async (): Promise<ApiResponse<InjuryRecord[]>> =>
     apiCall(`/api/tracking/injuries/active`),
-
-  /**
-   * Delete an injury record
-   * DELETE /api/tracking/injuries/:id
-   */
-  deleteInjury: async (id: number): Promise<ApiResponse<null>> =>
-    apiCall(`/api/tracking/injuries/${id}`, { method: "DELETE" }),
 };

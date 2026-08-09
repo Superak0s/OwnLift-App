@@ -4,8 +4,6 @@ import type {
   PermissionType,
   GrantedPermission,
   ReceivedPermission,
-  ReceivedProgram,
-  SentProgram,
   JointInviteParams,
 } from "../../types"
 
@@ -54,79 +52,6 @@ export const sharingApi = {
     })) as ReceivedPermission[]
   },
 
-  shareAnalytics: async (
-    friendId: number | string,
-    _includeAllSessions: unknown,
-    _dayNumber: unknown,
-    message: string | null = null,
-  ): Promise<unknown> =>
-    sharingApi.grantPermission(friendId, "analytics", message ? { message } : null),
-
-  getReceivedAnalytics: async (): Promise<unknown[]> => {
-    const data = await apiCall<{ shares: unknown[] }>(
-      `/api/sharing/analytics/received`,
-    )
-    return data.shares || []
-  },
-
-  getSentAnalytics: async (): Promise<unknown[]> => {
-    const data = await apiCall<{ shares: unknown[] }>(
-      `/api/sharing/analytics/sent`,
-    )
-    return data.shares || []
-  },
-
-  viewFriendAnalytics: async (
-    _shareId: unknown,
-    friendId: number | string,
-  ): Promise<unknown> => {
-    const data = await apiCall<{ analytics: unknown }>(
-      `/api/sharing/analytics/friend/${friendId}`,
-    )
-    return data.analytics
-  },
-
-  shareProgram: async (
-    friendId: number | string,
-    programData: unknown,
-    message: string | null = null,
-  ): Promise<unknown> =>
-    sharingApi.grantPermission(friendId, "program", { programData, message }),
-
-  getReceivedPrograms: async (): Promise<ReceivedProgram[]> => {
-    const data = await apiCall<{ programs: Record<string, unknown>[] }>(
-      `/api/sharing/program/received`,
-    )
-    return (data.programs || []).map((p) => ({
-      id: p.id,
-      senderId: p.senderId,
-      senderUsername: p.senderUsername,
-      sharedAt: p.sharedAt,
-      message: p.message,
-      programData: p.programData,
-    })) as ReceivedProgram[]
-  },
-
-  getSentPrograms: async (): Promise<SentProgram[]> => {
-    const data = await apiCall<{ programs: Record<string, unknown>[] }>(
-      `/api/sharing/program/sent`,
-    )
-    return (data.programs || []).map((p) => ({
-      id: p.id,
-      receiverId: p.receiverId,
-      receiverUsername: p.receiverUsername,
-      sharedAt: p.sharedAt,
-      message: p.message,
-      programData: p.programData,
-    })) as SentProgram[]
-  },
-
-  deleteShare: async (
-    _shareType: string,
-    permissionId: number | string,
-  ): Promise<unknown> =>
-    sharingApi.revokePermission(permissionId),
-
   getFriendSessions: async (
     friendId: number | string,
     limit: number = 60,
@@ -145,11 +70,6 @@ export const sharingApi = {
       `/api/sharing/sessions/friend/${friendId}/${sessionId}`,
     )
     return data.session || null
-  },
-
-  getSharingStats: async (): Promise<unknown> => {
-    const data = await apiCall<{ stats: unknown }>(`/api/sharing/stats`)
-    return data.stats
   },
 
   // Needs raw response for 404 check
@@ -172,24 +92,6 @@ export const sharingApi = {
       body: JSON.stringify({ toUserId, fromSessionId }),
     }),
 
-  getInviteStatus: async (
-    inviteId: number | string,
-  ): Promise<any | null> => {
-    const response = await authenticatedFetch(
-      `/api/sharing/joint-sessions/invites/${inviteId}`,
-    )
-    if (response.status === 404) return null
-    return parseApiResponse(response)
-  },
-
-  getMyPendingInvite: async (): Promise<any | null> => {
-    const response = await authenticatedFetch(
-      `/api/sharing/joint-sessions/invites/pending`,
-    )
-    if (response.status === 404) return null
-    return parseApiResponse(response)
-  },
-
   acceptJointInvite: async (inviteId: number | string): Promise<unknown> =>
     apiCall(`/api/sharing/joint-sessions/invites/${inviteId}/accept`, {
       method: "POST",
@@ -199,15 +101,6 @@ export const sharingApi = {
     apiCall(`/api/sharing/joint-sessions/invites/${inviteId}/decline`, {
       method: "POST",
     }),
-
-  getJointSession: async (jointSessionId: string): Promise<any | null> => {
-    const response = await authenticatedFetch(
-      `/api/sharing/joint-sessions/${jointSessionId}`,
-    )
-    if (response.status === 404) return null
-    const data: any = await parseApiResponse(response)
-    return data.jointSession ?? data
-  },
 
   pushJointProgress: async (
     jointSessionId: string,

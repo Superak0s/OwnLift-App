@@ -6,7 +6,7 @@
 import { Platform } from "react-native";
 import * as TaskManager from "expo-task-manager";
 import * as Location from "expo-location";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getStorageItem, setStorageItem } from "../src/shared/services/sqliteStorage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
 // ─── Expo Go detection ─────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ export interface SupplementReminderLocation {
   address: string;
 }
 
-/** Per-supplement reminder config stored in AsyncStorage. */
+/** Per-supplement reminder config stored in SQLite. */
 export interface SupplementReminderConfig {
   supplementId: number;
   name: string;
@@ -90,7 +90,6 @@ export interface UserData {
 // Keep old name so existing background task registrations survive the update
 export const LOCATION_TASK_NAME = "creatine-location-reminder";
 
-const MAX_DEBUG_LOGS = 50;
 const STORAGE_KEY_SUPPLEMENT_CONFIGS = (userId: string) =>
   `supplementReminderConfigs_user_${userId}`;
 
@@ -118,25 +117,6 @@ export const BATTERY_PRESETS: BatteryPresets = {
     label: "High Impact",
     description: "Checks every 5 min, 100m movement",
   },
-};
-
-// ─── Debug ────────────────────────────────────────────────────────────────────
-
-const writeDebugLog = async (message: string): Promise<void> => {
-  try {
-    const timestamp = new Date().toLocaleTimeString();
-    const logEntry = `[${timestamp}] ${message}`;
-    const existingLogsStr = await AsyncStorage.getItem("supplementDebugLogs");
-    let logs: string[] = existingLogsStr
-      ? (JSON.parse(existingLogsStr) as string[])
-      : [];
-    logs.push(logEntry);
-    if (logs.length > MAX_DEBUG_LOGS) logs = logs.slice(-MAX_DEBUG_LOGS);
-    await AsyncStorage.setItem("supplementDebugLogs", JSON.stringify(logs));
-    console.log(message);
-  } catch {
-    console.log(message);
-  }
 };
 
 // ─── Haversine ────────────────────────────────────────────────────────────────
@@ -193,14 +173,14 @@ async function evaluateSupplementReminder(
   if (!Notifications) return false;
 
   const takenKey = getTakenTodayKey(userId, config.supplementId);
-  const takenToday = await AsyncStorage.getItem(takenKey);
+  const takenToday = await getStorageItem(takenKey);
   if (takenToday) return false;
 
   const { lat, lng, radius } = config.reminderLocation;
   const distance = calculateDistance(latitude, longitude, lat, lng);
   const withinRadius = distance <= radius;
 
-  await writeDebugLog(
+  console.log(
     `[${config.name}] Distance: ${distance.toFixed(0)}m/${radius}m ${withinRadius ? "✅" : "❌"}`,
   );
 
@@ -225,9 +205,9 @@ async function evaluateSupplementReminder(
     config.supplementId,
     config.reminderTime,
   );
-  if (await AsyncStorage.getItem(shownKey)) return false;
+  if (await getStorageItem(shownKey)) return false;
 
-  await writeDebugLog(`[${config.name}] 🔔 Sending notification!`);
+  console.log(`[${config.name}] 🔔 Sending notification!`);
 
   await Notifications.scheduleNotificationAsync({
     content: {
@@ -242,7 +222,7 @@ async function evaluateSupplementReminder(
     trigger: null,
   });
 
-  await AsyncStorage.setItem(shownKey, "true");
+  await setStorageItem(shownKey, "true");
   return true;
 }
 
@@ -257,7 +237,7 @@ TaskManager.defineTask(
     locations: Location.LocationObject[];
   }>) => {
     if (error) {
-      await writeDebugLog("❌ Location task error: " + error.message);
+      console.log("❌ Location task error: " + error.message);
       return;
     }
     if (!data?.locations?.length) return;
@@ -266,17 +246,17 @@ TaskManager.defineTask(
     if (!location) return;
 
     const { latitude, longitude } = location.coords;
-    await writeDebugLog(
+    console.log(
       `📍 Location: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
     );
 
     try {
-      const userDataStr = await AsyncStorage.getItem("@user");
+      const userDataStr = await getStorageItem("@user");
       if (!userDataStr) return;
       const userData = JSON.parse(userDataStr) as UserData;
       const userId = userData.id;
 
-      const configsStr = await AsyncStorage.getItem(
+      const configsStr = await getStorageItem(
         STORAGE_KEY_SUPPLEMENT_CONFIGS(userId),
       );
       if (!configsStr) return;
@@ -287,7 +267,7 @@ TaskManager.defineTask(
         await evaluateSupplementReminder(userId, config, latitude, longitude);
       }
     } catch (err) {
-      await writeDebugLog(
+      console.log(
         "❌ Error: " + (err instanceof Error ? err.message : String(err)),
       );
     }
@@ -301,14 +281,14 @@ export const saveSupplementReminderConfig = async (
   config: SupplementReminderConfig,
 ): Promise<void> => {
   const key = STORAGE_KEY_SUPPLEMENT_CONFIGS(userId);
-  const existingStr = await AsyncStorage.getItem(key);
+  const existingStr = await getStorageItem(key);
   const configs: SupplementReminderConfig[] = existingStr
     ? (JSON.parse(existingStr) as SupplementReminderConfig[])
     : [];
   const idx = configs.findIndex((c) => c.supplementId === config.supplementId);
   if (idx >= 0) configs[idx] = config;
   else configs.push(config);
-  await AsyncStorage.setItem(key, JSON.stringify(configs));
+  await setStorageItem(key, JSON.stringify(configs));
 };
 
 export const removeSupplementReminderConfig = async (
@@ -316,19 +296,19 @@ export const removeSupplementReminderConfig = async (
   supplementId: number,
 ): Promise<void> => {
   const key = STORAGE_KEY_SUPPLEMENT_CONFIGS(userId);
-  const existingStr = await AsyncStorage.getItem(key);
+  const existingStr = await getStorageItem(key);
   if (!existingStr) return;
   const configs = (
     JSON.parse(existingStr) as SupplementReminderConfig[]
   ).filter((c) => c.supplementId !== supplementId);
-  await AsyncStorage.setItem(key, JSON.stringify(configs));
+  await setStorageItem(key, JSON.stringify(configs));
 };
 
 export const getSupplementReminderConfigs = async (
   userId: string,
 ): Promise<SupplementReminderConfig[]> => {
   try {
-    const str = await AsyncStorage.getItem(
+    const str = await getStorageItem(
       STORAGE_KEY_SUPPLEMENT_CONFIGS(userId),
     );
     return str ? (JSON.parse(str) as SupplementReminderConfig[]) : [];
@@ -342,7 +322,7 @@ export const markSupplementTakenToday = async (
   userId: string,
   supplementId: number,
 ): Promise<void> => {
-  await AsyncStorage.setItem(getTakenTodayKey(userId, supplementId), "true");
+  await setStorageItem(getTakenTodayKey(userId, supplementId), "true");
 };
 
 // ─── Notifications ────────────────────────────────────────────────────────────
@@ -371,7 +351,7 @@ export const initializeSupplementNotifications = async (): Promise<boolean> => {
             importance: Notifications.AndroidImportance.HIGH,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: "#667eea",
-            sound: "default",
+            // sound omitted — channel uses system default
             showBadge: true,
           },
         );
@@ -435,7 +415,7 @@ export const scheduleTimeReminder = async (
       },
     });
 
-    await AsyncStorage.setItem(
+    await setStorageItem(
       `supplementTimeNotifId_${supplementId}_user_${userId}`,
       identifier,
     );
@@ -473,7 +453,7 @@ export const getBatterySettings = async (): Promise<BatterySettings> => {
     ...BATTERY_PRESETS.MEDIUM,
   };
   try {
-    const str = await AsyncStorage.getItem("supplementBatterySettings");
+    const str = await getStorageItem("supplementBatterySettings");
     return str ? (JSON.parse(str) as BatterySettings) : fallback;
   } catch {
     return fallback;
@@ -495,7 +475,7 @@ export const saveBatterySettings = async (
             ? BATTERY_PRESETS[preset]
             : BATTERY_PRESETS.MEDIUM),
         };
-  await AsyncStorage.setItem(
+  await setStorageItem(
     "supplementBatterySettings",
     JSON.stringify(settings),
   );
@@ -508,7 +488,7 @@ export const registerLocationTask = async (): Promise<boolean> => {
       await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
     if (isRegistered) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-      await writeDebugLog("🔄 Unregistering to update settings...");
+      console.log("🔄 Unregistering to update settings...");
     }
 
     const battery = await getBatterySettings();
@@ -519,10 +499,10 @@ export const registerLocationTask = async (): Promise<boolean> => {
       showsBackgroundLocationIndicator: false,
     });
 
-    await writeDebugLog("✅ Location task registered");
+    console.log("✅ Location task registered");
     return true;
   } catch (error) {
-    await writeDebugLog(
+    console.log(
       "❌ Error registering: " +
         (error instanceof Error ? error.message : String(error)),
     );
@@ -534,11 +514,11 @@ export const unregisterLocationTask = async (): Promise<boolean> => {
   try {
     if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-      await writeDebugLog("✅ Task unregistered");
+      console.log("✅ Task unregistered");
     }
     return true;
   } catch (error) {
-    await writeDebugLog(
+    console.log(
       "❌ Error unregistering: " +
         (error instanceof Error ? error.message : String(error)),
     );
@@ -554,28 +534,9 @@ export const isLocationTaskRegistered = async (): Promise<boolean> => {
   }
 };
 
-// ─── Debug helpers ────────────────────────────────────────────────────────────
-
-export const getDebugLogs = async (): Promise<string[]> => {
-  try {
-    const str = await AsyncStorage.getItem("supplementDebugLogs");
-    return str ? (JSON.parse(str) as string[]) : [];
-  } catch {
-    return [];
-  }
-};
-
-export const clearDebugLogs = async (): Promise<void> => {
-  try {
-    await AsyncStorage.removeItem("supplementDebugLogs");
-  } catch (error) {
-    console.error("Error clearing debug logs:", error);
-  }
-};
-
 export const triggerImmediateLocationCheck = async (): Promise<boolean> => {
   try {
-    await writeDebugLog("🚀 Immediate check...");
+    console.log("🚀 Immediate check...");
 
     let location: Location.LocationObject | null = null;
     try {
@@ -593,7 +554,7 @@ export const triggerImmediateLocationCheck = async (): Promise<boolean> => {
 
     const { latitude, longitude } = location.coords;
 
-    const userDataStr = await AsyncStorage.getItem("@user");
+    const userDataStr = await getStorageItem("@user");
     if (!userDataStr) return false;
     const userData = JSON.parse(userDataStr) as UserData;
     const userId = userData.id;
@@ -615,22 +576,3 @@ export const triggerImmediateLocationCheck = async (): Promise<boolean> => {
   }
 };
 
-export default {
-  LOCATION_TASK_NAME,
-  registerLocationTask,
-  unregisterLocationTask,
-  isLocationTaskRegistered,
-  initializeSupplementNotifications,
-  saveSupplementReminderConfig,
-  removeSupplementReminderConfig,
-  getSupplementReminderConfigs,
-  markSupplementTakenToday,
-  scheduleTimeReminder,
-  cancelTimeReminder,
-  getDebugLogs,
-  clearDebugLogs,
-  triggerImmediateLocationCheck,
-  getBatterySettings,
-  saveBatterySettings,
-  BATTERY_PRESETS,
-};

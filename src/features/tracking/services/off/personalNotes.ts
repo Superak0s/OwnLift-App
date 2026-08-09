@@ -51,32 +51,10 @@ export const personalNotesApi = {
     return { success: true, data: note };
   },
 
-  updateNote: async (params: {
-    noteId: number;
-    content: string;
-  }): Promise<ApiResponse<PersonalMuscleNote>> => {
-    const note = MOCK_NOTES.find((n) => n.id === params.noteId);
-    if (!note) throw new Error("Note not found");
-    note.content = params.content;
-    note.updatedAt = new Date().toISOString();
-    return { success: true, data: note };
-  },
-
-  getAllNotes: async (): Promise<ApiResponse<PersonalMuscleNote[]>> => {
-    return { success: true, data: [...MOCK_NOTES] };
-  },
-
   getNotesByMuscle: async (
     muscleGroup: MuscleGroup,
   ): Promise<ApiResponse<PersonalMuscleNote[]>> => {
     const notes = MOCK_NOTES.filter((n) => n.muscleGroup === muscleGroup);
     return { success: true, data: notes };
-  },
-
-  deleteNote: async (noteId: number): Promise<ApiResponse<{ success: boolean }>> => {
-    const index = MOCK_NOTES.findIndex((n) => n.id === noteId);
-    if (index === -1) throw new Error("Note not found");
-    MOCK_NOTES.splice(index, 1);
-    return { success: true, data: { success: true } };
   },
 };

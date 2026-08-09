@@ -10,7 +10,6 @@ module.exports = function (api) {
           alias: {
             "@features": "./src/features",
             "@shared": "./src/shared",
-            "@models": "./src/types",
             "@utils": "./src/utils",
           },
         },

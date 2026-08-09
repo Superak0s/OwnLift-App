@@ -8,7 +8,6 @@
     "paths": {
       "@features/*": ["./src/features/*"],
       "@shared/*": ["./src/shared/*"],
-      "@models/*": ["./src/types/*"],
       "@utils/*": ["./src/utils/*"]
     }
   },

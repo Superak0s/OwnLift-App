@@ -67,13 +67,6 @@ export const isSessionInactive = (
 }
 
 /**
- * Generate local session ID — now delegated to the shared generateId()
- * in utils/format.tsx for a single source of truth.
- */
-import { generateId } from "./format"
-export const generateLocalSessionId = (): string => generateId("local")
-
-/**
  * Check if session ID is local
  */
 export const isLocalSessionId = (

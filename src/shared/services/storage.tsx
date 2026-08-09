@@ -1,20 +1,20 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem, setStorageItem, removeStorageItem, removeStorageItems } from "@shared/services/sqliteStorage"
 
 /**
  * Storage Utilities
- * Handles all AsyncStorage operations with user-specific keys
+ * Handles all SQLite key-value operations with user-specific keys
  */
 
 /**
  * Get user-specific storage key
  */
-export const getUserKey = (key: string, userId: string | null): string => {
+export const getUserKey = (key: string, userId: string | null = null): string => {
   if (!userId) return key
   return `${key}_user_${userId}`
 }
 
 /**
- * Save data to AsyncStorage
+ * Save data to SQLite
  */
 export const saveToStorage = async (
   key: string,
@@ -25,7 +25,7 @@ export const saveToStorage = async (
     const storageKey = getUserKey(key, userId)
     const stringValue =
       typeof value === "string" ? value : JSON.stringify(value)
-    await AsyncStorage.setItem(storageKey, stringValue)
+    await setStorageItem(storageKey, stringValue)
     return true
   } catch (error) {
     console.error(`Error saving ${key}:`, error)
@@ -34,7 +34,7 @@ export const saveToStorage = async (
 }
 
 /**
- * Load data from AsyncStorage
+ * Load data from SQLite
  */
 export const loadFromStorage = async <T = unknown,>(
   key: string,
@@ -43,7 +43,7 @@ export const loadFromStorage = async <T = unknown,>(
 ): Promise<T | null> => {
   try {
     const storageKey = getUserKey(key, userId)
-    const value = await AsyncStorage.getItem(storageKey)
+    const value = await getStorageItem(storageKey)
 
     if (!value) return null
 
@@ -55,7 +55,7 @@ export const loadFromStorage = async <T = unknown,>(
 }
 
 /**
- * Remove data from AsyncStorage
+ * Remove data from SQLite
  */
 export const removeFromStorage = async (
   key: string,
@@ -63,7 +63,7 @@ export const removeFromStorage = async (
 ): Promise<boolean> => {
   try {
     const storageKey = getUserKey(key, userId)
-    await AsyncStorage.removeItem(storageKey)
+    await removeStorageItem(storageKey)
     return true
   } catch (error) {
     console.error(`Error removing ${key}:`, error)
@@ -72,7 +72,7 @@ export const removeFromStorage = async (
 }
 
 /**
- * Remove multiple items from AsyncStorage
+ * Remove multiple items from SQLite
  */
 export const removeMultipleFromStorage = async (
   keys: string[],
@@ -80,7 +80,7 @@ export const removeMultipleFromStorage = async (
 ): Promise<boolean> => {
   try {
     const storageKeys = keys.map((key) => getUserKey(key, userId))
-    await AsyncStorage.multiRemove(storageKeys)
+    await removeStorageItems(storageKeys)
     return true
   } catch (error) {
     console.error("Error removing multiple items:", error)

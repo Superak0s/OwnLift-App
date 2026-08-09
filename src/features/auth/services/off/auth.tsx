@@ -1,12 +1,10 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
 import { tokenStorage } from "@shared/services/tokenStorage"
+import { generateId } from "@utils/format"
 import type { AuthResponse, AuthUser } from "../../types"
 
 const LOCAL_USER_KEY = "@offline_user"
 const LOCAL_USER_ID = "local"
-
-const generateLocalToken = (): string =>
-  `offline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 export const authService = {
   signup: async (
@@ -21,8 +19,8 @@ export const authService = {
       email,
       ...(name && { name }),
     }
-    await AsyncStorage.setItem(LOCAL_USER_KEY, JSON.stringify(user))
-    await tokenStorage.set(generateLocalToken())
+    await setStorageItem(LOCAL_USER_KEY, JSON.stringify(user))
+    await tokenStorage.set(generateId("offline"))
     return { success: true, token: "offline", user }
   },
 
@@ -36,8 +34,8 @@ export const authService = {
       username,
       email: "",
     }
-    await AsyncStorage.setItem(LOCAL_USER_KEY, JSON.stringify(user))
-    await tokenStorage.set(generateLocalToken())
+    await setStorageItem(LOCAL_USER_KEY, JSON.stringify(user))
+    await tokenStorage.set(generateId("offline"))
     return { success: true, token: "offline", user }
   },
 
@@ -54,13 +52,8 @@ export const authService = {
       email: "",
     }
     const updated: AuthUser = { ...existing, name, email }
-    await AsyncStorage.setItem(LOCAL_USER_KEY, JSON.stringify(updated))
+    await setStorageItem(LOCAL_USER_KEY, JSON.stringify(updated))
     return updated
-  },
-
-  /** Nothing to change offline — kept for interface parity. */
-  changePassword: async (): Promise<unknown> => {
-    return { success: true }
   },
 
   getToken: async (): Promise<string | null> => {
@@ -76,14 +69,14 @@ export const authService = {
   },
 
   getStoredUser: async (): Promise<AuthUser | null> => {
-    const userJson = await AsyncStorage.getItem(LOCAL_USER_KEY)
+    const userJson = await getStorageItem(LOCAL_USER_KEY)
     return userJson ? (JSON.parse(userJson) as AuthUser) : null
   },
 
   refreshToken: async (): Promise<string | null> => {
     const user = await authService.getStoredUser()
     if (!user) return null
-    const token = generateLocalToken()
+    const token = generateId("offline")
     await tokenStorage.set(token)
     return token
   },

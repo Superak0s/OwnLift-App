@@ -21,7 +21,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./src/shared/context/AuthContext";
 import { WorkoutProvider } from "./src/shared/context/WorkoutContext";
 import * as NavigationBar from "expo-navigation-bar";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getStorageItem } from "./src/shared/services/sqliteStorage";
 import { useAlert } from "./src/shared/components/CustomAlert";
 import { useTabBar, TabBarProvider } from "./src/shared/context/TabBarContext";
 import { VersionGuard } from "./src/shared/components/VersionGuard";
@@ -356,7 +356,7 @@ async function handleSupplementTimeReminderNotification(
   if (!supplementId) return;
 
   const configsKey = `supplementReminderConfigs_user_${userId}`;
-  const raw = await AsyncStorage.getItem(configsKey);
+  const raw = await getStorageItem(configsKey);
   if (!raw) return;
 
   const configs = JSON.parse(raw) as SupplementReminderConfig[];
@@ -485,7 +485,7 @@ function MainTabs() {
         const notificationsReady = await initializeSupplementNotifications();
         if (!notificationsReady) return;
         const configsKey = `supplementReminderConfigs_user_${user.id}`;
-        const raw = await AsyncStorage.getItem(configsKey);
+        const raw = await getStorageItem(configsKey);
         const configs = raw
           ? (JSON.parse(raw) as Array<{
               locationBasedReminder?: boolean;

@@ -6,10 +6,8 @@
 //   1. PhotosCalendar — calendar grid showing days you've taken photos
 //   2. PhotosGallery — recent photos grouped by day with quick capture
 //   3. PhotosComparison — side-by-side comparison of two dates
-//   4. PhotosMuscleNotes — photos with muscle group notes
-//   5. PhotosMuscleView — photos organized by muscle group
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -18,12 +16,16 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Animated,
+  Easing,
+  TextInput,
 } from "react-native";
 import { useTheme } from "@shared/context/ThemeContext";
 import { progressPhotoApi } from "../services";
 import { ProgressPhotoMuscle, MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 import { STORAGE_KEYS } from "@shared/services/storage";
 import { LogProgressPhotoModal } from "../components/LogProgressPhotoModal";
+import ModalSheet from "@shared/components/ModalSheet";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
 // ─── Photos tab widget types ────────────────────────────────────────────────
@@ -31,9 +33,7 @@ import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 export type PhotosWidgetType =
   | "photos_calendar"
   | "photos_gallery"
-  | "photos_comparison"
-  | "photos_muscle_notes"
-  | "photos_muscle_view";
+  | "photos_comparison";
 
 export const PHOTOS_WIDGET_REGISTRY: Record<
   PhotosWidgetType,
@@ -66,24 +66,6 @@ export const PHOTOS_WIDGET_REGISTRY: Record<
     defaultSize: "large",
     singleton: true,
   },
-  photos_muscle_notes: {
-    type: "photos_muscle_notes",
-    title: "Photo Notes",
-    description: "Browse photos with muscle group notes",
-    icon: "📝",
-    availableSizes: ["medium", "large"],
-    defaultSize: "large",
-    singleton: true,
-  },
-  photos_muscle_view: {
-    type: "photos_muscle_view",
-    title: "Photos by Muscle",
-    description: "View photos organized by muscle group",
-    icon: "💪",
-    availableSizes: ["medium", "large"],
-    defaultSize: "large",
-    singleton: true,
-  },
 };
 
 export const DEFAULT_PHOTOS_WIDGETS: WidgetInstance<PhotosWidgetType>[] = [
@@ -103,6 +85,11 @@ export const DEFAULT_PHOTOS_WIDGETS: WidgetInstance<PhotosWidgetType>[] = [
 
 export const PHOTOS_WIDGETS_STORAGE_KEY = STORAGE_KEYS.PHOTOS_TAB_WIDGETS;
 
+function getAngleLabel(photo: ProgressPhotoMuscle): string {
+  if (photo.angle === "custom" && photo.customSideName?.trim()) return photo.customSideName;
+  return photo.angle ?? "";
+}
+
 // ─── Widget Components ──────────────────────────────────────────────────────
 
 // ─── Widget: Photos Calendar ────────────────────────────────────────────────
@@ -111,6 +98,7 @@ export function PhotosCalendarWidget() {
   const { colors } = useTheme();
   const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -127,14 +115,18 @@ export function PhotosCalendarWidget() {
     refresh();
   }, [refresh]);
 
-  const photoDates = useMemo(() => {
-    const dateMap = new Map<string, number>();
+  const photosByDate = useMemo(() => {
+    const map = new Map<string, ProgressPhotoMuscle[]>();
     for (const photo of photos) {
       const dateKey = new Date(photo.takenAt ?? photo.taken_at ?? photo.createdAt ?? new Date()).toISOString().split("T")[0];
-      dateMap.set(dateKey, (dateMap.get(dateKey) ?? 0) + 1);
+      const list = map.get(dateKey) ?? [];
+      list.push(photo);
+      map.set(dateKey, list);
     }
-    return dateMap;
+    return map;
   }, [photos]);
+
+  const photoDates = photosByDate;
 
   if (loading) {
     return (
@@ -154,30 +146,134 @@ export function PhotosCalendarWidget() {
           No photos taken yet. Take your first progress photo!
         </Text>
       ) : (
-        Array.from(photoDates.entries()).map(([date, count]) => (
-          <TouchableOpacity
-            key={date}
-            style={[styles.dateRow, { backgroundColor: colors.surface, borderColor: colors.inputBorder }]}
-          >
-            <View style={styles.dateInfo}>
-              <Text style={[styles.dateText, { color: colors.textPrimary }]}>
-                {new Date(date).toLocaleDateString("en-US", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </Text>
-              <Text style={[styles.photoCount, { color: colors.textSecondary }]}>
-                {count} photo{count > 1 ? "s" : ""}
-              </Text>
+        Array.from(photoDates.entries()).map(([date, dayPhotos]) => {
+          const isExpanded = expandedDate === date;
+          return (
+            <View key={date}>
+              <TouchableOpacity
+                style={[styles.dateRow, { backgroundColor: colors.surface, borderColor: colors.inputBorder }]}
+                onPress={() => setExpandedDate(isExpanded ? null : date)}
+              >
+                <View style={styles.dateInfo}>
+                  <Text style={[styles.dateText, { color: colors.textPrimary }]}>
+                    {new Date(date).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Text>
+                  <Text style={[styles.photoCount, { color: colors.textSecondary }]}>
+                    {dayPhotos.length} photo{dayPhotos.length > 1 ? "s" : ""}
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>{isExpanded ? "⌄" : "›"}</Text>
+              </TouchableOpacity>
+              {isExpanded && (
+                <View style={styles.photoGrid}>
+                  {dayPhotos.map((photo) => (
+                    <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
+                      <Image source={{ uri: photo.uri }} style={styles.photoImage} resizeMode="cover" />
+                      <View style={styles.photoInfo}>
+                        <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
+                          {getAngleLabel(photo)}
+                        </Text>
+                        {photo.muscleGroups && photo.muscleGroups.length > 0 && (
+                          <Text style={[styles.photoMuscles, { color: colors.accent }]}>
+                            {photo.muscleGroups.map(m => MUSCLE_GROUP_LABELS[m]?.split(" ")[0] ?? m).slice(0, 3).join(", ")}
+                          </Text>
+                        )}
+                        {photo.notes && photo.notes.trim().length > 0 && (
+                          <Text style={[styles.notePhotoMuscles, { color: colors.textPrimary }]}>
+                            {photo.notes}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
-            <Text style={styles.chevron}>›</Text>
-          </TouchableOpacity>
-        ))
+          );
+        })
       )}
     </ScrollView>
   );
 }
+
+// ─── Upload progress bar ─────────────────────────────────────────────────────
+// Neither transport gives real byte-acked progress events (off-mode is a
+// single local file copy, on-mode's photo endpoint takes no upload body at
+// all — see progressPhotoApi.uploadPhoto), so there's nothing to sample
+// mid-transfer. Width and MB/s are estimated from elapsed time against the
+// known file size (an asymptotic ramp that never quite reaches 100% until
+// the call actually resolves), which reads as genuine progress without
+// claiming a precision the transport can't back up.
+// ponytail: estimated, not sampled — swap for real progress events if/when
+// the server gets an endpoint that actually streams the photo bytes.
+
+export interface UploadProgressState {
+  status: "uploading" | "success" | "error";
+  progress: number; // 0..1
+  speedMBps: number;
+}
+
+function UploadProgressBar({ state }: { readonly state: UploadProgressState }) {
+  const { colors } = useTheme();
+  const widthAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(widthAnim, {
+      toValue: state.progress,
+      duration: 200,
+      easing: Easing.out(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  }, [state.progress, widthAnim]);
+
+  const barColor = state.status === "error" ? "#FF6B6B" : colors.accent;
+
+  return (
+    <View style={uploadBarStyles.container}>
+      <View style={[uploadBarStyles.track, { backgroundColor: colors.surface }]}>
+        <Animated.View
+          style={[
+            uploadBarStyles.fill,
+            {
+              backgroundColor: barColor,
+              width: widthAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+            },
+          ]}
+        />
+      </View>
+      <Text style={[uploadBarStyles.speedText, { color: colors.textSecondary }]}>
+        {state.status === "uploading"
+          ? state.speedMBps > 0 ? `Uploading… ${state.speedMBps.toFixed(1)} MB/s` : "Uploading…"
+          : state.status === "success"
+            ? state.speedMBps > 0 ? `Uploaded · ${state.speedMBps.toFixed(1)} MB/s` : "Uploaded"
+            : "Upload failed"}
+      </Text>
+    </View>
+  );
+}
+
+const uploadBarStyles = StyleSheet.create({
+  container: {
+    marginBottom: 12,
+  },
+  track: {
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  fill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  speedText: {
+    fontSize: 11,
+    marginTop: 4,
+  },
+});
 
 // ─── Widget: Photos Gallery ─────────────────────────────────────────────────
 
@@ -186,6 +282,50 @@ export function PhotosGalleryWidget() {
   const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadState, setUploadState] = useState<UploadProgressState | null>(null);
+  const [visibleCount, setVisibleCount] = useState(4);
+  const uploadStartRef = useRef({ startedAt: 0, totalBytes: 0 });
+  const uploadTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const RAMP_TAU_SEC = 2.5;
+  const MAX_ESTIMATED_PROGRESS = 0.92;
+  const HOLD_AFTER_DONE_MS = 5000;
+
+  const handleUploadStart = useCallback((totalBytes: number) => {
+    if (uploadTickRef.current) clearInterval(uploadTickRef.current);
+    if (uploadHideRef.current) clearTimeout(uploadHideRef.current);
+    uploadStartRef.current = { startedAt: Date.now(), totalBytes };
+    setUploadState({ status: "uploading", progress: 0, speedMBps: 0 });
+
+    uploadTickRef.current = setInterval(() => {
+      const { startedAt, totalBytes: bytes } = uploadStartRef.current;
+      const elapsedSec = (Date.now() - startedAt) / 1000;
+      const progress = MAX_ESTIMATED_PROGRESS * (1 - Math.exp(-elapsedSec / RAMP_TAU_SEC));
+      const speedMBps = elapsedSec > 0 ? (progress * bytes) / (1024 * 1024) / elapsedSec : 0;
+      setUploadState({ status: "uploading", progress, speedMBps });
+    }, 200);
+  }, []);
+
+  const handleUploadEnd = useCallback((success: boolean) => {
+    if (uploadTickRef.current) {
+      clearInterval(uploadTickRef.current);
+      uploadTickRef.current = null;
+    }
+    const { startedAt, totalBytes } = uploadStartRef.current;
+    const elapsedSec = Math.max((Date.now() - startedAt) / 1000, 0.05);
+    const speedMBps = totalBytes / (1024 * 1024) / elapsedSec;
+    setUploadState({ status: success ? "success" : "error", progress: 1, speedMBps });
+
+    uploadHideRef.current = setTimeout(() => setUploadState(null), HOLD_AFTER_DONE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (uploadTickRef.current) clearInterval(uploadTickRef.current);
+      if (uploadHideRef.current) clearTimeout(uploadHideRef.current);
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -202,16 +342,24 @@ export function PhotosGalleryWidget() {
     refresh();
   }, [refresh]);
 
+  const sortedPhotos = useMemo(
+    () =>
+      [...photos].sort((a, b) => new Date(b.takenAt ?? b.taken_at ?? b.createdAt ?? 0).getTime() - new Date(a.takenAt ?? a.taken_at ?? a.createdAt ?? 0).getTime()),
+    [photos]
+  );
+
+  const visiblePhotos = sortedPhotos.slice(0, visibleCount);
+
   const photosByDate = useMemo(() => {
     const map = new Map<string, ProgressPhotoMuscle[]>();
-    for (const photo of photos.sort((a, b) => new Date(b.takenAt ?? b.taken_at ?? b.createdAt ?? 0).getTime() - new Date(a.takenAt ?? a.taken_at ?? a.createdAt ?? 0).getTime())) {
+    for (const photo of visiblePhotos) {
       const dateKey = new Date(photo.takenAt ?? photo.taken_at ?? photo.createdAt ?? new Date()).toISOString().split("T")[0];
       const list = map.get(dateKey) ?? [];
       list.push(photo);
       map.set(dateKey, list);
     }
     return map;
-  }, [photos]);
+  }, [visiblePhotos]);
 
   if (loading) {
     return (
@@ -234,6 +382,7 @@ export function PhotosGalleryWidget() {
           <Text style={styles.captureButtonText}>📸 Capture</Text>
         </TouchableOpacity>
       </View>
+      {uploadState && <UploadProgressBar state={uploadState} />}
       {photos.length === 0 ? (
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
           No photos yet. Tap Capture to take your first progress photo!
@@ -258,7 +407,7 @@ export function PhotosGalleryWidget() {
                   />
                   <View style={styles.photoInfo}>
                     <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
-                      {photo.angle}
+                      {getAngleLabel(photo)}
                     </Text>
                     {photo.muscleGroups && photo.muscleGroups.length > 0 && (
                       <Text style={[styles.photoMuscles, { color: colors.accent }]}>
@@ -272,13 +421,24 @@ export function PhotosGalleryWidget() {
           </View>
         ))
       )}
+      {visibleCount < sortedPhotos.length && (
+        <TouchableOpacity
+          style={[styles.loadMoreButton, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.inputBorder }]}
+          onPress={() => setVisibleCount((c) => c + 4)}
+        >
+          <Text style={[styles.loadMoreText, { color: colors.textPrimary }]}>Load More</Text>
+        </TouchableOpacity>
+      )}
       <LogProgressPhotoModal
         visible={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onSuccess={() => {
           setShowUploadModal(false);
+          setVisibleCount(4);
           refresh();
         }}
+        onUploadStart={handleUploadStart}
+        onUploadEnd={handleUploadEnd}
       />
     </ScrollView>
   );
@@ -288,10 +448,36 @@ export function PhotosGalleryWidget() {
 
 export function PhotosComparisonWidget() {
   const { colors } = useTheme();
+  const [showModal, setShowModal] = useState(false);
+
+  return (
+    <View style={styles.comparisonLauncher}>
+      <Text style={[styles.widgetTitle, { color: colors.textPrimary }]}>
+        Side-by-Side Comparison
+      </Text>
+      <Text style={[styles.hintText, { color: colors.textSecondary }]}>
+        Filter and compare two progress photos from different dates.
+      </Text>
+      <TouchableOpacity
+        style={[styles.captureButton, { backgroundColor: colors.accent, alignSelf: "flex-start" }]}
+        onPress={() => setShowModal(true)}
+      >
+        <Text style={styles.captureButtonText}>🔄 Open Comparison</Text>
+      </TouchableOpacity>
+      <PhotosComparisonModal visible={showModal} onClose={() => setShowModal(false)} />
+    </View>
+  );
+}
+
+function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean; readonly onClose: () => void }) {
+  const { colors } = useTheme();
   const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate1, setSelectedDate1] = useState<string | null>(null);
   const [selectedDate2, setSelectedDate2] = useState<string | null>(null);
+  const [muscleFilter, setMuscleFilter] = useState<string | null>(null);
+  const [muscleSearch, setMuscleSearch] = useState("");
+  const [rangeFilter, setRangeFilter] = useState<"all" | "7" | "30" | "90">("all");
 
   const refresh = useCallback(async () => {
     try {
@@ -305,264 +491,206 @@ export function PhotosComparisonWidget() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (visible) refresh();
+  }, [visible, refresh]);
+
+  const availableMuscles = useMemo(() => {
+    const set = new Set<string>();
+    for (const photo of photos) {
+      for (const m of photo.muscleGroups ?? []) set.add(m);
+    }
+    return Array.from(set);
+  }, [photos]);
+
+  const filteredMuscleOptions = useMemo(() => {
+    const query = muscleSearch.trim().toLowerCase();
+    if (!query) return availableMuscles;
+    return availableMuscles.filter((muscle) =>
+      (MUSCLE_GROUP_LABELS[muscle as keyof typeof MUSCLE_GROUP_LABELS] ?? muscle).toLowerCase().includes(query)
+    );
+  }, [availableMuscles, muscleSearch]);
+
+  const filteredPhotos = useMemo(() => {
+    const cutoffMs = rangeFilter === "all" ? null : Date.now() - Number(rangeFilter) * 24 * 60 * 60 * 1000;
+    return photos.filter((p) => {
+      if (muscleFilter && !p.muscleGroups?.includes(muscleFilter as any)) return false;
+      if (cutoffMs !== null) {
+        const t = new Date(p.takenAt ?? p.taken_at ?? p.createdAt ?? 0).getTime();
+        if (t < cutoffMs) return false;
+      }
+      return true;
+    });
+  }, [photos, muscleFilter, rangeFilter]);
 
   const availableDates = useMemo(() => {
     const dateMap = new Map<string, ProgressPhotoMuscle[]>();
-    for (const photo of photos.sort((a, b) => new Date(b.takenAt ?? b.taken_at ?? b.createdAt ?? 0).getTime() - new Date(a.takenAt ?? a.taken_at ?? a.createdAt ?? 0).getTime())) {
+    for (const photo of filteredPhotos.sort((a, b) => new Date(b.takenAt ?? b.taken_at ?? b.createdAt ?? 0).getTime() - new Date(a.takenAt ?? a.taken_at ?? a.createdAt ?? 0).getTime())) {
       const dateKey = new Date(photo.takenAt ?? photo.taken_at ?? photo.createdAt ?? new Date()).toISOString().split("T")[0];
       const list = dateMap.get(dateKey) ?? [];
       list.push(photo);
       dateMap.set(dateKey, list);
     }
     return Array.from(dateMap.entries());
-  }, [photos]);
+  }, [filteredPhotos]);
 
   const photosForDate1 = useMemo(() => {
     if (!selectedDate1) return [];
-    return photos.filter(p => new Date(p.takenAt ?? p.taken_at ?? p.createdAt ?? new Date()).toISOString().split("T")[0] === selectedDate1);
-  }, [photos, selectedDate1]);
+    return filteredPhotos.filter(p => new Date(p.takenAt ?? p.taken_at ?? p.createdAt ?? new Date()).toISOString().split("T")[0] === selectedDate1);
+  }, [filteredPhotos, selectedDate1]);
 
   const photosForDate2 = useMemo(() => {
     if (!selectedDate2) return [];
-    return photos.filter(p => new Date(p.takenAt ?? p.taken_at ?? p.createdAt ?? new Date()).toISOString().split("T")[0] === selectedDate2);
-  }, [photos, selectedDate2]);
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
-  }
+    return filteredPhotos.filter(p => new Date(p.takenAt ?? p.taken_at ?? p.createdAt ?? new Date()).toISOString().split("T")[0] === selectedDate2);
+  }, [filteredPhotos, selectedDate2]);
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.widgetTitle, { color: colors.textPrimary }]}>
-        Side-by-Side Comparison
-      </Text>
-      <View style={styles.dateSelectors}>
-        <Text style={[styles.selectorLabel, { color: colors.textSecondary }]}>
-          Select two dates to compare:
-        </Text>
-        <View style={styles.dateSelectRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
-            {availableDates.map(([date]) => (
+    <ModalSheet
+      visible={visible}
+      title="Side-by-Side Comparison"
+      onClose={onClose}
+      showCancelButton={false}
+      showConfirmButton={false}
+      scrollable
+      fullHeight
+    >
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      ) : (
+        <>
+          <Text style={[styles.selectorLabel, { color: colors.textSecondary }]}>
+            Filters
+          </Text>
+          <View style={styles.filterRow}>
+            {(["all", "7", "30", "90"] as const).map((range) => (
               <TouchableOpacity
-                key={date}
+                key={range}
                 style={[
-                  styles.datePill,
-                  {
-                    backgroundColor: selectedDate1 === date || selectedDate2 === date ? colors.accent : colors.surface,
-                    borderColor: colors.inputBorder,
-                  },
+                  styles.filterPill,
+                  { backgroundColor: rangeFilter === range ? colors.accent : colors.surface, borderColor: colors.inputBorder },
                 ]}
-                onPress={() => {
-                  if (!selectedDate1) {
-                    setSelectedDate1(date);
-                  } else if (!selectedDate2) {
-                    setSelectedDate2(date);
-                  } else {
-                    setSelectedDate1(date);
-                    setSelectedDate2(null);
-                  }
-                }}
+                onPress={() => setRangeFilter(range)}
               >
-                <Text style={[
-                  styles.datePillText,
-                  { color: selectedDate1 === date || selectedDate2 === date ? "white" : colors.textPrimary },
-                ]}>
-                  {new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                <Text style={[styles.filterPillText, { color: rangeFilter === range ? "white" : colors.textPrimary }]}>
+                  {range === "all" ? "All time" : `${range}d`}
                 </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
-        </View>
-      </View>
-      {selectedDate1 && selectedDate2 ? (
-        <View style={styles.comparisonRow}>
-          <View style={styles.comparisonColumn}>
-            <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
-              {new Date(selectedDate1).toLocaleDateString()}
-            </Text>
-            {photosForDate1.map((photo) => (
-              <View key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]}>
-                <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
-                <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{photo.angle}</Text>
-              </View>
-            ))}
           </View>
-          <View style={styles.comparisonColumn}>
-            <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
-              {new Date(selectedDate2).toLocaleDateString()}
+          {availableMuscles.length > 0 && (
+            <>
+              <TextInput
+                style={[styles.muscleSearchInput, { backgroundColor: colors.surface, borderColor: colors.inputBorder, color: colors.textPrimary }]}
+                placeholder="Search muscle groups..."
+                placeholderTextColor={colors.textMuted ?? "#888"}
+                value={muscleSearch}
+                onChangeText={setMuscleSearch}
+              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterPill,
+                    { backgroundColor: !muscleFilter ? colors.accent : colors.surface, borderColor: colors.inputBorder },
+                  ]}
+                  onPress={() => setMuscleFilter(null)}
+                >
+                  <Text style={[styles.filterPillText, { color: !muscleFilter ? "white" : colors.textPrimary }]}>All muscles</Text>
+                </TouchableOpacity>
+                {filteredMuscleOptions.map((muscle) => (
+                  <TouchableOpacity
+                    key={muscle}
+                    style={[
+                      styles.filterPill,
+                      { backgroundColor: muscleFilter === muscle ? colors.accent : colors.surface, borderColor: colors.inputBorder },
+                    ]}
+                    onPress={() => setMuscleFilter(muscleFilter === muscle ? null : muscle)}
+                  >
+                    <Text style={[styles.filterPillText, { color: muscleFilter === muscle ? "white" : colors.textPrimary }]}>
+                      {MUSCLE_GROUP_LABELS[muscle as keyof typeof MUSCLE_GROUP_LABELS]?.split(" ")[0] ?? muscle}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
+          <View style={styles.dateSelectors}>
+            <Text style={[styles.selectorLabel, { color: colors.textSecondary }]}>
+              Select two dates to compare:
             </Text>
-            {photosForDate2.map((photo) => (
-              <View key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]}>
-                <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
-                <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{photo.angle}</Text>
-              </View>
-            ))}
+            <View style={styles.dateSelectRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
+                {availableDates.map(([date]) => (
+                  <TouchableOpacity
+                    key={date}
+                    style={[
+                      styles.datePill,
+                      {
+                        backgroundColor: selectedDate1 === date || selectedDate2 === date ? colors.accent : colors.surface,
+                        borderColor: colors.inputBorder,
+                      },
+                    ]}
+                    onPress={() => {
+                      if (!selectedDate1) {
+                        setSelectedDate1(date);
+                      } else if (!selectedDate2) {
+                        setSelectedDate2(date);
+                      } else {
+                        setSelectedDate1(date);
+                        setSelectedDate2(null);
+                      }
+                    }}
+                  >
+                    <Text style={[
+                      styles.datePillText,
+                      { color: selectedDate1 === date || selectedDate2 === date ? "white" : colors.textPrimary },
+                    ]}>
+                      {new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      ) : (
-        <Text style={[styles.hintText, { color: colors.textSecondary }]}>
-          {selectedDate1 ? "Select a second date to compare" : "Select two dates above to compare your progress"}
-        </Text>
-      )}
-    </ScrollView>
-  );
-}
-
-// ─── Widget: Photos Muscle Notes ────────────────────────────────────────────
-
-export function PhotosMuscleNotesWidget() {
-  const { colors } = useTheme();
-  const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const response = await progressPhotoApi.getAllPhotos();
-      setPhotos(Array.isArray(response?.data ?? response) ? (response?.data ?? response) : []);
-    } catch (error) {
-      console.error("Failed to load photos:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const photosWithNotes = useMemo(
-    () => photos.filter(p => p.notes && p.notes.trim().length > 0),
-    [photos]
-  );
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.widgetTitle, { color: colors.textPrimary }]}>
-        Photo Notes
-      </Text>
-      {photosWithNotes.length === 0 ? (
-        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          No photos with notes yet. Add notes when capturing photos to track your observations.
-        </Text>
-      ) : (
-        photosWithNotes.map((photo) => (
-          <View key={photo.id} style={[styles.notePhotoCard, { backgroundColor: colors.surface }]}>
-            <Image source={{ uri: photo.uri }} style={styles.notePhotoImage} resizeMode="cover" />
-            <View style={styles.notePhotoInfo}>
-              <Text style={[styles.notePhotoDate, { color: colors.textSecondary }]}>
-                {new Date(photo.takenAt ?? photo.taken_at ?? photo.createdAt ?? new Date()).toLocaleDateString()} · {photo.angle}
-              </Text>
-              <Text style={[styles.notePhotoText, { color: colors.textPrimary }]}>
-                {photo.notes}
-              </Text>
-              {photo.muscleGroups && photo.muscleGroups.length > 0 && (
-                <Text style={[styles.notePhotoMuscles, { color: colors.accent }]}>
-                  Muscles: {photo.muscleGroups.map(m => MUSCLE_GROUP_LABELS[m]?.split(" ")[0] ?? m).join(", ")}
+          {selectedDate1 && selectedDate2 ? (
+            <View style={styles.comparisonRow}>
+              <View style={styles.comparisonColumn}>
+                <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
+                  {new Date(selectedDate1).toLocaleDateString()}
                 </Text>
-              )}
+                {photosForDate1.map((photo) => (
+                  <View key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]}>
+                    <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
+                    <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
+                    {photo.notes && photo.notes.trim().length > 0 && (
+                      <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
+              <View style={styles.comparisonColumn}>
+                <Text style={[styles.comparisonDate, { color: colors.textSecondary }]}>
+                  {new Date(selectedDate2).toLocaleDateString()}
+                </Text>
+                {photosForDate2.map((photo) => (
+                  <View key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]}>
+                    <Image source={{ uri: photo.uri }} style={styles.comparisonImage} resizeMode="cover" />
+                    <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
+                    {photo.notes && photo.notes.trim().length > 0 && (
+                      <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
+                    )}
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
-        ))
-      )}
-    </ScrollView>
-  );
-}
-
-// ─── Widget: Photos Muscle View ─────────────────────────────────────────────
-
-export function PhotosMuscleViewWidget() {
-  const { colors } = useTheme();
-  const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const response = await progressPhotoApi.getAllPhotos();
-      setPhotos(Array.isArray(response?.data ?? response) ? (response?.data ?? response) : []);
-    } catch (error) {
-      console.error("Failed to load photos:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const photosByMuscle = useMemo(() => {
-    const map = new Map<string, ProgressPhotoMuscle[]>();
-    for (const photo of photos) {
-      if (photo.muscleGroups && photo.muscleGroups.length > 0) {
-        for (const muscle of photo.muscleGroups) {
-          const list = map.get(muscle) ?? [];
-          list.push(photo);
-          map.set(muscle, list);
-        }
-      }
-    }
-    return map;
-  }, [photos]);
-
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.widgetTitle, { color: colors.textPrimary }]}>
-        Photos by Muscle
-      </Text>
-      {photosByMuscle.size === 0 ? (
-        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-          No photos tagged with muscles yet. Tag muscles when capturing photos.
-        </Text>
-      ) : (
-        Array.from(photosByMuscle.entries()).map(([muscle, musclePhotos]) => (
-          <View key={muscle} style={styles.muscleGroup}>
-            <Text style={[styles.muscleGroupTitle, { color: colors.textPrimary }]}>
-              {MUSCLE_GROUP_LABELS[muscle as keyof typeof MUSCLE_GROUP_LABELS] ?? muscle}
-              <Text style={[styles.musclePhotoCount, { color: colors.textSecondary }]}>
-                {" "}
-                ({musclePhotos.length})
-              </Text>
+          ) : (
+            <Text style={[styles.hintText, { color: colors.textSecondary }]}>
+              {selectedDate1 ? "Select a second date to compare" : "Select two dates above to compare your progress"}
             </Text>
-            <View style={styles.photoGrid}>
-              {musclePhotos.slice(0, 4).map((photo) => (
-                <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
-                  <Image
-                    source={{ uri: photo.uri }}
-                    style={styles.photoImage}
-                    resizeMode="cover"
-                  />
-                  <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
-                    {new Date(photo.takenAt ?? photo.taken_at ?? photo.createdAt ?? new Date()).toLocaleDateString()}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        ))
+          )}
+        </>
       )}
-    </ScrollView>
+    </ModalSheet>
   );
 }
 
@@ -628,6 +756,16 @@ const styles = StyleSheet.create({
   photoGroup: {
     marginBottom: 24,
   },
+  loadMoreButton: {
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  loadMoreText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
   groupDate: {
     fontSize: 14,
     fontWeight: "600",
@@ -663,6 +801,29 @@ const styles = StyleSheet.create({
   photoMuscles: {
     fontSize: 10,
     marginTop: 2,
+  },
+  muscleSearchInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  filterRow: {
+    flexDirection: "row",
+    marginBottom: 12,
+  },
+  filterPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   dateSelectors: {
     marginBottom: 16,
@@ -720,51 +881,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
     padding: 4,
   },
+  comparisonNotes: {
+    fontSize: 12,
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
+  comparisonLauncher: {
+    padding: 16,
+  },
   hintText: {
     fontSize: 14,
     textAlign: "center",
     fontStyle: "italic",
   },
-  notePhotoCard: {
-    borderRadius: 10,
-    overflow: "hidden",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  notePhotoImage: {
-    width: "100%",
-    height: 150,
-  },
-  notePhotoInfo: {
-    padding: 10,
-  },
-  notePhotoDate: {
-    fontSize: 11,
-    marginBottom: 4,
-  },
-  notePhotoText: {
-    fontSize: 14,
-    lineHeight: 18,
-    marginBottom: 6,
-  },
   notePhotoMuscles: {
     fontSize: 11,
     fontStyle: "italic",
-  },
-  muscleGroup: {
-    marginBottom: 24,
-  },
-  muscleGroupTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  musclePhotoCount: {
-    fontSize: 14,
   },
 });
 

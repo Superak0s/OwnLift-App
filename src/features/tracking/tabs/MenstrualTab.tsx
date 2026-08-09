@@ -56,32 +56,33 @@ export const MENSTRUAL_WIDGET_REGISTRY: Record<
   },
 };
 
-export const DEFAULT_MENSTRUAL_WIDGETS: WidgetInstance<MenstrualWidgetType>[] = [
-  {
-    id: "default-menstrual-overview",
-    type: "menstrual_overview",
-    size: "medium",
-    order: 0,
-  },
-  {
-    id: "default-menstrual-calendar",
-    type: "menstrual_calendar",
-    size: "large",
-    order: 1,
-  },
-  {
-    id: "default-menstrual-cycle",
-    type: "menstrual_cycle",
-    size: "medium",
-    order: 2,
-  },
-  {
-    id: "default-menstrual-history",
-    type: "menstrual_history",
-    size: "medium",
-    order: 3,
-  },
-];
+export const DEFAULT_MENSTRUAL_WIDGETS: WidgetInstance<MenstrualWidgetType>[] =
+  [
+    {
+      id: "default-menstrual-overview",
+      type: "menstrual_overview",
+      size: "medium",
+      order: 0,
+    },
+    {
+      id: "default-menstrual-calendar",
+      type: "menstrual_calendar",
+      size: "large",
+      order: 1,
+    },
+    {
+      id: "default-menstrual-cycle",
+      type: "menstrual_cycle",
+      size: "medium",
+      order: 2,
+    },
+    {
+      id: "default-menstrual-history",
+      type: "menstrual_history",
+      size: "medium",
+      order: 3,
+    },
+  ];
 
 export const MENSTRUAL_WIDGETS_STORAGE_KEY = STORAGE_KEYS.MENSTRUAL_TAB_WIDGETS;
 
@@ -107,6 +108,7 @@ import {
 import { useTheme } from "@shared/context/ThemeContext";
 import ModalSheet from "@shared/components/ModalSheet";
 import { menstrualApi } from "../services";
+import { buildLocalISOForDate } from "../utils";
 
 export const FLOW_INTENSITY_OPTIONS = ["light", "moderate", "heavy"] as const;
 
@@ -130,9 +132,6 @@ export function LogCycleModal({
   onSuccess,
 }: LogCycleModalProps) {
   const { colors } = useTheme();
-  const [flowIntensity, setFlowIntensity] = useState<
-    "light" | "moderate" | "heavy"
-  >("moderate");
   const [settings, setSettings] = useState<{
     periodDays: number;
     cycleLengthDays: number;
@@ -142,17 +141,6 @@ export function LogCycleModal({
   const [error, setError] = useState<string>("");
 
   const styles = makeLogCycleStyles(colors);
-
-  const toLocalDateStr = (date: Date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
-
-  const buildLocalISOForDate = (date: Date, timeStr = "09:00") => {
-    return `${toLocalDateStr(date)}T${timeStr}:00`;
-  };
 
   useEffect(() => {
     if (visible) {
@@ -181,11 +169,10 @@ export function LogCycleModal({
 
       await menstrualApi.logMenstrualCycle(
         cycleStartIso,
-        flowIntensity,
+        "moderate",
         note ? [note] : undefined,
       );
 
-      setFlowIntensity("moderate");
       setNote("");
       onClose();
       onSuccess?.({});
@@ -207,12 +194,6 @@ export function LogCycleModal({
       scrollable
     >
       <ScrollView style={styles.content}>
-        <View style={[styles.section, styles.dateInfoBox]}>
-          <Text style={styles.sectionTitle}>Cycle Start Date</Text>
-          <Text style={styles.dateInfoText}>
-            {(prefillDate || new Date()).toLocaleDateString()}
-          </Text>
-        </View>
         {settings && (
           <View style={[styles.section, styles.infoBox]}>
             <Text style={styles.infoText}>
@@ -225,35 +206,6 @@ export function LogCycleModal({
             </Text>
           </View>
         )}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Initial Flow Intensity</Text>
-          <View style={styles.intensityGrid}>
-            {FLOW_INTENSITY_OPTIONS.map((intensity) => (
-              <TouchableOpacity
-                key={intensity}
-                style={[
-                  styles.intensityButton,
-                  flowIntensity === intensity && styles.intensityButtonActive,
-                ]}
-                onPress={() => setFlowIntensity(intensity)}
-              >
-                <Text
-                  style={[
-                    styles.intensityButtonText,
-                    flowIntensity === intensity &&
-                      styles.intensityButtonTextActive,
-                  ]}
-                >
-                  {FLOW_INTENSITY_LABELS[intensity]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={styles.intensityHint}>
-            You can adjust flow intensity for each day during your period
-          </Text>
-        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Note (optional)</Text>
@@ -277,7 +229,6 @@ export function LogCycleModal({
     </ModalSheet>
   );
 }
-
 const makeLogCycleStyles = (colors: any) =>
   StyleSheet.create({
     content: {
@@ -293,20 +244,6 @@ const makeLogCycleStyles = (colors: any) =>
       color: colors.textPrimary,
       marginBottom: 12,
     },
-    dateInfoBox: {
-      backgroundColor: "#eef2ff",
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: "#c7d2fe",
-      padding: 14,
-      marginBottom: 16,
-    },
-    dateInfoText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: "#3730a3",
-      marginTop: 4,
-    },
     infoBox: {
       backgroundColor: "#f3e8ff",
       borderRadius: 8,
@@ -321,38 +258,6 @@ const makeLogCycleStyles = (colors: any) =>
     },
     infoLabel: {
       fontWeight: "600",
-    },
-    intensityGrid: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    intensityButton: {
-      flex: 1,
-      paddingVertical: 12,
-      paddingHorizontal: 8,
-      borderRadius: 8,
-      backgroundColor: colors.background,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
-      alignItems: "center",
-    },
-    intensityButtonActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    intensityButtonText: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: colors.textPrimary,
-      textAlign: "center",
-    },
-    intensityButtonTextActive: {
-      color: "#fff",
-    },
-    intensityHint: {
-      fontSize: 12,
-      color: colors.textSecondary,
-      marginTop: 8,
     },
     noteInput: {
       borderWidth: 1,
@@ -376,7 +281,6 @@ const makeLogCycleStyles = (colors: any) =>
       fontSize: 14,
     },
   });
-
 // ─── Cycle Settings Widget ─────────────────────────────────────────────────────
 
 interface CycleSettingsWidgetProps {
@@ -466,7 +370,7 @@ export function CycleSettingsWidget({
                 onChangeText={(text) =>
                   setPeriodDays(Math.max(1, Number.parseInt(text, 10) || 1))
                 }
-                keyboardType="number-pad"
+                keyboardType='number-pad'
               />
               <TouchableOpacity
                 style={styles.button}
@@ -493,9 +397,11 @@ export function CycleSettingsWidget({
                 style={styles.input}
                 value={String(cycleLengthDays)}
                 onChangeText={(text) =>
-                  setCycleLengthDays(Math.max(20, Number.parseInt(text, 10) || 28))
+                  setCycleLengthDays(
+                    Math.max(20, Number.parseInt(text, 10) || 28),
+                  )
                 }
-                keyboardType="number-pad"
+                keyboardType='number-pad'
               />
               <TouchableOpacity
                 style={styles.button}
@@ -529,9 +435,7 @@ export function CycleSettingsWidget({
               onPress={() => setExpanded(false)}
               disabled={loading}
             >
-              <Text
-                style={[styles.actionButtonText, styles.cancelButtonText]}
-              >
+              <Text style={[styles.actionButtonText, styles.cancelButtonText]}>
                 Close
               </Text>
             </TouchableOpacity>

@@ -24,36 +24,9 @@ export const personalNotesApi = {
     }),
 
   /**
-   * Update an existing personal note
-   * PUT /api/tracking/personal-notes/:id
-   */
-  updateNote: async (params: {
-    noteId: number;
-    content: string;
-  }): Promise<ApiResponse<PersonalMuscleNote>> =>
-    apiCall(`/api/tracking/personal-notes/${params.noteId}`, {
-      method: "PUT",
-      body: JSON.stringify({ content: params.content }),
-    }),
-
-  /**
-   * Get all personal notes
-   * GET /api/tracking/personal-notes
-   */
-  getAllNotes: async (): Promise<ApiResponse<PersonalMuscleNote[]>> =>
-    apiCall(`/api/tracking/personal-notes`),
-
-  /**
    * Get notes for a specific muscle group
    * GET /api/tracking/personal-notes/muscle/:muscleGroup
    */
   getNotesByMuscle: async (muscleGroup: MuscleGroup): Promise<ApiResponse<PersonalMuscleNote[]>> =>
     apiCall(`/api/tracking/personal-notes/muscle/${muscleGroup}`),
-
-  /**
-   * Delete a personal note
-   * DELETE /api/tracking/personal-notes/:id
-   */
-  deleteNote: async (noteId: number): Promise<ApiResponse<{ success: boolean }>> =>
-    apiCall(`/api/tracking/personal-notes/${noteId}`, { method: "DELETE" }),
 };

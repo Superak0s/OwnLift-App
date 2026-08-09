@@ -83,7 +83,7 @@ export function useRealtimeSocket({
   const [connected, setConnected] = useState(false)
   const [authError, setAuthError] = useState(false)
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
-  const [isOffline, setIsOffline] = useState<boolean>(false)
+  const [isOffline, setIsOffline] = useState<boolean>(true)
 
   useEffect(() => {
     onMessageRef.current = onMessage
@@ -209,6 +209,7 @@ export function useRealtimeSocket({
 
   const send = useCallback(
     (data: WebSocketMessage) => {
+      if (offlineRef.current) return
       console.log("[WS_SEND]", data.type, data)
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify(data))

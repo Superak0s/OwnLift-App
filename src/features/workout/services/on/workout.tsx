@@ -42,20 +42,6 @@ export interface RenameExerciseResult {
 // ─── API ────────────────────────────────────────────────────────────────────
 
 export const workoutApi = {
-  uploadWorkoutFile: async (fileUri: string): Promise<unknown> => {
-    const { parseWorkoutFileClient } =
-      await import("../../../../utils/clientWorkoutParser") // adjust path
-    const weeklyPlan = await parseWorkoutFileClient(fileUri)
-    const originalFilename = fileUri.split("/").pop() ?? "workout"
-
-    const res = await authenticatedFetch("/api/program/upload", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weeklyPlan, originalFilename }),
-    })
-    return parseApiResponse(res)
-  },
-
   pickWorkoutFile: async (): Promise<string | null> => {
     const DocumentPicker = await import("expo-document-picker")
     const result = await DocumentPicker.getDocumentAsync({
@@ -72,32 +58,6 @@ export const workoutApi = {
     if (result.canceled) return null
     if (result.assets && result.assets.length > 0) return result.assets[0].uri
     return (result as any).uri || null
-  },
-
-  getPersonWeeklyPlan: async (
-    fileUri: string,
-    personName: string,
-  ): Promise<unknown> => {
-    const res = await authenticatedFetch(
-      `/api/workout/plan?person=${encodeURIComponent(personName)}`,
-      { method: "GET" },
-    )
-    return parseApiResponse(res)
-  },
-
-  getDayWorkout: async (
-    fileUri: string,
-    dayNumber: number,
-  ): Promise<unknown> => {
-    const res = await authenticatedFetch(`/api/workout/day/${dayNumber}`, {
-      method: "GET",
-    })
-    return parseApiResponse(res)
-  },
-
-  healthCheck: async (): Promise<unknown> => {
-    const res = await authenticatedFetch("/api/health", { method: "GET" })
-    return parseApiResponse(res)
   },
 
   startSession: async (
@@ -288,16 +248,6 @@ export const workoutApi = {
   clearDemoSessions: async (): Promise<unknown> => {
     const res = await authenticatedFetch("/api/sessions/demo", {
       method: "DELETE",
-    })
-    return parseApiResponse(res)
-  },
-
-  deleteAllSessions: async (): Promise<unknown> => {
-    // Server requires an explicit confirmation token in the body.
-    const res = await authenticatedFetch("/api/sessions", {
-      method: "DELETE",
-      body: JSON.stringify({ confirmDelete: "DELETE_ALL_SESSIONS" }),
-      headers: { "Content-Type": "application/json" },
     })
     return parseApiResponse(res)
   },

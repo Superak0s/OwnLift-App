@@ -127,17 +127,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshToken = useCallback(async (): Promise<boolean> => {
     try {
       // authService.refreshToken() should POST to your /auth/refresh endpoint
-      // and persist the new JWT in AsyncStorage.
-      // authService.refreshToken may not be defined if the server endpoint is absent;
-      // guard with a runtime check to avoid a TypeError.
-      const refreshFn = (authService as Record<string, unknown>)["refreshToken"]
-      if (typeof refreshFn !== "function") {
-        console.warn(
-          "⚠️ authService.refreshToken is not implemented — skipping",
-        )
-        return false
-      }
-      const newToken = await (refreshFn as () => Promise<string | null>)()
+      // and persist the new JWT in SQLite storage.
+      const newToken = await authService.refreshToken()
       if (newToken) {
         setAuthToken(newToken)
         console.log("✅ Token refreshed silently")

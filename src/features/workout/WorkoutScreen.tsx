@@ -53,7 +53,7 @@ import {
 import type { WidgetInstance } from "@shared/types";
 import type { SetDetail, SimilarityMatch, PartnerBannerProps } from "./types";
 
-import { getNotifications } from "@shared/services/notifications";
+import { getNotifications, scheduleNotification } from "@shared/services/notifications";
 
 // ─── Unit helpers ─────────────────────────────────────────────────────────────
 const LBS_TO_KG = 0.45359237;
@@ -871,12 +871,11 @@ export default function WorkoutScreen(): React.JSX.Element {
             if (!Notifications) return;
             const ready = await initializeSupplementNotifications();
             if (!ready) return;
-            await Notifications.scheduleNotificationAsync({
+            await scheduleNotification({
               content: {
                 title: `⏱️ Time to start your next set`,
                 body: `You've rested ${formatDuration(crt)}. Start your next set when ready.`,
                 data: { type: "rest_reminder" },
-                sound: true,
                 priority: Notifications.AndroidNotificationPriority.HIGH,
                 ...(Platform.OS === "android" && {
                   channelId: "supplement-reminders",

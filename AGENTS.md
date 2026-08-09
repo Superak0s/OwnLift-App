@@ -16,7 +16,7 @@ Android only — `ios/` is gitignored. `app.json` has iOS config but no iOS buil
 src/
   features/          # analytics, auth, friends, homescreen, plan, settings, supplements, tracking, workout
   shared/
-    components/      # reusable UI
+    components/      # CustomAlert, ModalSheet, ProgressChart, VersionGuard, widgets/
     context/         # AuthContext, WorkoutContext, ThemeContext, TabBarContext
     context/hooks/   # useJointSession, useProgramOperations, useRealtimeSocket, useServerSync,
                      # useSessionOperations, useSyncManager, useTwoFingerPull, useWidgets
@@ -32,7 +32,7 @@ plugins/             # Expo config plugins (withGradleTuning.js)
 
 ## Path aliases
 
-`@features/*`, `@shared/*`, `@models/*`, `@utils/*` — configured in `babel.config.js` and `tsconfig.json`.
+`@features/*`, `@shared/*`, `@utils/*` — configured in `babel.config.js` and `tsconfig.json`.
 
 `@app/*` exists only in `tsconfig.temp.json` (typecheck helper for tracking modals). `src/app/` does not exist.
 
@@ -47,6 +47,8 @@ Every service call routes through `dispatchProxy` to either `on/` (server) or `o
 Custom Expo plugin `plugins/withGradleTuning.js` injects aggressive Gradle JVM args during prebuild.
 
 ## Release builds
+
+`eas.json` defines three profiles: `development` (internal dev client), `preview` (APK), `production` (AAB).
 
 - **EAS:** `eas build --profile preview --platform android` (APK), `--profile production` (AAB)
 - **Local:** `npm run build:android:apk` or `npm run build:android:apk:clean` (uses `local-expo-build`)
@@ -68,3 +70,4 @@ Custom Expo plugin `plugins/withGradleTuning.js` injects aggressive Gradle JVM a
 - `expo-dev-client` is installed — dev builds require `eas build --profile development` or `expo run:android`, not Expo Go
 - `app-release.apk`, `release.bat`, `release.sh`, `sonarqube/`, `.scannerwork/`, `.sonarlint/` are gitignored but committed in repo history
 - `tsconfig.temp.json` is a typecheck-only config for tracking modals, not used at runtime
+- `eas.json` has `appVersionSource: "remote"` — version is managed on EAS, not in `app.json`

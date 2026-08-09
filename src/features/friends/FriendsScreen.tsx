@@ -2193,7 +2193,7 @@ export default function FriendsScreen(): React.JSX.Element {
   const loadData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadFriends(), loadPermissions(), loadStats()]);
+      await Promise.all([loadFriends(), loadPermissions()]);
     } catch (_error) {
       alert("Error", "Failed to load friends data", [{ text: "OK" }], "error");
     } finally {

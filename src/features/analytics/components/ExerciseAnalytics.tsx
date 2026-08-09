@@ -111,7 +111,6 @@ export default function ExerciseAnalytics({
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
   const isEmulator = !Device.isDevice;
 
-  // ─── Widgets ────────────────────────────────────────────────────────────
   const {
     widgets,
     isLoaded: widgetsLoaded,
@@ -189,7 +188,6 @@ export default function ExerciseAnalytics({
     [workoutData, selectedSplit],
   );
 
-  // Registers (or reuses) the map entry for an exercise and returns it.
   const getOrCreateExerciseMeta = (
     exercisesMap: Map<string, ExerciseMeta>,
     key: string,
@@ -795,7 +793,7 @@ export default function ExerciseAnalytics({
       <UniversalCalendar
         hasDataOnDate={hasSetsOnDate}
         onDatePress={handleDatePress}
-        initialView='week'
+        initialView='month'
         legendText={`Workout day for ${selectedExercise}`}
         dotColor={colors.success}
       />

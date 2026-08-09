@@ -196,18 +196,6 @@ export const findSimilarNames = (
 };
 
 /**
- * Find similar exercise names based on fuzzy matching
- * @deprecated Use findSimilarNames directly
- */
-export const findSimilarExercises = (
-  exerciseName: string,
-  allExercises: string[],
-  threshold: number = 0.6,
-  maxResults: number = 3,
-): SimilarityMatch[] =>
-  findSimilarNames(exerciseName, allExercises, threshold, maxResults);
-
-/**
  * Check if exercise name is a typo and suggest corrections.
  */
 export const checkForTypo = (

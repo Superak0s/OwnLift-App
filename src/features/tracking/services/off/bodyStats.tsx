@@ -1,34 +1,17 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
-import { calculateBodyFatPercentage } from "@utils/bodyFat"
 import * as FileSystem from "expo-file-system/legacy"
 import { generateId } from "@utils/format"
+import { compressImageForUpload } from "@utils/compressImage"
+import { createRecordStore } from "@shared/services/offlineHelpers"
 import type {
   BodyFatMeasurements,
   Gender,
-  HeightInput,
-  HeightUnit,
   WeightUnit,
 } from "../../types"
 
 const WEIGHT_KEY = "@off_body_weight_history"
-const HEIGHT_KEY = "@off_body_height_units"
 const BODYFAT_KEY = "@off_body_fat_history"
 const PHOTOS_KEY = "@off_body_photos"
 const PHOTOS_DIR = `${FileSystem.documentDirectory}progress-photos/`
-
-async function readList<T>(key: string): Promise<T[]> {
-  try {
-    const raw = await AsyncStorage.getItem(key)
-    return raw ? (JSON.parse(raw) as T[]) : []
-  } catch (error) {
-    console.error(`Error reading ${key}:`, error)
-    return []
-  }
-}
-
-async function writeList<T>(key: string, list: T[]): Promise<void> {
-  await AsyncStorage.setItem(key, JSON.stringify(list))
-}
 
 const lbsToKg = (lbs: number): number => lbs * 0.453592
 
@@ -39,12 +22,6 @@ interface WeightRecord {
   weight_kg: number
   note: string | null
   recorded_at: string
-}
-
-interface HeightRecord {
-  height_cm: number
-  height_unit: HeightUnit
-  weight_unit: WeightUnit
 }
 
 interface BodyFatRecord {
@@ -64,46 +41,28 @@ interface PhotoRecord {
   taken_at: string
 }
 
+const weightStore = createRecordStore<WeightRecord>(
+  "body_weight",
+  WEIGHT_KEY,
+  (r) => r.id,
+  (r) => r.recorded_at,
+)
+const bodyFatStore = createRecordStore<BodyFatRecord>(
+  "body_fat",
+  BODYFAT_KEY,
+  (r) => r.id,
+  (r) => r.calculated_at,
+)
+const photosStore = createRecordStore<PhotoRecord>(
+  "body_photos",
+  PHOTOS_KEY,
+  (r) => r.id,
+  (r) => r.taken_at,
+)
+
 // ── Body Weight ────────────────────────────────────────────────────────────
 
 export const bodyTrackingApi = {
-  /**
-   * Bundles everything this module has into one object, mirroring the
-   * shape of GET /api/body/snapshot as closely as possible from the
-   * client-visible field names. Adjust the top-level keys if your screens
-   * expect something different.
-   */
-  fetchTrackingSnapshot: async (): Promise<unknown> => {
-    try {
-      const [weights, height, bodyFat, photos] = await Promise.all([
-        readList<WeightRecord>(WEIGHT_KEY),
-        AsyncStorage.getItem(HEIGHT_KEY),
-        readList<BodyFatRecord>(BODYFAT_KEY),
-        readList<PhotoRecord>(PHOTOS_KEY),
-      ])
-      const sortedWeights = [...weights].sort(
-        (a, b) =>
-          new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime(),
-      )
-      const sortedBodyFat = [...bodyFat].sort(
-        (a, b) =>
-          new Date(b.calculated_at).getTime() -
-          new Date(a.calculated_at).getTime(),
-      )
-      return {
-        currentWeight: sortedWeights[0] || null,
-        weightHistory: sortedWeights,
-        heightAndUnits: height ? JSON.parse(height) : null,
-        latestBodyFat: sortedBodyFat[0] || null,
-        bodyFatHistory: sortedBodyFat,
-        photos,
-      }
-    } catch (error) {
-      console.error("Error building local tracking snapshot:", error)
-      throw error
-    }
-  },
-
   /**
    * Log a weight entry locally.
    */
@@ -121,9 +80,7 @@ export const bodyTrackingApi = {
         note,
         recorded_at: recordedAt || new Date().toISOString(),
       }
-      const history = await readList<WeightRecord>(WEIGHT_KEY)
-      history.push(entry)
-      await writeList(WEIGHT_KEY, history)
+      await weightStore.put(entry)
       return { success: true, entry }
     } catch (error) {
       console.error("Error logging weight locally:", error)
@@ -136,12 +93,8 @@ export const bodyTrackingApi = {
    */
   getWeightHistory: async (limit: number = 90): Promise<unknown> => {
     try {
-      const history = await readList<WeightRecord>(WEIGHT_KEY)
-      const sorted = [...history].sort(
-        (a, b) =>
-          new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime(),
-      )
-      return { entries: sorted.slice(0, limit) }
+      const entries = await weightStore.getRecent(limit)
+      return { entries }
     } catch (error) {
       console.error("Error getting local weight history:", error)
       throw error
@@ -153,9 +106,7 @@ export const bodyTrackingApi = {
    */
   deleteWeightEntry: async (id: number | string): Promise<unknown> => {
     try {
-      const history = await readList<WeightRecord>(WEIGHT_KEY)
-      const filtered = history.filter((entry) => entry.id !== String(id))
-      await writeList(WEIGHT_KEY, filtered)
+      await weightStore.remove(id)
       return { success: true }
     } catch (error) {
       console.error("Error deleting local weight entry:", error)
@@ -170,56 +121,10 @@ export const bodyTrackingApi = {
    */
   getCurrentWeight: async (): Promise<{ entry?: { weight_kg: number } }> => {
     try {
-      const history = await readList<WeightRecord>(WEIGHT_KEY)
-      if (!history.length) return {}
-      const sorted = [...history].sort(
-        (a, b) =>
-          new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime(),
-      )
-      return { entry: { weight_kg: sorted[0].weight_kg } }
+      const [latest] = await weightStore.getRecent(1)
+      return latest ? { entry: { weight_kg: latest.weight_kg } } : {}
     } catch (error) {
       console.error("Error getting local current weight:", error)
-      throw error
-    }
-  },
-
-  // ── Height & Unit Preferences ─────────────────────────────────────────────
-
-  saveHeightAndUnits: async (
-    height: HeightInput,
-    weightUnit: WeightUnit,
-  ): Promise<unknown> => {
-    try {
-      let heightCm: number
-      if (height.unit === "cm") {
-        heightCm = height.value
-      } else {
-        const totalInches = height.value * 12 + (height.inches || 0)
-        heightCm = totalInches * 2.54
-      }
-      const record: HeightRecord = {
-        height_cm: heightCm,
-        height_unit: height.unit,
-        weight_unit: weightUnit,
-      }
-      await AsyncStorage.setItem(HEIGHT_KEY, JSON.stringify(record))
-      return { success: true, ...record }
-    } catch (error) {
-      console.error("Error saving local height and units:", error)
-      throw error
-    }
-  },
-
-  getHeightAndUnits: async (): Promise<unknown> => {
-    try {
-      const raw = await AsyncStorage.getItem(HEIGHT_KEY)
-      // Match the server shape ({ height: {...} }) so callers like
-      // TrackingScreen (which read `.height`) work in offline mode too.
-      // Returning the bare record here meant the screen never picked up a
-      // saved height and kept showing "Set Your Height".
-      return { height: raw ? JSON.parse(raw) : null }
-    } catch (error) {
-      console.error("Error getting local height and units:", error)
       throw error
     }
   },
@@ -247,7 +152,8 @@ export const bodyTrackingApi = {
       const id = generateId()
       const extension = mimeType.includes("png") ? "png" : "jpg"
       const destUri = `${PHOTOS_DIR}${id}.${extension}`
-      await FileSystem.copyAsync({ from: localUri, to: destUri })
+      const compressedUri = await compressImageForUpload(localUri)
+      await FileSystem.copyAsync({ from: compressedUri, to: destUri })
 
       const takenAt = date ? `${date}T12:00:00` : new Date().toISOString()
       const record: PhotoRecord = {
@@ -257,9 +163,7 @@ export const bodyTrackingApi = {
         note,
         taken_at: takenAt,
       }
-      const photos = await readList<PhotoRecord>(PHOTOS_KEY)
-      photos.push(record)
-      await writeList(PHOTOS_KEY, photos)
+      await photosStore.put(record)
       return { success: true, photo: record }
     } catch (error) {
       console.error("Error saving local progress photo:", error)
@@ -267,56 +171,30 @@ export const bodyTrackingApi = {
     }
   },
 
-  getPhotoList: async (limit: number = 50): Promise<unknown> => {
+  /**
+   * List progress photos (most recent first), mirrors on/bodyStats.tsx shape.
+   */
+  getProgressPhotos: async (limit: number = 200): Promise<unknown> => {
     try {
-      const photos = await readList<PhotoRecord>(PHOTOS_KEY)
-      const sorted = [...photos].sort(
-        (a, b) =>
-          new Date(b.taken_at).getTime() - new Date(a.taken_at).getTime(),
-      )
-      return { photos: sorted.slice(0, limit) }
+      const photos = await photosStore.getRecent(limit)
+      return { success: true, photos }
     } catch (error) {
-      console.error("Error getting local photo list:", error)
+      console.error("Error getting local progress photos:", error)
       throw error
     }
   },
 
   /**
-   * In "on" mode this builds a server URL; in "off" mode the photo is
-   * already a local file, so this just looks up its on-device path.
-   * NOTE: this is now effectively async-backed data returned sync — since
-   * we can't await inside a sync function, this returns a `file://` guess
-   * based on id only if you keep the same directory/extension convention.
-   * Prefer `fetchPhotoAsUri` (below) in "off" mode, which reads the real
-   * stored path and is safe to call from an async context.
+   * Best-effort synchronous path — assumes .jpg, which is what
+   * uploadProgressPhoto defaults to.
    */
   getPhotoUrl: (id: number | string): string => {
-    // Best-effort synchronous path — assumes .jpg, which is what
-    // uploadProgressPhoto defaults to. Use fetchPhotoAsUri for a
-    // guaranteed-correct path/extension.
     return `${PHOTOS_DIR}${id}.jpg`
-  },
-
-  /**
-   * Returns the actual on-device file URI for a photo (RN's <Image> can
-   * render `file://` URIs directly — no base64 conversion needed offline).
-   */
-  fetchPhotoAsUri: async (id: number | string): Promise<string> => {
-    try {
-      const photos = await readList<PhotoRecord>(PHOTOS_KEY)
-      const photo = photos.find((p) => p.id === String(id))
-      if (!photo) throw new Error("Photo not found")
-      return photo.uri
-    } catch (error) {
-      console.error("Error reading local photo uri:", error)
-      throw error
-    }
   },
 
   deleteProgressPhoto: async (id: number | string): Promise<unknown> => {
     try {
-      const photos = await readList<PhotoRecord>(PHOTOS_KEY)
-      const photo = photos.find((p) => p.id === String(id))
+      const photo = await photosStore.getOne(id)
       if (photo) {
         await FileSystem.deleteAsync(photo.uri, { idempotent: true }).catch(
           () => {
@@ -324,8 +202,7 @@ export const bodyTrackingApi = {
           },
         )
       }
-      const filtered = photos.filter((p) => p.id !== String(id))
-      await writeList(PHOTOS_KEY, filtered)
+      await photosStore.remove(id)
       return { success: true }
     } catch (error) {
       console.error("Error deleting local progress photo:", error)
@@ -337,7 +214,7 @@ export const bodyTrackingApi = {
 /**
  * Helper function to get current body weight in kg, reading straight from
  * local storage. Kept for interface parity with services/on/bodyStats.tsx
- * (which falls back to AsyncStorage on network failure — here it's just
+ * (which falls back to local SQLite storage on network failure — here it's just
  * always the local path).
  */
 export const getCurrentBodyWeight = async (
@@ -378,9 +255,7 @@ export const bodyFatApi = {
         calculated_at: calculatedAt,
         method: "us_navy",
       }
-      const history = await readList<BodyFatRecord>(BODYFAT_KEY)
-      history.push(record)
-      await writeList(BODYFAT_KEY, history)
+      await bodyFatStore.put(record)
       return { success: true, entry: record }
     } catch (error) {
       console.error("Error logging local body fat:", error)
@@ -390,95 +265,21 @@ export const bodyFatApi = {
 
   getBodyFatHistory: async (limit: number = 90): Promise<unknown> => {
     try {
-      const history = await readList<BodyFatRecord>(BODYFAT_KEY)
-      const sorted = [...history].sort(
-        (a, b) =>
-          new Date(b.calculated_at).getTime() -
-          new Date(a.calculated_at).getTime(),
-      )
-      return { entries: sorted.slice(0, limit) }
+      const entries = await bodyFatStore.getRecent(limit)
+      return { entries }
     } catch (error) {
       console.error("Error getting local body fat history:", error)
       throw error
     }
   },
 
-  getLatestBodyFat: async (): Promise<unknown> => {
-    try {
-      const history = await readList<BodyFatRecord>(BODYFAT_KEY)
-      if (!history.length) return {}
-      const sorted = [...history].sort(
-        (a, b) =>
-          new Date(b.calculated_at).getTime() -
-          new Date(a.calculated_at).getTime(),
-      )
-      return { entry: sorted[0] }
-    } catch (error) {
-      console.error("Error getting local latest body fat:", error)
-      throw error
-    }
-  },
-
   deleteBodyFatEntry: async (id: number | string): Promise<unknown> => {
     try {
-      const history = await readList<BodyFatRecord>(BODYFAT_KEY)
-      const filtered = history.filter((entry) => entry.id !== String(id))
-      await writeList(BODYFAT_KEY, filtered)
+      await bodyFatStore.remove(id)
       return { success: true }
     } catch (error) {
       console.error("Error deleting local body fat entry:", error)
       throw error
     }
   },
-
-  /**
-   * Simple locally-computed trend: first-vs-last percentage and average
-   * change per week over the requested window. Your server's actual
-   * /trend endpoint may compute something more elaborate — treat this as
-   * a starting point and adjust to match whatever your trend screen reads.
-   */
-  getBodyFatTrend: async (days: number = 90): Promise<unknown> => {
-    try {
-      const history = await readList<BodyFatRecord>(BODYFAT_KEY)
-      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000
-      const inWindow = history
-        .filter((entry) => new Date(entry.calculated_at).getTime() >= cutoff)
-        .sort(
-          (a, b) =>
-            new Date(a.calculated_at).getTime() -
-            new Date(b.calculated_at).getTime(),
-        )
-
-      if (inWindow.length < 2) {
-        return { entries: inWindow, change: null, changePerWeek: null }
-      }
-
-      const first = inWindow[0]
-      const last = inWindow[inWindow.length - 1]
-      const change = parseFloat((last.percentage - first.percentage).toFixed(1))
-      const spanDays = Math.max(
-        1,
-        (new Date(last.calculated_at).getTime() -
-          new Date(first.calculated_at).getTime()) /
-          (24 * 60 * 60 * 1000),
-      )
-      const changePerWeek = parseFloat(((change / spanDays) * 7).toFixed(2))
-
-      return { entries: inWindow, change, changePerWeek }
-    } catch (error) {
-      console.error("Error computing local body fat trend:", error)
-      throw error
-    }
-  },
-
-  /**
-    * Pure math, delegated to shared utility.
-    */
-   calculateBodyFatPercentage: (
-     gender: Gender,
-     height: number,
-     waist: number,
-     neck: number,
-     hip: number | null = null,
-   ): number => calculateBodyFatPercentage(gender, height, waist, neck, hip),
 }

@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { useTheme } from "@shared/context/ThemeContext";
 import { progressPhotoApi } from "../services";
 import {
@@ -24,6 +25,10 @@ interface LogProgressPhotoModalProps {
   readonly visible: boolean;
   readonly onClose: () => void;
   readonly onSuccess: () => void;
+  /** Fired right as the modal closes and the background upload begins, with the file size in bytes. */
+  readonly onUploadStart?: (totalBytes: number) => void;
+  /** Fired when the background upload finishes. */
+  readonly onUploadEnd?: (success: boolean) => void;
 }
 
 const PHOTOSHOTS_ANGLE_OPTIONS = [
@@ -37,16 +42,20 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
   visible,
   onClose,
   onSuccess,
+  onUploadStart,
+  onUploadEnd,
 }) => {
   const { theme } = useTheme();
   const colors = theme.colors;
 
   const [step, setStep] = useState<"select" | "tag">("select");
   const [selectedUri, setSelectedUri] = useState<string | null>(null);
-  const [selectedMuscles, setSelectedMuscles] = useState<MuscleGroup[]>([]);
+  const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
+  const [customMuscleInput, setCustomMuscleInput] = useState("");
+  const [muscleSearch, setMuscleSearch] = useState("");
   const [selectedAngle, setSelectedAngle] = useState<"front" | "back" | "side" | "custom">("front");
+  const [customSideName, setCustomSideName] = useState("");
   const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   const scrollViewRef = useRef<ScrollView>(null);
@@ -57,9 +66,11 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
       setStep("select");
       setSelectedUri(null);
       setSelectedMuscles([]);
+      setCustomMuscleInput("");
+      setMuscleSearch("");
       setSelectedAngle("front");
+      setCustomSideName("");
       setNotes("");
-      setSubmitting(false);
       setCameraError(null);
     }
   }, [visible]);
@@ -79,7 +90,7 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
       }
 
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         quality: 0.8,
         allowsEditing: true,
         aspect: [3, 4],
@@ -110,7 +121,7 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         quality: 0.8,
         allowsEditing: true,
         aspect: [3, 4],
@@ -128,36 +139,57 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
   };
 
   // ─── Muscle tag toggle ──────────────────────────────────────────────
-  const toggleMuscle = (muscle: MuscleGroup) => {
+  const toggleMuscle = (muscle: string) => {
     setSelectedMuscles((prev) =>
       prev.includes(muscle) ? prev.filter((m) => m !== muscle) : [...prev, muscle]
     );
   };
 
+  const addCustomMuscle = () => {
+    const name = customMuscleInput.trim();
+    if (!name) return;
+    setSelectedMuscles((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    setCustomMuscleInput("");
+  };
+
+  const filteredMuscleGroups = MUSCLE_GROUPS.filter((muscle) =>
+    MUSCLE_GROUP_LABELS[muscle].toLowerCase().includes(muscleSearch.trim().toLowerCase())
+  );
+
   // ─── Submit handler ─────────────────────────────────────────────────
+  // Compression + upload/copy takes a while — close the modal right away
+  // and let it finish in the background instead of blocking the UI on it.
   const handleSubmit = async () => {
     if (!selectedUri) {
       Alert.alert("No Photo", "Please select a photo first.");
       return;
     }
 
-    setSubmitting(true);
-    try {
-      await progressPhotoApi.uploadPhoto({
-        uri: selectedUri,
-        muscleGroups: selectedMuscles,
-        notes: notes.trim() || undefined,
-        angle: selectedAngle,
-        takenAt: new Date().toISOString(),
+    const uploadParams = {
+      uri: selectedUri,
+      muscleGroups: selectedMuscles as MuscleGroup[],
+      notes: notes.trim() || undefined,
+      angle: selectedAngle,
+      customSideName: selectedAngle === "custom" ? customSideName.trim() || undefined : undefined,
+      takenAt: new Date().toISOString(),
+    };
+    const info = await FileSystem.getInfoAsync(selectedUri);
+    const totalBytes = info.exists && !info.isDirectory ? (info.size ?? 0) : 0;
+
+    onClose();
+    onUploadStart?.(totalBytes);
+
+    progressPhotoApi
+      .uploadPhoto(uploadParams)
+      .then(() => {
+        onSuccess();
+        onUploadEnd?.(true);
+      })
+      .catch((error) => {
+        console.error("Upload photo error:", error);
+        Alert.alert("Upload Failed", "Could not save your progress photo. Try again.");
+        onUploadEnd?.(false);
       });
-      onSuccess();
-      onClose();
-    } catch (error) {
-      Alert.alert("Upload Failed", "Could not save your progress photo. Try again.");
-      console.error("Upload photo error:", error);
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   // ─── Step 1: Image selection ────────────────────────────────────────
@@ -218,7 +250,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
       title="Tag Your Photo"
       onClose={onClose}
       confirmText="Save"
-      confirmDisabled={submitting}
       onConfirm={handleSubmit}
       cancelText="Cancel"
       scrollable
@@ -281,13 +312,30 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
           ))}
         </View>
 
+        {selectedAngle === "custom" && (
+          <TextInput
+            style={[tagStep.notesInput, { backgroundColor: colors.surface, borderColor: colors.inputBorder, color: colors.textPrimary, minHeight: undefined, marginTop: 4 }]}
+            placeholder="Name this side/angle (e.g., 3/4 turn)"
+            placeholderTextColor={colors.textMuted ?? "#888"}
+            value={customSideName}
+            onChangeText={setCustomSideName}
+          />
+        )}
+
         {/* Muscle Group Multi-Select */}
         <Text style={[tagStep.sectionLabel, { color: colors.textSecondary }]}>
           Muscle Groups ({selectedMuscles.length} selected)
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={tagStep.muscleScroll}>
+        <TextInput
+          style={[tagStep.muscleSearchInput, { backgroundColor: colors.surface, borderColor: colors.inputBorder, color: colors.textPrimary }]}
+          placeholder="Search muscle groups..."
+          placeholderTextColor={colors.textMuted ?? "#888"}
+          value={muscleSearch}
+          onChangeText={setMuscleSearch}
+        />
+        <ScrollView showsVerticalScrollIndicator={false} style={tagStep.muscleScroll}>
           <View style={tagStep.muscleGrid}>
-            {MUSCLE_GROUPS.map((muscle) => {
+            {filteredMuscleGroups.map((muscle) => {
               const isSelected = selectedMuscles.includes(muscle);
               return (
                 <TouchableOpacity
@@ -313,8 +361,38 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
                 </TouchableOpacity>
               );
             })}
+            {selectedMuscles
+              .filter((m) => !(MUSCLE_GROUPS as readonly string[]).includes(m))
+              .map((muscle) => (
+                <TouchableOpacity
+                  key={muscle}
+                  style={[
+                    tagStep.musclePill,
+                    { backgroundColor: colors.accent, borderWidth: 1, borderColor: colors.accent },
+                  ]}
+                  onPress={() => toggleMuscle(muscle)}
+                >
+                  <Text style={[tagStep.musclePillText, { color: "#fff" }]}>{muscle}</Text>
+                </TouchableOpacity>
+              ))}
           </View>
         </ScrollView>
+        <View style={tagStep.customMuscleRow}>
+          <TextInput
+            style={[tagStep.customMuscleInput, { backgroundColor: colors.surface, borderColor: colors.inputBorder, color: colors.textPrimary }]}
+            placeholder="Add a custom muscle group..."
+            placeholderTextColor={colors.textMuted ?? "#888"}
+            value={customMuscleInput}
+            onChangeText={setCustomMuscleInput}
+            onSubmitEditing={addCustomMuscle}
+          />
+          <TouchableOpacity
+            style={[tagStep.addMuscleBtn, { backgroundColor: colors.accent }]}
+            onPress={addCustomMuscle}
+          >
+            <Text style={tagStep.addMuscleBtnText}>Add</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Notes */}
         <Text style={[tagStep.sectionLabel, { color: colors.textSecondary }]}>
@@ -453,9 +531,41 @@ const tagStep = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  muscleSearchInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    marginBottom: 8,
+  },
   muscleScroll: {
-    maxHeight: 140,
+    maxHeight: 180,
     marginBottom: 4,
+  },
+  customMuscleRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  customMuscleInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+  },
+  addMuscleBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  addMuscleBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
   },
   muscleGrid: {
     flexDirection: "row",

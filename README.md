@@ -16,6 +16,12 @@ OwnLift is a fitness tracking app that puts you in control. Log your workouts, t
 - **Add exercises or extra sets on the fly** mid-workout, with fuzzy exercise-name matching so nothing gets duplicated.
 - **Day locking & weekly reset** — completed days lock until your week resets, keeping you on schedule (with manual unlock overrides when you need them).
 
+### 📋 Manage your plan
+
+- **Split templates** — choose from built-in split templates or create your own custom splits.
+- **Program export** — export your loaded program for backup or sharing.
+- **Strength level import** — import strength level data to inform your training.
+
 ### 📊 See your progress
 
 - **Per-exercise analytics** with charts for volume, weight, and rep trends over time.
@@ -24,15 +30,23 @@ OwnLift is a fitness tracking app that puts you in control. Log your workouts, t
 
 ### 📈 Track your body
 
-- **Widgetized dashboard** — every tracking tab is a customizable widget board. Add, remove, resize, and reorder widgets with a two-finger pull gesture or the "Edit Widgets" panel.
+- **Widgetized dashboard** — every screen has a customizable widget board. Add, remove, resize, and reorder widgets with a two-finger pull gesture or the "Edit Widgets" panel. Each screen maintains its own independent widget layout:
+  - **Home:** next workout, weekly progress, workout calendar, body weight trend, supplement reminders, recent PRs, workout streak, getting started guide
+  - **Analytics:** exercise selector, data toggles, last workout, workout history, weight/volume/reps progress
+  - **Workout:** day number, total sets, progress bar, session stats
+  - **Plan:** create split, import workout, default splits, program loaded, split selector
+  - **Friends:** friends list, pending/sent requests, contact/QR/user search
+  - **Tracking:** one widget per sub-tab (Weight, Body Fat, Macros, Hydration, Measurements, Photos, Soreness, Menstrual)
 - **Weight** — daily weigh-ins in your preferred unit (kg/lb).
 - **Progress photos** — capture and store photos privately to watch your transformation, with gallery view, side-by-side comparison, and muscle-group tagging.
 - **Macros** — log protein, carbs, fat, and calories against your goals.
 - **Body fat** — track body-fat measurements over time.
 - **Body measurements** — log waist, arms, chest, and custom body-part measurements.
 - **Hydration** — track daily water intake against a goal.
-- **Soreness & DOMS** — log muscle soreness with an interactive muscle map, heat map, follow-up tracking, and injury logging.
+- **Soreness & DOMS** — log muscle soreness with an interactive muscle map, DOMS heat map, follow-up tracking, muscle dashboard, and injury logging/tracking.
 - **Menstrual cycle** — log cycles, per-day flow intensity, symptoms, and predicted period windows with calendar decorations.
+- **Personal notes** — log freeform notes tied to dates.
+- **Custom body measurements** — define and track arbitrary body-part measurements (server mode only).
 - A universal calendar lets you jump to any date for any metric.
 
 ### 💊 Never miss a supplement
@@ -53,8 +67,8 @@ OwnLift is a fitness tracking app that puts you in control. Log your workouts, t
 
 ### 🎨 Make it yours
 
-- Multiple built-in themes (light, dark, and more), plus automatic light/dark switching.
-- **Create your own custom themes** and export/import them as JSON to share with friends.
+- 7 built-in themes (Light, Dark, Yellow, Red, Green, Blue, Pink), plus automatic light/dark switching.
+- **Create your own custom themes** with a full color editor and export/import them as JSON to share with friends.
 
 ---
 
@@ -83,12 +97,14 @@ Server mode is entirely optional. Use it only if you want to sync across devices
 - **UI/animation:** `react-native-reanimated`, `react-native-gesture-handler`, `expo-linear-gradient`, `react-native-pager-view`, `lucide-react-native`.
 - **Media/files:** `expo-camera`, `expo-image-picker`, `expo-document-picker`, `expo-sharing`, `expo-contacts`, `expo-crypto`, `xlsx`.
 - **Notifications/background:** `expo-notifications`, `expo-task-manager`, `expo-location`.
-- **Other:** `react-native-qrcode-svg`, `expo-updates` (OTA), `@react-native-community/datetimepicker`, `react-native-webview`, `react-native-worklets`.
+- **Device/system:** `expo-dev-client`, `expo-device`, `expo-constants`, `expo-linking`, `expo-navigation-bar`.
+- **Other:** `react-native-qrcode-svg`, `@react-native-community/datetimepicker`, `react-native-webview`, `react-native-worklets`, `react-native-screens`.
+- **Config-only (no source imports):** `expo-updates` (OTA), `expo-splash-screen`, `expo-system-ui`.
 
 ### Architecture
 
 - Feature-based layout under `src/features/<feature>/`, each with its screen, `types.ts`, and a `services/` folder split into **`on/`** (server) and **`off/`** (offline) implementations.
-- **App mode dispatch** (`src/shared/services/appMode.tsx` + `dispatchProxy.tsx`): every service call is routed to the `on/` or `off/` implementation at call time based on the current mode (persisted under `@app_mode`, default `on`). Switching modes takes effect immediately.
+- **App mode dispatch** (`src/shared/services/appMode.tsx` + `dispatchProxy.tsx`): every service call is routed to the `on/` or `off/` implementation at call time based on the current mode (persisted under `appMode`, default `online`). Switching modes takes effect immediately.
 - **Offline sync queue** (`src/shared/context/hooks/useSyncManager.tsx`): sessions started offline get `local_` IDs; on reconnect, queued `startSession` / `recordSet` / `endSession` operations are replayed and local IDs are remapped to server IDs. Failed ops stay queued.
 - **Auth** (server mode): JWT with silent refresh every ~55 min, tokens stored via `expo-secure-store`. Default server `https://ownlift.superak0s.com`, overridable in Settings (`@server_url`).
 - **Real-time:** a single persistent WebSocket (JWT-authenticated, exponential backoff) powers joint/watch sessions — server mode only.
@@ -111,8 +127,9 @@ Home · Workout · Plan · Progress (Analytics) · Track (Weight / Photos / Macr
 npm install --legacy-peer-deps
 npm start          # Expo dev server
 npm run android    # run on Android
-npm run ios        # run on iOS
 ```
+
+iOS is configured in `app.json` but not maintained — `ios/` is gitignored.
 
 ## Building a release
 
@@ -122,18 +139,18 @@ npm run ios        # run on iOS
 eas build --profile preview --platform android
 ```
 
-**Locally with Docker** (builds an Android release APK without EAS):
+**Locally** (requires `local-expo-build`):
 
 ```bash
-docker build -t ownlift-app .
-# APK is written to /output inside the image (see Dockerfile)
+npm run build:android:apk
+npm run build:android:apk:clean   # clean build
 ```
 
-Or use the provided `release.sh` / `release.bat` scripts.
+Or use the provided `release.sh` (Linux) / `release.bat` (Windows, Docker) scripts — both require a secrets file (`~/.ownlift-secrets` or `%USERPROFILE%\.ownlift-secrets.bat`).
 
 ### In-app updates
 
-On launch the app checks GitHub releases (`Superak0s/OwnLift-App`) and, when a newer `tag_name` than the installed version is found, prompts to download the latest `.apk`. Expo OTA updates are also enabled (`checkAutomatically: ON_LOAD`).
+Expo OTA updates are configured in `app.json` (`checkAutomatically: ON_LOAD`). A GitHub release checker exists in `App.tsx` but is currently disabled.
 
 ## App identity
 

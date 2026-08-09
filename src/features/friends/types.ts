@@ -57,15 +57,6 @@ export interface ReceivedProgram {
   programData: ProgramData
 }
 
-export interface SentProgram {
-  id: number | string
-  receiverId: number | string
-  receiverUsername: string
-  sharedAt: string
-  message: string | null
-  programData: ProgramData
-}
-
 export interface LiveData {
   start_time?: string
   day_number?: number

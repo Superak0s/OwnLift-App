@@ -1,15 +1,16 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
 
 export const APP_MODE_KEY = "appMode"
 export type AppMode = "online" | "offline"
 
 export const getAppMode = async (): Promise<AppMode> => {
-  const stored = await AsyncStorage.getItem(APP_MODE_KEY)
+  const stored = await getStorageItem(APP_MODE_KEY)
   return (stored as AppMode) || "online"
 }
 
 export const setAppMode = async (mode: AppMode): Promise<boolean> => {
-  await AsyncStorage.setItem(APP_MODE_KEY, mode)
+  await setStorageItem(APP_MODE_KEY, mode)
+  onAppModeChange.trigger(mode)
   return true
 }
 

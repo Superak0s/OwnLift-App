@@ -35,16 +35,6 @@ export const progressPhotoApi = {
     apiCall(`/api/tracking/progress-photos/muscle/${muscle}`),
 
   /**
-   * Get photos filtered by multiple muscle groups (photos tagged with ANY of the muscles)
-   * POST /api/tracking/progress-photos/filter
-   */
-  filterPhotos: async (muscleGroups: string[]): Promise<ApiResponse<ProgressPhotoMuscle[]>> =>
-    apiCall(`/api/tracking/progress-photos/filter`, {
-      method: "POST",
-      body: JSON.stringify({ muscleGroups }),
-    }),
-
-  /**
    * Get photos by date range
    * GET /api/tracking/progress-photos/range?start=YYYY-MM-DD&end=YYYY-MM-DD
    */
@@ -57,18 +47,4 @@ export const progressPhotoApi = {
    */
   deletePhoto: async (id: string | number): Promise<ApiResponse<null>> =>
     apiCall(`/api/tracking/progress-photos/${id}`, { method: "DELETE" }),
-
-  /**
-   * Update muscle tags on a photo
-   * PUT /api/tracking/progress-photos/:id/tags
-   */
-  updatePhotoTags: async (
-    id: string | number,
-    muscleGroups: string[],
-    notes?: string,
-  ): Promise<ApiResponse<ProgressPhotoMuscle>> =>
-    apiCall(`/api/tracking/progress-photos/${id}/tags`, {
-      method: "PUT",
-      body: JSON.stringify({ muscleGroups, notes }),
-    }),
 };

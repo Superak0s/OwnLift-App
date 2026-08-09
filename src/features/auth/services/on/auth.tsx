@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { getStorageItem, setStorageItem, removeStorageItem } from "@shared/services/sqliteStorage"
 import { getServerUrl } from "@shared/services/config"
 import { tokenStorage } from "@shared/services/tokenStorage"
 import { apiCall, parseApiResponse } from "@shared/services/apiClient"
@@ -43,7 +43,7 @@ export const authService = {
 
     if (data.success && data.token) {
       await tokenStorage.set(data.token)
-      await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user))
+      await setStorageItem(USER_KEY, JSON.stringify(data.user))
     }
 
     return data
@@ -65,7 +65,7 @@ export const authService = {
 
     if (data.success && data.token) {
       await tokenStorage.set(data.token)
-      await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user))
+      await setStorageItem(USER_KEY, JSON.stringify(data.user))
     }
 
     return data
@@ -89,22 +89,9 @@ export const authService = {
       method: "PUT",
       body: JSON.stringify({ name, email }),
     })
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user))
+    await setStorageItem(USER_KEY, JSON.stringify(data.user))
     return data.user
   },
-
-  /**
-   * Change password
-   * PUT /api/auth/password
-   */
-  changePassword: async (
-    currentPassword: string,
-    newPassword: string,
-  ): Promise<unknown> =>
-    apiCall(`/api/auth/password`, {
-      method: "PUT",
-      body: JSON.stringify({ currentPassword, newPassword }),
-    }),
 
   getToken: async (): Promise<string | null> => {
     return await tokenStorage.get()
@@ -143,11 +130,11 @@ export const authService = {
 
   logout: async (): Promise<void> => {
     await tokenStorage.clear()
-    await AsyncStorage.removeItem(USER_KEY)
+    await removeStorageItem(USER_KEY)
   },
 
   getStoredUser: async (): Promise<AuthUser | null> => {
-    const userJson = await AsyncStorage.getItem(USER_KEY)
+    const userJson = await getStorageItem(USER_KEY)
     return userJson ? (JSON.parse(userJson) as AuthUser) : null
   },
 }

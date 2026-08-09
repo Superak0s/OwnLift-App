@@ -1,5 +1,3 @@
-// src/features/analytics/widgets.ts
-
 import { STORAGE_KEYS } from "@shared/services/storage"
 import type { WidgetDefinition, WidgetInstance } from "@shared/types"
 

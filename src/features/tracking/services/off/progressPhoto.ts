@@ -1,109 +1,80 @@
 // features/tracking/services/off/progressPhoto.ts
 //
-// Progress Photo with muscle tagging API - Offline mode (mock data)
+// Progress Photo with muscle tagging API - Offline mode (persisted to local storage)
 
+import * as FileSystem from "expo-file-system/legacy"
+import { generateId } from "@utils/format"
+import { compressImageForUpload } from "@utils/compressImage"
+import { createRecordStore } from "@shared/services/offlineHelpers"
 import type {
   ProgressPhotoMuscle,
   LogProgressPhotoParams,
-} from "../../types/muscleRecovery";
-import type { ApiResponse } from "../types";
+} from "../../types/muscleRecovery"
+import type { ApiResponse } from "../types"
 
-const mockPhotos: ProgressPhotoMuscle[] = [
-  {
-    id: 1,
-    takenAt: new Date(Date.now() - 604800000).toISOString(),
-    uri: "file:///mock/photo1.jpg",
-    muscleGroups: ["chest_upper", "chest_lower", "shoulders_front", "biceps"],
-    notes: "Front pose after chest day",
-    angle: "front",
-  },
-  {
-    id: 2,
-    takenAt: new Date(Date.now() - 604800000).toISOString(),
-    uri: "file:///mock/photo2.jpg",
-    muscleGroups: ["back_upper", "lats", "shoulders_rear", "triceps"],
-    notes: "Back double bicep",
-    angle: "back",
-  },
-  {
-    id: 3,
-    takenAt: new Date(Date.now() - 1209600000).toISOString(),
-    uri: "file:///mock/photo3.jpg",
-    muscleGroups: ["quads", "calves", "abs_upper", "abs_lower"],
-    notes: "Side pose",
-    angle: "side",
-  },
-  {
-    id: 4,
-    takenAt: new Date(Date.now() - 2592000000).toISOString(),
-    uri: "file:///mock/photo4.jpg",
-    muscleGroups: ["chest_upper", "shoulders_side", "biceps"],
-    notes: "Front lat spread",
-    angle: "front",
-  },
-  {
-    id: 5,
-    takenAt: new Date(Date.now() - 4320000000).toISOString(),
-    uri: "file:///mock/photo5.jpg",
-    muscleGroups: ["glutes", "hamstrings", "quads", "calves"],
-    notes: "Full body back view",
-    angle: "back",
-  },
-];
+const PHOTOS_KEY = "@off_progress_photos_muscle"
+const PHOTOS_DIR = `${FileSystem.documentDirectory}progress-photos/`
 
-let localIdCounter = 100;
+const store = createRecordStore<ProgressPhotoMuscle>(
+  "progress_photos_muscle",
+  PHOTOS_KEY,
+  (p) => p.id,
+  (p) => p.takenAt ?? "",
+)
 
 export const progressPhotoApi = {
   uploadPhoto: async (params: LogProgressPhotoParams): Promise<ApiResponse<ProgressPhotoMuscle>> => {
+    await FileSystem.makeDirectoryAsync(PHOTOS_DIR, { intermediates: true }).catch(() => {
+      // already exists — fine
+    })
+
+    const id = generateId()
+    const extension = params.uri.toLowerCase().endsWith(".png") ? "png" : "jpg"
+    const destUri = `${PHOTOS_DIR}${id}.${extension}`
+    const compressedUri = await compressImageForUpload(params.uri)
+    await FileSystem.copyAsync({ from: compressedUri, to: destUri })
+
     const photo: ProgressPhotoMuscle = {
-      id: ++localIdCounter,
+      id,
       takenAt: params.takenAt || new Date().toISOString(),
-      uri: params.uri,
+      uri: destUri,
       muscleGroups: params.muscleGroups,
       notes: params.notes || undefined,
       angle: params.angle || "custom",
-    };
-    return { success: true, data: photo };
+      customSideName: params.customSideName || undefined,
+    }
+    await store.put(photo)
+    return { success: true, data: photo }
   },
 
-  getAllPhotos: async (_limit: number = 100): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
-    return { success: true, data: mockPhotos };
+  getAllPhotos: async (limit: number = 100): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
+    const data = await store.getRecent(limit)
+    return { success: true, data }
   },
 
   getPhotosByMuscle: async (muscle: string): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
-    const filtered = mockPhotos.filter((p) => p.muscleGroups?.includes(muscle as any));
-    return { success: true, data: filtered };
+    const photos = await store.getAll()
+    const filtered = photos.filter((p) => p.muscleGroups?.includes(muscle as any))
+    return { success: true, data: filtered }
   },
 
-  filterPhotos: async (muscleGroups: string[]): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
-    const filtered = mockPhotos.filter((p) =>
-      p.muscleGroups?.some((mg) => muscleGroups.includes(mg)),
-    );
-    return { success: true, data: filtered };
+  getPhotosInRange: async (start: string, end: string): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
+    const photos = await store.getSince(start)
+    const filtered = photos.filter((p) => {
+      const d = (p.takenAt ?? "").slice(0, 10)
+      return d <= end
+    })
+    return { success: true, data: filtered }
   },
 
-  getPhotosInRange: async (_start: string, _end: string): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
-    return { success: true, data: mockPhotos };
+  deletePhoto: async (id: string | number): Promise<ApiResponse<null>> => {
+    const photo = await store.getOne(id)
+    if (photo?.uri) {
+      await FileSystem.deleteAsync(photo.uri, { idempotent: true }).catch(() => {
+        // file already gone — fine
+      })
+    }
+    await store.remove(id)
+    return { success: true, data: null }
   },
-
-  deletePhoto: async (_id: string | number): Promise<ApiResponse<null>> => {
-    return { success: true, data: null };
-  },
-
-  updatePhotoTags: async (
-    id: string | number,
-    muscleGroups: string[],
-    notes?: string,
-  ): Promise<ApiResponse<ProgressPhotoMuscle>> => {
-    const photo = mockPhotos.find((p) => p.id === id);
-    if (!photo) throw new Error("Photo not found");
-    return {
-      success: true,
-      data: {
-        ...photo,
-        muscleGroups: muscleGroups as any,
-        notes: notes || photo.notes,
-      },
-    };
-  },
-};
+}

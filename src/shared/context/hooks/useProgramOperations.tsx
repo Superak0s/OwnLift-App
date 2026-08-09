@@ -48,7 +48,7 @@ export interface UseProgramOperationsReturn {
 
 /** Deep-clone WorkoutData so nested mutations never touch the original state. */
 function cloneWorkoutData(data: WorkoutData): WorkoutData {
-  return JSON.parse(JSON.stringify(data)) as WorkoutData
+  return structuredClone(data)
 }
 
 export const useProgramOperations = ({

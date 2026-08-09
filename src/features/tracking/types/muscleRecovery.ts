@@ -84,6 +84,7 @@ export interface ProgressPhotoMuscle {
   muscleGroups?: MuscleGroup[];
   notes?: string;
   angle?: "front" | "back" | "side" | "custom";
+  customSideName?: string;
   createdAt?: string;
 }
 
@@ -182,5 +183,6 @@ export interface LogProgressPhotoParams {
   muscleGroups: MuscleGroup[];
   notes?: string;
   angle?: "front" | "back" | "side" | "custom";
+  customSideName?: string;
   takenAt?: string;
 }

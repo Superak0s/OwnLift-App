@@ -33,20 +33,6 @@ export const bodyMeasurementsApi = {
     apiCall(`/api/tracking/measurements?limit=${limit}`),
 
   /**
-   * Get latest measurement
-   * GET /api/tracking/measurements/latest
-   */
-  getLatestMeasurement: async (): Promise<unknown> =>
-    apiCall(`/api/tracking/measurements/latest`),
-
-  /**
-   * Get measurement stats
-   * GET /api/tracking/measurements/stats?days=N
-   */
-  getMeasurementStats: async (days: number = 90): Promise<unknown> =>
-    apiCall(`/api/tracking/measurements/stats?days=${days}`),
-
-  /**
    * Delete measurement entry
    * DELETE /api/tracking/measurements/:id
    */

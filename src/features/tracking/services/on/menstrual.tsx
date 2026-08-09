@@ -23,33 +23,11 @@ export const menstrualApi = {
   },
 
   /**
-   * End menstrual cycle
-   * PUT /api/tracking/menstrual/:id/end
-   */
-  endMenstrualCycle: async (
-    cycleId: number,
-    cycleEnd: Date | string,
-  ): Promise<import("../types").ApiResponse<import("../types").MenstrualEntry>> => {
-    const endStr = cycleEnd instanceof Date ? cycleEnd.toISOString() : cycleEnd
-    return apiCall(`/api/tracking/menstrual/${cycleId}/end`, {
-      method: "PUT",
-      body: JSON.stringify({ cycleEnd: endStr }),
-    })
-  },
-
-  /**
    * Get menstrual history
    * GET /api/tracking/menstrual?limit=N
    */
   getMenstrualHistory: async (limit: number = 12): Promise<import("../types").ApiResponse<import("../types").MenstrualEntry[]>> =>
     apiCall(`/api/tracking/menstrual?limit=${limit}`),
-
-  /**
-   * Get last menstrual cycle
-   * GET /api/tracking/menstrual/last
-   */
-  getLastMenstrualCycle: async (): Promise<import("../types").ApiResponse<import("../types").MenstrualEntry | null>> =>
-    apiCall(`/api/tracking/menstrual/last`),
 
   /**
    * Get cycle stats
@@ -88,8 +66,5 @@ export const menstrualApi = {
 
   getDayFlow: async (date: string): Promise<import("../types").ApiResponse<{ date: string; intensity: import("../types").FlowIntensity } | null>> =>
     apiCall(`/api/tracking/menstrual/day-flow?date=${encodeURIComponent(date)}`),
-
-  deleteDayFlow: async (date: string): Promise<import("../types").ApiResponse<null>> =>
-    apiCall(`/api/tracking/menstrual/day-flow?date=${encodeURIComponent(date)}`, { method: "DELETE" }),
 }
 

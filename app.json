@@ -5,6 +5,7 @@
     "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/adaptive-icon.png",
+    "scheme": "ownlift",
     "plugins": [
       [
         "expo-location",
@@ -45,10 +46,13 @@
       "expo-sharing",
       "expo-status-bar",
       "expo-splash-screen",
-      "./plugins/withGradleTuning.js"
+      "./plugins/withGradleTuning.js",
+      "expo-sqlite"
     ],
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ownlift.app"

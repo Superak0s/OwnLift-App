@@ -67,18 +67,4 @@ export const domsApi = {
    */
   getStats: async (days: number = 30): Promise<ApiResponse<DOMSStats>> =>
     apiCall(`/api/tracking/doms/stats?days=${days}`),
-
-  /**
-   * Get soreness map (muscle -> current intensity)
-   * GET /api/tracking/doms/map
-   */
-  getSorenessMap: async (): Promise<ApiResponse<Record<string, number>>> =>
-    apiCall(`/api/tracking/doms/map`),
-
-  /**
-   * Get soreness records for a specific date range (for heatmap/timeline)
-   * GET /api/tracking/doms/range?start=YYYY-MM-DD&end=YYYY-MM-DD
-   */
-  getRange: async (startDate: string, endDate: string): Promise<ApiResponse<ActiveSoreness[]>> =>
-    apiCall(`/api/tracking/doms/range?start=${startDate}&end=${endDate}`),
 };

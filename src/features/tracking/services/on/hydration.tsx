@@ -23,22 +23,6 @@ export const hydrationApi = {
     apiCall(`/api/tracking/hydration?limit=${limit}`),
 
   /**
-   * Get daily hydration
-   * GET /api/tracking/hydration/daily/:date
-   */
-  getDailyHydration: async (date: Date | string): Promise<import("../types").ApiResponse<import("../types").HydrationEntry[]>> => {
-    const dateStr = date instanceof Date ? date.toISOString().split("T")[0] : date
-    return apiCall(`/api/tracking/hydration/daily/${dateStr}`)
-  },
-
-  /**
-   * Get hydration stats
-   * GET /api/tracking/hydration/stats
-   */
-  getHydrationStats: async (): Promise<import("../types").ApiResponse<import("../types").HydrationStats>> =>
-    apiCall(`/api/tracking/hydration/stats`),
-
-  /**
    * Delete hydration entry
    * DELETE /api/tracking/hydration/:id
    */

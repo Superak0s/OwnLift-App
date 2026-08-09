@@ -332,7 +332,7 @@ export const useServerSync = ({
   > => {
     if (!userId || !selectedSplit || !workoutDataRef.current?.days) return
 
-    console.log("🔄 Syncing completedDays from server...")
+    console.log("🔄 Syncing completedDays...")
 
     try {
       let currentWorkoutData = workoutDataRef.current
@@ -343,7 +343,7 @@ export const useServerSync = ({
         currentWorkoutData = mergedProgram
         await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, mergedProgram, userId)
         setWorkoutData(mergedProgram)
-        console.log("✅ Program refreshed from server")
+        console.log("✅ Program refreshed")
       } else if (workoutDataRef.current) {
         currentWorkoutData = workoutDataRef.current
       }
@@ -353,7 +353,7 @@ export const useServerSync = ({
 
       if (!sessions.length) {
         console.log(
-          "No server sessions found for the current week — skipping lock/completion sync",
+          "No sessions found for the current week — skipping lock/completion sync",
         )
         return
       }

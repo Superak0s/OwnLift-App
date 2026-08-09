@@ -1,4 +1,3 @@
-// Re-exported from shared/types.ts — the canonical definition.
 export type { CompletedDays } from "@shared/types"
 
 export interface ExerciseMeta {

@@ -1,15 +1,53 @@
-import { createManagedState } from "./managedState"
+import { getStorageItem, setStorageItem, removeStorageItem } from "@shared/services/sqliteStorage"
 
-// Default server URL
+const SERVER_URL_KEY = "@server_url"
 const DEFAULT_API_BASE_URL = "https://ownlift.superak0s.com"
 
-const serverUrlState = createManagedState<string>("@server_url", DEFAULT_API_BASE_URL)
+let currentServerUrl = DEFAULT_API_BASE_URL
 
-// Initialize on module load (same fire-and-forget pattern as before)
-serverUrlState.ensureLoaded()
+// ponytail: inline pub/sub, no abstraction needed for one event
+const listeners: ((v: string) => void)[] = []
+export const onServerUrlChange = (callback: (v: string) => void): (() => void) => {
+  listeners.push(callback)
+  return () => {
+    const idx = listeners.indexOf(callback)
+    if (idx > -1) listeners.splice(idx, 1)
+  }
+}
 
-export const setServerUrl = serverUrlState.set
-export const getServerUrl = serverUrlState.get
+// Initialize on module load (fire-and-forget)
+getStorageItem(SERVER_URL_KEY)
+  .then((raw) => {
+    if (raw) currentServerUrl = raw
+  })
+  .catch((err) => console.error(`Error loading ${SERVER_URL_KEY}:`, err))
+
+export const getServerUrl = (): string => currentServerUrl
+
+export const setServerUrl = async (url: string): Promise<boolean> => {
+  try {
+    const previous = currentServerUrl
+    await setStorageItem(SERVER_URL_KEY, url)
+    currentServerUrl = url
+    if (previous !== url) listeners.forEach((cb) => cb(url))
+    return true
+  } catch (err) {
+    console.error(`Error saving ${SERVER_URL_KEY}:`, err)
+    return false
+  }
+}
+
 export const getDefaultServerUrl = (): string => DEFAULT_API_BASE_URL
-export const resetServerUrl = serverUrlState.reset
-export const onServerUrlChange = serverUrlState.onChange
+
+export const resetServerUrl = async (): Promise<boolean> => {
+  try {
+    const previous = currentServerUrl
+    await removeStorageItem(SERVER_URL_KEY)
+    currentServerUrl = DEFAULT_API_BASE_URL
+    if (previous !== DEFAULT_API_BASE_URL) listeners.forEach((cb) => cb(DEFAULT_API_BASE_URL))
+    return true
+  } catch (err) {
+    console.error(`Error resetting ${SERVER_URL_KEY}:`, err)
+    return false
+  }
+}

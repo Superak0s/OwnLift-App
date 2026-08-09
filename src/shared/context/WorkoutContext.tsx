@@ -38,7 +38,7 @@ import {
 
 import { Platform } from "react-native";
 import { initializeSupplementNotifications } from "../../../tasks/supplementLocationTask";
-import { getNotifications } from "../services/notifications";
+import { getNotifications, scheduleNotification } from "../services/notifications";
 
 import {
   isSetComplete,
@@ -561,7 +561,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   const loadSavedData = useCallback(async () => {
     try {
-      // Parallel load — all AsyncStorage reads happen concurrently
+      // Parallel load — all SQLite reads happen concurrently
       const [
         data,
         person,
@@ -838,12 +838,11 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
               if (Notifications) {
                 const ready = await initializeSupplementNotifications();
                 if (ready) {
-                  await Notifications.scheduleNotificationAsync({
+                  await scheduleNotification({
                     content: {
                       title: `⚠️ Inactive workout detected`,
                       body: `No sets logged in ${Math.floor(warningMs / 60000)} minutes. Your session will end in another ${Math.floor(warningMs / 60000)} minutes unless activity resumes.`,
                       data: { type: "session_inactivity_warning" },
-                      sound: true,
                       priority: Notifications.AndroidNotificationPriority.HIGH,
                       ...(Platform.OS === "android" && {
                         channelId: "supplement-reminders",

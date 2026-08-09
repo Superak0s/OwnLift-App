@@ -3,15 +3,15 @@
 
 import {
   computeDailyStreak,
-  distanceMeters,
   nextId,
   nowIso,
   readJSON,
   writeJSON,
+  createRecordStore,
+  type RecordStore,
 } from "@shared/services/offlineHelpers"
 import { toDateString } from "@utils/format"
 import type {
-  AtLocationResult,
   CreateSupplementParams,
   LogSupplementParams,
   ReminderLocation as SupplementLocationParams,
@@ -50,15 +50,26 @@ async function saveAllSupplements(list: StoredSupplement[]): Promise<void> {
   await writeJSON(SUPPLEMENTS_KEY, list)
 }
 
-async function getEntries(id: number): Promise<SupplementEntry[]> {
-  return readJSON<SupplementEntry[]>(entriesKey(id), [])
+// Each supplement's log history is its own row-per-record collection —
+// logging one dose used to rewrite that supplement's *entire* log blob
+// (potentially a year of daily entries) every time.
+const entryStores = new Map<number, RecordStore<SupplementEntry>>()
+function entryStoreFor(id: number): RecordStore<SupplementEntry> {
+  let store = entryStores.get(id)
+  if (!store) {
+    store = createRecordStore<SupplementEntry>(
+      `supplement_entries_${id}`,
+      entriesKey(id),
+      (e) => e.id,
+      (e) => e.takenAt,
+    )
+    entryStores.set(id, store)
+  }
+  return store
 }
 
-async function saveEntries(
-  id: number,
-  entries: SupplementEntry[],
-): Promise<void> {
-  await writeJSON(entriesKey(id), entries)
+async function getEntries(id: number): Promise<SupplementEntry[]> {
+  return entryStoreFor(id).getAll()
 }
 
 function requireSupplement(
@@ -128,33 +139,6 @@ export const supplementsApi = {
     return { success: true, supplement: await toSummary(supplement) }
   },
 
-  get: async (
-    id: number,
-  ): Promise<{
-    success: boolean
-    supplement: SupplementSummary
-    takenToday: boolean
-    todayEntry: SupplementEntry | null
-    streak: number
-  }> => {
-    const list = await getAllSupplements()
-    const stored = requireSupplement(list, id)
-    const summary = await toSummary(stored)
-    const entries = await getEntries(id)
-    const todayKey = toDateString(new Date())
-    const todayEntry =
-      entries.find((e) => toDateString(e.takenAt) === todayKey) ??
-      null
-
-    return {
-      success: true,
-      supplement: summary,
-      takenToday: summary.takenToday,
-      todayEntry,
-      streak: summary.streak,
-    }
-  },
-
   update: async (
     id: number,
     params: UpdateSupplementParams,
@@ -183,7 +167,8 @@ export const supplementsApi = {
     const list = await getAllSupplements()
     const remaining = list.filter((s) => s.id !== id)
     await saveAllSupplements(remaining)
-    await writeJSON(entriesKey(id), [])
+    await entryStoreFor(id).clear()
+    entryStores.delete(id)
     await writeJSON(locationKey(id), null)
     return { success: true }
   },
@@ -207,10 +192,9 @@ export const supplementsApi = {
       note: params.note ?? null,
       createdAt: nowIso(),
     }
-    entries.push(entry)
-    await saveEntries(id, entries)
+    await entryStoreFor(id).put(entry)
 
-    const streak = computeDailyStreak(entries.map((e) => e.takenAt))
+    const streak = computeDailyStreak([...entries.map((e) => e.takenAt), entry.takenAt])
     return { success: true, id: entryId, streak }
   },
 
@@ -242,20 +226,8 @@ export const supplementsApi = {
     supplementId: number,
     entryId: number,
   ): Promise<{ success: boolean }> => {
-    const entries = await getEntries(supplementId)
-    const remaining = entries.filter((e) => e.id !== entryId)
-    await saveEntries(supplementId, remaining)
+    await entryStoreFor(supplementId).remove(entryId)
     return { success: true }
-  },
-
-  getStreak: async (
-    id: number,
-  ): Promise<{ success: boolean; streak: number }> => {
-    const entries = await getEntries(id)
-    return {
-      success: true,
-      streak: computeDailyStreak(entries.map((e) => e.takenAt)),
-    }
   },
 
   // ── Location ─────────────────────────────────────────────────
@@ -322,51 +294,4 @@ export const supplementsApi = {
     return { success: true, enabled }
   },
 
-  checkLocation: async (
-    id: number,
-    latitude: number,
-    longitude: number,
-  ): Promise<{ success: boolean } & AtLocationResult> => {
-    const location = await readJSON<SupplementLocation | null>(
-      locationKey(id),
-      null,
-    )
-    if (!location || !location.enabled) {
-      return {
-        success: true,
-        withinRadius: false,
-        reason: "No location reminder set",
-      }
-    }
-
-    const distance = distanceMeters(
-      latitude,
-      longitude,
-      location.latitude,
-      location.longitude,
-    )
-
-    return {
-      success: true,
-      withinRadius: distance <= location.radius,
-      distance,
-      radius: location.radius,
-      address: location.address,
-    }
-  },
-
-  deleteLocation: async (
-    id: number,
-  ): Promise<{ success: boolean; message: string }> => {
-    await writeJSON(locationKey(id), null)
-
-    const list = await getAllSupplements()
-    const stored = list.find((s) => s.id === id)
-    if (stored) {
-      stored.locationReminderEnabled = false
-      await saveAllSupplements(list)
-    }
-
-    return { success: true, message: "Location reminder removed" }
-  },
 }

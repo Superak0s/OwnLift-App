@@ -1,10 +1,10 @@
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import {
   filterOutLocalSessionSyncs,
-  generateLocalSessionId,
   getLocalISOString,
   isLocalSessionId,
 } from "../../../utils/session"
+import { generateId } from "../../../utils/format"
 import { workoutApi } from "@features/workout/services/index"
 import type { WorkoutData } from "../../types"
 import type { CompletedDays, LockedDays } from "../../../utils/dayCompletion"
@@ -182,7 +182,27 @@ export const useSessionOperations = ({
   /**
    * Start workout session
    */
-  const startWorkout = useCallback(async (): Promise<string | null> => {
+  // Guards against a double-tap (or any other concurrent caller) firing two
+  // overlapping calls before the first one's setState has re-rendered —
+  // both would otherwise read stale null currentSessionId/workoutStartTime
+  // and each start a session on the server.
+  const startWorkoutInFlightRef = useRef<Promise<string | null> | null>(null)
+  const startWorkoutImplRef = useRef<(() => Promise<string | null>) | null>(
+    null,
+  )
+
+  const startWorkout = useCallback((): Promise<string | null> => {
+    if (startWorkoutInFlightRef.current) {
+      return startWorkoutInFlightRef.current
+    }
+    const promise = startWorkoutImplRef.current!().finally(() => {
+      startWorkoutInFlightRef.current = null
+    })
+    startWorkoutInFlightRef.current = promise
+    return promise
+  }, [])
+
+  const startWorkoutImpl = useCallback(async (): Promise<string | null> => {
     try {
       if (workoutStartTime && currentSessionId) {
         console.log(
@@ -218,7 +238,7 @@ export const useSessionOperations = ({
         return null
       }
 
-      const localSessionId = generateLocalSessionId()
+      const localSessionId = generateId("local")
 
       try {
         const sessionId = await workoutApi.startSession(
@@ -238,7 +258,7 @@ export const useSessionOperations = ({
             userId,
           )
           setCurrentSessionId(newSessionId)
-          console.log("✓ Session started on server with ID:", newSessionId)
+          console.log("✓ Session started, ID:", newSessionId)
         } else {
           // FIX: previously fell through silently when the server call
           // resolved (no throw) but returned a falsy id. Now treat it the
@@ -269,12 +289,12 @@ export const useSessionOperations = ({
             timestamp: startTime,
           })
           console.log(
-            "⚠ Session queued for sync with local ID (no id from server):",
+            "⚠ Session queued for sync with local ID (no id returned):",
             newSessionId,
           )
         }
       } catch (error) {
-        console.error("Failed to start session on server (offline):", error)
+        console.error("Failed to start session:", error)
         newSessionId = localSessionId
         await saveToStorage(
           STORAGE_KEYS.CURRENT_SESSION_ID,
@@ -320,6 +340,7 @@ export const useSessionOperations = ({
     userId,
     STORAGE_KEYS,
   ])
+  startWorkoutImplRef.current = startWorkoutImpl
 
   /**
    * End workout session
@@ -355,9 +376,9 @@ export const useSessionOperations = ({
         if (sessionIdToEnd && !isLocalSessionId(sessionIdToEnd)) {
           try {
             await workoutApi.endSession(sessionIdToEnd, getLocalISOString())
-            console.log("✓ Session ended on server")
+            console.log("✓ Session ended")
           } catch (error) {
-            console.error("Failed to end session on server:", error)
+            console.error("Failed to end session:", error)
 
             if (
               !(error as Error).message?.includes("not found") &&
@@ -371,7 +392,7 @@ export const useSessionOperations = ({
               console.log("⚠ endSession queued for sync")
             } else {
               console.log(
-                "⚠ Session doesn't exist on server - not queuing sync",
+                "⚠ Session doesn't exist anymore - not queuing sync",
               )
             }
           }
@@ -476,9 +497,9 @@ export const useSessionOperations = ({
               isWarmup,
               muscleGroup,
             )
-            console.log("✓ Set recorded on server")
+            console.log("✓ Set recorded")
           } catch (error) {
-            console.error("Failed to record set on server (offline):", error)
+            console.error("Failed to record set:", error)
             await addPendingSync({
               type: "recordSet",
               data: {

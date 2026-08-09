@@ -62,7 +62,7 @@ export const useSyncManager = ({
   )
 
   /**
-   * Sync pending data to server
+   * Sync pending data
    */
   const syncPendingData = useCallback(async (): Promise<void> => {
     if (isSyncing || pendingSyncs.length === 0) return
@@ -151,19 +151,34 @@ export const useSyncManager = ({
                 ? `Exercise ${sync.data.exerciseIndex}`
                 : "Unknown Exercise")
 
-            await workoutApi.recordSet(
-              sync.data.sessionId,
-              exerciseName,
-              sync.data.setIndex,
-              sync.data.startTime,
-              sync.data.endTime,
-              weight,
-              reps,
-              sync.data.note,
-              sync.data.isWarmup,
-              sync.data.muscleGroup ?? null,
-            )
-            console.log("✓ Synced set record")
+            try {
+              await workoutApi.recordSet(
+                sync.data.sessionId,
+                exerciseName,
+                sync.data.setIndex,
+                sync.data.startTime,
+                sync.data.endTime,
+                weight,
+                reps,
+                sync.data.note,
+                sync.data.isWarmup,
+                sync.data.muscleGroup ?? null,
+              )
+              console.log("✓ Synced set record")
+            } catch (error) {
+              // The session this set belonged to is gone for good (e.g. it
+              // was already ended/cleared) — same "not found" handling as
+              // endSession below. Without this, a set queued against a dead
+              // session retries and fails forever instead of being dropped.
+              if (
+                (error as Error).message?.includes("not found") ||
+                (error as Error).message?.includes("unauthorized")
+              ) {
+                console.log("⚠ Session for queued set no longer exists - dropping sync")
+              } else {
+                throw error
+              }
+            }
             break
           }
 
@@ -185,7 +200,7 @@ export const useSyncManager = ({
                 (error as Error).message?.includes("not found") ||
                 (error as Error).message?.includes("unauthorized")
               ) {
-                console.log("⚠ Session doesn't exist on server - dropping sync")
+                console.log("⚠ Session no longer exists - dropping sync")
               } else {
                 throw error
               }
