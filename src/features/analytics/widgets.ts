@@ -2,7 +2,7 @@ import { STORAGE_KEYS } from "@shared/services/storage"
 import type { WidgetDefinition, WidgetInstance } from "@shared/types"
 
 export type AnalyticsWidgetType =
-  | "select_focus"
+  | "select_exercise"
   | "training_summary"
   | "set_data"
   | "last_workout"
@@ -15,8 +15,8 @@ export const ANALYTICS_WIDGET_REGISTRY: Record<
   AnalyticsWidgetType,
   WidgetDefinition<AnalyticsWidgetType>
 > = {
-  select_focus: {
-    type: "select_focus",
+  select_exercise: {
+    type: "select_exercise",
     title: "Select Exercise / Muscle Group",
     description: "Pick an exercise or a muscle group to analyze, with search and filters",
     icon: "🏋️",
@@ -88,7 +88,7 @@ export const DEFAULT_ANALYTICS_WIDGETS: WidgetInstance<AnalyticsWidgetType>[] =
   [
     {
       id: "default-select-exercise",
-      type: "select_focus",
+      type: "select_exercise",
       size: "large",
       order: 0,
     },

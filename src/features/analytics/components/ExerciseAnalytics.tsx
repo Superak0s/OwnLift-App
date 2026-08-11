@@ -493,7 +493,7 @@ export default function ExerciseAnalytics({
     const seen = new Map<string, RawSetEntry>();
 
     sorted.forEach((entry) => {
-      const key = `${entry.date.getTime()}-${entry.dayNumber}-${entry.setNumber}`;
+      const key = `${entry.date.getTime()}-${entry.dayNumber}-${entry.exerciseName}-${entry.setNumber}`;
       const existing = seen.get(key);
       if (!existing || (entry.source === "server" && existing.source === "local")) {
         seen.set(key, entry);
@@ -1174,7 +1174,7 @@ export default function ExerciseAnalytics({
             />
 
             <Text style={styles.summaryListHeader}>By Exercise</Text>
-            {sortedExercises.map((row) => (
+            {sortedExercises.slice(0, 15).map((row) => (
               <View key={row.exerciseName} style={styles.summaryListRow}>
                 <View style={styles.summaryListRowLeft}>
                   <Text style={styles.dropdownItemText}>{row.exerciseName}</Text>
@@ -1187,6 +1187,11 @@ export default function ExerciseAnalytics({
                 </Text>
               </View>
             ))}
+            {sortedExercises.length > 15 && (
+              <Text style={styles.widgetLineMuted}>
+                +{sortedExercises.length - 15} more
+              </Text>
+            )}
           </>
         )}
 
@@ -1215,7 +1220,7 @@ export default function ExerciseAnalytics({
     instance: WidgetInstance<AnalyticsWidgetType>,
   ): React.ReactNode => {
     switch (instance.type) {
-      case "select_focus":
+      case "select_exercise":
         return renderSelectExerciseWidget();
       case "set_data":
         return renderSetDataWidget();
