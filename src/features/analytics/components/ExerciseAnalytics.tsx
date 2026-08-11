@@ -94,6 +94,8 @@ export default function ExerciseAnalytics({
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
+  const [focusMode, setFocusMode] = useState<"exercise" | "muscleGroup">("exercise");
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(null);
   const [exerciseData, setExerciseData] = useState<
     ExerciseHistoryEntry[] | null
   >(null);
@@ -652,9 +654,63 @@ export default function ExerciseAnalytics({
   );
   const chartWidth = (containerWidth || screenWidth - 40) - WIDGET_CARD_PADDING;
 
+  const distinctMuscleGroups = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          availableExercises
+            .map((e) => e.muscleGroup)
+            .filter((g): g is string => !!g),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [availableExercises],
+  );
+
   const renderSelectExerciseWidget = (): React.ReactNode => (
     <View>
+      <View style={styles.focusModeToggle}>
+        <TouchableOpacity
+          style={[
+            styles.focusModeButton,
+            focusMode === "exercise" && styles.focusModeButtonActive,
+          ]}
+          onPress={() => {
+            setFocusMode("exercise");
+            setSelectedMuscleGroup(null);
+          }}
+        >
+          <Text
+            style={[
+              styles.focusModeButtonText,
+              focusMode === "exercise" && styles.focusModeButtonTextActive,
+            ]}
+          >
+            Exercise
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.focusModeButton,
+            focusMode === "muscleGroup" && styles.focusModeButtonActive,
+          ]}
+          onPress={() => {
+            setFocusMode("muscleGroup");
+            setSelectedExercise(null);
+          }}
+        >
+          <Text
+            style={[
+              styles.focusModeButtonText,
+              focusMode === "muscleGroup" && styles.focusModeButtonTextActive,
+            ]}
+          >
+            Muscle Group
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {selectedExercise &&
+        focusMode === "exercise" &&
         selectedExerciseMeta?.name.toLowerCase().includes("assisted") &&
         !currentBodyWeight && (
           <View style={styles.warningBanner}>
@@ -674,9 +730,11 @@ export default function ExerciseAnalytics({
         <View style={styles.dropdownButtonContent}>
           <View style={styles.dropdownButtonLeft}>
             <Text style={styles.dropdownButtonText}>
-              {selectedExercise ?? "Select an exercise"}
+              {focusMode === "exercise"
+                ? (selectedExercise ?? "Select an exercise")
+                : (selectedMuscleGroup ?? "Select a muscle group")}
             </Text>
-            {selectedExercise && selectedExerciseMeta?.muscleGroup && (
+            {focusMode === "exercise" && selectedExercise && selectedExerciseMeta?.muscleGroup && (
               <Text style={styles.dropdownButtonSubtext}>
                 {selectedExerciseMeta.muscleGroup}
               </Text>
@@ -884,7 +942,7 @@ export default function ExerciseAnalytics({
     instance: WidgetInstance<AnalyticsWidgetType>,
   ): React.ReactNode => {
     switch (instance.type) {
-      case "select_exercise":
+      case "select_focus":
         return renderSelectExerciseWidget();
       case "set_data":
         return renderSetDataWidget();
@@ -1010,101 +1068,140 @@ export default function ExerciseAnalytics({
             setShowDropdown(false);
             setSearchQuery("");
           }}
-          title='Select Exercise'
+          title={focusMode === "exercise" ? "Select Exercise" : "Select Muscle Group"}
           showCancelButton={false}
           showConfirmButton={false}
         >
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder='Search exercises...'
-              placeholderTextColor={colors.textMuted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize='none'
-              autoCorrect={false}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearSearchButton}
-                onPress={() => setSearchQuery("")}
-              >
-                <Text style={styles.clearSearchText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          {focusMode === "exercise" ? (
+            <>
+              <View style={styles.searchContainer}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder='Search exercises...'
+                  placeholderTextColor={colors.textMuted}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCapitalize='none'
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.clearSearchButton}
+                    onPress={() => setSearchQuery("")}
+                  >
+                    <Text style={styles.clearSearchText}>✕</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-          <View style={styles.filterContainer}>
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setShowZeroSetExercises(!showZeroSetExercises)}
-            >
-              <Text style={styles.filterButtonText}>
-                {showZeroSetExercises ? "Hide" : "Show"} exercises with 0 sets
-              </Text>
-              <Text style={styles.filterButtonIcon}>
-                {showZeroSetExercises ? "👁️" : "👁️‍🗨️"}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.filterHint}>
-              {zeroSetExerciseCount} exercises hidden
-            </Text>
-          </View>
-
-          <FlatList
-            data={filteredExercises}
-            keyExtractor={(exercise) => exercise.name}
-            style={styles.dropdownList}
-            keyboardShouldPersistTaps='handled'
-            ListEmptyComponent={
-              <View style={styles.noResultsContainer}>
-                <Text style={styles.noResultsText}>
-                  {searchQuery.length > 0
-                    ? `No exercises match "${searchQuery}"`
-                    : "No exercises with data"}
+              <View style={styles.filterContainer}>
+                <TouchableOpacity
+                  style={styles.filterButton}
+                  onPress={() => setShowZeroSetExercises(!showZeroSetExercises)}
+                >
+                  <Text style={styles.filterButtonText}>
+                    {showZeroSetExercises ? "Hide" : "Show"} exercises with 0 sets
+                  </Text>
+                  <Text style={styles.filterButtonIcon}>
+                    {showZeroSetExercises ? "👁️" : "👁️‍🗨️"}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.filterHint}>
+                  {zeroSetExerciseCount} exercises hidden
                 </Text>
               </View>
-            }
-            renderItem={({ item: exercise }) => (
-              <TouchableOpacity
-                style={[
-                  styles.dropdownItem,
-                  selectedExercise === exercise.name &&
-                    styles.dropdownItemSelected,
-                ]}
-                onPress={() => {
-                  setSelectedExercise(exercise.name);
-                  setShowDropdown(false);
-                  setSearchQuery("");
-                }}
-              >
-                <View style={styles.dropdownItemContent}>
+
+              <FlatList
+                data={filteredExercises}
+                keyExtractor={(exercise) => exercise.name}
+                style={styles.dropdownList}
+                keyboardShouldPersistTaps='handled'
+                ListEmptyComponent={
+                  <View style={styles.noResultsContainer}>
+                    <Text style={styles.noResultsText}>
+                      {searchQuery.length > 0
+                        ? `No exercises match "${searchQuery}"`
+                        : "No exercises with data"}
+                    </Text>
+                  </View>
+                }
+                renderItem={({ item: exercise }) => (
+                  <TouchableOpacity
+                    style={[
+                      styles.dropdownItem,
+                      selectedExercise === exercise.name &&
+                        styles.dropdownItemSelected,
+                    ]}
+                    onPress={() => {
+                      setSelectedExercise(exercise.name);
+                      setShowDropdown(false);
+                      setSearchQuery("");
+                    }}
+                  >
+                    <View style={styles.dropdownItemContent}>
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          selectedExercise === exercise.name &&
+                            styles.dropdownItemTextSelected,
+                        ]}
+                      >
+                        {exercise.name}
+                      </Text>
+                      <View style={styles.dropdownItemMeta}>
+                        {exercise.muscleGroup && (
+                          <Text style={styles.dropdownItemMuscle}>
+                            {exercise.muscleGroup}
+                          </Text>
+                        )}
+                        <Text style={styles.dropdownItemSets}>
+                          {exercise.totalSets} sets
+                        </Text>
+                      </View>
+                    </View>
+                    {selectedExercise === exercise.name && (
+                      <Text style={styles.dropdownItemCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+            </>
+          ) : (
+            <FlatList
+              data={distinctMuscleGroups}
+              keyExtractor={(group) => group}
+              style={styles.dropdownList}
+              ListEmptyComponent={
+                <View style={styles.noResultsContainer}>
+                  <Text style={styles.noResultsText}>No muscle groups found</Text>
+                </View>
+              }
+              renderItem={({ item: group }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownItem,
+                    selectedMuscleGroup === group && styles.dropdownItemSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedMuscleGroup(group);
+                    setShowDropdown(false);
+                  }}
+                >
                   <Text
                     style={[
                       styles.dropdownItemText,
-                      selectedExercise === exercise.name &&
-                        styles.dropdownItemTextSelected,
+                      selectedMuscleGroup === group && styles.dropdownItemTextSelected,
                     ]}
                   >
-                    {exercise.name}
+                    {group}
                   </Text>
-                  <View style={styles.dropdownItemMeta}>
-                    {exercise.muscleGroup && (
-                      <Text style={styles.dropdownItemMuscle}>
-                        {exercise.muscleGroup}
-                      </Text>
-                    )}
-                    <Text style={styles.dropdownItemSets}>
-                      {exercise.totalSets} sets
-                    </Text>
-                  </View>
-                </View>
-                {selectedExercise === exercise.name && (
-                  <Text style={styles.dropdownItemCheck}>✓</Text>
-                )}
-              </TouchableOpacity>
-            )}
-          />
+                  {selectedMuscleGroup === group && (
+                    <Text style={styles.dropdownItemCheck}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          )}
         </ModalSheet>
 
         <ModalSheet
@@ -1267,6 +1364,27 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 4,
     },
     warningText: { fontSize: 14, color: "#856404", lineHeight: 20 },
+    focusModeToggle: {
+      flexDirection: "row",
+      backgroundColor: colors.surface,
+      borderRadius: 10,
+      padding: 4,
+      marginBottom: 10,
+      gap: 4,
+    },
+    focusModeButton: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: 8,
+      alignItems: "center",
+    },
+    focusModeButtonActive: { backgroundColor: colors.accent },
+    focusModeButtonText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    focusModeButtonTextActive: { color: colors.surface },
     dropdownButton: {
       backgroundColor: colors.surface,
       borderRadius: 12,
