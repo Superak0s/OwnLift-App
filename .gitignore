@@ -80,3 +80,6 @@ sonarqube/
 keystore.properties
 *.p12
 credentials.json
+
+# Superpowers SDD scratch workspace
+.superpowers/
