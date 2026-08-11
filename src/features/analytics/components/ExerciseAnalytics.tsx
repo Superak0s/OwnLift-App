@@ -433,7 +433,13 @@ export default function ExerciseAnalytics({
     );
   };
 
-  const buildAllSetEntriesFromSessions = (): TrainingSetEntry[] =>
+  type RawSetEntry = TrainingSetEntry & {
+    dayNumber: number;
+    setNumber: number;
+    source: "server" | "local";
+  };
+
+  const buildAllSetEntriesFromSessions = (): RawSetEntry[] =>
     sessions.flatMap((session) =>
       (session.set_timings ?? []).map((timing) => ({
         date: new Date(timing.end_time ?? session.start_time ?? Date.now()),
@@ -441,10 +447,13 @@ export default function ExerciseAnalytics({
         muscleGroup: timing.exercise_muscle_group ?? null,
         weight: Number.isFinite(timing.weight) ? (timing.weight as number) : 0,
         reps: Number.isFinite(timing.reps) ? (timing.reps as number) : 0,
+        dayNumber: session.day_number ?? 0,
+        setNumber: (timing.set_index ?? 0) + 1,
+        source: "server" as const,
       })),
     );
 
-  const buildAllSetEntriesFromCompletedDays = (): TrainingSetEntry[] => {
+  const buildAllSetEntriesFromCompletedDays = (): RawSetEntry[] => {
     if (!workoutData?.days || !selectedSplit) return [];
     return Object.keys(completedDays).flatMap((dayNumberKey) => {
       const dayNumber = Number.parseInt(dayNumberKey);
@@ -467,14 +476,45 @@ export default function ExerciseAnalytics({
               muscleGroup: ex.muscleGroup ?? null,
               weight: Number.isFinite(setData.weight) ? (setData.weight as number) : 0,
               reps: Number.isFinite(setData.reps) ? (setData.reps as number) : 0,
+              dayNumber,
+              setNumber: Number.parseInt(setIndex) + 1,
+              source: "local" as const,
             };
           });
       });
     });
   };
 
+  // Same identity/priority rule as dedupeHistory: a set can appear in both
+  // sessions (server) and completedDays (local) during the sync window —
+  // server entries win.
+  const dedupeSetEntries = (entries: RawSetEntry[]): TrainingSetEntry[] => {
+    const sorted = [...entries].sort((a, b) => a.date.getTime() - b.date.getTime());
+    const seen = new Map<string, RawSetEntry>();
+
+    sorted.forEach((entry) => {
+      const key = `${entry.date.getTime()}-${entry.dayNumber}-${entry.setNumber}`;
+      const existing = seen.get(key);
+      if (!existing || (entry.source === "server" && existing.source === "local")) {
+        seen.set(key, entry);
+      }
+    });
+
+    return Array.from(seen.values()).map(({ date, exerciseName, muscleGroup, weight, reps }) => ({
+      date,
+      exerciseName,
+      muscleGroup,
+      weight,
+      reps,
+    }));
+  };
+
   const allSetEntries = useMemo(
-    () => [...buildAllSetEntriesFromSessions(), ...buildAllSetEntriesFromCompletedDays()],
+    () =>
+      dedupeSetEntries([
+        ...buildAllSetEntriesFromSessions(),
+        ...buildAllSetEntriesFromCompletedDays(),
+      ]),
     [sessions, completedDays, workoutData, selectedSplit],
   );
 
@@ -1027,13 +1067,22 @@ export default function ExerciseAnalytics({
       { key: "custom", label: "Custom" },
     ];
 
+    const metricValue = (row: { sets: number; volume: number }): number =>
+      summaryMetric === "sets" ? row.sets : row.volume;
+    const sortedMuscleGroups = [...trainingSummary.muscleGroups].sort(
+      (a, b) => metricValue(b) - metricValue(a),
+    );
+    const sortedExercises = [...trainingSummary.exercises].sort(
+      (a, b) => metricValue(b) - metricValue(a),
+    );
+
     const muscleChartData =
-      trainingSummary.muscleGroups.length > 0
+      sortedMuscleGroups.length > 0
         ? {
-            labels: trainingSummary.muscleGroups.map((row) => row.muscleGroup),
+            labels: sortedMuscleGroups.map((row) => row.muscleGroup),
             datasets: [
               {
-                data: trainingSummary.muscleGroups.map((row) =>
+                data: sortedMuscleGroups.map((row) =>
                   summaryMetric === "sets" ? row.sets : Math.round(row.volume),
                 ),
               },
@@ -1107,7 +1156,7 @@ export default function ExerciseAnalytics({
           </TouchableOpacity>
         </View>
 
-        {trainingSummary.muscleGroups.length === 0 ? (
+        {sortedMuscleGroups.length === 0 ? (
           <Text style={styles.widgetLineMuted}>
             No sets logged in this period yet.
           </Text>
@@ -1118,14 +1167,14 @@ export default function ExerciseAnalytics({
               data={muscleChartData}
               chartType="bar"
               chartWidth={chartWidth}
-              barColors={trainingSummary.muscleGroups.map(
+              barColors={sortedMuscleGroups.map(
                 (_, i) => MUSCLE_GROUP_BAR_COLORS[i % MUSCLE_GROUP_BAR_COLORS.length],
               )}
               yAxisSuffix={summaryMetric === "volume" ? "kg" : ""}
             />
 
             <Text style={styles.summaryListHeader}>By Exercise</Text>
-            {trainingSummary.exercises.map((row) => (
+            {sortedExercises.map((row) => (
               <View key={row.exerciseName} style={styles.summaryListRow}>
                 <View style={styles.summaryListRowLeft}>
                   <Text style={styles.dropdownItemText}>{row.exerciseName}</Text>
