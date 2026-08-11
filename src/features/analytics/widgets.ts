@@ -2,7 +2,8 @@ import { STORAGE_KEYS } from "@shared/services/storage"
 import type { WidgetDefinition, WidgetInstance } from "@shared/types"
 
 export type AnalyticsWidgetType =
-  | "select_exercise"
+  | "select_focus"
+  | "training_summary"
   | "set_data"
   | "last_workout"
   | "workout_history"
@@ -14,10 +15,10 @@ export const ANALYTICS_WIDGET_REGISTRY: Record<
   AnalyticsWidgetType,
   WidgetDefinition<AnalyticsWidgetType>
 > = {
-  select_exercise: {
-    type: "select_exercise",
-    title: "Select Exercise",
-    description: "Pick which exercise to analyze, with search and filters",
+  select_focus: {
+    type: "select_focus",
+    title: "Select Exercise / Muscle Group",
+    description: "Pick an exercise or a muscle group to analyze, with search and filters",
     icon: "🏋️",
     availableSizes: ["medium", "large"],
     defaultSize: "large",
@@ -72,13 +73,22 @@ export const ANALYTICS_WIDGET_REGISTRY: Record<
     defaultSize: "large",
     singleton: true,
   },
+  training_summary: {
+    type: "training_summary",
+    title: "Training Summary",
+    description: "Sets and volume broken down by muscle group and exercise for a chosen time period",
+    icon: "🧮",
+    availableSizes: ["large"],
+    defaultSize: "large",
+    singleton: true,
+  },
 }
 
 export const DEFAULT_ANALYTICS_WIDGETS: WidgetInstance<AnalyticsWidgetType>[] =
   [
     {
       id: "default-select-exercise",
-      type: "select_exercise",
+      type: "select_focus",
       size: "large",
       order: 0,
     },
@@ -117,6 +127,12 @@ export const DEFAULT_ANALYTICS_WIDGETS: WidgetInstance<AnalyticsWidgetType>[] =
       type: "reps_progress",
       size: "large",
       order: 6,
+    },
+    {
+      id: "default-training-summary",
+      type: "training_summary",
+      size: "large",
+      order: 7,
     },
   ]
 
