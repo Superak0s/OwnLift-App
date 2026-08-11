@@ -1,8 +1,5 @@
 import { sinceBoot } from "./src/shared/services/debugClock";
 import logger from "./src/shared/services/logger";
-import { initSentry, Sentry } from "./src/shared/services/sentry";
-
-initSentry();
 
 import React, { useState, useEffect, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
@@ -536,6 +533,24 @@ function MainTabs() {
   );
 }
 
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback resetError={() => this.setState({ hasError: false })} />;
+    }
+    return this.props.children;
+  }
+}
+
 function ErrorFallback({ resetError }: { resetError: () => void }) {
   const { colors } = useTheme();
   return (
@@ -601,13 +616,9 @@ export default function App() {
                   <NavigationContainer>
                     <StatusBar style='auto' />
                     <VersionGuard>
-                      <Sentry.ErrorBoundary
-                        fallback={({ resetError }) => (
-                          <ErrorFallback resetError={resetError} />
-                        )}
-                      >
+                      <ErrorBoundary>
                         <AppNavigator />
-                      </Sentry.ErrorBoundary>
+                      </ErrorBoundary>
                     </VersionGuard>
                   </NavigationContainer>
                 </WorkoutProvider>

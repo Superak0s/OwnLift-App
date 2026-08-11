@@ -75,3 +75,8 @@ sonarqube/
 .scannerwork/
 .sonarlint/
 .opencode/
+
+# local-expo-build
+keystore.properties
+*.p12
+credentials.json

@@ -2,7 +2,7 @@
   "expo": {
     "name": "OwnLift",
     "slug": "ownlift",
-    "version": "1.2.5",
+    "version": "1.2.8",
     "orientation": "portrait",
     "icon": "./assets/adaptive-icon.png",
     "scheme": "ownlift",
@@ -48,7 +48,6 @@
       "./plugins/withGradleTuning.js",
       "expo-sqlite",
       "expo-image",
-      "@sentry/react-native",
       [
         "expo-build-properties",
         {
