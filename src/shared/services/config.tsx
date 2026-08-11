@@ -16,7 +16,6 @@ export const onServerUrlChange = (callback: (v: string) => void): (() => void) =
   }
 }
 
-// Offline mode never talks to a server, so there's nothing to load.
 getAppMode()
   .then((mode) => {
     if (mode === "offline") return null

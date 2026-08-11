@@ -684,6 +684,7 @@ export default function TrackingScreen() {
         openWeightModal: () => weight.openWeightModal(),
         setSelectedLogDate,
         hasDataOnDate: weight.hasDataOnDate,
+        colors,
         styles,
         handleCalendarDatePress,
       });
@@ -704,6 +705,7 @@ export default function TrackingScreen() {
         setSelectedLogDate,
         deleteBodyFatEntry: bodyFat.deleteBodyFatEntry,
         hasDataOnDate: bodyFat.hasDataOnDate,
+        colors,
         styles,
         handleCalendarDatePress,
       });
@@ -718,6 +720,7 @@ export default function TrackingScreen() {
         setSelectedLogDate,
         deleteHydrationEntry: hydration.deleteHydrationEntry,
         hasDataOnDate: hydration.hasDataOnDate,
+        colors,
         styles,
         handleCalendarDatePress,
       });
@@ -731,6 +734,7 @@ export default function TrackingScreen() {
         setSelectedLogDate,
         deleteMeasurementEntry: measurements.deleteMeasurementEntry,
         hasDataOnDate: measurements.hasDataOnDate,
+        colors,
         styles,
         handleCalendarDatePress,
       });
@@ -758,6 +762,7 @@ export default function TrackingScreen() {
         setSelectedLogDate,
         deleteSorenessEntry: soreness.deleteSorenessEntry,
         hasDataOnDate: soreness.hasDataOnDate,
+        colors,
         styles,
         handleCalendarDatePress,
       });
@@ -776,6 +781,7 @@ export default function TrackingScreen() {
         hasDataOnDate: menstrual.hasDataOnDate,
         isOnPeriod: menstrual.isOnPeriod,
         markPeriodOver: menstrual.markPeriodOver,
+        colors,
         styles,
         handleCalendarDatePress,
       });

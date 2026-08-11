@@ -41,21 +41,6 @@ export const sorenessApi = {
     return { success: true, data }
   },
 
-  getSorenessMap: async (): Promise<ApiResponse<Record<string, number>>> => {
-    const today = new Date().toISOString().split("T")[0]
-    const todayEntries = await store.getSince(today)
-    const map: Record<string, number> = {}
-    todayEntries
-      .filter((e) => e.loggedAt.startsWith(today))
-      .forEach((e) => {
-        const existing = map[e.muscleGroup]
-        if (existing === undefined || e.intensity > existing) {
-          map[e.muscleGroup] = e.intensity
-        }
-      })
-    return { success: true, data: map }
-  },
-
   deleteSorenessEntry: async (
     id: number,
   ): Promise<ApiResponse<null>> => {

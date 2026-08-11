@@ -1,5 +1,3 @@
-// plugins/withGradleTuning.js
-
 const { withGradleProperties } = require("@expo/config-plugins");
 
 // Properties to force to a specific value (overwrites whatever prebuild wrote)

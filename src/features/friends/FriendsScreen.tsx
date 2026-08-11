@@ -1289,6 +1289,7 @@ export default function FriendsScreen(): React.JSX.Element {
           <SearchContactsWidget
             styles={styles}
             permStyles={permStyles}
+            colors={colors}
             loadingContactSuggestions={loadingContactSuggestions}
             contactPermissionDenied={contactPermissionDenied}
             contactSuggestionsRequested={contactSuggestionsRequested}
@@ -1312,6 +1313,7 @@ export default function FriendsScreen(): React.JSX.Element {
         return (
           <SearchUsersWidget
             styles={styles}
+            colors={colors}
             searchQuery={searchQuery}
             onChangeQuery={setSearchQuery}
             searching={searching}
@@ -2595,7 +2597,7 @@ export const makeStyles = (colors: ThemeColors) =>
     },
     qrScannerLoading: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(0,0,0,0.55)",
+      backgroundColor: colors.overlay,
       alignItems: "center",
       justifyContent: "center",
     },

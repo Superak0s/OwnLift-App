@@ -28,13 +28,6 @@ export const sorenessApi = {
     apiCall(`/api/tracking/soreness?limit=${limit}`),
 
   /**
-   * Get soreness map (visual representation)
-   * GET /api/tracking/soreness/map
-   */
-  getSorenessMap: async (): Promise<import("../types").ApiResponse<Record<string, any>>> =>
-    apiCall(`/api/tracking/soreness/map`),
-
-  /**
    * Delete soreness entry
    * DELETE /api/tracking/soreness/:id
    */

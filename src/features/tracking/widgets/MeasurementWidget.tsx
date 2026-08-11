@@ -10,12 +10,13 @@ export interface MeasurementRenderCtx {
   setSelectedLogDate: (date: Date | null) => void;
   deleteMeasurementEntry: (entry: any) => void;
   hasDataOnDate: (date: Date) => boolean;
+  colors: any;
   styles: any;
   handleCalendarDatePress: (date: Date, type: string) => void;
 }
 
 export function renderMeasurementWidget(type: string, ctx: MeasurementRenderCtx): React.ReactNode {
-  const { history, customEntries, openMeasurementModal, setSelectedLogDate, deleteMeasurementEntry, hasDataOnDate, styles, handleCalendarDatePress } = ctx;
+  const { history, customEntries, openMeasurementModal, setSelectedLogDate, deleteMeasurementEntry, hasDataOnDate, colors, styles, handleCalendarDatePress } = ctx;
 
   switch (type) {
     case "measurements_overview": {
@@ -24,7 +25,7 @@ export function renderMeasurementWidget(type: string, ctx: MeasurementRenderCtx)
           <View style={styles.trackerEmptyCard}>
             <Text style={styles.trackerEmptyIcon}>📏</Text>
             <Text style={styles.trackerEmptyText}>No measurements yet.</Text>
-            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: "#10b981", marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openMeasurementModal(); }}>
+            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: colors.success, marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openMeasurementModal(); }}>
               <Text style={styles.trackerHeroButtonText}>+ Log Measurements</Text>
             </TouchableOpacity>
           </View>
@@ -47,7 +48,7 @@ export function renderMeasurementWidget(type: string, ctx: MeasurementRenderCtx)
     }
 
     case "measurements_calendar":
-      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "measurements")} initialView="month" legendText="Measurements logged · tap any day to view/add" dotColor="#10b981" />;
+      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "measurements")} initialView="month" legendText="Measurements logged · tap any day to view/add" dotColor={colors.success} />;
 
     case "measurements_history": {
       if (history.length === 0) {
@@ -55,7 +56,7 @@ export function renderMeasurementWidget(type: string, ctx: MeasurementRenderCtx)
           <View style={styles.trackerEmptyCard}>
             <Text style={styles.trackerEmptyIcon}>📏</Text>
             <Text style={styles.trackerEmptyText}>No measurement entries yet.</Text>
-            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: "#10b981", marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openMeasurementModal(); }}>
+            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: colors.success, marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openMeasurementModal(); }}>
               <Text style={styles.trackerHeroButtonText}>+ Log Measurements</Text>
             </TouchableOpacity>
           </View>

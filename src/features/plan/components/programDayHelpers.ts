@@ -2,7 +2,7 @@ export {
   getDayExerciseList,
   getDayLabelAndTitle,
   getPersonEntries,
-} from "@shared/components/ProgramDayCard";
+} from "@shared/components/ProgramDayCardBase";
 
 export function allDayIndices(workoutData: unknown): Set<number> {
   const days = (workoutData as { days?: unknown[] } | null)?.days;

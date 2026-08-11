@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useTheme } from "@shared/context/ThemeContext";
+import { useAuth } from "@shared/context/AuthContext";
 import { domsApi, injuryApi, progressPhotoApi, personalNotesApi } from "../services";
 import { MuscleGroup, MUSCLE_GROUP_LABELS, PersonalMuscleNote } from "../types/muscleRecovery";
 import { FillBar } from "@shared/components/FillBar";
@@ -36,6 +37,7 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
 }) => {
   const { theme } = useTheme();
   const colors = theme.colors;
+  const { authToken } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>("soreness");
   const [loading, setLoading] = useState(true);
   const [sorenessHistory, setSorenessHistory] = useState<any[]>([]);
@@ -314,7 +316,7 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
           renderItem={({ item: photo }) => (
             <View style={[styles.photoCard, { backgroundColor: colors.surface }]}>
               <Image
-                source={{ uri: photo.uri }}
+                source={{ uri: photo.uri, headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined }}
                 style={styles.photoImage}
                 contentFit="cover"
               />

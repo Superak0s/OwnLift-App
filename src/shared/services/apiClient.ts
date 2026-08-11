@@ -1,10 +1,6 @@
 import { getServerUrl } from "./config"
 import { authenticatedFetch } from "./authenticatedFetch"
 
-// ─── ApiError ─────────────────────────────────────────────────────────────
-// Structured error that carries the HTTP status code and optional server-side
-// details payload so callers can branch on status (401, 404, 429, …).
-
 export class ApiError extends Error {
   status: number
   details?: unknown
@@ -15,10 +11,6 @@ export class ApiError extends Error {
     this.details = details
   }
 }
-
-// ─── parseApiResponse ─────────────────────────────────────────────────────
-// Centralized response parsing: handles JSON parse failures, HTTP errors,
-// and server-side `{ success: false }` envelopes in one place.
 
 export async function parseApiResponse<T = unknown>(res: Response): Promise<T> {
   let data: any
@@ -37,18 +29,6 @@ export async function parseApiResponse<T = unknown>(res: Response): Promise<T> {
   return data as T
 }
 
-// ─── apiCall ──────────────────────────────────────────────────────────────
-// Combines URL resolution, fetch, and response parsing in one helper so
-// every "on" service method doesn't need to repeat the boilerplate.
-//
-// Usage:
-//   const data = await apiCall<{ sessions: WorkoutSession[] }>(
-//     "/api/sessions", { method: "GET" }
-//   )
-//
-// The path is prefixed with the server URL by authenticatedFetch already,
-// so pass relative paths ("/api/...") or absolute URLs.
-
 export async function apiCall<T = unknown>(
   url: string,
   options?: RequestInit,
@@ -56,17 +36,6 @@ export async function apiCall<T = unknown>(
   const res = await authenticatedFetch(url, options)
   return parseApiResponse<T>(res)
 }
-
-// ─── callWithLogging ──────────────────────────────────────────────────────
-// Wraps an async function with console.error logging on failure and returns
-// the result. Replaces the 150+ `try { … } catch { console.error; throw }`
-// blocks scattered across every "on" service method.
-//
-// Usage:
-//   logSoreness: async (params) =>
-//     callWithLogging("logSoreness", async () => {
-//       return apiCall("/api/tracking/soreness", { method: "POST", body: JSON.stringify(params) })
-//     })
 
 export async function callWithLogging<T>(
   label: string,

@@ -16,7 +16,7 @@ import { sinceBoot } from "../services/debugClock";
 import logger from "../services/logger";
 import type { User } from "../types";
 
-// ─── Re-exports ──────────────────────────────────────────────────────────────
+// Re-exports
 export type { User };
 
 interface AuthResult {
@@ -40,12 +40,10 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   updateProfile: (name: string, email: string) => Promise<AuthResult>;
   refreshUser: () => Promise<AuthResult>;
-  /** Call this to attempt a silent token refresh. Returns true on success. */
   refreshToken: () => Promise<boolean>;
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
-
+// Context
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const useAuth = (): AuthContextValue => {
@@ -56,9 +54,7 @@ export const useAuth = (): AuthContextValue => {
   return context;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Read the stored JWT without throwing. Returns empty string on failure. */
+// Helpers
 const readStoredToken = async (): Promise<string> => {
   try {
     return (await tokenStorage.get()) ?? "";
@@ -71,8 +67,7 @@ const readStoredToken = async (): Promise<string> => {
 // Set to 55 minutes so a 1-hour expiry is covered with headroom.
 const TOKEN_REFRESH_INTERVAL_MS = 55 * 60 * 1000;
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
-
+// Provider
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -125,15 +120,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    */
   const refreshToken = useCallback(async (): Promise<boolean> => {
     try {
-      // authService.refreshToken() should POST to your /auth/refresh endpoint
-      // and persist the new JWT in SQLite storage.
       const newToken = await authService.refreshToken();
       if (newToken) {
         setAuthToken(newToken);
         logger.info("✅ Token refreshed silently");
         return true;
       }
-      // Refresh returned nothing — token is gone, force logout
       console.warn("⚠️ Token refresh returned empty — logging out");
       await logout();
       return false;
@@ -203,7 +195,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           console.warn(
             "⚠️ Stored token is expired or invalid — attempting refresh",
           );
-          // Try a refresh before giving up and clearing the session
           const refreshed = await refreshToken();
           if (!refreshed) {
             await authService.logout();
@@ -211,7 +202,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser(null);
             setIsAuthenticated(false);
           } else {
-            // Retry loading the user after a successful refresh
             try {
               const currentUser = (await authService.getCurrentUser()) as User;
               setUser(currentUser);
@@ -222,7 +212,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       } else if (await isServerless()) {
-        // Offline mode: connect automatically, no login screen.
         await autoConnectOffline();
       } else {
         setAuthToken("");

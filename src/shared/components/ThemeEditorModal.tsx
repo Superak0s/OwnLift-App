@@ -187,6 +187,7 @@ function deriveColors(
     infoLight: withAlpha(accent, 0.1),
     separator: withAlpha(textPrimary, 0.08),
     shadow: "#000000",
+    overlay: "rgba(0,0,0,0.5)",
     inputBackground: withAlpha(textPrimary, 0.05),
     inputBorder: withAlpha(textPrimary, 0.15),
     badgeBackground: withAlpha(textPrimary, 0.08),

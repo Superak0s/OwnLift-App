@@ -73,8 +73,7 @@ import type {
 import type { WebSocketMessage } from "./hooks/useRealtimeSocket";
 import type { JointExerciseEntry } from "./hooks/useJointSession";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
+// Types
 type ServerAnalyticsType = WorkoutAnalytics | null;
 
 interface WorkoutContextValue {
@@ -176,8 +175,7 @@ interface WorkoutContextValue {
   checkAndEndStaleSession: () => Promise<boolean>;
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
-
+// Context
 const WorkoutContext = createContext<WorkoutContextValue | undefined>(
   undefined,
 );
@@ -210,8 +208,7 @@ export const useWorkoutSyncStatus = (): WorkoutSyncStatus => {
   return context;
 };
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
-
+// Provider
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const { user, logout } = useAuth();
   const userId = user?.id ?? null;
@@ -375,7 +372,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     clearActiveWorkout: sessionOps.clearActiveWorkout,
   });
 
-  // ── Stable save helpers (useCallback prevents new refs on every render) ────
   const saveWorkoutData = useCallback(
     async (data: WorkoutData | null) => {
       await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, data, userId);
@@ -427,7 +423,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       await saveToStorage(STORAGE_KEYS.UNLOCKED_OVERRIDES, overrides, userId);
       setUnlockedOverrides(overrides);
 
-      // Clear completed days for any day that has been unlocked
       setCompletedDays((prev: CompletedDays) => {
         const next = { ...prev };
         let changed = false;
@@ -499,7 +494,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     [userId],
   );
 
-  // ── Utility helpers ────────────────────────────────────────────────────────
   const resetAllState = useCallback(() => {
     setWorkoutData(null);
     setSelectedSplit(null);
@@ -666,7 +660,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     [workoutStartTime, lockedDays, currentDay],
   );
 
-  // ── Time estimation ────────────────────────────────────────────────────────
   const getEstimatedTimeRemainingForDay = useCallback(
     (dayNumber: number) => {
       const sessionAverage = calculateSessionAverageRest(
@@ -707,7 +700,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     [workoutStartTime, getEstimatedTimeRemainingForDay],
   );
 
-  // ── Session statistics ─────────────────────────────────────────────────────
   const getTotalSessionTime = useCallback(
     () => calculateSessionTime(workoutStartTime),
     [workoutStartTime],
@@ -747,7 +739,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     ],
   );
 
-  // ── Day completion ─────────────────────────────────────────────────────────
   const isSetCompleteFunc = useCallback(
     (dayNumber: number, exerciseIndex: number, setIndex: number) =>
       isSetComplete(completedDays, dayNumber, exerciseIndex, setIndex),
@@ -779,7 +770,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     [lockedDays],
   );
 
-  // ── Effects ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (userId) void loadSavedData();
     else resetAllState();
@@ -829,7 +819,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
     const staleWarningSentRef = { current: false };
 
-    // Reset warning flag when session activity updates
     const resetWarning = () => {
       staleWarningSentRef.current = false;
     };
@@ -902,7 +891,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       .catch(() => setAuthToken(null));
   }, [userId]);
 
-  // ── Wrapped session ops that also notify the socket ───────────────────────
   // Depend on socket.send (stable across messages) rather than the socket
   // object itself (a fresh reference on every message) so these — and the
   // memoised value below, which depends on them — don't churn on every
@@ -926,7 +914,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     await serverSync.syncFromServer();
   }, [serverSync]);
 
-  // ── Context value (memoised to prevent all-consumers re-render) ───────────
   const value = useMemo<WorkoutContextValue>(
     () => ({
       userId,

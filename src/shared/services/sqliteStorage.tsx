@@ -1,18 +1,8 @@
 import * as SQLite from "expo-sqlite";
 import logger from "./logger";
 
-/**
- * SQLite-backed key/value storage. Replaces
- * @react-native-async-storage/async-storage app-wide — every call site uses
- * these functions directly instead of an AsyncStorage-shaped object.
- */
-
 const db = SQLite.openDatabaseSync("asyncStorage.db");
 
-// Default journal mode (DELETE) fsyncs the whole file on every write, and
-// every kv_store write in the app funnels through this one connection —
-// that's the "giga slow" saves/pull-to-refresh. WAL + synchronous=NORMAL
-// removes the per-write fsync while staying crash-safe.
 db.execSync("PRAGMA journal_mode = WAL");
 db.execSync("PRAGMA synchronous = NORMAL");
 
@@ -20,13 +10,6 @@ db.execSync(
   "CREATE TABLE IF NOT EXISTS kv_store (key TEXT PRIMARY KEY NOT NULL, value TEXT)",
 );
 
-// One row per record, instead of the kv_store pattern of one row holding a
-// JSON-stringified array of every record ever created (every off/* service
-// used to do that — meaning saving a single macro entry or workout set
-// re-serialized and rewrote the *entire* history every time, which is what
-// made those saves and their subsequent reads "giga slow" as history grew).
-// `sort_key` lets recent-history reads use an indexed range scan instead of
-// pulling + parsing the whole collection just to keep the last N.
 db.execSync(`CREATE TABLE IF NOT EXISTS kv_records (
   collection TEXT NOT NULL,
   id TEXT NOT NULL,
@@ -38,16 +21,8 @@ db.execSync(
   "CREATE INDEX IF NOT EXISTS idx_kv_records_sort ON kv_records (collection, sort_key)",
 );
 
-// expo-sqlite's native binding rejects with "shared object already released" /
-// "cannot be cast to NativeDatabase" when many statements are prepared
-// concurrently against one openDatabaseSync connection (e.g. the ~15 parallel
-// getStorageItem calls WorkoutContext fires on boot). Serialize every call
-// through this connection so only one statement is ever in flight.
 // ponytail: global queue serializes all kv_store access on one connection;
 // switch to expo-sqlite's async connection pool if this becomes a throughput bottleneck.
-// A timeout advances the queue even if a call never settles (the native
-// binding can wedge after the "shared object released" failure above) —
-// otherwise one stuck call would freeze every future storage read/write.
 const QUEUE_TIMEOUT_MS = 5000;
 let queue: Promise<unknown> = Promise.resolve();
 // Flags a label that's still in flight (queued or executing) when the same
@@ -134,7 +109,7 @@ export const removeStorageItems = (keys: string[]): Promise<void> =>
     );
   });
 
-// ─── kv_records (row-per-record collections) ───────────────────────────────
+// kv_records
 
 const upsertRecordSql =
   "INSERT INTO kv_records (collection, id, sort_key, value) VALUES (?, ?, ?, ?) " +

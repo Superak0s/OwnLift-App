@@ -10,9 +10,10 @@ import Animated, {
 interface ZoomableImageProps {
   readonly uri: string;
   readonly style?: ViewStyle;
+  readonly headers?: Record<string, string>;
 }
 
-export default function ZoomableImage({ uri, style }: ZoomableImageProps) {
+export default function ZoomableImage({ uri, style, headers }: ZoomableImageProps) {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -68,7 +69,7 @@ export default function ZoomableImage({ uri, style }: ZoomableImageProps) {
     <GestureDetector gesture={composed}>
       <Animated.View style={[styles.container, style]}>
         <Animated.Image
-          source={{ uri }}
+          source={{ uri, headers }}
           style={[styles.image, animatedStyle]}
           resizeMode="contain"
         />

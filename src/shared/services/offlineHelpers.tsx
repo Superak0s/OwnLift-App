@@ -1,10 +1,3 @@
-// services/off/storage.ts
-//
-// Tiny shared helpers for the "off" (serverless) service implementations.
-// Everything lives in SQLite as plain JSON blobs, keyed by string.
-// This is intentionally dumb (no schema, no migrations) — it just needs to
-// be a drop-in stand-in for what the server used to persist for us.
-
 import {
   loadFromStorage,
   removeFromStorage,
@@ -22,18 +15,11 @@ import {
 } from "./sqliteStorage"
 import { toDateString } from "@utils/format"
 
-// These thin wrappers delegate to the shared SQLite storage primitives in
-// `storage.tsx` so there's a single error-handling/logging path. They use raw
-// keys (no per-user namespacing) by passing `userId = null`, matching the
-// offline service's flat key space.
-
-/** Read a JSON value, returning `fallback` if it's missing or unparsable. */
 export async function readJSON<T>(key: string, fallback: T): Promise<T> {
   const value = await loadFromStorage<T>(key)
   return value == null ? fallback : value
 }
 
-/** Write a JSON value. Throws if the underlying write fails. */
 export async function writeJSON<T>(key: string, value: T): Promise<void> {
   const ok = await saveToStorage(key, value)
   if (!ok) {
@@ -41,17 +27,6 @@ export async function writeJSON<T>(key: string, value: T): Promise<void> {
   }
 }
 
-/**
- * Row-per-record collection store, backed by the `kv_records` SQLite table
- * (see sqliteStorage.tsx). Replaces the old "whole collection is one JSON
- * blob under one kv_store key" pattern — saving/updating a single record no
- * longer requires reading, re-serializing, and rewriting every other record
- * in the collection.
- *
- * On first use it lazily migrates any data already saved under the old
- * blob key (`legacyBlobKey`) into rows, then deletes the blob — existing
- * users don't lose local history when this ships.
- */
 export interface RecordStore<T> {
   getAll(): Promise<T[]>
   /** Most recent `limit` records (by sortKey, descending). */
@@ -94,10 +69,6 @@ export function createRecordStore<T>(
     return migration
   }
 
-  // Multiple screens read the same collection around the same time on boot
-  // (e.g. the home widget and the server-sync pass both list all sessions) —
-  // share one in-flight scan per limit instead of hitting SQLite twice for
-  // the same data.
   let inFlightGetAll: Promise<T[]> | null = null
   const inFlightGetRecent = new Map<number, Promise<T[]>>()
 
@@ -167,10 +138,6 @@ export function createRecordStore<T>(
   }
 }
 
-/**
- * Auto-incrementing numeric id, persisted under `counterKey`.
- * Not safe for concurrent writers, but the app only ever has one — itself.
- */
 export async function nextId(counterKey: string): Promise<number> {
   const current = await readJSON<number>(counterKey, 0)
   const next = current + 1
@@ -182,13 +149,8 @@ export function nowIso(): string {
   return new Date().toISOString()
 }
 
-/**
- * YYYY-MM-DD in local time, used for day-granularity streak math.
- * Re-exported from shared format utilities — single source of truth.
- */
 export { toDateString as dayKey } from "@utils/format"
 
-/** Haversine distance in meters between two lat/lng points. */
 export function distanceMeters(
   lat1: number,
   lon1: number,
@@ -206,12 +168,6 @@ export function distanceMeters(
   return R * c
 }
 
-/**
- * Given a list of ISO timestamps, computes a "consecutive days" streak.
- * The streak counts backward from today; if nothing was logged today, it
- * counts backward from yesterday instead (so the streak doesn't zero out
- * the instant the clock rolls over, only once a full day is missed).
- */
 export function computeDailyStreak(timestamps: string[]): number {
   if (timestamps.length === 0) return 0
 

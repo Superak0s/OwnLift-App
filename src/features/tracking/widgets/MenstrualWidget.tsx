@@ -17,6 +17,7 @@ export interface MenstrualRenderCtx {
   hasDataOnDate: (date: Date) => boolean;
   isOnPeriod: boolean;
   markPeriodOver: () => void;
+  colors: any;
   styles: any;
   handleCalendarDatePress: (date: Date, type: string) => void;
 }
@@ -69,7 +70,7 @@ function MenstrualHistoryList({ entries, prefs, isOnPeriod, styles }: { entries:
 }
 
 export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): React.ReactNode {
-  const { entries, prefs, setPrefs, actualDays, predictedDays, setPredictedDays, openCycleModal, setSelectedLogDate, hasDataOnDate, isOnPeriod, markPeriodOver, styles, handleCalendarDatePress } = ctx;
+  const { entries, prefs, setPrefs, actualDays, predictedDays, setPredictedDays, openCycleModal, setSelectedLogDate, hasDataOnDate, isOnPeriod, markPeriodOver, colors, styles, handleCalendarDatePress } = ctx;
 
   switch (type) {
     case "menstrual_overview": {
@@ -82,7 +83,7 @@ export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): Re
           <Text style={styles.statsValue}>{`Phase: ${lastPhase}`}</Text>
           <Text style={styles.statsDate}>{`Started: ${formatDateLabel(getCycleStartIso(last))}`}</Text>
           {isOnPeriod && (
-            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: "#ef4444", marginTop: 8 }]} onPress={markPeriodOver}>
+            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: colors.error, marginTop: 8 }]} onPress={markPeriodOver}>
               <Text style={styles.primaryButtonText}>Period is over</Text>
             </TouchableOpacity>
           )}
@@ -103,11 +104,11 @@ export function renderMenstrualWidget(type: string, ctx: MenstrualRenderCtx): Re
           onDatePress={(date: Date) => handleCalendarDatePress(date, "menstrual")}
           initialView="month"
           legendText="Red = period logged · Pink = predicted"
-          dotColor="#ec4899"
+          dotColor={colors.error}
           getDayDecoration={(date: Date) => {
             const ds = toDateString(date);
-            if (actualDays.has(ds)) return { backgroundColor: "#ef4444", dotColor: "transparent", textColor: "#ffffff" };
-            if (predictedDays.has(ds)) return { backgroundColor: "rgba(239,68,68,0.35)", dotColor: "transparent" };
+            if (actualDays.has(ds)) return { backgroundColor: colors.error, dotColor: "transparent", textColor: colors.textOnAccent };
+            if (predictedDays.has(ds)) return { backgroundColor: `${colors.error}59`, dotColor: "transparent" };
             return null;
           }}
         />

@@ -21,6 +21,7 @@ export interface WeightRenderCtx {
   openWeightModal: () => void;
   setSelectedLogDate: (date: Date | null) => void;
   hasDataOnDate: (date: Date) => boolean;
+  colors: any;
   styles: any;
   handleCalendarDatePress: (date: Date, type: string) => void;
 }
@@ -42,6 +43,7 @@ export function renderWeightWidget(
     openWeightModal,
     setSelectedLogDate,
     hasDataOnDate,
+    colors,
     styles,
     handleCalendarDatePress,
   } = ctx;
@@ -146,7 +148,7 @@ export function renderWeightWidget(
           onDatePress={(date: Date) => handleCalendarDatePress(date, "weight")}
           initialView='month'
           legendText='Weight logged · tap any day to view/add'
-          dotColor='#667eea'
+          dotColor={colors.accent}
         />
       );
 

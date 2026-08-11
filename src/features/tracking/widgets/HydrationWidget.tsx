@@ -12,12 +12,13 @@ export interface HydrationRenderCtx {
   setSelectedLogDate: (date: Date | null) => void;
   deleteHydrationEntry: (entry: any) => void;
   hasDataOnDate: (date: Date) => boolean;
+  colors: any;
   styles: any;
   handleCalendarDatePress: (date: Date, type: string) => void;
 }
 
 export function renderHydrationWidget(type: string, ctx: HydrationRenderCtx): React.ReactNode {
-  const { entries, goal, setGoal, openHydrationModal, setSelectedLogDate, deleteHydrationEntry, hasDataOnDate, styles, handleCalendarDatePress } = ctx;
+  const { entries, goal, setGoal, openHydrationModal, setSelectedLogDate, deleteHydrationEntry, hasDataOnDate, colors, styles, handleCalendarDatePress } = ctx;
 
   switch (type) {
     case "hydration_overview": {
@@ -25,16 +26,16 @@ export function renderHydrationWidget(type: string, ctx: HydrationRenderCtx): Re
       const totalToday = entries.filter(h => isoToLocalDateStr(h?.loggedAt ?? h?.recorded_at) === todayStr).reduce((s, e) => s + (Number(e.amountMl ?? e.amount_ml ?? e.amount) || 0), 0);
       const pct = goal ? Math.min(100, Math.round((totalToday / goal) * 100)) : 0;
       return (
-        <View style={[styles.trackerHeroCard, { backgroundColor: "#e0f2fe", borderColor: "#7dd3fc" }]}>
+        <View style={[styles.trackerHeroCard, { backgroundColor: colors.infoLight, borderColor: colors.info }]}>
           <View style={styles.trackerHeroTop}>
-            <View style={[styles.trackerHeroBadge, { backgroundColor: "#fff" }]}>
+            <View style={[styles.trackerHeroBadge, { backgroundColor: colors.surface }]}>
               <Text style={styles.trackerHeroBadgeIcon}>💧</Text>
             </View>
-            <Text style={[styles.trackerHeroLabel, { color: "#0369a1" }]}>{pct}% of goal</Text>
+            <Text style={[styles.trackerHeroLabel, { color: colors.info }]}>{pct}% of goal</Text>
           </View>
-          <Text style={[styles.trackerHeroValue, { color: "#0c4a6e" }]}>{`${totalToday} / ${goal} ml`}</Text>
+          <Text style={[styles.trackerHeroValue, { color: colors.textPrimary }]}>{`${totalToday} / ${goal} ml`}</Text>
           <Text style={styles.trackerHeroDate}>{new Date().toLocaleDateString()}</Text>
-          <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: "#0369a1" }]} onPress={() => { setSelectedLogDate(null); openHydrationModal(); }}>
+          <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: colors.info }]} onPress={() => { setSelectedLogDate(null); openHydrationModal(); }}>
             <Text style={styles.trackerHeroButtonText}>+ Log Water</Text>
           </TouchableOpacity>
         </View>
@@ -42,7 +43,7 @@ export function renderHydrationWidget(type: string, ctx: HydrationRenderCtx): Re
     }
 
     case "hydration_calendar":
-      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "hydration")} initialView="month" legendText="Hydration logged · tap any day to view/add" dotColor="#667eea" />;
+      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "hydration")} initialView="month" legendText="Hydration logged · tap any day to view/add" dotColor={colors.info} />;
 
     case "hydration_history": {
       if (entries.length === 0)
@@ -50,7 +51,7 @@ export function renderHydrationWidget(type: string, ctx: HydrationRenderCtx): Re
           <View style={styles.trackerEmptyCard}>
             <Text style={styles.trackerEmptyIcon}>💧</Text>
             <Text style={styles.trackerEmptyText}>No hydration entries yet.</Text>
-            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: "#0369a1", marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openHydrationModal(); }}>
+            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: colors.info, marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openHydrationModal(); }}>
               <Text style={styles.trackerHeroButtonText}>+ Log Water</Text>
             </TouchableOpacity>
           </View>
@@ -60,7 +61,7 @@ export function renderHydrationWidget(type: string, ctx: HydrationRenderCtx): Re
           {entries.map((h: any, i: number) => (
             <View key={h.id ?? i} style={[styles.trackerHistoryRow, i < entries.length - 1 && styles.trackerHistoryRowBorder]}>
               <View style={styles.trackerHistoryLeft}>
-                <View style={[styles.trackerHistoryDot, { backgroundColor: "#0ea5e9" }]} />
+                <View style={[styles.trackerHistoryDot, { backgroundColor: colors.info }]} />
                 <View>
                   <Text style={styles.trackerHistoryDate}>{formatDateLabel(h.loggedAt ?? h.recorded_at ?? h.date ?? null)}</Text>
                   <Text style={styles.trackerHistoryTime}>{`${Number(h.amountMl ?? h.amount_ml ?? h.amount).toFixed(0)} ml`}</Text>

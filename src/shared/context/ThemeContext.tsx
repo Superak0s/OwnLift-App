@@ -1,3 +1,17 @@
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react"
+import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
+import { useColorScheme } from "react-native"
+import themesData from "./themes.json"
+import logger from "@shared/services/logger"
+
 /**
  * ThemeContext.tsx
  *
@@ -32,26 +46,9 @@
  * are independent of the presets in themes.json.
  */
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  type ReactNode,
-} from "react"
-import { getStorageItem, setStorageItem } from "@shared/services/sqliteStorage"
-import { useColorScheme } from "react-native"
-import themesData from "./themes.json"
-import logger from "@shared/services/logger"
-
-// ─── Storage key ─────────────────────────────────────────────────────────────
-
 const STORAGE_KEY = "app_theme_v1"
 
-// ─── Theme token shape ────────────────────────────────────────────────────────
-
+// Types
 export interface ThemeColors {
   // Backgrounds
   background: string
@@ -83,6 +80,7 @@ export interface ThemeColors {
   // Misc
   separator: string
   shadow: string
+  overlay: string
   inputBackground: string
   inputBorder: string
   badgeBackground: string
@@ -92,7 +90,6 @@ export interface ThemeColors {
   chartColorDark: string
 }
 
-// ─── Emergency fallback ───────────────────────────────────────────────────────
 // Used only if themes.json is missing/unreadable, or if a theme entry in
 // themes.json is missing one or more color keys. Day-to-day edits should
 // happen in themes.json, not here.
@@ -122,6 +119,7 @@ const FALLBACK_COLORS: ThemeColors = {
 
   separator: "#f3f4f6",
   shadow: "#000000",
+  overlay: "rgba(0,0,0,0.5)",
   inputBackground: "#f9fafb",
   inputBorder: "#e5e7eb",
   badgeBackground: "#f3f4f6",
@@ -133,8 +131,6 @@ const FALLBACK_COLORS: ThemeColors = {
 const REQUIRED_COLOR_KEYS = Object.keys(FALLBACK_COLORS) as Array<
   keyof ThemeColors
 >
-
-// ─── Loading & validating themes.json ─────────────────────────────────────────
 
 interface RawTheme {
   id: string
@@ -252,8 +248,6 @@ export const LIGHT_COLORS: ThemeColors =
 export const DARK_COLORS: ThemeColors =
   findPreset("dark")?.colors ?? FALLBACK_COLORS
 
-// ─── Theme descriptor ─────────────────────────────────────────────────────────
-
 export type ThemeId =
   | "light"
   | "dark"
@@ -285,18 +279,12 @@ const BUILT_IN_THEMES: AppTheme[] = [
   ...PRESET_THEMES,
 ]
 
-// ─── Context value ────────────────────────────────────────────────────────────
-
 export interface ThemeContextValue {
-  /** Currently active theme descriptor */
   theme: AppTheme
-  /** Resolved color tokens for the active theme */
   colors: ThemeColors
-  /** Whether the resolved palette is considered "dark" */
   isDark: boolean
   /** The stored theme ID (may be "system") */
   activeThemeId: ThemeId
-  /** All available themes (built-in + custom) */
   allThemes: AppTheme[]
 
   setTheme: (id: ThemeId) => Promise<void>
@@ -322,11 +310,8 @@ export interface ThemeContextValue {
   resolvedChartColorDark: string
 }
 
-// ─── Context ──────────────────────────────────────────────────────────────────
-
+// Context
 const ThemeContext = createContext<ThemeContextValue | null>(null)
-
-// ─── Persistence helpers ──────────────────────────────────────────────────────
 
 interface PersistedState {
   activeThemeId: ThemeId
@@ -353,8 +338,7 @@ async function saveState(state: PersistedState): Promise<void> {
   }
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
-
+// Provider
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme() // "light" | "dark" | null
 
@@ -368,7 +352,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   >(null)
   const [loaded, setLoaded] = useState(false)
 
-  // Load persisted state on mount
   useEffect(() => {
     loadState().then(
       ({
@@ -391,7 +374,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [customThemes],
   )
 
-  // Resolve the active theme
   const theme = useMemo<AppTheme>(() => {
     if (activeThemeId === "system") {
       const systemColors = systemScheme === "dark" ? DARK_COLORS : LIGHT_COLORS
@@ -478,7 +460,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Validate that all required keys are present
         const required = REQUIRED_COLOR_KEYS
         const missing = required.filter((k) => !(k in parsed.colors!))
         if (missing.length > 0) {
@@ -488,7 +469,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Ensure it has a unique id; collisions get a new id
         const isBuiltIn = BUILT_IN_THEMES.some((t) => t.id === parsed.id)
         const finalId =
           !parsed.id || isBuiltIn ? `custom_${Date.now()}` : parsed.id
@@ -555,8 +535,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
+// Hook
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext)
   if (!ctx) {

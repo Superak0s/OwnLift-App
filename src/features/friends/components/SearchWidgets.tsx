@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import type { ThemeColors } from "@shared/context/ThemeContext";
 import type {
   Friend,
   ContactFriendSuggestion,
@@ -16,6 +17,7 @@ type IdOrUndefined = number | string | undefined;
 interface SearchContactsWidgetProps {
   readonly styles: ReturnType<typeof makeStyles>;
   readonly permStyles: ReturnType<typeof makePermStyles>;
+  readonly colors: ThemeColors;
   readonly loadingContactSuggestions: boolean;
   readonly contactPermissionDenied: boolean;
   readonly contactSuggestionsRequested: boolean;
@@ -28,6 +30,7 @@ interface SearchContactsWidgetProps {
 export function SearchContactsWidget({
   styles,
   permStyles,
+  colors,
   loadingContactSuggestions,
   contactPermissionDenied,
   contactSuggestionsRequested,
@@ -56,7 +59,7 @@ export function SearchContactsWidget({
         {loadingContactSuggestions ? (
           <ActivityIndicator
             size='small'
-            color='#667eea'
+            color={colors.accent}
             style={{ marginLeft: 8 }}
           />
         ) : (
@@ -107,7 +110,7 @@ export function SearchContactsWidget({
                 disabled={sendingRequestTo === suggestion.id}
               >
                 {sendingRequestTo === suggestion.id ? (
-                  <ActivityIndicator size='small' color='#fff' />
+                  <ActivityIndicator size='small' color={colors.textOnAccent} />
                 ) : (
                   <Text style={styles.addButtonText}>+ Add Friend</Text>
                 )}
@@ -156,6 +159,7 @@ export function SearchQrWidget({
 
 interface SearchUsersWidgetProps {
   readonly styles: ReturnType<typeof makeStyles>;
+  readonly colors: ThemeColors;
   readonly searchQuery: string;
   readonly onChangeQuery: (text: string) => void;
   readonly searching: boolean;
@@ -249,6 +253,7 @@ function SearchUserResultRow({
 
 export function SearchUsersWidget({
   styles,
+  colors,
   searchQuery,
   onChangeQuery,
   searching,
@@ -281,7 +286,7 @@ export function SearchUsersWidget({
           <ActivityIndicator
             style={styles.searchLoader}
             size='small'
-            color='#667eea'
+            color={colors.accent}
           />
         )}
       </View>

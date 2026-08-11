@@ -10,7 +10,7 @@ import {
   getDayExerciseList,
   getDayLabelAndTitle,
   getPersonEntries,
-} from "@shared/components/ProgramDayCard";
+} from "@shared/components/ProgramDayCardBase";
 
 interface ProgramDayCardProps {
   readonly day: WdDay;

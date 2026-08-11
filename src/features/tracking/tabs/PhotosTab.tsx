@@ -24,6 +24,7 @@ import {
 import { Image } from "expo-image";
 import PagerView from "react-native-pager-view";
 import { useTheme } from "@shared/context/ThemeContext";
+import { useAuth } from "@shared/context/AuthContext";
 import { progressPhotoApi } from "../services";
 import { ProgressPhotoMuscle, MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 import { STORAGE_KEYS } from "@shared/services/storage";
@@ -94,12 +95,20 @@ function getAngleLabel(photo: ProgressPhotoMuscle): string {
   return photo.angle ?? "";
 }
 
+function photoSource(uri: string | undefined, authToken: string) {
+  return {
+    uri,
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+  };
+}
+
 // ─── Widget Components ──────────────────────────────────────────────────────
 
 // ─── Widget: Photos Calendar ────────────────────────────────────────────────
 
 export function PhotosCalendarWidget() {
   const { colors } = useTheme();
+  const { authToken } = useAuth();
   const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
@@ -182,7 +191,7 @@ export function PhotosCalendarWidget() {
               <View style={styles.photoGrid}>
                 {dayPhotos.map((photo) => (
                   <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
-                    <Image source={{ uri: photo.uri }} style={styles.photoImage} contentFit="cover" />
+                    <Image source={photoSource(photo.uri, authToken)} style={styles.photoImage} contentFit="cover" />
                     <View style={styles.photoInfo}>
                       <Text style={[styles.photoAngle, { color: colors.textSecondary }]}>
                         {getAngleLabel(photo)}
@@ -288,6 +297,7 @@ const uploadBarStyles = StyleSheet.create({
 
 export function PhotosGalleryWidget() {
   const { colors } = useTheme();
+  const { authToken } = useAuth();
   const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -414,7 +424,7 @@ export function PhotosGalleryWidget() {
             {dayPhotos.map((photo) => (
               <View key={photo.id} style={[styles.photoCard, { backgroundColor: colors.surface }]}>
                 <Image
-                  source={{ uri: photo.uri }}
+                  source={photoSource(photo.uri, authToken)}
                   style={styles.photoImage}
                   contentFit="cover"
                 />
@@ -478,6 +488,7 @@ export function PhotosComparisonWidget() {
 
 function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean; readonly onClose: () => void }) {
   const { colors } = useTheme();
+  const { authToken } = useAuth();
   const [photos, setPhotos] = useState<ProgressPhotoMuscle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate1, setSelectedDate1] = useState<string | null>(null);
@@ -680,7 +691,7 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
                   </Text>
                   {photosForDate1.map((photo) => (
                     <TouchableOpacity key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]} onPress={() => setFullscreenOpen(true)}>
-                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} contentFit="cover" />
+                      <Image source={photoSource(photo.uri, authToken)} style={styles.comparisonImage} contentFit="cover" />
                       <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
                       {photo.notes && photo.notes.trim().length > 0 && (
                         <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
@@ -694,7 +705,7 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
                   </Text>
                   {photosForDate2.map((photo) => (
                     <TouchableOpacity key={photo.id} style={[styles.comparisonCard, { backgroundColor: colors.surface }]} onPress={() => setFullscreenOpen(true)}>
-                      <Image source={{ uri: photo.uri }} style={styles.comparisonImage} contentFit="cover" />
+                      <Image source={photoSource(photo.uri, authToken)} style={styles.comparisonImage} contentFit="cover" />
                       <Text style={[styles.comparisonAngle, { color: colors.textSecondary }]}>{getAngleLabel(photo)}</Text>
                       {photo.notes && photo.notes.trim().length > 0 && (
                         <Text style={[styles.comparisonNotes, { color: colors.textPrimary }]}>{photo.notes}</Text>
@@ -710,6 +721,7 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
                 photosForDate2={photosForDate2}
                 dateLabel1={new Date(selectedDate1).toLocaleDateString()}
                 dateLabel2={new Date(selectedDate2).toLocaleDateString()}
+                authToken={authToken}
               />
             </>
           ) : (
@@ -723,8 +735,9 @@ function PhotosComparisonModal({ visible, onClose }: { readonly visible: boolean
   );
 }
 
-function FullscreenCompareColumn({ photos, label }: { readonly photos: ProgressPhotoMuscle[]; readonly label: string }) {
+function FullscreenCompareColumn({ photos, label, authToken }: { readonly photos: ProgressPhotoMuscle[]; readonly label: string; readonly authToken: string }) {
   const [page, setPage] = useState(0);
+  const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
   if (photos.length === 0) {
     return (
       <View style={styles.fullscreenColumn}>
@@ -737,7 +750,7 @@ function FullscreenCompareColumn({ photos, label }: { readonly photos: ProgressP
       <Text style={styles.fullscreenLabel}>{label}</Text>
       <PagerView style={styles.fullscreenPager} initialPage={0} onPageSelected={(e) => setPage(e.nativeEvent.position)}>
         {photos.map((photo) => (
-          <ZoomableImage key={photo.id} uri={photo.uri ?? ""} style={styles.fullscreenImage} />
+          <ZoomableImage key={photo.id} uri={photo.uri ?? ""} style={styles.fullscreenImage} headers={headers} />
         ))}
       </PagerView>
       {photos.length > 1 && (
@@ -758,6 +771,7 @@ function FullscreenCompareViewer({
   photosForDate2,
   dateLabel1,
   dateLabel2,
+  authToken,
 }: {
   readonly visible: boolean;
   readonly onClose: () => void;
@@ -765,6 +779,7 @@ function FullscreenCompareViewer({
   readonly photosForDate2: ProgressPhotoMuscle[];
   readonly dateLabel1: string;
   readonly dateLabel2: string;
+  readonly authToken: string;
 }) {
   return (
     <Modal visible={visible} animationType="fade" onRequestClose={onClose} transparent={false}>
@@ -773,8 +788,8 @@ function FullscreenCompareViewer({
           <Text style={styles.fullscreenCloseText}>✕</Text>
         </TouchableOpacity>
         <View style={styles.fullscreenRow}>
-          <FullscreenCompareColumn photos={photosForDate1} label={dateLabel1} />
-          <FullscreenCompareColumn photos={photosForDate2} label={dateLabel2} />
+          <FullscreenCompareColumn photos={photosForDate1} label={dateLabel1} authToken={authToken} />
+          <FullscreenCompareColumn photos={photosForDate2} label={dateLabel2} authToken={authToken} />
         </View>
         <Text style={styles.fullscreenHint}>Pinch to zoom · double-tap to reset · swipe to browse</Text>
       </View>

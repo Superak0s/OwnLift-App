@@ -7,7 +7,7 @@ import {
   getDayExerciseList,
   getDayLabelAndTitle,
   getPersonEntries,
-} from "@shared/components/ProgramDayCard";
+} from "@shared/components/ProgramDayCardBase";
 import type { Friend } from "../services";
 import type { ProgramData, ReceivedProgram } from "../types";
 import type { makeStyles } from "../FriendsScreen";

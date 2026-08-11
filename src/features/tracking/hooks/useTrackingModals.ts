@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { bodyTrackingApi, macrosTrackingApi, bodyFatApi, menstrualApi } from "../services";
+import { bodyTrackingApi, macrosTrackingApi, bodyFatApi, menstrualApi, bodyMeasurementsApi, hydrationApi, sorenessApi } from "../services";
 import { createDeleteHandler, filterDayModalEntry } from "../helpers";
 import { isoToLocalDateStr, getCycleStartIso, buildLocalISOForDate } from "../utils";
 import { toDateString } from "@utils/format";
@@ -359,15 +359,15 @@ export function useTrackingModals(deps: UseTrackingModalsDeps) {
   );
 
   const handleDeleteMeasurement = createDeleteHandler<any>(
-    bodyTrackingApi.deleteWeightEntry, setMeasurementHistory, setDayModal, alert,
+    bodyMeasurementsApi.deleteMeasurementEntry, setMeasurementHistory, setDayModal, alert,
   );
 
   const handleDeleteHydration = createDeleteHandler<any>(
-    bodyTrackingApi.deleteWeightEntry, setHydrationEntries, setDayModal, alert,
+    hydrationApi.deleteHydrationEntry, setHydrationEntries, setDayModal, alert,
   );
 
   const handleDeleteSoreness = createDeleteHandler<any>(
-    bodyTrackingApi.deleteWeightEntry, setSorenessEntries, setDayModal, alert,
+    sorenessApi.deleteSorenessEntry, setSorenessEntries, setDayModal, alert,
   );
 
   const deleteWeightEntry = useCallback(

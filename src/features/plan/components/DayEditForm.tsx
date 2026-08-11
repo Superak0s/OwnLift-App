@@ -105,7 +105,7 @@ export function DayEditForm({
           disabled={isSubmitting}
         >
           {isSubmitting ? (
-            <ActivityIndicator color='#fff' size='small' />
+            <ActivityIndicator color={colors.textOnAccent} size='small' />
           ) : (
             <Text style={styles.submitBtnText}>Save changes</Text>
           )}

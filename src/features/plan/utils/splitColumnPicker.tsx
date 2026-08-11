@@ -144,7 +144,7 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     backdrop: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
+      backgroundColor: colors.overlay,
       justifyContent: "flex-end",
     },
     sheet: {

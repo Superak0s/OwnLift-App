@@ -247,7 +247,7 @@ const makeStyles = (colors: any) =>
     fullScreen: { flex: 1 },
     backdrop: {
       ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(0,0,0,0.5)",
+      backgroundColor: colors.overlay,
     },
     sheet: {
       position: "absolute",

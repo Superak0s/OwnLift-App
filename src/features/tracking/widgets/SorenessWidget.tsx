@@ -9,12 +9,13 @@ export interface SorenessRenderCtx {
   setSelectedLogDate: (date: Date | null) => void;
   deleteSorenessEntry: (entry: any) => void;
   hasDataOnDate: (date: Date) => boolean;
+  colors: any;
   styles: any;
   handleCalendarDatePress: (date: Date, type: string) => void;
 }
 
 export function renderSorenessWidget(type: string, ctx: SorenessRenderCtx): React.ReactNode {
-  const { entries, openSorenessModal, setSelectedLogDate, deleteSorenessEntry, hasDataOnDate, styles, handleCalendarDatePress } = ctx;
+  const { entries, openSorenessModal, setSelectedLogDate, deleteSorenessEntry, hasDataOnDate, colors, styles, handleCalendarDatePress } = ctx;
 
   switch (type) {
     case "soreness_map": {
@@ -23,7 +24,7 @@ export function renderSorenessWidget(type: string, ctx: SorenessRenderCtx): Reac
           <View style={styles.trackerEmptyCard}>
             <Text style={styles.trackerEmptyIcon}>🔥</Text>
             <Text style={styles.trackerEmptyText}>No soreness logged yet.</Text>
-            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: "#ea580c", marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openSorenessModal(); }}>
+            <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: colors.warning, marginTop: 0, paddingHorizontal: 16 }]} onPress={() => { setSelectedLogDate(null); openSorenessModal(); }}>
               <Text style={styles.trackerHeroButtonText}>+ Log Soreness</Text>
             </TouchableOpacity>
           </View>
@@ -32,16 +33,16 @@ export function renderSorenessWidget(type: string, ctx: SorenessRenderCtx): Reac
       const lastIntensity = Number(last.intensity ?? last.value ?? 0);
       const intensityColor = lastIntensity <= 3 ? "#22c55e" : lastIntensity <= 6 ? "#f59e0b" : "#ef4444";
       return (
-        <View style={[styles.trackerHeroCard, { backgroundColor: "#fff7ed", borderColor: "#fed7aa" }]}>
+        <View style={[styles.trackerHeroCard, { backgroundColor: colors.warningLight, borderColor: colors.warning }]}>
           <View style={styles.trackerHeroTop}>
-            <View style={[styles.trackerHeroBadge, { backgroundColor: "#fff" }]}>
+            <View style={[styles.trackerHeroBadge, { backgroundColor: colors.surface }]}>
               <Text style={styles.trackerHeroBadgeIcon}>🔥</Text>
             </View>
             <Text style={[styles.trackerHeroLabel, { color: intensityColor }]}>{lastIntensity}/10</Text>
           </View>
-          <Text style={[styles.trackerHeroValue, { color: "#9a3412" }]}>{last.muscleGroup ?? last.muscle ?? last.muscle_group ?? "—"}</Text>
+          <Text style={[styles.trackerHeroValue, { color: colors.textPrimary }]}>{last.muscleGroup ?? last.muscle ?? last.muscle_group ?? "—"}</Text>
           <Text style={styles.trackerHeroDate}>{new Date(last.loggedAt ?? last.recorded_at ?? last.date ?? "").toLocaleDateString()}</Text>
-          <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: "#ea580c" }]} onPress={() => { setSelectedLogDate(null); openSorenessModal(); }}>
+          <TouchableOpacity style={[styles.trackerHeroButton, { backgroundColor: colors.warning }]} onPress={() => { setSelectedLogDate(null); openSorenessModal(); }}>
             <Text style={styles.trackerHeroButtonText}>+ Log Soreness</Text>
           </TouchableOpacity>
         </View>
@@ -49,7 +50,7 @@ export function renderSorenessWidget(type: string, ctx: SorenessRenderCtx): Reac
     }
 
     case "soreness_calendar":
-      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "soreness")} initialView="month" legendText="Soreness logged · tap any day to view/add" dotColor="#f97316" />;
+      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "soreness")} initialView="month" legendText="Soreness logged · tap any day to view/add" dotColor={colors.warning} />;
 
     case "soreness_history": {
       if (entries.length === 0)

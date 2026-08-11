@@ -93,8 +93,19 @@ Only add a comment when it conveys something a future developer genuinely needs 
 - Old code, prior approaches, or why something didn't work before
 - Static-analysis/tooling quirks, unless the workaround must be preserved to prevent the issue from recurring
 - The change you just made (comments should describe the code as it is, not narrate the diff)
+- Something unrelated to the code it sits next to, or copied/leftover context from somewhere else
+- Something better explained by code elsewhere — don't point a comment at another file/function to explain the current line ("see X for how this works"); if the connection matters, make it explicit in code (a shared constant, a named helper, a type) instead of prose
+- Pending work, reminders, or personal notes ("TODO: revisit", "fix properly later", "hacky") — open an issue instead; don't let the codebase carry a to-do list in comments
+- Who wrote or changed something, or which PR/ticket it came from — that's what commit history and blame are for
+- A conversation with an AI assistant, a Stack Overflow thread, or any other external source used to arrive at the code — these references break as soon as the link or context disappears; if the reasoning matters, it belongs in code or docs, not as a pointer to an ephemeral source
+- Old code left commented out "just in case" — delete it; git history already has it
+- Anything vague enough that it doesn't actually convey information ("handle this case", "do the thing", "important") — a comment that doesn't say anything specific is worse than no comment
+- Don't decorate comments with borders, banners, or padding (`// ======`, `// *****`, box-drawing separators) — if a comment is worth keeping, the label itself is the content; it doesn't need visual weight to justify being there
 
-Do not add comments just to make the code look documented.
+### Comment hygiene (existing comments)
+
+- If you touch code with a comment attached and notice the comment no longer matches what the code does, fix or remove it in the same change — a comment that's actively wrong is worse than no comment, since it actively misleads
+- Don't leave a comment's claim unverified — if you're not sure a comment is still accurate, check before trusting it
 
 ### Length
 

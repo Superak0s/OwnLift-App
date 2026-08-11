@@ -93,7 +93,7 @@ function LiveSessionAction({
             </Text>
           </View>
           {checkingActiveSession ? (
-            <ActivityIndicator size='small' color='#2563eb' />
+            <ActivityIndicator size='small' color={colors.info} />
           ) : (
             <Text style={[styles.actionRowArrow, { color: colors.info }]}>
               ›
@@ -143,7 +143,7 @@ function LiftTogetherAction({
         <View style={[styles.actionRow, jointStyles.activeRow]}>
           <View style={jointStyles.liveDot} />
           <View style={styles.actionRowText}>
-            <Text style={[styles.actionRowTitle, { color: "#047857" }]}>
+            <Text style={[styles.actionRowTitle, { color: colors.success }]}>
               Joint session active 🎉
             </Text>
             <Text style={styles.actionRowSub}>
@@ -192,7 +192,7 @@ function LiftTogetherAction({
             </Text>
           </View>
           {busy ? (
-            <ActivityIndicator size='small' color='#7c3aed' />
+            <ActivityIndicator size='small' color={colors.accentDark} />
           ) : (
             <Text style={[styles.actionRowArrow, { color: colors.accentDark }]}>
               ›

@@ -335,7 +335,7 @@ export function LogSorenessModal({
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.quickLogBackdrop}>
+      <View style={[styles.quickLogBackdrop, { backgroundColor: colors.overlay }]}>
         <View
           style={[styles.quickLogSheet, { backgroundColor: colors.background }]}
         >

@@ -1,21 +1,10 @@
 import { getStorageItem, getStorageItems, setStorageItem, removeStorageItem, removeStorageItems } from "@shared/services/sqliteStorage"
 
-/**
- * Storage Utilities
- * Handles all SQLite key-value operations with user-specific keys
- */
-
-/**
- * Get user-specific storage key
- */
 export const getUserKey = (key: string, userId: string | null = null): string => {
   if (!userId) return key
   return `${key}_user_${userId}`
 }
 
-/**
- * Save data to SQLite
- */
 export const saveToStorage = async (
   key: string,
   value: unknown,
@@ -33,9 +22,6 @@ export const saveToStorage = async (
   }
 }
 
-/**
- * Load data from SQLite
- */
 export const loadFromStorage = async <T = unknown,>(
   key: string,
   userId: string | null = null,
@@ -54,10 +40,6 @@ export const loadFromStorage = async <T = unknown,>(
   }
 }
 
-/**
- * Load multiple keys in a single SQLite round-trip. Values come back raw
- * (unparsed) keyed by the plain (non-user-scoped) key passed in.
- */
 export const loadMultipleFromStorage = async (
   keys: string[],
   userId: string | null = null,
@@ -72,9 +54,6 @@ export const loadMultipleFromStorage = async (
   return result
 }
 
-/**
- * Remove data from SQLite
- */
 export const removeFromStorage = async (
   key: string,
   userId: string | null = null,
@@ -89,9 +68,6 @@ export const removeFromStorage = async (
   }
 }
 
-/**
- * Remove multiple items from SQLite
- */
 export const removeMultipleFromStorage = async (
   keys: string[],
   userId: string | null = null,
@@ -106,9 +82,6 @@ export const removeMultipleFromStorage = async (
   }
 }
 
-/**
- * Storage keys constants
- */
 export const STORAGE_KEYS = {
   WORKOUT_DATA: "workoutData",
   SELECTED_PERSON: "selectedPerson",

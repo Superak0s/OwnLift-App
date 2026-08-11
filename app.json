@@ -2,7 +2,7 @@
   "expo": {
     "name": "OwnLift",
     "slug": "ownlift",
-    "version": "1.2.1",
+    "version": "1.2.5",
     "orientation": "portrait",
     "icon": "./assets/adaptive-icon.png",
     "scheme": "ownlift",
@@ -74,8 +74,8 @@
     "android": {
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon-foreground.png",
-        "backgroundColor": "#667eea"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",

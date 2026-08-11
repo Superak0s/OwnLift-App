@@ -20,7 +20,7 @@ export function renderMacrosWidget(type: string, ctx: MacrosRenderCtx): React.Re
 
   switch (type) {
     case "macros_calendar":
-      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "macros")} initialView="month" legendText="Macros logged · tap any day to view/add" dotColor="#ef4444" />;
+      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "macros")} initialView="month" legendText="Macros logged · tap any day to view/add" dotColor={colors.error} />;
 
     case "macros_today": {
       const todayStats = dailyStats;

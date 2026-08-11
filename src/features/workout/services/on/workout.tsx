@@ -246,7 +246,7 @@ export const workoutApi = {
   },
 
   clearDemoSessions: async (): Promise<unknown> => {
-    const res = await authenticatedFetch("/api/sessions/demo", {
+    const res = await authenticatedFetch("/api/sessions/admin", {
       method: "DELETE",
     })
     return parseApiResponse(res)

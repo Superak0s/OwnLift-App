@@ -16,12 +16,13 @@ export interface BodyFatRenderCtx {
   setSelectedLogDate: (date: Date | null) => void;
   deleteBodyFatEntry: (entry: any) => void;
   hasDataOnDate: (date: Date) => boolean;
+  colors: any;
   styles: any;
   handleCalendarDatePress: (date: Date, type: string) => void;
 }
 
 export function renderBodyFatWidget(type: string, ctx: BodyFatRenderCtx): React.ReactNode {
-  const { history, height, heightUnit, setHeightUnit, openHeightModal, closeHeightModal, setNewHeightCm, setNewHeightFt, setNewHeightIn, openBodyFatModal, setSelectedLogDate, deleteBodyFatEntry, hasDataOnDate, styles, handleCalendarDatePress } = ctx;
+  const { history, height, heightUnit, setHeightUnit, openHeightModal, closeHeightModal, setNewHeightCm, setNewHeightFt, setNewHeightIn, openBodyFatModal, setSelectedLogDate, deleteBodyFatEntry, hasDataOnDate, colors, styles, handleCalendarDatePress } = ctx;
 
   switch (type) {
     case "bodyfat_height": {
@@ -52,7 +53,7 @@ export function renderBodyFatWidget(type: string, ctx: BodyFatRenderCtx): React.
     }
 
     case "bodyfat_calendar":
-      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "bodyfat")} initialView="month" legendText="Measurement taken · tap any day to view/add" dotColor="#8b5cf6" />;
+      return <UniversalCalendar hasDataOnDate={hasDataOnDate} onDatePress={(date: Date) => handleCalendarDatePress(date, "bodyfat")} initialView="month" legendText="Measurement taken · tap any day to view/add" dotColor={colors.accent} />;
 
     case "bodyfat_latest": {
       return (

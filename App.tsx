@@ -379,7 +379,6 @@ function NotificationListener() {
     let cancelled = false;
 
     const setup = async () => {
-      // No-op in Expo Go — Notifications module is never loaded there.
       const Notifications = await getNotifications();
       if (!Notifications || cancelled) return;
 
@@ -407,53 +406,6 @@ function NotificationListener() {
   }, [user?.id]);
 
   return null;
-}
-
-function UpdateChecker() {
-  const { AlertComponent } = useAlert();
-
-  // useEffect(() => {
-  //   const checkForUpdate = async () => {
-  //     try {
-  //       const response = await fetch(
-  //         "https://api.github.com/repos/Superak0s/OwnLift-App/releases/latest",
-  //       );
-  //       // const release = (await response.json()) as {
-  //       //   tag_name: string;
-  //       //   assets: Array<{ name: string; browser_download_url: string }>;
-  //       // };
-
-  //       // const latestVersion = release.tag_name.replace(/^v/, "").split("-")[0]!;
-  //       // const currentVersion = Constants.expoConfig?.version;
-
-  //       // if (latestVersion !== currentVersion) {
-  //       //   const apkUrl = release.assets.find((a) =>
-  //       //     a.name.endsWith(".apk"),
-  //       //   )?.browser_download_url
-
-  //       //   alert(
-  //       //     "Update Available",
-  //       //     `Version ${latestVersion} is available. Do you want to download it?`,
-  //       //     [
-  //       //       { text: "Later", style: "cancel" },
-  //       //       {
-  //       //         text: "Download",
-  //       //         onPress: () => {
-  //       //           if (apkUrl) void Linking.openURL(apkUrl)
-  //       //         },
-  //       //       },
-  //       //     ],
-  //       //     "info",
-  //       //   )
-  //       // }
-  //     } catch (e) {
-  //       console.log("Update check failed:", e);
-  //     }
-  //   };
-  //   void checkForUpdate();
-  // }, []);
-
-  return AlertComponent;
 }
 
 function MainTabs() {
@@ -649,7 +601,6 @@ export default function App() {
                   <NavigationContainer>
                     <StatusBar style='auto' />
                     <VersionGuard>
-                      <UpdateChecker />
                       <Sentry.ErrorBoundary
                         fallback={({ resetError }) => (
                           <ErrorFallback resetError={resetError} />
