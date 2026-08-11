@@ -47,6 +47,13 @@ import type {
   ExerciseHistoryEntry,
   ExerciseStats,
 } from "../types";
+import {
+  getPeriodDateRange,
+  aggregateTrainingSummary,
+  type SummaryPeriod,
+  type DateRange,
+  type TrainingSetEntry,
+} from "../utils/trainingSummary";
 
 const { width: screenWidth } = Dimensions.get("window");
 // Extra horizontal padding a chart eats once it's nested inside a widget
@@ -96,6 +103,11 @@ export default function ExerciseAnalytics({
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState<"exercise" | "muscleGroup">("exercise");
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(null);
+  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>("today");
+  const [summaryCustomRange, setSummaryCustomRange] = useState<DateRange | null>(null);
+  const [summaryMetric, setSummaryMetric] = useState<"sets" | "volume">("sets");
+  const [showSummaryRangePicker, setShowSummaryRangePicker] = useState(false);
+  const [pendingRangeStart, setPendingRangeStart] = useState<Date | null>(null);
   const [exerciseData, setExerciseData] = useState<
     ExerciseHistoryEntry[] | null
   >(null);
@@ -420,6 +432,61 @@ export default function ExerciseAnalytics({
       buildHistoryFromDay(Number.parseInt(dayNumber)),
     );
   };
+
+  const buildAllSetEntriesFromSessions = (): TrainingSetEntry[] =>
+    sessions.flatMap((session) =>
+      (session.set_timings ?? []).map((timing) => ({
+        date: new Date(timing.end_time ?? session.start_time ?? Date.now()),
+        exerciseName: resolveExerciseName(timing, session),
+        muscleGroup: timing.exercise_muscle_group ?? null,
+        weight: Number.isFinite(timing.weight) ? (timing.weight as number) : 0,
+        reps: Number.isFinite(timing.reps) ? (timing.reps as number) : 0,
+      })),
+    );
+
+  const buildAllSetEntriesFromCompletedDays = (): TrainingSetEntry[] => {
+    if (!workoutData?.days || !selectedSplit) return [];
+    return Object.keys(completedDays).flatMap((dayNumberKey) => {
+      const dayNumber = Number.parseInt(dayNumberKey);
+      const day = workoutData.days.find((d) => d.dayNumber === dayNumber);
+      const splitWorkout = day?.split?.[selectedSplit];
+      if (!splitWorkout?.exercises) return [];
+
+      return splitWorkout.exercises.flatMap((exercise, exerciseIndex) => {
+        const ex = exercise as { machineName?: string; name: string; muscleGroup?: string };
+        const exerciseName = ex.machineName ?? ex.name;
+        const exerciseSets = completedDays[dayNumber]?.[exerciseIndex];
+        if (!exerciseSets) return [];
+        return Object.keys(exerciseSets)
+          .filter((setIndex) => exerciseSets[Number(setIndex)])
+          .map((setIndex) => {
+            const setData = exerciseSets[Number(setIndex)] ?? {};
+            return {
+              date: new Date(setData.completedAt ?? Date.now()),
+              exerciseName,
+              muscleGroup: ex.muscleGroup ?? null,
+              weight: Number.isFinite(setData.weight) ? (setData.weight as number) : 0,
+              reps: Number.isFinite(setData.reps) ? (setData.reps as number) : 0,
+            };
+          });
+      });
+    });
+  };
+
+  const allSetEntries = useMemo(
+    () => [...buildAllSetEntriesFromSessions(), ...buildAllSetEntriesFromCompletedDays()],
+    [sessions, completedDays, workoutData, selectedSplit],
+  );
+
+  const summaryRange = useMemo(
+    () => getPeriodDateRange(summaryPeriod, summaryCustomRange),
+    [summaryPeriod, summaryCustomRange],
+  );
+
+  const trainingSummary = useMemo(
+    () => aggregateTrainingSummary(allSetEntries, summaryRange),
+    [allSetEntries, summaryRange],
+  );
 
   // ─── Merge + dedupe: server entries win over local ones for the same set ─
   const dedupeHistory = (
@@ -890,6 +957,9 @@ export default function ExerciseAnalytics({
     | "weight_progress"
     | "volume_progress"
     | "reps_progress";
+  const MUSCLE_GROUP_BAR_COLORS = [
+    "#4C6EF5", "#12B886", "#FA5252", "#FAB005", "#7950F2", "#15AABF", "#E64980", "#82C91E",
+  ];
   const PROGRESS_WIDGET_CONFIG: Record<
     ProgressWidgetType,
     {
@@ -938,6 +1008,160 @@ export default function ExerciseAnalytics({
     );
   };
 
+  const handleSummaryRangeDatePress = (date: Date) => {
+    if (!pendingRangeStart) {
+      setPendingRangeStart(date);
+      return;
+    }
+    setSummaryCustomRange({ start: pendingRangeStart, end: date });
+    setPendingRangeStart(null);
+    setShowSummaryRangePicker(false);
+    setSummaryPeriod("custom");
+  };
+
+  const renderTrainingSummaryWidget = (): React.ReactNode => {
+    const periodOptions: { key: SummaryPeriod; label: string }[] = [
+      { key: "today", label: "Today" },
+      { key: "week", label: "This Week" },
+      { key: "month", label: "This Month" },
+      { key: "custom", label: "Custom" },
+    ];
+
+    const muscleChartData =
+      trainingSummary.muscleGroups.length > 0
+        ? {
+            labels: trainingSummary.muscleGroups.map((row) => row.muscleGroup),
+            datasets: [
+              {
+                data: trainingSummary.muscleGroups.map((row) =>
+                  summaryMetric === "sets" ? row.sets : Math.round(row.volume),
+                ),
+              },
+            ],
+          }
+        : { labels: ["No data"], datasets: [{ data: [0] }] };
+
+    return (
+      <View>
+        <View style={styles.summaryPeriodRow}>
+          {periodOptions.map((option) => (
+            <TouchableOpacity
+              key={option.key}
+              style={[
+                styles.summaryPeriodChip,
+                summaryPeriod === option.key && styles.summaryPeriodChipActive,
+              ]}
+              onPress={() => {
+                if (option.key === "custom") {
+                  setPendingRangeStart(null);
+                  setShowSummaryRangePicker(true);
+                  return;
+                }
+                setSummaryPeriod(option.key);
+              }}
+            >
+              <Text
+                style={[
+                  styles.summaryPeriodChipText,
+                  summaryPeriod === option.key && styles.summaryPeriodChipTextActive,
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.focusModeToggle}>
+          <TouchableOpacity
+            style={[
+              styles.focusModeButton,
+              summaryMetric === "sets" && styles.focusModeButtonActive,
+            ]}
+            onPress={() => setSummaryMetric("sets")}
+          >
+            <Text
+              style={[
+                styles.focusModeButtonText,
+                summaryMetric === "sets" && styles.focusModeButtonTextActive,
+              ]}
+            >
+              Sets
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.focusModeButton,
+              summaryMetric === "volume" && styles.focusModeButtonActive,
+            ]}
+            onPress={() => setSummaryMetric("volume")}
+          >
+            <Text
+              style={[
+                styles.focusModeButtonText,
+                summaryMetric === "volume" && styles.focusModeButtonTextActive,
+              ]}
+            >
+              Volume
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {trainingSummary.muscleGroups.length === 0 ? (
+          <Text style={styles.widgetLineMuted}>
+            No sets logged in this period yet.
+          </Text>
+        ) : (
+          <>
+            <ProgressChart
+              title="By Muscle Group"
+              data={muscleChartData}
+              chartType="bar"
+              chartWidth={chartWidth}
+              barColors={trainingSummary.muscleGroups.map(
+                (_, i) => MUSCLE_GROUP_BAR_COLORS[i % MUSCLE_GROUP_BAR_COLORS.length],
+              )}
+              yAxisSuffix={summaryMetric === "volume" ? "kg" : ""}
+            />
+
+            <Text style={styles.summaryListHeader}>By Exercise</Text>
+            {trainingSummary.exercises.map((row) => (
+              <View key={row.exerciseName} style={styles.summaryListRow}>
+                <View style={styles.summaryListRowLeft}>
+                  <Text style={styles.dropdownItemText}>{row.exerciseName}</Text>
+                  {row.muscleGroup && (
+                    <Text style={styles.dropdownItemMuscle}>{row.muscleGroup}</Text>
+                  )}
+                </View>
+                <Text style={styles.dropdownItemSets}>
+                  {summaryMetric === "sets" ? `${row.sets} sets` : `${fmt(row.volume)}kg`}
+                </Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        <ModalSheet
+          visible={showSummaryRangePicker}
+          onClose={() => {
+            setShowSummaryRangePicker(false);
+            setPendingRangeStart(null);
+          }}
+          title={pendingRangeStart ? "Select end date" : "Select start date"}
+          showCancelButton={false}
+          showConfirmButton={false}
+        >
+          <UniversalCalendar
+            hasDataOnDate={() => false}
+            onDatePress={handleSummaryRangeDatePress}
+            initialView="month"
+            legendText="Tap a start date, then an end date"
+          />
+        </ModalSheet>
+      </View>
+    );
+  };
+
   const renderWidgetContent = (
     instance: WidgetInstance<AnalyticsWidgetType>,
   ): React.ReactNode => {
@@ -954,6 +1178,8 @@ export default function ExerciseAnalytics({
       case "volume_progress":
       case "reps_progress":
         return renderProgressWidget(instance.type);
+      case "training_summary":
+        return renderTrainingSummaryWidget();
       default:
         return <Text style={styles.widgetLineMuted}>Coming soon</Text>;
     }
@@ -1638,4 +1864,40 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: "center",
       lineHeight: 22,
     },
+    summaryPeriodRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
+    summaryPeriodChip: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: 8,
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    summaryPeriodChipActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    summaryPeriodChipText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    summaryPeriodChipTextActive: { color: colors.surface },
+    summaryListHeader: {
+      fontSize: 14,
+      fontWeight: "700",
+      color: colors.textSecondary,
+      marginTop: 4,
+      marginBottom: 8,
+    },
+    summaryListRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+    },
+    summaryListRowLeft: { flex: 1 },
   });
