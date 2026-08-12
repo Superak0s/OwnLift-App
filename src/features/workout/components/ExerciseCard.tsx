@@ -5,7 +5,11 @@ import { normalizeExerciseName } from "@utils/exerciseMatching";
 import type { SetDetail } from "../types";
 import { kgToDisplay } from "../utils";
 import type { makeStyles } from "../WorkoutScreen";
-import { PartnerExercisePill, PartnerExerciseMatchBadge } from "./PartnerBadges";
+import {
+  PartnerExercisePill,
+  PartnerExerciseMatchBadge,
+  PriorityMuscleGroupBadge,
+} from "./PartnerBadges";
 
 // ─── Partner-matching helpers for the exercise list ────────────────────────
 // Extracted so the .map() callback below doesn't itself add to
@@ -68,6 +72,7 @@ type ExerciseCardStyles = ReturnType<typeof makeStyles>;
 type ExerciseCardProps = {
   exercise: { name: string; sets: number; muscleGroup?: string };
   exerciseIndex: number;
+  isPriorityMuscleGroup?: boolean;
   currentDay: number;
   isCurrentDayLocked: boolean;
   colors: ThemeColors;
@@ -107,6 +112,7 @@ export function exerciseCardPropsAreEqual(
   const shallowKeys: (keyof ExerciseCardProps)[] = [
     "exercise",
     "exerciseIndex",
+    "isPriorityMuscleGroup",
     "currentDay",
     "isCurrentDayLocked",
     "colors",
@@ -181,6 +187,7 @@ export function exerciseCardPropsAreEqual(
 export const ExerciseCard = React.memo(function ExerciseCard({
   exercise,
   exerciseIndex,
+  isPriorityMuscleGroup = false,
   currentDay,
   isCurrentDayLocked,
   colors,
@@ -235,6 +242,9 @@ export const ExerciseCard = React.memo(function ExerciseCard({
           partnerSets={partnerSetCount}
           mySets={exercise.sets}
         />
+      )}
+      {isPriorityMuscleGroup && exercise.muscleGroup && (
+        <PriorityMuscleGroupBadge muscleGroup={exercise.muscleGroup} />
       )}
 
       <View style={styles.exerciseHeader}>
