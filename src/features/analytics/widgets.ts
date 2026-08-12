@@ -3,7 +3,6 @@ import type { WidgetDefinition, WidgetInstance } from "@shared/types"
 
 export type AnalyticsWidgetType =
   | "select_exercise"
-  | "training_summary"
   | "set_data"
   | "last_workout"
   | "workout_history"
@@ -73,15 +72,6 @@ export const ANALYTICS_WIDGET_REGISTRY: Record<
     defaultSize: "large",
     singleton: true,
   },
-  training_summary: {
-    type: "training_summary",
-    title: "Training Summary",
-    description: "Sets and volume broken down by muscle group and exercise for a chosen time period",
-    icon: "🧮",
-    availableSizes: ["large"],
-    defaultSize: "large",
-    singleton: true,
-  },
 }
 
 export const DEFAULT_ANALYTICS_WIDGETS: WidgetInstance<AnalyticsWidgetType>[] =
@@ -127,12 +117,6 @@ export const DEFAULT_ANALYTICS_WIDGETS: WidgetInstance<AnalyticsWidgetType>[] =
       type: "reps_progress",
       size: "large",
       order: 6,
-    },
-    {
-      id: "default-training-summary",
-      type: "training_summary",
-      size: "large",
-      order: 7,
     },
   ]
 

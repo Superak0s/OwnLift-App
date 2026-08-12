@@ -344,6 +344,15 @@ export default function WorkoutScreen(): React.JSX.Element {
   };
   const dayWorkout = getCurrentDayWorkout();
 
+  const todayExerciseNames = new Set(
+    (((dayWorkout as any)?.exercises as any[]) ?? []).map((exercise) =>
+      normalizeExerciseName(exercise.name),
+    ),
+  );
+  const undertrainedSuggestionCandidates = undertrainedCandidates.filter(
+    (name) => !todayExerciseNames.has(normalizeExerciseName(name)),
+  );
+
   // Load stored rest reminder for this user once when a session starts.
   // The per-second ticking itself lives in SessionStatsWidget so it doesn't
   // re-render this whole screen every second.
@@ -865,6 +874,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   };
 
   const handlePickUndertrainedSuggestion = (name: string) => {
+    if (isCurrentDayLocked) return;
     if (!topUndertrainedGroup) return;
     setNewExercise({
       name,
@@ -1345,7 +1355,9 @@ export default function WorkoutScreen(): React.JSX.Element {
             }
           />
 
-          {showUndertrainedBanner && topUndertrainedGroup && (
+          {showUndertrainedBanner &&
+            topUndertrainedGroup &&
+            undertrainedSuggestionCandidates.length > 0 && (
             <View style={styles.suggestionsContainer}>
               <View
                 style={{
@@ -1367,7 +1379,7 @@ export default function WorkoutScreen(): React.JSX.Element {
                   </Text>
                 </TouchableOpacity>
               </View>
-              {undertrainedCandidates.map((name) => (
+              {undertrainedSuggestionCandidates.map((name) => (
                 <TouchableOpacity
                   key={name}
                   style={styles.suggestionButton}

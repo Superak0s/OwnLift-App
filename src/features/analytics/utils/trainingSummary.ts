@@ -1,5 +1,6 @@
 import type { WorkoutData, SetTiming } from "@shared/types";
 import type { CompletedDays } from "../types";
+import { normalizeExerciseName } from "@utils/exerciseMatching";
 
 export type SummaryPeriod = "today" | "week" | "month" | "custom";
 
@@ -250,14 +251,19 @@ const UNDERTRAINED_DELTA_THRESHOLD = 25;
 function sumPlannedSetsByMuscleGroup(
   days: WorkoutData["days"],
   selectedSplit: string,
-): Map<string, number> {
-  const targets = new Map<string, number>();
+): Map<string, { muscleGroup: string; sets: number }> {
+  const targets = new Map<string, { muscleGroup: string; sets: number }>();
   days.forEach((day) => {
     const exercises = day.split?.[selectedSplit]?.exercises ?? [];
     exercises.forEach((exercise) => {
       if (!exercise.muscleGroup?.trim()) return;
-      const group = exercise.muscleGroup.trim();
-      targets.set(group, (targets.get(group) ?? 0) + exercise.sets);
+      const displayGroup = exercise.muscleGroup.trim();
+      const key = normalizeExerciseName(displayGroup);
+      const existing = targets.get(key);
+      targets.set(key, {
+        muscleGroup: existing?.muscleGroup ?? displayGroup,
+        sets: (existing?.sets ?? 0) + exercise.sets,
+      });
     });
   });
   return targets;
@@ -294,12 +300,14 @@ export function getUndertrainedMuscleGroups(
   const actuals = new Map<string, number>();
   weekEntries.forEach((entry) => {
     const group = (entry.muscleGroup ?? "").trim();
-    if (!group || !targets.has(group)) return;
-    actuals.set(group, (actuals.get(group) ?? 0) + 1);
+    if (!group) return;
+    const key = normalizeExerciseName(group);
+    if (!targets.has(key)) return;
+    actuals.set(key, (actuals.get(key) ?? 0) + 1);
   });
 
-  const rows = Array.from(targets.entries()).map(([muscleGroup, targetSets]) => {
-    const actualSets = actuals.get(muscleGroup) ?? 0;
+  const rows = Array.from(targets.entries()).map(([key, { muscleGroup, sets: targetSets }]) => {
+    const actualSets = actuals.get(key) ?? 0;
     const completionPct = targetSets > 0 ? (actualSets / targetSets) * 100 : 0;
     return { muscleGroup, actualSets, targetSets, completionPct };
   });

@@ -64,9 +64,7 @@ export function PartnerExerciseMatchBadge({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Badge for exercises targeting this week's most undertrained muscle group
-// ─────────────────────────────────────────────────────────────────────────────
 export function PriorityMuscleGroupBadge({
   muscleGroup,
 }: Readonly<{ muscleGroup: string }>) {

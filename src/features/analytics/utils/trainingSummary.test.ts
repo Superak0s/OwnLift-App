@@ -225,23 +225,48 @@ describe("getUndertrainedMuscleGroups", () => {
   });
 
   it("sorts most-undertrained first and excludes groups under the 25-point delta", () => {
+    // Three groups, each planned for 10 sets: Chest fully logged (100%),
+    // Back logged once but with lowercase casing vs the plan's "Back" (10%,
+    // exercising the case-insensitive match), Legs never logged (0%).
+    // avg completion = (100 + 10 + 0) / 3 = 36.67
+    //   Chest: delta -63.33 -> excluded (below avg)
+    //   Back:  delta  26.67 -> included
+    //   Legs:  delta  36.67 -> included, sorts before Back
+    const spreadWorkoutData: WorkoutData = {
+      days: [
+        {
+          dayNumber: 1,
+          split: {
+            solo: {
+              totalSets: 30,
+              exercises: [
+                { name: "Bench Press", muscleGroup: "Chest", sets: 10 },
+                { name: "Lat Pulldown", muscleGroup: "Back", sets: 10 },
+                { name: "Squat", muscleGroup: "Legs", sets: 10 },
+              ],
+            },
+          },
+        },
+      ],
+    };
     const entries: TrainingSetEntry[] = [
-      makeEntry({ exerciseName: "Bench Press", muscleGroup: "Chest", dayNumber: 1 }),
-      makeEntry({ exerciseName: "Bench Press", muscleGroup: "Chest", dayNumber: 1 }),
-      makeEntry({ exerciseName: "Bench Press", muscleGroup: "Chest", dayNumber: 1 }),
-      makeEntry({ exerciseName: "Lat Pulldown", muscleGroup: "Back", dayNumber: 1 }),
-      makeEntry({ exerciseName: "Lat Pulldown", muscleGroup: "Back", dayNumber: 1 }),
-      makeEntry({ exerciseName: "Lat Pulldown", muscleGroup: "Back", dayNumber: 1 }),
+      ...Array.from({ length: 10 }, () =>
+        makeEntry({ exerciseName: "Bench Press", muscleGroup: "Chest", dayNumber: 1 }),
+      ),
+      makeEntry({ exerciseName: "Lat Pulldown", muscleGroup: "back", dayNumber: 1 }),
     ];
-    // Both muscle groups fully logged (100% each) -> avg 100, delta 0 for both -> neither undertrained.
     const result = getUndertrainedMuscleGroups(
       entries,
-      workoutData,
+      spreadWorkoutData,
       "solo",
       now,
-      "days_done",
+      "full_split",
     );
-    expect(result.every((r) => r.deltaFromAvg <= 25)).toBe(true);
+    expect(result.map((r) => r.muscleGroup)).toEqual(["Legs", "Back"]);
+    expect(result[0].deltaFromAvg).toBeGreaterThan(result[1].deltaFromAvg);
+    const back = result.find((r) => r.muscleGroup === "Back");
+    expect(back?.actualSets).toBe(1); // matched despite "back" vs plan's "Back" casing
+    expect(result.every((r) => r.deltaFromAvg > 25)).toBe(true);
   });
 
   it("returns an empty array when no days have been logged this week (days_done mode)", () => {

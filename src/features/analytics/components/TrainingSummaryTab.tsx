@@ -42,6 +42,7 @@ interface Props {
   readonly refreshing?: boolean;
   readonly isLoading?: boolean;
   readonly error?: string | null;
+  readonly userId?: string | number | null;
 }
 
 const fmt = (value?: number | null): string => {
@@ -59,6 +60,7 @@ export default function TrainingSummaryTab({
   refreshing = false,
   isLoading = false,
   error = null,
+  userId = null,
 }: Readonly<Props>) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -76,12 +78,12 @@ export default function TrainingSummaryTab({
     (async () => {
       const mode = await loadFromStorage<string>(
         STORAGE_KEYS.UNDERTRAINED_CALCULATION_MODE,
-        null,
+        userId == null ? null : String(userId),
         false,
       );
       if (mode) setCalculationMode(mode as "days_done" | "full_split");
     })();
-  }, []);
+  }, [userId]);
 
   const chartWidth = screenWidth - 40;
 

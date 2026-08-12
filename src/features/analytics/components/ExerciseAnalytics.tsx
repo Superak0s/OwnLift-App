@@ -1278,6 +1278,7 @@ export default function ExerciseAnalytics({
               refreshing={refreshing}
               isLoading={isLoading}
               error={error}
+              userId={userId}
             />
           ) : (
             renderExerciseAnalyticsBody()

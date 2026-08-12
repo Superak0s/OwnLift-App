@@ -936,6 +936,7 @@ export default function SettingsScreen(): React.JSX.Element {
 
           {/* Workout Timing - keep in General */}
           {activeTab === "general" && (
+            <>
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>⏱️ Workout Timing</Text>
               <View style={styles.card}>
@@ -980,7 +981,9 @@ export default function SettingsScreen(): React.JSX.Element {
                   ? "Using your manual time setting for workout estimates"
                   : "Using server analytics when available, manual time as fallback"}
               </Text>
+            </View>
 
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>💪 Training Balance</Text>
               <View style={styles.card}>
                 <View style={styles.settingRow}>
@@ -1066,7 +1069,9 @@ export default function SettingsScreen(): React.JSX.Element {
                   ))}
                 </View>
               </View>
+            </View>
 
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>🎨 Appearance</Text>
               <View style={styles.card}>
                 <TouchableOpacity
@@ -1083,6 +1088,7 @@ export default function SettingsScreen(): React.JSX.Element {
                 </TouchableOpacity>
               </View>
             </View>
+            </>
           )}
 
           {/* Progress - General */}
