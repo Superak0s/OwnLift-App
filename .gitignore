@@ -83,3 +83,6 @@ credentials.json
 
 # Superpowers SDD scratch workspace
 .superpowers/
+
+# Local git worktrees
+.worktrees/
