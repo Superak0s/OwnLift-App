@@ -113,6 +113,45 @@ export const getAllMuscleGroups = (
 };
 
 /**
+ * Find exercise names from the plan that share a muscle group, for
+ * swap-suggestion UI. Excludes a given exercise name (case-insensitive).
+ */
+export const getExercisesByMuscleGroup = (
+  workoutData: WorkoutData | null | undefined,
+  selectedSplit: string | null,
+  muscleGroup: string,
+  excludeName?: string,
+): string[] => {
+  const names = new Set<string>();
+
+  if (!workoutData?.days || !selectedSplit || !muscleGroup?.trim()) return [];
+
+  const normalizedGroup = normalizeExerciseName(muscleGroup);
+  const excludedName = excludeName
+    ? normalizeExerciseName(excludeName)
+    : null;
+
+  workoutData.days.forEach((day) => {
+    const personWorkout = day.split?.[selectedSplit];
+    personWorkout?.exercises?.forEach((exercise) => {
+      if (!exercise.name || !exercise.muscleGroup) return;
+      if (normalizeExerciseName(exercise.muscleGroup) !== normalizedGroup) {
+        return;
+      }
+      if (
+        excludedName &&
+        normalizeExerciseName(exercise.name) === excludedName
+      ) {
+        return;
+      }
+      names.add(exercise.name.trim());
+    });
+  });
+
+  return Array.from(names);
+};
+
+/**
  * Canonical list of common muscle group names.
  */
 export const CANONICAL_MUSCLE_GROUPS: readonly string[] = [
