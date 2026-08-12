@@ -118,6 +118,8 @@ export const STORAGE_KEYS = {
   FRIENDS_TAB_WIDGETS: "friendsScreen_friendsWidgets",
   REQUESTS_TAB_WIDGETS: "friendsScreen_requestsWidgets",
   SEARCH_TAB_WIDGETS: "friendsScreen_searchWidgets",
+  UNDERTRAINED_DISPLAY_MODE: "undertrainedDisplayMode",
+  UNDERTRAINED_CALCULATION_MODE: "undertrainedCalculationMode",
 } as const
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]

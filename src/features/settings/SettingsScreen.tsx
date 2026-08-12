@@ -107,6 +107,12 @@ export default function SettingsScreen(): React.JSX.Element {
   const [loadingProgress, setLoadingProgress] = useState<boolean>(false);
   const [isOffline, setIsOffline] = useState<boolean>(false);
 
+  const [undertrainedDisplayMode, setUndertrainedDisplayMode] = useState<
+    "banner" | "per_exercise" | "both" | "off"
+  >("per_exercise");
+  const [undertrainedCalculationMode, setUndertrainedCalculationMode] =
+    useState<"days_done" | "full_split">("days_done");
+
   useEffect(() => {
     loadServerProgress();
     void isServerless().then(setIsOffline);
@@ -114,6 +120,52 @@ export default function SettingsScreen(): React.JSX.Element {
       void isServerless().then(setIsOffline);
     });
   }, [user]);
+
+  useEffect(() => {
+    const userId = user?.id ?? null;
+    (async () => {
+      const displayMode = await loadFromStorage<string>(
+        STORAGE_KEYS.UNDERTRAINED_DISPLAY_MODE,
+        userId,
+        false,
+      );
+      if (displayMode) {
+        setUndertrainedDisplayMode(
+          displayMode as "banner" | "per_exercise" | "both" | "off",
+        );
+      }
+      const calcMode = await loadFromStorage<string>(
+        STORAGE_KEYS.UNDERTRAINED_CALCULATION_MODE,
+        userId,
+        false,
+      );
+      if (calcMode) {
+        setUndertrainedCalculationMode(calcMode as "days_done" | "full_split");
+      }
+    })();
+  }, [user?.id]);
+
+  const handleSetUndertrainedDisplayMode = (
+    mode: "banner" | "per_exercise" | "both" | "off",
+  ) => {
+    setUndertrainedDisplayMode(mode);
+    void saveToStorage(
+      STORAGE_KEYS.UNDERTRAINED_DISPLAY_MODE,
+      mode,
+      user?.id ?? null,
+    );
+  };
+
+  const handleSetUndertrainedCalculationMode = (
+    mode: "days_done" | "full_split",
+  ) => {
+    setUndertrainedCalculationMode(mode);
+    void saveToStorage(
+      STORAGE_KEYS.UNDERTRAINED_CALCULATION_MODE,
+      mode,
+      user?.id ?? null,
+    );
+  };
 
   const loadServerProgress = async () => {
     if (!selectedSplit) return;
@@ -928,6 +980,93 @@ export default function SettingsScreen(): React.JSX.Element {
                   ? "Using your manual time setting for workout estimates"
                   : "Using server analytics when available, manual time as fallback"}
               </Text>
+
+              <Text style={styles.sectionTitle}>💪 Training Balance</Text>
+              <View style={styles.card}>
+                <View style={styles.settingRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingLabel}>
+                      Show undertrained suggestions
+                    </Text>
+                    <Text style={styles.settingDescription}>
+                      How to surface exercise suggestions for muscle groups
+                      behind this week
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.periodRow}>
+                  {(
+                    [
+                      { key: "per_exercise", label: "Per-exercise" },
+                      { key: "banner", label: "Banner" },
+                      { key: "both", label: "Both" },
+                      { key: "off", label: "Off" },
+                    ] as const
+                  ).map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[
+                        styles.periodChip,
+                        undertrainedDisplayMode === option.key &&
+                          styles.periodChipActive,
+                      ]}
+                      onPress={() => handleSetUndertrainedDisplayMode(option.key)}
+                    >
+                      <Text
+                        style={[
+                          styles.periodChipText,
+                          undertrainedDisplayMode === option.key &&
+                            styles.periodChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.settingRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingLabel}>Compare against</Text>
+                    <Text style={styles.settingDescription}>
+                      {undertrainedCalculationMode === "days_done"
+                        ? "Only days you've logged this week"
+                        : "Your full split cycle, regardless of what's logged"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.periodRow}>
+                  {(
+                    [
+                      { key: "days_done", label: "Days done" },
+                      { key: "full_split", label: "Full split" },
+                    ] as const
+                  ).map((option) => (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={[
+                        styles.periodChip,
+                        undertrainedCalculationMode === option.key &&
+                          styles.periodChipActive,
+                      ]}
+                      onPress={() =>
+                        handleSetUndertrainedCalculationMode(option.key)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.periodChipText,
+                          undertrainedCalculationMode === option.key &&
+                            styles.periodChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
               <Text style={styles.sectionTitle}>🎨 Appearance</Text>
               <View style={styles.card}>
                 <TouchableOpacity
@@ -1463,6 +1602,26 @@ const makeStyles = (colors: ThemeColors) =>
     settingDescription: { fontSize: 13, color: colors.textSecondary },
     settingValue: { fontSize: 16, fontWeight: "600", color: colors.accent },
     divider: { height: 1, backgroundColor: colors.surfaceBorder },
+    periodRow: { flexDirection: "row", gap: 6, marginTop: 10, marginBottom: 4 },
+    periodChip: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: 8,
+      alignItems: "center",
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
+    },
+    periodChipActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    periodChipText: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textSecondary,
+    },
+    periodChipTextActive: { color: colors.surface },
     helperText: {
       fontSize: 14,
       color: colors.accent,
