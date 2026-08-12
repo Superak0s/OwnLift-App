@@ -64,6 +64,27 @@ export function PartnerExerciseMatchBadge({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Badge for exercises targeting this week's most undertrained muscle group
+// ─────────────────────────────────────────────────────────────────────────────
+export function PriorityMuscleGroupBadge({
+  muscleGroup,
+}: Readonly<{ muscleGroup: string }>) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        matchStyles.badge,
+        { backgroundColor: colors.warningLight, borderColor: "#fcd34d" },
+      ]}
+    >
+      <Text style={[matchStyles.setsText, { color: "#92400e" }]}>
+        💪 Priority — {muscleGroup} is behind this week
+      </Text>
+    </View>
+  );
+}
+
 const makePillStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     pill: {
