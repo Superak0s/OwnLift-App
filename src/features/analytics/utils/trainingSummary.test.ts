@@ -1,8 +1,10 @@
 import {
   getPeriodDateRange,
   aggregateTrainingSummary,
+  buildTrainingSetEntries,
   type TrainingSetEntry,
 } from "./trainingSummary";
+import type { WorkoutData } from "@shared/types";
 
 describe("getPeriodDateRange", () => {
   const now = new Date("2026-08-12T15:30:00"); // Wednesday
@@ -59,11 +61,11 @@ describe("aggregateTrainingSummary", () => {
   };
 
   const entries: TrainingSetEntry[] = [
-    { date: new Date("2026-08-11T10:00:00"), exerciseName: "Bench Press", muscleGroup: "Chest", weight: 60, reps: 8 },
-    { date: new Date("2026-08-11T10:05:00"), exerciseName: "Bench Press", muscleGroup: "Chest", weight: 62.5, reps: 6 },
-    { date: new Date("2026-08-12T09:00:00"), exerciseName: "Squat", muscleGroup: "Legs", weight: 100, reps: 5 },
-    { date: new Date("2026-08-09T09:00:00"), exerciseName: "Deadlift", muscleGroup: "Back", weight: 120, reps: 5 }, // outside range
-    { date: new Date("2026-08-11T11:00:00"), exerciseName: "Overhead Press", muscleGroup: null, weight: 30, reps: 10 },
+    { date: new Date("2026-08-11T10:00:00"), exerciseName: "Bench Press", muscleGroup: "Chest", weight: 60, reps: 8, dayNumber: 1 },
+    { date: new Date("2026-08-11T10:05:00"), exerciseName: "Bench Press", muscleGroup: "Chest", weight: 62.5, reps: 6, dayNumber: 1 },
+    { date: new Date("2026-08-12T09:00:00"), exerciseName: "Squat", muscleGroup: "Legs", weight: 100, reps: 5, dayNumber: 1 },
+    { date: new Date("2026-08-09T09:00:00"), exerciseName: "Deadlift", muscleGroup: "Back", weight: 120, reps: 5, dayNumber: 1 }, // outside range
+    { date: new Date("2026-08-11T11:00:00"), exerciseName: "Overhead Press", muscleGroup: null, weight: 30, reps: 10, dayNumber: 1 },
   ];
 
   it("filters entries outside the date range", () => {
@@ -106,5 +108,29 @@ describe("aggregateTrainingSummary", () => {
     const summary = aggregateTrainingSummary([], range);
     expect(summary.muscleGroups).toEqual([]);
     expect(summary.exercises).toEqual([]);
+  });
+});
+
+describe("buildTrainingSetEntries", () => {
+  it("carries dayNumber through from completedDays", () => {
+    const workoutData: WorkoutData = {
+      days: [
+        {
+          dayNumber: 1,
+          split: {
+            solo: {
+              totalSets: 3,
+              exercises: [{ name: "Bench Press", muscleGroup: "Chest", sets: 3 }],
+            },
+          },
+        },
+      ],
+    };
+    const completedDays = {
+      1: { 0: { 0: { weight: 60, reps: 8, completedAt: "2026-08-11T10:00:00", note: "", isWarmup: false } } },
+    };
+    const entries = buildTrainingSetEntries([], workoutData, "solo", completedDays);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].dayNumber).toBe(1);
   });
 });

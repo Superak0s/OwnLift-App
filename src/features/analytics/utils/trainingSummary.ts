@@ -14,6 +14,7 @@ export interface TrainingSetEntry {
   muscleGroup: string | null;
   weight: number;
   reps: number;
+  dayNumber: number;
 }
 
 export interface SummaryMuscleGroupRow {
@@ -186,13 +187,16 @@ export function buildTrainingSetEntries(
     }
   });
 
-  return Array.from(seen.values()).map(({ date, exerciseName, muscleGroup, weight, reps }) => ({
-    date,
-    exerciseName,
-    muscleGroup,
-    weight,
-    reps,
-  }));
+  return Array.from(seen.values()).map(
+    ({ date, exerciseName, muscleGroup, weight, reps, dayNumber }) => ({
+      date,
+      exerciseName,
+      muscleGroup,
+      weight,
+      reps,
+      dayNumber,
+    }),
+  );
 }
 
 export function aggregateTrainingSummary(
