@@ -874,7 +874,15 @@ export default function WorkoutScreen(): React.JSX.Element {
   };
 
   const handlePickUndertrainedSuggestion = (name: string) => {
-    if (isCurrentDayLocked) return;
+    if (isCurrentDayLocked) {
+      alert(
+        "Day Locked",
+        "Cannot add exercises to a locked day.",
+        [{ text: "OK" }],
+        "lock",
+      );
+      return;
+    }
     if (!topUndertrainedGroup) return;
     setNewExercise({
       name,
