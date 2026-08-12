@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -15,6 +21,8 @@ import * as Device from "expo-device";
 import UniversalCalendar from "@shared/components/UniversalCalendar";
 import ProgressChart from "@shared/components/ProgressChart";
 import ModalSheet from "@shared/components/ModalSheet";
+import ScrollTabBar from "@shared/components/ScrollTabBar";
+import TrainingSummaryTab from "./TrainingSummaryTab";
 import { formatDate as formatDateUtil, formatClockTime } from "@utils/format";
 
 interface ChartData {
@@ -47,13 +55,12 @@ import type {
   ExerciseHistoryEntry,
   ExerciseStats,
 } from "../types";
-import {
-  getPeriodDateRange,
-  aggregateTrainingSummary,
-  type SummaryPeriod,
-  type DateRange,
-  type TrainingSetEntry,
-} from "../utils/trainingSummary";
+
+const FOCUS_MODE_TABS = [
+  { key: "exercise", icon: "🏋️", label: "Exercise" },
+  { key: "muscleGroup", icon: "💪", label: "Muscle Group" },
+  { key: "training_summary", icon: "📋", label: "Training Summary" },
+];
 
 const { width: screenWidth } = Dimensions.get("window");
 // Extra horizontal padding a chart eats once it's nested inside a widget
@@ -67,7 +74,7 @@ type Session = Pick<
 >;
 
 interface ExerciseAnalyticsProps {
-  readonly sessions?: Session[];
+  readonly sessions?: FullSessionWithGroups[];
   readonly workoutData?: WorkoutData | null;
   readonly selectedSplit?: string | null;
   readonly completedDays?: CompletedDays;
@@ -101,13 +108,12 @@ export default function ExerciseAnalytics({
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [selectedExercise, setSelectedExercise] = useState<string | null>(null);
-  const [focusMode, setFocusMode] = useState<"exercise" | "muscleGroup">("exercise");
-  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(null);
-  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>("today");
-  const [summaryCustomRange, setSummaryCustomRange] = useState<DateRange | null>(null);
-  const [summaryMetric, setSummaryMetric] = useState<"sets" | "volume">("sets");
-  const [showSummaryRangePicker, setShowSummaryRangePicker] = useState(false);
-  const [pendingRangeStart, setPendingRangeStart] = useState<Date | null>(null);
+  const [focusMode, setFocusMode] = useState<
+    "exercise" | "muscleGroup" | "training_summary"
+  >("exercise");
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string | null>(
+    null,
+  );
   const [exerciseData, setExerciseData] = useState<
     ExerciseHistoryEntry[] | null
   >(null);
@@ -143,8 +149,11 @@ export default function ExerciseAnalytics({
   // Two-finger pull brings up the "deploy" panel for adding widgets. To
   // rearrange, resize, or remove widgets already on the screen, open that
   // same panel and tap "Edit Widgets" — it closes the panel and switches
-  // this screen into edit mode.
+  // this screen into edit mode. Guarded against training_summary since
+  // that tab has no widgets of its own — pulling there shouldn't pop the
+  // analytics widget gallery over unrelated content.
   const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
+    if (focusMode === "training_summary") return;
     setShowWidgetGallery(true);
   });
 
@@ -433,101 +442,6 @@ export default function ExerciseAnalytics({
     );
   };
 
-  type RawSetEntry = TrainingSetEntry & {
-    dayNumber: number;
-    setNumber: number;
-    source: "server" | "local";
-  };
-
-  const buildAllSetEntriesFromSessions = (): RawSetEntry[] =>
-    sessions.flatMap((session) =>
-      (session.set_timings ?? []).map((timing) => ({
-        date: new Date(timing.end_time ?? session.start_time ?? Date.now()),
-        exerciseName: resolveExerciseName(timing, session),
-        muscleGroup: timing.exercise_muscle_group ?? null,
-        weight: Number.isFinite(timing.weight) ? (timing.weight as number) : 0,
-        reps: Number.isFinite(timing.reps) ? (timing.reps as number) : 0,
-        dayNumber: session.day_number ?? 0,
-        setNumber: (timing.set_index ?? 0) + 1,
-        source: "server" as const,
-      })),
-    );
-
-  const buildAllSetEntriesFromCompletedDays = (): RawSetEntry[] => {
-    if (!workoutData?.days || !selectedSplit) return [];
-    return Object.keys(completedDays).flatMap((dayNumberKey) => {
-      const dayNumber = Number.parseInt(dayNumberKey);
-      const day = workoutData.days.find((d) => d.dayNumber === dayNumber);
-      const splitWorkout = day?.split?.[selectedSplit];
-      if (!splitWorkout?.exercises) return [];
-
-      return splitWorkout.exercises.flatMap((exercise, exerciseIndex) => {
-        const ex = exercise as { machineName?: string; name: string; muscleGroup?: string };
-        const exerciseName = ex.machineName ?? ex.name;
-        const exerciseSets = completedDays[dayNumber]?.[exerciseIndex];
-        if (!exerciseSets) return [];
-        return Object.keys(exerciseSets)
-          .filter((setIndex) => exerciseSets[Number(setIndex)])
-          .map((setIndex) => {
-            const setData = exerciseSets[Number(setIndex)] ?? {};
-            return {
-              date: new Date(setData.completedAt ?? Date.now()),
-              exerciseName,
-              muscleGroup: ex.muscleGroup ?? null,
-              weight: Number.isFinite(setData.weight) ? (setData.weight as number) : 0,
-              reps: Number.isFinite(setData.reps) ? (setData.reps as number) : 0,
-              dayNumber,
-              setNumber: Number.parseInt(setIndex) + 1,
-              source: "local" as const,
-            };
-          });
-      });
-    });
-  };
-
-  // Same identity/priority rule as dedupeHistory: a set can appear in both
-  // sessions (server) and completedDays (local) during the sync window —
-  // server entries win.
-  const dedupeSetEntries = (entries: RawSetEntry[]): TrainingSetEntry[] => {
-    const sorted = [...entries].sort((a, b) => a.date.getTime() - b.date.getTime());
-    const seen = new Map<string, RawSetEntry>();
-
-    sorted.forEach((entry) => {
-      const key = `${entry.date.getTime()}-${entry.dayNumber}-${entry.exerciseName}-${entry.setNumber}`;
-      const existing = seen.get(key);
-      if (!existing || (entry.source === "server" && existing.source === "local")) {
-        seen.set(key, entry);
-      }
-    });
-
-    return Array.from(seen.values()).map(({ date, exerciseName, muscleGroup, weight, reps }) => ({
-      date,
-      exerciseName,
-      muscleGroup,
-      weight,
-      reps,
-    }));
-  };
-
-  const allSetEntries = useMemo(
-    () =>
-      dedupeSetEntries([
-        ...buildAllSetEntriesFromSessions(),
-        ...buildAllSetEntriesFromCompletedDays(),
-      ]),
-    [sessions, completedDays, workoutData, selectedSplit],
-  );
-
-  const summaryRange = useMemo(
-    () => getPeriodDateRange(summaryPeriod, summaryCustomRange),
-    [summaryPeriod, summaryCustomRange],
-  );
-
-  const trainingSummary = useMemo(
-    () => aggregateTrainingSummary(allSetEntries, summaryRange),
-    [allSetEntries, summaryRange],
-  );
-
   // ─── Merge + dedupe: server entries win over local ones for the same set ─
   const dedupeHistory = (
     entries: ExerciseHistoryEntry[],
@@ -766,6 +680,7 @@ export default function ExerciseAnalytics({
       Array.from(
         new Set(
           availableExercises
+            .filter((e) => e.totalSets > 0)
             .map((e) => e.muscleGroup)
             .filter((g): g is string => !!g),
         ),
@@ -775,47 +690,6 @@ export default function ExerciseAnalytics({
 
   const renderSelectExerciseWidget = (): React.ReactNode => (
     <View>
-      <View style={styles.focusModeToggle}>
-        <TouchableOpacity
-          style={[
-            styles.focusModeButton,
-            focusMode === "exercise" && styles.focusModeButtonActive,
-          ]}
-          onPress={() => {
-            setFocusMode("exercise");
-            setSelectedMuscleGroup(null);
-          }}
-        >
-          <Text
-            style={[
-              styles.focusModeButtonText,
-              focusMode === "exercise" && styles.focusModeButtonTextActive,
-            ]}
-          >
-            Exercise
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.focusModeButton,
-            focusMode === "muscleGroup" && styles.focusModeButtonActive,
-          ]}
-          onPress={() => {
-            setFocusMode("muscleGroup");
-            setSelectedExercise(null);
-          }}
-        >
-          <Text
-            style={[
-              styles.focusModeButtonText,
-              focusMode === "muscleGroup" && styles.focusModeButtonTextActive,
-            ]}
-          >
-            Muscle Group
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {selectedExercise &&
         focusMode === "exercise" &&
         selectedExerciseMeta?.name.toLowerCase().includes("assisted") &&
@@ -841,11 +715,13 @@ export default function ExerciseAnalytics({
                 ? (selectedExercise ?? "Select an exercise")
                 : (selectedMuscleGroup ?? "Select a muscle group")}
             </Text>
-            {focusMode === "exercise" && selectedExercise && selectedExerciseMeta?.muscleGroup && (
-              <Text style={styles.dropdownButtonSubtext}>
-                {selectedExerciseMeta.muscleGroup}
-              </Text>
-            )}
+            {focusMode === "exercise" &&
+              selectedExercise &&
+              selectedExerciseMeta?.muscleGroup && (
+                <Text style={styles.dropdownButtonSubtext}>
+                  {selectedExerciseMeta.muscleGroup}
+                </Text>
+              )}
           </View>
           <Text style={styles.dropdownArrow}>▼</Text>
         </View>
@@ -997,9 +873,6 @@ export default function ExerciseAnalytics({
     | "weight_progress"
     | "volume_progress"
     | "reps_progress";
-  const MUSCLE_GROUP_BAR_COLORS = [
-    "#4C6EF5", "#12B886", "#FA5252", "#FAB005", "#7950F2", "#15AABF", "#E64980", "#82C91E",
-  ];
   const PROGRESS_WIDGET_CONFIG: Record<
     ProgressWidgetType,
     {
@@ -1048,174 +921,6 @@ export default function ExerciseAnalytics({
     );
   };
 
-  const handleSummaryRangeDatePress = (date: Date) => {
-    if (!pendingRangeStart) {
-      setPendingRangeStart(date);
-      return;
-    }
-    setSummaryCustomRange({ start: pendingRangeStart, end: date });
-    setPendingRangeStart(null);
-    setShowSummaryRangePicker(false);
-    setSummaryPeriod("custom");
-  };
-
-  const renderTrainingSummaryWidget = (): React.ReactNode => {
-    const periodOptions: { key: SummaryPeriod; label: string }[] = [
-      { key: "today", label: "Today" },
-      { key: "week", label: "This Week" },
-      { key: "month", label: "This Month" },
-      { key: "custom", label: "Custom" },
-    ];
-
-    const metricValue = (row: { sets: number; volume: number }): number =>
-      summaryMetric === "sets" ? row.sets : row.volume;
-    const sortedMuscleGroups = [...trainingSummary.muscleGroups].sort(
-      (a, b) => metricValue(b) - metricValue(a),
-    );
-    const sortedExercises = [...trainingSummary.exercises].sort(
-      (a, b) => metricValue(b) - metricValue(a),
-    );
-
-    const muscleChartData =
-      sortedMuscleGroups.length > 0
-        ? {
-            labels: sortedMuscleGroups.map((row) => row.muscleGroup),
-            datasets: [
-              {
-                data: sortedMuscleGroups.map((row) =>
-                  summaryMetric === "sets" ? row.sets : Math.round(row.volume),
-                ),
-              },
-            ],
-          }
-        : { labels: ["No data"], datasets: [{ data: [0] }] };
-
-    return (
-      <View>
-        <View style={styles.summaryPeriodRow}>
-          {periodOptions.map((option) => (
-            <TouchableOpacity
-              key={option.key}
-              style={[
-                styles.summaryPeriodChip,
-                summaryPeriod === option.key && styles.summaryPeriodChipActive,
-              ]}
-              onPress={() => {
-                if (option.key === "custom") {
-                  setPendingRangeStart(null);
-                  setShowSummaryRangePicker(true);
-                  return;
-                }
-                setSummaryPeriod(option.key);
-              }}
-            >
-              <Text
-                style={[
-                  styles.summaryPeriodChipText,
-                  summaryPeriod === option.key && styles.summaryPeriodChipTextActive,
-                ]}
-              >
-                {option.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.focusModeToggle}>
-          <TouchableOpacity
-            style={[
-              styles.focusModeButton,
-              summaryMetric === "sets" && styles.focusModeButtonActive,
-            ]}
-            onPress={() => setSummaryMetric("sets")}
-          >
-            <Text
-              style={[
-                styles.focusModeButtonText,
-                summaryMetric === "sets" && styles.focusModeButtonTextActive,
-              ]}
-            >
-              Sets
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.focusModeButton,
-              summaryMetric === "volume" && styles.focusModeButtonActive,
-            ]}
-            onPress={() => setSummaryMetric("volume")}
-          >
-            <Text
-              style={[
-                styles.focusModeButtonText,
-                summaryMetric === "volume" && styles.focusModeButtonTextActive,
-              ]}
-            >
-              Volume
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {sortedMuscleGroups.length === 0 ? (
-          <Text style={styles.widgetLineMuted}>
-            No sets logged in this period yet.
-          </Text>
-        ) : (
-          <>
-            <ProgressChart
-              title="By Muscle Group"
-              data={muscleChartData}
-              chartType="bar"
-              chartWidth={chartWidth}
-              barColors={sortedMuscleGroups.map(
-                (_, i) => MUSCLE_GROUP_BAR_COLORS[i % MUSCLE_GROUP_BAR_COLORS.length],
-              )}
-              yAxisSuffix={summaryMetric === "volume" ? "kg" : ""}
-            />
-
-            <Text style={styles.summaryListHeader}>By Exercise</Text>
-            {sortedExercises.slice(0, 15).map((row) => (
-              <View key={row.exerciseName} style={styles.summaryListRow}>
-                <View style={styles.summaryListRowLeft}>
-                  <Text style={styles.dropdownItemText}>{row.exerciseName}</Text>
-                  {row.muscleGroup && (
-                    <Text style={styles.dropdownItemMuscle}>{row.muscleGroup}</Text>
-                  )}
-                </View>
-                <Text style={styles.dropdownItemSets}>
-                  {summaryMetric === "sets" ? `${row.sets} sets` : `${fmt(row.volume)}kg`}
-                </Text>
-              </View>
-            ))}
-            {sortedExercises.length > 15 && (
-              <Text style={styles.widgetLineMuted}>
-                +{sortedExercises.length - 15} more
-              </Text>
-            )}
-          </>
-        )}
-
-        <ModalSheet
-          visible={showSummaryRangePicker}
-          onClose={() => {
-            setShowSummaryRangePicker(false);
-            setPendingRangeStart(null);
-          }}
-          title={pendingRangeStart ? "Select end date" : "Select start date"}
-          showCancelButton={false}
-          showConfirmButton={false}
-        >
-          <UniversalCalendar
-            hasDataOnDate={() => false}
-            onDatePress={handleSummaryRangeDatePress}
-            initialView="month"
-            legendText="Tap a start date, then an end date"
-          />
-        </ModalSheet>
-      </View>
-    );
-  };
-
   const renderWidgetContent = (
     instance: WidgetInstance<AnalyticsWidgetType>,
   ): React.ReactNode => {
@@ -1232,115 +937,83 @@ export default function ExerciseAnalytics({
       case "volume_progress":
       case "reps_progress":
         return renderProgressWidget(instance.type);
-      case "training_summary":
-        return renderTrainingSummaryWidget();
       default:
         return <Text style={styles.widgetLineMuted}>Coming soon</Text>;
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={styles.emptyContainer}>
-        <ActivityIndicator size='large' color={colors.accent} />
-        <Text style={styles.loadingText}>Loading sessions...</Text>
-      </View>
-    );
-  }
+  // True only when the pull-to-add-widget hint / emulator shortcut / widget
+  // board are actually relevant to show — i.e. we're on the exercise or
+  // muscle-group tab and there's real content loaded underneath them.
+  const showAnalyticsChrome =
+    focusMode !== "training_summary" &&
+    !isLoading &&
+    !error &&
+    !!sessions?.length;
 
-  if (error) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>⚠️</Text>
-        <Text style={styles.emptyTitle}>Something went wrong</Text>
-        <Text style={styles.emptyText}>{error}</Text>
-      </View>
-    );
-  }
-
-  if (!sessions?.length) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📊</Text>
-        <Text style={styles.emptyTitle}>No Data Available</Text>
-        <Text style={styles.emptyText}>No workout sessions found</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ flex: 1 }} {...panHandlers}>
-      {isPulling && (
-        <View pointerEvents='none' style={styles.pullHint}>
-          <Text style={styles.pullHintText}>
-            {pullDistance > 90
-              ? "Release to add a widget ✨"
-              : "Pull to add a widget ↓"}
-          </Text>
+  const renderExerciseAnalyticsBody = (): React.ReactNode => {
+    if (isLoading) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size='large' color={colors.accent} />
+          <Text style={styles.loadingText}>Loading sessions...</Text>
         </View>
-      )}
-      {isEmulator && (
-        <TouchableOpacity
-          style={styles.emulatorWidgetButton}
-          onPress={() => setShowWidgetGallery(true)}
-        >
-          <Text style={styles.emulatorWidgetButtonText}>+ Widget</Text>
-        </TouchableOpacity>
-      )}
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ flexGrow: 1 }}
-        scrollEnabled={!isPulling}
-        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width - 40)}
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.accent]}
-              tintColor={colors.accent}
-            />
-          ) : undefined
-        }
-      >
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.subtitle}>Track progress over time</Text>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>⚠️</Text>
+          <Text style={styles.emptyTitle}>Something went wrong</Text>
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      );
+    }
+
+    if (!sessions?.length) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>📊</Text>
+          <Text style={styles.emptyTitle}>No Data Available</Text>
+          <Text style={styles.emptyText}>No workout sessions found</Text>
+        </View>
+      );
+    }
+
+    return (
+      <>
+        {isDemoMode && (
+          <View style={styles.demoBanner}>
+            <Text style={styles.demoBannerIcon}>🧪</Text>
+            <Text style={styles.demoBannerText}>
+              Demo Mode - Showing sample data
+            </Text>
           </View>
+        )}
 
-          {isDemoMode && (
-            <View style={styles.demoBanner}>
-              <Text style={styles.demoBannerIcon}>🧪</Text>
-              <Text style={styles.demoBannerText}>
-                Demo Mode - Showing sample data
-              </Text>
-            </View>
-          )}
+        {widgetsLoaded && widgets.length > 0 && widgetEditMode && (
+          <View style={styles.widgetsSectionHeader}>
+            <Text style={styles.widgetsSectionTitle}>Editing Widgets</Text>
+            <TouchableOpacity
+              onPress={() => setWidgetEditMode(false)}
+              hitSlop={8}
+            >
+              <Text style={styles.widgetsEditToggle}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-          {widgetsLoaded && widgets.length > 0 && widgetEditMode && (
-            <View style={styles.widgetsSectionHeader}>
-              <Text style={styles.widgetsSectionTitle}>Editing Widgets</Text>
-              <TouchableOpacity
-                onPress={() => setWidgetEditMode(false)}
-                hitSlop={8}
-              >
-                <Text style={styles.widgetsEditToggle}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <WidgetsPanel
-            widgets={widgets}
-            isLoaded={widgetsLoaded}
-            editMode={widgetEditMode}
-            onCycleSize={cycleWidgetSize}
-            onRemove={removeWidget}
-            onReorder={reorderWidgets}
-            renderContent={renderWidgetContent}
-            registry={ANALYTICS_WIDGET_REGISTRY}
-          />
-        </View>
+        <WidgetsPanel
+          widgets={widgets}
+          isLoaded={widgetsLoaded}
+          editMode={widgetEditMode}
+          onCycleSize={cycleWidgetSize}
+          onRemove={removeWidget}
+          onReorder={reorderWidgets}
+          renderContent={renderWidgetContent}
+          registry={ANALYTICS_WIDGET_REGISTRY}
+        />
 
         <ModalSheet
           visible={showDropdown}
@@ -1348,7 +1021,9 @@ export default function ExerciseAnalytics({
             setShowDropdown(false);
             setSearchQuery("");
           }}
-          title={focusMode === "exercise" ? "Select Exercise" : "Select Muscle Group"}
+          title={
+            focusMode === "exercise" ? "Select Exercise" : "Select Muscle Group"
+          }
           showCancelButton={false}
           showConfirmButton={false}
         >
@@ -1380,7 +1055,8 @@ export default function ExerciseAnalytics({
                   onPress={() => setShowZeroSetExercises(!showZeroSetExercises)}
                 >
                   <Text style={styles.filterButtonText}>
-                    {showZeroSetExercises ? "Hide" : "Show"} exercises with 0 sets
+                    {showZeroSetExercises ? "Hide" : "Show"} exercises with 0
+                    sets
                   </Text>
                   <Text style={styles.filterButtonIcon}>
                     {showZeroSetExercises ? "👁️" : "👁️‍🗨️"}
@@ -1453,14 +1129,17 @@ export default function ExerciseAnalytics({
               style={styles.dropdownList}
               ListEmptyComponent={
                 <View style={styles.noResultsContainer}>
-                  <Text style={styles.noResultsText}>No muscle groups found</Text>
+                  <Text style={styles.noResultsText}>
+                    No muscle groups found
+                  </Text>
                 </View>
               }
               renderItem={({ item: group }) => (
                 <TouchableOpacity
                   style={[
                     styles.dropdownItem,
-                    selectedMuscleGroup === group && styles.dropdownItemSelected,
+                    selectedMuscleGroup === group &&
+                      styles.dropdownItemSelected,
                   ]}
                   onPress={() => {
                     setSelectedMuscleGroup(group);
@@ -1470,7 +1149,8 @@ export default function ExerciseAnalytics({
                   <Text
                     style={[
                       styles.dropdownItemText,
-                      selectedMuscleGroup === group && styles.dropdownItemTextSelected,
+                      selectedMuscleGroup === group &&
+                        styles.dropdownItemTextSelected,
                     ]}
                   >
                     {group}
@@ -1524,6 +1204,85 @@ export default function ExerciseAnalytics({
               </View>
             ))}
         </ModalSheet>
+      </>
+    );
+  };
+
+  return (
+    <View style={{ flex: 1 }} {...panHandlers}>
+      {showAnalyticsChrome && isPulling && (
+        <View pointerEvents='none' style={styles.pullHint}>
+          <Text style={styles.pullHintText}>
+            {pullDistance > 90
+              ? "Release to add a widget ✨"
+              : "Pull to add a widget ↓"}
+          </Text>
+        </View>
+      )}
+      {showAnalyticsChrome && isEmulator && (
+        <TouchableOpacity
+          style={styles.emulatorWidgetButton}
+          onPress={() => setShowWidgetGallery(true)}
+        >
+          <Text style={styles.emulatorWidgetButtonText}>+ Widget</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Header + tab bar now live inside the ScrollView (like TrackingScreen)
+          instead of above it, so they scroll away with the content instead
+          of staying pinned at the very top of the screen. */}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ flexGrow: 1 }}
+        scrollEnabled={!isPulling}
+        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width - 40)}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.accent]}
+              tintColor={colors.accent}
+            />
+          ) : undefined
+        }
+      >
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>Track progress over time</Text>
+          </View>
+
+          <ScrollTabBar
+            tabs={FOCUS_MODE_TABS}
+            activeTab={focusMode}
+            onTabChange={(tab) => {
+              const mode = tab as
+                | "exercise"
+                | "muscleGroup"
+                | "training_summary";
+              setFocusMode(mode);
+              if (mode === "exercise") setSelectedMuscleGroup(null);
+              else if (mode === "muscleGroup") setSelectedExercise(null);
+            }}
+            storageKey='exerciseAnalytics_focusModeTabConfig'
+          />
+
+          {focusMode === "training_summary" ? (
+            <TrainingSummaryTab
+              sessions={sessions}
+              workoutData={workoutData}
+              selectedSplit={selectedSplit}
+              completedDays={completedDays}
+              onRefresh={onRefresh}
+              refreshing={refreshing}
+              isLoading={isLoading}
+              error={error}
+            />
+          ) : (
+            renderExerciseAnalyticsBody()
+          )}
+        </View>
       </ScrollView>
 
       <WidgetGallery
@@ -1541,8 +1300,13 @@ export default function ExerciseAnalytics({
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { padding: 10, paddingBottom: 40 },
-    header: { marginBottom: 25, alignItems: "center" },
+    content: { padding: 10, paddingBottom: 40, flexGrow: 1 },
+    header: {
+      marginBottom: 12,
+      alignItems: "center",
+      paddingHorizontal: 10,
+      paddingTop: 10,
+    },
     title: {
       fontSize: 32,
       fontWeight: "bold",
@@ -1644,27 +1408,6 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 4,
     },
     warningText: { fontSize: 14, color: "#856404", lineHeight: 20 },
-    focusModeToggle: {
-      flexDirection: "row",
-      backgroundColor: colors.surface,
-      borderRadius: 10,
-      padding: 4,
-      marginBottom: 10,
-      gap: 4,
-    },
-    focusModeButton: {
-      flex: 1,
-      paddingVertical: 8,
-      borderRadius: 8,
-      alignItems: "center",
-    },
-    focusModeButtonActive: { backgroundColor: colors.accent },
-    focusModeButtonText: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: colors.textSecondary,
-    },
-    focusModeButtonTextActive: { color: colors.surface },
     dropdownButton: {
       backgroundColor: colors.surface,
       borderRadius: 12,
@@ -1918,40 +1661,4 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: "center",
       lineHeight: 22,
     },
-    summaryPeriodRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
-    summaryPeriodChip: {
-      flex: 1,
-      paddingVertical: 8,
-      borderRadius: 8,
-      alignItems: "center",
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.surfaceBorder,
-    },
-    summaryPeriodChipActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    summaryPeriodChipText: {
-      fontSize: 12,
-      fontWeight: "600",
-      color: colors.textSecondary,
-    },
-    summaryPeriodChipTextActive: { color: colors.surface },
-    summaryListHeader: {
-      fontSize: 14,
-      fontWeight: "700",
-      color: colors.textSecondary,
-      marginTop: 4,
-      marginBottom: 8,
-    },
-    summaryListRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.separator,
-    },
-    summaryListRowLeft: { flex: 1 },
   });
