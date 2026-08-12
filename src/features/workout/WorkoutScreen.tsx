@@ -32,6 +32,7 @@ import {
   checkMuscleGroupForTypo,
   getCanonicalName,
   normalizeExerciseName,
+  getExercisesByMuscleGroup,
 } from "@utils/exerciseMatching";
 import { formatTime as formatDuration } from "@utils/timeEstimation";
 import {
@@ -233,6 +234,18 @@ export default function WorkoutScreen(): React.JSX.Element {
 
   const allExerciseNames = getAllExerciseNames(workoutData, selectedSplit);
   const allMuscleGroups = getAllMuscleGroups(workoutData, selectedSplit);
+  const swapSuggestions = useMemo(
+    () =>
+      editingExercise
+        ? getExercisesByMuscleGroup(
+            workoutData,
+            selectedSplit,
+            newMuscleGroup,
+            editingExercise.exercise.name,
+          )
+        : [],
+    [workoutData, selectedSplit, newMuscleGroup, editingExercise],
+  );
   const isCurrentDayLocked = isDayLocked(currentDay);
   const areAllSetsComplete = isDayComplete(currentDay);
 
@@ -1621,6 +1634,22 @@ export default function WorkoutScreen(): React.JSX.Element {
                   <Text style={styles.suggestionMatch}>
                     {Math.round(s.similarity * 100)}% match
                   </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {swapSuggestions.length > 0 && (
+            <View style={styles.suggestionsContainer}>
+              <Text style={styles.suggestionsTitle}>
+                🔄 Swap for similar exercise:
+              </Text>
+              {swapSuggestions.map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  style={styles.suggestionButton}
+                  onPress={() => setNewExerciseName(name)}
+                >
+                  <Text style={styles.suggestionText}>{name}</Text>
                 </TouchableOpacity>
               ))}
             </View>
