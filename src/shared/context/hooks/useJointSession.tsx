@@ -139,6 +139,9 @@ export const useJointSession = ({
 
   const syncPulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const jointSessionIdRef = useRef<string | null>(null)
+  const acceptInviteInFlightRef = useRef(false)
+  const declineInviteInFlightRef = useRef(false)
+  const leaveSessionInFlightRef = useRef(false)
   const watchTargetRef = useRef<WatchTarget | null>(null)
   const lastPushedKeyRef = useRef<string | null>(null)
 
@@ -331,7 +334,8 @@ export const useJointSession = ({
   )
 
   const acceptInvite = useCallback(async (): Promise<boolean> => {
-    if (!pendingInvite) return false
+    if (!pendingInvite || acceptInviteInFlightRef.current) return false
+    acceptInviteInFlightRef.current = true
     try {
       const res = (await sharingApi.acceptJointInvite(
         pendingInvite.inviteId as string,
@@ -345,18 +349,24 @@ export const useJointSession = ({
     } catch (err) {
       console.error("Failed to accept joint invite:", err)
       return false
+    } finally {
+      acceptInviteInFlightRef.current = false
     }
   }, [pendingInvite])
 
   const declineInvite = useCallback(async (): Promise<void> => {
-    if (!pendingInvite) return
+    if (!pendingInvite || declineInviteInFlightRef.current) return
+    declineInviteInFlightRef.current = true
     try {
       await sharingApi.declineJointInvite(pendingInvite.inviteId as string)
     } catch (_) {}
     setPendingInvite(null)
+    declineInviteInFlightRef.current = false
   }, [pendingInvite])
 
   const leaveJointSession = useCallback(async (): Promise<void> => {
+    if (leaveSessionInFlightRef.current) return
+    leaveSessionInFlightRef.current = true
     const id = jointSessionIdRef.current
     if (id) {
       socket?.send({ type: "leave_joint_session", jointSessionId: id })
@@ -364,6 +374,7 @@ export const useJointSession = ({
         await sharingApi.leaveJointSession(id)
       } catch (_) {}
     }
+    leaveSessionInFlightRef.current = false
     setJointSession(null)
     setPartnerProgress(null)
     setInviteStatus("idle")

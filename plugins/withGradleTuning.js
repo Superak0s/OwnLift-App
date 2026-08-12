@@ -13,6 +13,11 @@ const FORCED_PROPERTIES = {
   "kotlin.daemon.jvm.options": "-Xmx4g",
 };
 
+// Local dev only: skip on EAS so production/preview builds still ship all ABIs.
+if (!process.env.EAS_BUILD) {
+  FORCED_PROPERTIES["reactNativeArchitectures"] = "x86_64,arm64-v8a";
+}
+
 // Properties removed if present (deprecated / conflicting)
 const REMOVED_PROPERTIES = new Set(["android.enableBuildCache"]);
 

@@ -16,8 +16,11 @@ export function createDeleteHandler<T>(
   onAlert: (title: string, msg: string, buttons?: any[], type?: any) => void,
   extraCleanup?: (entry: T) => void,
 ) {
+  const inFlightIds = new Set<string | number>();
   return async (entry: T) => {
     const entryId = (entry as { id: string | number }).id;
+    if (inFlightIds.has(entryId)) return;
+    inFlightIds.add(entryId);
     try {
       await apiDelete(entryId);
       setHistory((prev) => prev.filter((e) => (e as { id: string | number }).id !== entryId));
@@ -30,6 +33,8 @@ export function createDeleteHandler<T>(
         [{ text: "OK" }],
         "error",
       );
+    } finally {
+      inFlightIds.delete(entryId);
     }
   };
 }

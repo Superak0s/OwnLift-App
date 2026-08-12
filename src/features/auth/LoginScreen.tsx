@@ -23,6 +23,7 @@ import {
   resetServerUrl,
   getDefaultServerUrl,
 } from "@shared/services/config";
+import { scanForLanServer } from "@shared/services/lanDiscovery";
 import {
   getAppMode,
   setAppMode,
@@ -47,6 +48,8 @@ export default function LoginScreen({
   const [showServerModal, setShowServerModal] = useState<boolean>(false);
   const [tempServerUrl, setTempServerUrl] = useState<string>("");
   const [currentServerUrl, setCurrentServerUrl] = useState<string>("");
+  const [isDetectingLan, setIsDetectingLan] = useState<boolean>(false);
+  const [detectedLanUrl, setDetectedLanUrl] = useState<string | null>(null);
   const [appMode, setAppModeState] = useState<AppMode>("online");
 
   const { signin } = useAuth();
@@ -116,8 +119,22 @@ export default function LoginScreen({
 
   const handleOpenServerModal = useCallback((): void => {
     setTempServerUrl(currentServerUrl);
+    setDetectedLanUrl(null);
     setShowServerModal(true);
+    setIsDetectingLan(true);
+    scanForLanServer()
+      .then((found) => {
+        if (!found) return;
+        setDetectedLanUrl(
+          found.fqdn ? `https://${found.fqdn}` : `http://${found.ip}:${found.port}`,
+        );
+      })
+      .finally(() => setIsDetectingLan(false));
   }, [currentServerUrl]);
+
+  const applyDetectedLanUrl = useCallback((): void => {
+    if (detectedLanUrl) setTempServerUrl(detectedLanUrl);
+  }, [detectedLanUrl]);
 
   const validateServerUrl = useCallback(
     (url: string): { valid: boolean; message?: string } => {
@@ -417,6 +434,22 @@ export default function LoginScreen({
             autoCapitalize='none'
             autoCorrect={false}
           />
+          {isDetectingLan && (
+            <View style={styles.lanSuggestion}>
+              <ActivityIndicator size='small' color={colors.textMuted} />
+              <Text style={styles.lanSuggestionText}>Looking for a server on this network…</Text>
+            </View>
+          )}
+          {detectedLanUrl && (
+            <TouchableOpacity
+              style={styles.lanSuggestion}
+              onPress={applyDetectedLanUrl}
+            >
+              <Text style={styles.lanSuggestionText}>
+                📡 Found on this network: {detectedLanUrl} (tap to use)
+              </Text>
+            </TouchableOpacity>
+          )}
           <View style={styles.modalWarning}>
             <Text style={styles.modalWarningIcon}>⚠️</Text>
             <Text style={styles.modalWarningText}>
@@ -627,5 +660,18 @@ const makeStyles = (colors: any) =>
       textAlign: "center",
       fontStyle: "italic",
     },
-    
+    lanSuggestion: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 16,
+    },
+    lanSuggestionText: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      flexShrink: 1,
+    },
   });

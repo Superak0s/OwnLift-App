@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, type ReactElement } from "react"
+import React, { useState, useCallback, useEffect, useMemo, useRef, type ReactElement } from "react"
 import { useTheme } from "../context/ThemeContext"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import ModalSheet from "./ModalSheet"
@@ -207,6 +207,11 @@ function CustomAlert({
   const safeType: AlertType = type ?? "default"
   const accent = ACCENT_COLORS[safeType]
   const stackButtons = safeButtons.length > 2
+  const isHandlingPressRef = useRef(false)
+
+  useEffect(() => {
+    if (visible) isHandlingPressRef.current = false
+  }, [visible])
 
   return (
     <ModalSheet
@@ -246,6 +251,8 @@ function CustomAlert({
                 isDestructive && styles.buttonDestructive,
               ]}
               onPress={() => {
+                if (isHandlingPressRef.current) return
+                isHandlingPressRef.current = true
                 onDismiss()
                 btn.onPress?.()
               }}

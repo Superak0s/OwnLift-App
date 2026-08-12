@@ -92,6 +92,7 @@ interface WorkoutContextValue {
   serverAnalytics: ServerAnalyticsType;
   useManualTime: boolean;
   lastActivityTime: number | null;
+  lastSetEndTime: string | null;
   weightUnit: "kg" | "lbs";
   saveWorkoutData: (data: WorkoutData | null) => Promise<void>;
   saveSelectedSplit: (person: string) => Promise<void>;
@@ -562,6 +563,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
           STORAGE_KEYS.USE_MANUAL_TIME,
           STORAGE_KEYS.PENDING_SYNCS,
           STORAGE_KEYS.LAST_ACTIVITY_TIME,
+          STORAGE_KEYS.LAST_SET_END_TIME,
           STORAGE_KEYS.WEIGHT_UNIT,
         ],
         userId,
@@ -586,6 +588,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       const manualTime = str(STORAGE_KEYS.USE_MANUAL_TIME);
       const syncs = json<PendingSync[]>(STORAGE_KEYS.PENDING_SYNCS);
       const activity = str(STORAGE_KEYS.LAST_ACTIVITY_TIME);
+      const setEndTime = str(STORAGE_KEYS.LAST_SET_END_TIME);
       const weightUnitLoaded = str(STORAGE_KEYS.WEIGHT_UNIT);
 
       let resolvedData = data;
@@ -623,6 +626,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       if (syncs) setPendingSyncs(syncs as PendingSync[]);
       if (activity)
         setLastActivityTime(Number.parseInt(activity as string, 10));
+      if (setEndTime) setLastSetEndTime(setEndTime as string);
       if (weightUnitLoaded) setWeightUnit(weightUnitLoaded as "kg" | "lbs");
 
       const loadedLastReset = lastReset ? (lastReset as string) : null;
@@ -931,6 +935,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       serverAnalytics,
       useManualTime,
       lastActivityTime,
+      lastSetEndTime,
       weightUnit,
       saveWorkoutData,
       saveSelectedSplit,
@@ -987,6 +992,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       serverAnalytics,
       useManualTime,
       lastActivityTime,
+      lastSetEndTime,
       weightUnit,
       saveWorkoutData,
       saveSelectedSplit,

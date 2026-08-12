@@ -170,6 +170,7 @@ interface SearchUsersWidgetProps {
   readonly currentUserId: IdOrUndefined;
   readonly onGoToRequests: () => void;
   readonly onAddFriend: (username: string) => void;
+  readonly sendingRequestTo: string | IdOrNull;
 }
 
 function SearchUserResultRow({
@@ -179,8 +180,10 @@ function SearchUserResultRow({
   pendingRequests,
   currentUserId,
   styles,
+  colors,
   onGoToRequests,
   onAddFriend,
+  sendingRequestTo,
 }: {
   readonly result: UserSearchResult;
   readonly friends: Friend[];
@@ -188,8 +191,10 @@ function SearchUserResultRow({
   readonly pendingRequests: PendingFriendRequest[];
   readonly currentUserId: IdOrUndefined;
   readonly styles: ReturnType<typeof makeStyles>;
+  readonly colors: ThemeColors;
   readonly onGoToRequests: () => void;
   readonly onAddFriend: (username: string) => void;
+  readonly sendingRequestTo: string | IdOrNull;
 }): React.JSX.Element {
   const isFriend = friends.some((f) => f.id === result.id);
   const hasSent = sentRequests.some((r) => r.receiverId === result.id);
@@ -225,8 +230,13 @@ function SearchUserResultRow({
       <TouchableOpacity
         style={styles.addButton}
         onPress={() => onAddFriend(result.username)}
+        disabled={sendingRequestTo === result.username}
       >
-        <Text style={styles.addButtonText}>+ Add Friend</Text>
+        {sendingRequestTo === result.username ? (
+          <ActivityIndicator size='small' color={colors.textOnAccent} />
+        ) : (
+          <Text style={styles.addButtonText}>+ Add Friend</Text>
+        )}
       </TouchableOpacity>
     );
   }
@@ -264,6 +274,7 @@ export function SearchUsersWidget({
   currentUserId,
   onGoToRequests,
   onAddFriend,
+  sendingRequestTo,
 }: SearchUsersWidgetProps): React.JSX.Element {
   const noResults =
     searchQuery.trim() && !searching && searchResults.length === 0 ? (
@@ -301,8 +312,10 @@ export function SearchUsersWidget({
               pendingRequests={pendingRequests}
               currentUserId={currentUserId}
               styles={styles}
+              colors={colors}
               onGoToRequests={onGoToRequests}
               onAddFriend={onAddFriend}
+              sendingRequestTo={sendingRequestTo}
             />
           ))}
         </View>

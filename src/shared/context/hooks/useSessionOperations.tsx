@@ -39,6 +39,7 @@ export interface UseSessionOperationsOptions {
   removeFromStorage: (key: string, userId: string | null) => Promise<boolean>
   STORAGE_KEYS: {
     LAST_ACTIVITY_TIME: string
+    LAST_SET_END_TIME: string
     LOCKED_DAYS: string
     UNLOCKED_OVERRIDES: string
     WORKOUT_START_TIME: string
@@ -160,6 +161,7 @@ export const useSessionOperations = ({
       await removeFromStorage(STORAGE_KEYS.WORKOUT_START_TIME, userId)
       await removeFromStorage(STORAGE_KEYS.CURRENT_SESSION_ID, userId)
       await removeFromStorage(STORAGE_KEYS.LAST_ACTIVITY_TIME, userId)
+      await removeFromStorage(STORAGE_KEYS.LAST_SET_END_TIME, userId)
 
       setWorkoutStartTime(null)
       setCurrentSessionId(null)
@@ -235,6 +237,7 @@ export const useSessionOperations = ({
             dayCount: workoutData?.days?.length,
           },
         )
+        await removeFromStorage(STORAGE_KEYS.LAST_SET_END_TIME, userId)
         setLastSetEndTime(null)
         return null
       }
@@ -319,6 +322,7 @@ export const useSessionOperations = ({
         logger.warn("⚠ Session queued for sync with local ID:", newSessionId)
       }
 
+      await removeFromStorage(STORAGE_KEYS.LAST_SET_END_TIME, userId)
       setLastSetEndTime(null)
       return newSessionId
     } catch (error) {
@@ -333,6 +337,7 @@ export const useSessionOperations = ({
     workoutData,
     isDemoMode,
     saveToStorage,
+    removeFromStorage,
     setWorkoutStartTime,
     setCurrentSessionId,
     setLastSetEndTime,
@@ -526,6 +531,7 @@ export const useSessionOperations = ({
           console.error("No session ID available - this should not happen!")
         }
 
+        await saveToStorage(STORAGE_KEYS.LAST_SET_END_TIME, setEndTime, userId)
         setLastSetEndTime(setEndTime)
       } catch (error) {
         console.error("Error saving set details:", error)

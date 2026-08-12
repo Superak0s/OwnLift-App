@@ -98,6 +98,7 @@ export const STORAGE_KEYS = {
   USE_MANUAL_TIME: "useManualTime",
   PENDING_SYNCS: "pendingSyncs",
   LAST_ACTIVITY_TIME: "lastActivityTime",
+  LAST_SET_END_TIME: "lastSetEndTime",
   WEIGHT_UNIT: "weight_unit",
   HOME_WIDGETS: "homeWidgets",
   WORKOUT_WIDGETS: "workoutWidgets",

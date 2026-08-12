@@ -67,10 +67,27 @@ export default function ModalSheet({
   const isKeyboardOpenRef = useRef(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sheetTranslateY = useRef(new Animated.Value(0)).current
+  const isConfirmingRef = useRef(false)
 
   useEffect(() => {
-    if (!visible) sheetTranslateY.setValue(0)
+    if (!visible) {
+      sheetTranslateY.setValue(0)
+      isConfirmingRef.current = false
+    }
   }, [visible])
+
+  const runConfirm = useCallback((fn?: () => void) => {
+    if (!fn || isConfirmingRef.current) return
+    isConfirmingRef.current = true
+    const result = fn() as unknown
+    if (result && typeof (result as Promise<unknown>).then === "function") {
+      ;(result as Promise<unknown>).finally(() => {
+        isConfirmingRef.current = false
+      })
+    } else {
+      isConfirmingRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
@@ -127,7 +144,7 @@ export default function ModalSheet({
       {headerActions.onConfirm ? (
         <TouchableOpacity
           style={styles.headerRowBtn}
-          onPress={headerActions.onConfirm}
+          onPress={() => runConfirm(headerActions.onConfirm)}
           disabled={headerActions.confirmDisabled}
         >
           <Text
@@ -162,7 +179,7 @@ export default function ModalSheet({
               styles.modalButtonConfirm,
               confirmDisabled && styles.modalButtonDisabled,
             ]}
-            onPress={onConfirm}
+            onPress={() => runConfirm(onConfirm)}
             disabled={confirmDisabled}
           >
             <Text style={styles.modalButtonTextConfirm}>{confirmText}</Text>

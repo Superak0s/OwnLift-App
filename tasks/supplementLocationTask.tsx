@@ -6,6 +6,8 @@
 import { Platform } from "react-native";
 import * as TaskManager from "expo-task-manager";
 import * as Location from "expo-location";
+import * as IntentLauncher from "expo-intent-launcher";
+import Application from "expo-application";
 import { getStorageItem, setStorageItem } from "../src/shared/services/sqliteStorage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import logger from "../src/shared/services/logger";
@@ -442,6 +444,28 @@ export const cancelTimeReminder = async (
     }
   } catch {
     // best-effort
+  }
+};
+
+// ─── Battery optimization exemption ────────────────────────────────────────────
+
+/**
+ * Prompts the user to exempt the app from Android's battery optimization.
+ * Without this, OEM battery managers (MIUI, Samsung, Huawei, etc.) can kill
+ * the background location task even though it runs as a foreground service.
+ */
+export const requestIgnoreBatteryOptimizations = async (): Promise<void> => {
+  if (Platform.OS !== "android") return;
+  try {
+    await IntentLauncher.startActivityAsync(
+      IntentLauncher.ActivityAction.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+      { data: `package:${Application.applicationId}` },
+    );
+  } catch (error) {
+    logger.error(
+      "❌ Error requesting battery optimization exemption: " +
+        (error instanceof Error ? error.message : String(error)),
+    );
   }
 };
 

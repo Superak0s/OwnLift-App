@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, Platform } from "react-native";
 import { useWorkout } from "@shared/context/WorkoutContext";
 import { formatTime as formatDuration } from "@utils/timeEstimation";
-import { getNotifications, scheduleNotification } from "@shared/services/notifications";
+import {
+  getNotifications,
+  scheduleNotification,
+  cancelNotification,
+} from "@shared/services/notifications";
 import { initializeSupplementNotifications } from "../../../../tasks/supplementLocationTask";
 import type { makeStyles } from "../WorkoutScreen";
 
@@ -36,13 +40,18 @@ export const SessionStatsWidget = React.memo(function SessionStatsWidget({
     getCurrentRestTime,
     getTotalSessionTime,
     getSessionAverageRestTime,
+    lastSetEndTime,
   } = useWorkout();
   const [sessionStats, setSessionStats] = useState<Record<
     string,
     unknown
   > | null>(null);
-  const hasNotifiedRef = useRef<boolean>(false);
+  const scheduledNotifIdRef = useRef<string | null>(null);
 
+  // Ticks the displayed stats every second while the screen is open. The
+  // reminder notification itself is scheduled separately below with a real
+  // OS-level trigger, since this interval is throttled/paused once the app
+  // backgrounds or the screen locks and can't be relied on to fire on time.
   useEffect(() => {
     if (!workoutStartTime || isCurrentDayLocked) return;
 
@@ -50,53 +59,68 @@ export const SessionStatsWidget = React.memo(function SessionStatsWidget({
       setSessionStats(
         getSessionStats(currentDay) as Record<string, unknown> | null,
       );
-      const crt = getCurrentRestTime();
-
-      if (crt <= 1) {
-        hasNotifiedRef.current = false;
-      }
-
-      if (
-        restReminderEnabled &&
-        restReminderSeconds > 0 &&
-        crt >= restReminderSeconds &&
-        !hasNotifiedRef.current
-      ) {
-        hasNotifiedRef.current = true;
-        (async () => {
-          try {
-            // No-op in Expo Go — Notifications module is never loaded there.
-            const Notifications = await getNotifications();
-            if (!Notifications) return;
-            const ready = await initializeSupplementNotifications();
-            if (!ready) return;
-            await scheduleNotification({
-              content: {
-                title: `⏱️ Time to start your next set`,
-                body: `You've rested ${formatDuration(crt)}. Start your next set when ready.`,
-                data: { type: "rest_reminder" },
-                priority: Notifications.AndroidNotificationPriority.HIGH,
-                ...(Platform.OS === "android" && {
-                  channelId: "supplement-reminders",
-                }),
-              },
-              trigger: null,
-            });
-          } catch (err) {
-            console.warn("Failed to send rest reminder:", err);
-          }
-        })();
-      }
     }, 1000);
     return () => clearInterval(interval);
+  }, [workoutStartTime, isCurrentDayLocked, currentDay, getSessionStats]);
+
+  useEffect(() => {
+    const cancelPending = async () => {
+      if (scheduledNotifIdRef.current) {
+        await cancelNotification(scheduledNotifIdRef.current).catch(() => {});
+        scheduledNotifIdRef.current = null;
+      }
+    };
+
+    if (
+      !workoutStartTime ||
+      isCurrentDayLocked ||
+      !lastSetEndTime ||
+      !restReminderEnabled ||
+      restReminderSeconds <= 0
+    ) {
+      void cancelPending();
+      return;
+    }
+
+    (async () => {
+      await cancelPending();
+      try {
+        // No-op in Expo Go — Notifications module is never loaded there.
+        const Notifications = await getNotifications();
+        if (!Notifications) return;
+        const ready = await initializeSupplementNotifications();
+        if (!ready) return;
+        const identifier = await scheduleNotification({
+          content: {
+            title: `⏱️ Time to start your next set`,
+            body: `You've rested ${formatDuration(restReminderSeconds)}. Start your next set when ready.`,
+            data: { type: "rest_reminder" },
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+            ...(Platform.OS === "android" && {
+              channelId: "supplement-reminders",
+            }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: restReminderSeconds,
+            repeats: false,
+          },
+        });
+        scheduledNotifIdRef.current = identifier;
+      } catch (err) {
+        console.warn("Failed to schedule rest reminder:", err);
+      }
+    })();
+
+    return () => {
+      void cancelPending();
+    };
   }, [
     workoutStartTime,
     isCurrentDayLocked,
-    currentDay,
+    lastSetEndTime,
     restReminderEnabled,
     restReminderSeconds,
-    getSessionStats,
-    getCurrentRestTime,
   ]);
 
   if (!workoutStartTime || isCurrentDayLocked || !sessionStats) {

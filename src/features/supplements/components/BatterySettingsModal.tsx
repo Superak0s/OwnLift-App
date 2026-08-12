@@ -7,12 +7,14 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from "react-native"
 import {
   getBatterySettings,
   saveBatterySettings,
   BATTERY_PRESETS,
   registerLocationTask,
+  requestIgnoreBatteryOptimizations,
   type BatterySettings,
   type PresetKey,
 } from "../../../../tasks/supplementLocationTask"
@@ -157,6 +159,18 @@ export default function BatterySettingsModal({
               More frequent checks = better accuracy but higher battery usage.
             </Text>
           </View>
+
+          {Platform.OS === "android" && (
+            <TouchableOpacity
+              style={styles.advancedButton}
+              onPress={() => void requestIgnoreBatteryOptimizations()}
+            >
+              <Text style={styles.advancedIcon}>🔋</Text>
+              <Text style={styles.advancedText}>
+                Disable Battery Optimization for This App
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Presets */}
           <View style={styles.section}>

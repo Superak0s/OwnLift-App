@@ -25,3 +25,9 @@ export async function scheduleNotification(
     content,
   });
 }
+
+export async function cancelNotification(identifier: string): Promise<void> {
+  const Notifications = await getNotifications();
+  if (!Notifications) return;
+  await Notifications.cancelScheduledNotificationAsync(identifier);
+}

@@ -1,0 +1,102 @@
+import { createDispatchProxy } from "@shared/services/dispatchProxy";
+import { isServerless } from "@shared/services/appMode";
+import {
+  bodyTrackingApi as bodyTrackingApiOn,
+  bodyFatApi as bodyFatApiOn,
+  getCurrentBodyWeight as getCurrentBodyWeightOn,
+} from "./on/bodyStats";
+import {
+  bodyTrackingApi as bodyTrackingApiOff,
+  bodyFatApi as bodyFatApiOff,
+  getCurrentBodyWeight as getCurrentBodyWeightOff,
+} from "./off/bodyStats";
+import { macrosTrackingApi as macrosTrackingApiOn } from "./on/macros";
+import { macrosTrackingApi as macrosTrackingApiOff } from "./off/macros";
+import { hydrationApi as hydrationApiOn } from "./on/hydration";
+import { hydrationApi as hydrationApiOff } from "./off/hydration";
+import { sorenessApi as sorenessApiOn } from "./on/soreness";
+import { sorenessApi as sorenessApiOff } from "./off/soreness";
+import { domsApi as domsApiOn } from "./on/doms";
+import { domsApi as domsApiOff } from "./off/doms";
+import { injuryApi as injuryApiOn } from "./on/injury";
+import { injuryApi as injuryApiOff } from "./off/injury";
+import { progressPhotoApi as progressPhotoApiOn } from "./on/progressPhoto";
+import { progressPhotoApi as progressPhotoApiOff } from "./off/progressPhoto";
+import { personalNotesApi as personalNotesApiOn } from "./on/personalNotes";
+import { personalNotesApi as personalNotesApiOff } from "./off/personalNotes";
+import { bodyMeasurementsApi as bodyMeasurementsApiOn } from "./on/bodyMeasurements";
+import { bodyMeasurementsApi as bodyMeasurementsApiOff } from "./off/bodyMeasurements";
+import { menstrualApi as menstrualApiOn } from "./on/menstrual";
+import { menstrualApi as menstrualApiOff } from "./off/menstrual";
+
+type BodyTrackingApiShape = typeof bodyTrackingApiOn;
+type BodyFatApiShape = typeof bodyFatApiOn;
+type MacrosTrackingApiShape = typeof macrosTrackingApiOn;
+type HydrationApiShape = typeof hydrationApiOn;
+type SorenessApiShape = typeof sorenessApiOn;
+type DomsApiShape = typeof domsApiOn;
+type InjuryApiShape = typeof injuryApiOn;
+type ProgressPhotoApiShape = typeof progressPhotoApiOn;
+type PersonalNotesApiShape = typeof personalNotesApiOn;
+type BodyMeasurementsApiShape = typeof bodyMeasurementsApiOn;
+type MenstrualApiShape = typeof menstrualApiOn;
+
+export const bodyTrackingApi: BodyTrackingApiShape = createDispatchProxy(
+  bodyTrackingApiOn,
+  bodyTrackingApiOff,
+);
+
+export const bodyFatApi: BodyFatApiShape = createDispatchProxy(
+  bodyFatApiOn,
+  bodyFatApiOff,
+);
+
+export const macrosTrackingApi: MacrosTrackingApiShape = createDispatchProxy(
+  macrosTrackingApiOn,
+  macrosTrackingApiOff,
+);
+
+export const hydrationApi: HydrationApiShape = createDispatchProxy(
+  hydrationApiOn,
+  hydrationApiOff,
+);
+export const sorenessApi: SorenessApiShape = createDispatchProxy(
+  sorenessApiOn,
+  sorenessApiOff,
+);
+export const domsApi: DomsApiShape = createDispatchProxy(domsApiOn, domsApiOff);
+export const injuryApi: InjuryApiShape = createDispatchProxy(
+  injuryApiOn,
+  injuryApiOff,
+);
+export const progressPhotoApi: ProgressPhotoApiShape = createDispatchProxy(
+  progressPhotoApiOn,
+  progressPhotoApiOff,
+);
+export const personalNotesApi: PersonalNotesApiShape = createDispatchProxy(
+  personalNotesApiOn,
+  personalNotesApiOff,
+);
+export const bodyMeasurementsApi: BodyMeasurementsApiShape = createDispatchProxy(
+  bodyMeasurementsApiOn,
+  bodyMeasurementsApiOff,
+);
+export const menstrualApi: MenstrualApiShape = createDispatchProxy(
+  menstrualApiOn,
+  menstrualApiOff,
+);
+
+export const getCurrentBodyWeight = async (userId?: string | null) =>
+  (await isServerless())
+    ? getCurrentBodyWeightOff(userId)
+    : getCurrentBodyWeightOn(userId);
+
+export type {
+  WeightUnit,
+  HeightUnit,
+  Gender,
+  HeightInput,
+  BodyFatMeasurements,
+  LogMacrosParams,
+  MacrosGoals,
+} from "../types";

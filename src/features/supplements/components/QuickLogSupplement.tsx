@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useRef } from "react"
 import {
   View,
   Text,
@@ -38,10 +38,15 @@ export default function QuickLogSupplement({
   const [amount, setAmount] = useState(String(defaultAmount))
   const [note, setNote] = useState("")
   const { alert, AlertComponent } = useAlert()
+  const isLoggingRef = useRef(false)
 
   const handleLog = () => {
+    if (isLoggingRef.current) return
+    isLoggingRef.current = true
+
     const parsed = parseFloat(amount)
     if (isNaN(parsed) || parsed <= 0) {
+      isLoggingRef.current = false
       alert(
         "Invalid Amount",
         "Please enter a valid amount.",

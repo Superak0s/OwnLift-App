@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -451,6 +451,7 @@ export default function FriendsScreen(): React.JSX.Element {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [qrScanLocked, setQrScanLocked] = useState<boolean>(false);
   const [addingFriendFromQr, setAddingFriendFromQr] = useState<boolean>(false);
+  const acceptingFriendIdsRef = useRef<Set<number | string>>(new Set());
 
   const [grantedPermissions, setGrantedPermissions] = useState<
     GrantedPermission[]
@@ -826,6 +827,8 @@ export default function FriendsScreen(): React.JSX.Element {
   }, [searchQuery]);
 
   const sendFriendRequest = async (username: string) => {
+    if (sendingRequestTo === username) return;
+    setSendingRequestTo(username);
     try {
       await friendsApi.sendFriendRequest(username);
       await loadFriends();
@@ -839,6 +842,8 @@ export default function FriendsScreen(): React.JSX.Element {
         [{ text: "OK" }],
         "error",
       );
+    } finally {
+      setSendingRequestTo(null);
     }
   };
 
@@ -970,6 +975,8 @@ export default function FriendsScreen(): React.JSX.Element {
   };
 
   const acceptFriendRequest = async (friendshipId: number | string) => {
+    if (acceptingFriendIdsRef.current.has(friendshipId)) return;
+    acceptingFriendIdsRef.current.add(friendshipId);
     try {
       await friendsApi.acceptFriendRequest(friendshipId);
       await loadFriends();
@@ -981,6 +988,8 @@ export default function FriendsScreen(): React.JSX.Element {
         [{ text: "OK" }],
         "error",
       );
+    } finally {
+      acceptingFriendIdsRef.current.delete(friendshipId);
     }
   };
 
@@ -1324,6 +1333,7 @@ export default function FriendsScreen(): React.JSX.Element {
             currentUserId={user?.id}
             onGoToRequests={() => setActiveTab("requests")}
             onAddFriend={sendFriendRequest}
+            sendingRequestTo={sendingRequestTo}
           />
         );
 

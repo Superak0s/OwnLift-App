@@ -395,7 +395,7 @@ const rowStyles = (colors: any) =>
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({
-    scroll: { marginBottom: 20 },
+    scroll: { height: 52, flexGrow: 0, marginBottom: 20 },
     scrollContent: { paddingRight: 4, alignItems: "center" },
     tab: {
       flexDirection: "row",

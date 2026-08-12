@@ -46,6 +46,7 @@
       "expo-sharing",
       "expo-status-bar",
       "./plugins/withGradleTuning.js",
+      "./plugins/withDebugAppIdSuffix.js",
       "expo-sqlite",
       "expo-image",
       [
@@ -80,6 +81,7 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS",
@@ -88,7 +90,9 @@
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "WAKE_LOCK",
-        "INTERNET"
+        "INTERNET",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_MULTICAST_STATE"
       ],
       "package": "com.ownlift.app"
     },
