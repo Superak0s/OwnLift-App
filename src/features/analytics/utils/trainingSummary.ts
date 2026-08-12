@@ -234,3 +234,80 @@ export function aggregateTrainingSummary(
     exercises: Array.from(exerciseMap.values()).sort((a, b) => b.sets - a.sets),
   };
 }
+
+export type UndertrainedCalculationMode = "days_done" | "full_split";
+
+export interface UndertrainedGroup {
+  muscleGroup: string;
+  actualSets: number;
+  targetSets: number;
+  completionPct: number;
+  deltaFromAvg: number;
+}
+
+export const UNDERTRAINED_DELTA_THRESHOLD = 25;
+
+function sumPlannedSetsByMuscleGroup(
+  days: WorkoutData["days"],
+  selectedSplit: string,
+): Map<string, number> {
+  const targets = new Map<string, number>();
+  days.forEach((day) => {
+    const exercises = day.split?.[selectedSplit]?.exercises ?? [];
+    exercises.forEach((exercise) => {
+      if (!exercise.muscleGroup?.trim()) return;
+      const group = exercise.muscleGroup.trim();
+      targets.set(group, (targets.get(group) ?? 0) + exercise.sets);
+    });
+  });
+  return targets;
+}
+
+export function getUndertrainedMuscleGroups(
+  entries: TrainingSetEntry[],
+  workoutData: WorkoutData | null | undefined,
+  selectedSplit: string | null,
+  now: Date,
+  calculationMode: UndertrainedCalculationMode,
+): UndertrainedGroup[] {
+  if (!workoutData?.days || !selectedSplit) return [];
+
+  const weekRange = getPeriodDateRange("week", null, now);
+  const weekEntries = entries.filter(
+    (entry) =>
+      entry.date.getTime() >= weekRange.start.getTime() &&
+      entry.date.getTime() <= weekRange.end.getTime(),
+  );
+
+  let targetDays = workoutData.days;
+  if (calculationMode === "days_done") {
+    const loggedDayNumbers = new Set(weekEntries.map((e) => e.dayNumber));
+    targetDays = workoutData.days.filter((day) =>
+      loggedDayNumbers.has(day.dayNumber),
+    );
+  }
+  if (targetDays.length === 0) return [];
+
+  const targets = sumPlannedSetsByMuscleGroup(targetDays, selectedSplit);
+  if (targets.size === 0) return [];
+
+  const actuals = new Map<string, number>();
+  weekEntries.forEach((entry) => {
+    const group = (entry.muscleGroup ?? "").trim();
+    if (!group || !targets.has(group)) return;
+    actuals.set(group, (actuals.get(group) ?? 0) + 1);
+  });
+
+  const rows = Array.from(targets.entries()).map(([muscleGroup, targetSets]) => {
+    const actualSets = actuals.get(muscleGroup) ?? 0;
+    const completionPct = targetSets > 0 ? (actualSets / targetSets) * 100 : 0;
+    return { muscleGroup, actualSets, targetSets, completionPct };
+  });
+
+  const avgCompletion =
+    rows.reduce((sum, r) => sum + r.completionPct, 0) / rows.length;
+
+  return rows
+    .map((row) => ({ ...row, deltaFromAvg: avgCompletion - row.completionPct }))
+    .sort((a, b) => b.deltaFromAvg - a.deltaFromAvg);
+}
