@@ -245,7 +245,7 @@ export interface UndertrainedGroup {
   deltaFromAvg: number;
 }
 
-export const UNDERTRAINED_DELTA_THRESHOLD = 25;
+const UNDERTRAINED_DELTA_THRESHOLD = 25;
 
 function sumPlannedSetsByMuscleGroup(
   days: WorkoutData["days"],
@@ -309,5 +309,6 @@ export function getUndertrainedMuscleGroups(
 
   return rows
     .map((row) => ({ ...row, deltaFromAvg: avgCompletion - row.completionPct }))
+    .filter((row) => row.deltaFromAvg > UNDERTRAINED_DELTA_THRESHOLD)
     .sort((a, b) => b.deltaFromAvg - a.deltaFromAvg);
 }

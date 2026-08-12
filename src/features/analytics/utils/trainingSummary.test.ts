@@ -201,7 +201,7 @@ describe("getUndertrainedMuscleGroups", () => {
     expect(back?.completionPct).toBe(0);
     expect(back?.deltaFromAvg).toBeGreaterThan(25); // avg of Chest(100%) and Back(0%) = 50; 50-0=50
     const chest = result.find((r) => r.muscleGroup === "Chest");
-    expect(chest?.deltaFromAvg).toBeLessThanOrEqual(0);
+    expect(chest).toBeUndefined(); // Chest's delta (-50) doesn't exceed the threshold -> excluded
   });
 
   it("full_split mode: includes every day's target regardless of what was logged", () => {
