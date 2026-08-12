@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,10 +16,12 @@ import { useTheme } from "@shared/context/ThemeContext";
 import type { ThemeColors } from "@shared/context/ThemeContext";
 import type { WorkoutData, FullSessionWithGroups } from "@shared/types";
 import type { CompletedDays } from "../types";
+import { loadFromStorage, STORAGE_KEYS } from "@shared/services/storage";
 import {
   buildTrainingSetEntries,
   getPeriodDateRange,
   aggregateTrainingSummary,
+  getUndertrainedMuscleGroups,
   type SummaryPeriod,
   type DateRange,
 } from "../utils/trainingSummary";
@@ -66,6 +68,20 @@ export default function TrainingSummaryTab({
   const [summaryMetric, setSummaryMetric] = useState<"sets" | "volume">("sets");
   const [showSummaryRangePicker, setShowSummaryRangePicker] = useState(false);
   const [pendingRangeStart, setPendingRangeStart] = useState<Date | null>(null);
+  const [calculationMode, setCalculationMode] = useState<
+    "days_done" | "full_split"
+  >("days_done");
+
+  useEffect(() => {
+    (async () => {
+      const mode = await loadFromStorage<string>(
+        STORAGE_KEYS.UNDERTRAINED_CALCULATION_MODE,
+        null,
+        false,
+      );
+      if (mode) setCalculationMode(mode as "days_done" | "full_split");
+    })();
+  }, []);
 
   const chartWidth = screenWidth - 40;
 
@@ -83,6 +99,19 @@ export default function TrainingSummaryTab({
     () => aggregateTrainingSummary(allSetEntries, summaryRange),
     [allSetEntries, summaryRange],
   );
+
+  const undertrainedGroups = useMemo(
+    () =>
+      getUndertrainedMuscleGroups(
+        allSetEntries,
+        workoutData,
+        selectedSplit,
+        new Date(),
+        calculationMode,
+      ),
+    [allSetEntries, workoutData, selectedSplit, calculationMode],
+  );
+  const topUndertrained = undertrainedGroups[0] ?? null;
 
   const handleSummaryRangeDatePress = (date: Date) => {
     if (!pendingRangeStart) {
@@ -154,6 +183,18 @@ export default function TrainingSummaryTab({
         ) : undefined
       }
     >
+      {topUndertrained && (
+        <View style={styles.undertrainedCard}>
+          <Text style={styles.undertrainedTitle}>
+            💪 {topUndertrained.muscleGroup} is behind this week
+          </Text>
+          <Text style={styles.undertrainedSubtitle}>
+            {Math.round(topUndertrained.deltaFromAvg)} points below average —{" "}
+            {topUndertrained.actualSets} of {topUndertrained.targetSets} planned sets
+          </Text>
+        </View>
+      )}
+
       <View style={styles.periodRow}>
         {periodOptions.map((option) => (
           <TouchableOpacity
@@ -267,6 +308,16 @@ const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     container: { flex: 1 },
     contentContainer: { padding: 20 },
+    undertrainedCard: {
+      backgroundColor: colors.warningLight,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: "#fcd34d",
+    },
+    undertrainedTitle: { fontSize: 14, fontWeight: "700", color: "#92400e" },
+    undertrainedSubtitle: { fontSize: 12, color: "#92400e", marginTop: 2 },
     periodRow: { flexDirection: "row", gap: 6, marginBottom: 10 },
     periodChip: {
       flex: 1,
