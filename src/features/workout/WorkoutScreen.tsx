@@ -72,6 +72,10 @@ import {
 import { PartnerBanner } from "./components/PartnerBanner";
 import { ExerciseCard } from "./components/ExerciseCard";
 import { SessionStatsWidget } from "./components/SessionStatsTicker";
+import {
+  buildTrainingSetEntries,
+  getUndertrainedMuscleGroups,
+} from "../analytics/utils/trainingSummary";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main screen
@@ -105,6 +109,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     weightUnit,
     saveWeightUnit,
     fetchSessionHistory,
+    hasActiveSession,
   } = useWorkout();
 
   const {
@@ -191,6 +196,13 @@ export default function WorkoutScreen(): React.JSX.Element {
     useState<boolean>(false);
   const [tempRestReminderSeconds, setTempRestReminderSeconds] =
     useState<string>("");
+  const [undertrainedDisplayMode, setUndertrainedDisplayMode] = useState<
+    "banner" | "per_exercise" | "both" | "off"
+  >("per_exercise");
+  const [undertrainedCalculationMode, setUndertrainedCalculationMode] =
+    useState<"days_done" | "full_split">("days_done");
+  const [dismissedUndertrainedBanner, setDismissedUndertrainedBanner] =
+    useState<boolean>(false);
 
   // ── Header-card widgets ──────────────────────────────────────────────
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
@@ -246,6 +258,75 @@ export default function WorkoutScreen(): React.JSX.Element {
         : [],
     [workoutData, selectedSplit, newMuscleGroup, editingExercise],
   );
+
+  useEffect(() => {
+    (async () => {
+      const displayMode = await loadFromStorage<string>(
+        STORAGE_KEYS.UNDERTRAINED_DISPLAY_MODE,
+        user?.id ?? null,
+        false,
+      );
+      if (displayMode) {
+        setUndertrainedDisplayMode(
+          displayMode as "banner" | "per_exercise" | "both" | "off",
+        );
+      }
+      const calcMode = await loadFromStorage<string>(
+        STORAGE_KEYS.UNDERTRAINED_CALCULATION_MODE,
+        user?.id ?? null,
+        false,
+      );
+      if (calcMode) {
+        setUndertrainedCalculationMode(calcMode as "days_done" | "full_split");
+      }
+    })();
+  }, [user?.id]);
+
+  const undertrainedEntries = useMemo(
+    () => buildTrainingSetEntries([], workoutData, selectedSplit, completedDays),
+    [workoutData, selectedSplit, completedDays],
+  );
+
+  const topUndertrainedGroup = useMemo(() => {
+    if (undertrainedDisplayMode === "off" || !hasActiveSession()) return null;
+    const groups = getUndertrainedMuscleGroups(
+      undertrainedEntries,
+      workoutData,
+      selectedSplit,
+      new Date(),
+      undertrainedCalculationMode,
+    );
+    return groups[0] ?? null;
+  }, [
+    undertrainedDisplayMode,
+    hasActiveSession,
+    undertrainedEntries,
+    workoutData,
+    selectedSplit,
+    undertrainedCalculationMode,
+  ]);
+
+  const undertrainedCandidates = useMemo(
+    () =>
+      topUndertrainedGroup
+        ? getExercisesByMuscleGroup(
+            workoutData,
+            selectedSplit,
+            topUndertrainedGroup.muscleGroup,
+          )
+        : [],
+    [topUndertrainedGroup, workoutData, selectedSplit],
+  );
+
+  const showUndertrainedBanner =
+    (undertrainedDisplayMode === "banner" || undertrainedDisplayMode === "both") &&
+    !dismissedUndertrainedBanner &&
+    !!topUndertrainedGroup &&
+    undertrainedCandidates.length > 0;
+
+  const showUndertrainedPerExercise =
+    undertrainedDisplayMode === "per_exercise" || undertrainedDisplayMode === "both";
+
   const isCurrentDayLocked = isDayLocked(currentDay);
   const areAllSetsComplete = isDayComplete(currentDay);
 
@@ -783,6 +864,16 @@ export default function WorkoutScreen(): React.JSX.Element {
     setShowAddExerciseModal(true);
   };
 
+  const handlePickUndertrainedSuggestion = (name: string) => {
+    if (!topUndertrainedGroup) return;
+    setNewExercise({
+      name,
+      muscleGroup: topUndertrainedGroup.muscleGroup,
+      sets: "",
+    });
+    setShowAddExerciseModal(true);
+  };
+
   const closeAddExerciseModal = () => {
     setShowAddExerciseModal(false);
     setNewExercise({ name: "", muscleGroup: "", sets: "" });
@@ -1254,12 +1345,65 @@ export default function WorkoutScreen(): React.JSX.Element {
             }
           />
 
-          {((dayWorkout as any)?.exercises as any[]).map(
-            (exercise: any, exerciseIndex: number) => (
+          {showUndertrainedBanner && topUndertrainedGroup && (
+            <View style={styles.suggestionsContainer}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 12,
+                }}
+              >
+                <Text style={[styles.suggestionsTitle, { marginBottom: 0, flex: 1 }]}>
+                  💪 {topUndertrainedGroup.muscleGroup} is behind this week — try:
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setDismissedUndertrainedBanner(true)}
+                  hitSlop={8}
+                >
+                  <Text style={{ fontSize: 16, color: colors.textSecondary }}>
+                    ✕
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {undertrainedCandidates.map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  style={styles.suggestionButton}
+                  onPress={() => handlePickUndertrainedSuggestion(name)}
+                >
+                  <Text style={styles.suggestionText}>{name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {(() => {
+            const exercises = ((dayWorkout as any)?.exercises as any[]) ?? [];
+            const indexed = exercises.map((exercise, originalIndex) => ({
+              exercise,
+              originalIndex,
+            }));
+            const isPriority = (exercise: any): boolean =>
+              showUndertrainedPerExercise &&
+              !!topUndertrainedGroup &&
+              !!exercise.muscleGroup &&
+              normalizeExerciseName(exercise.muscleGroup) ===
+                normalizeExerciseName(topUndertrainedGroup.muscleGroup);
+            const ordered = showUndertrainedPerExercise
+              ? [...indexed].sort((a, b) => {
+                  const aPriority = isPriority(a.exercise) ? 0 : 1;
+                  const bPriority = isPriority(b.exercise) ? 0 : 1;
+                  return aPriority - bPriority;
+                })
+              : indexed;
+            return ordered.map(({ exercise, originalIndex }) => (
               <ExerciseCard
-                key={exercise.name || exerciseIndex}
+                key={exercise.name || originalIndex}
                 exercise={exercise}
-                exerciseIndex={exerciseIndex}
+                exerciseIndex={originalIndex}
+                isPriorityMuscleGroup={isPriority(exercise)}
                 currentDay={currentDay}
                 isCurrentDayLocked={isCurrentDayLocked}
                 colors={colors}
@@ -1280,8 +1424,8 @@ export default function WorkoutScreen(): React.JSX.Element {
                 onQuickAddSet={handleQuickAddSet}
                 onAddMultipleSets={handleAddMultipleSets}
               />
-            ),
-          )}
+            ));
+          })()}
 
           {!isCurrentDayLocked && (
             <TouchableOpacity
