@@ -7,6 +7,7 @@
     "android": "expo run:android --no-build-cache --no-bundler",
     "build:android:apk": "local-expo-build build android --apk --no-sync --no-bump",
     "build:android:apk:clean": "local-expo-build build android --apk --no-sync --clean --no-bump",
+    "build:android:apk:debug": "local-expo-build build android --apk --no-sync --no-bump --debug",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "sonar:scan": "node -e \"const{execSync}=require('child_process');execSync(`npx @sonar/scan -Dsonar.host.url=http://192.168.10.12:8999 -Dsonar.token=${process.env.SONAR_TOKEN} -Dsonar.projectKey=OwnLift-App -Dsonar.analysisCache.enabled=false`,{stdio:'inherit'})"

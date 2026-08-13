@@ -51,6 +51,18 @@ import {
 import { workoutApi } from "@features/workout/services/index";
 import type { WorkoutDay, CompletedExercises } from "@shared/types";
 
+const DISPLAY_MODE_OPTIONS = [
+  { key: "per_exercise", label: "Per-exercise" },
+  { key: "banner", label: "Banner" },
+  { key: "both", label: "Both" },
+  { key: "off", label: "Off" },
+] as const;
+
+const CALCULATION_MODE_OPTIONS = [
+  { key: "days_done", label: "Days done" },
+  { key: "full_split", label: "Full split" },
+] as const;
+
 export default function SettingsScreen(): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -112,6 +124,9 @@ export default function SettingsScreen(): React.JSX.Element {
   >("per_exercise");
   const [undertrainedCalculationMode, setUndertrainedCalculationMode] =
     useState<"days_done" | "full_split">("days_done");
+  const [activeDropdownMenu, setActiveDropdownMenu] = useState<
+    "display" | "calculation" | null
+  >(null);
 
   useEffect(() => {
     loadServerProgress();
@@ -997,36 +1012,18 @@ export default function SettingsScreen(): React.JSX.Element {
                     </Text>
                   </View>
                 </View>
-                <View style={styles.periodRow}>
-                  {(
-                    [
-                      { key: "per_exercise", label: "Per-exercise" },
-                      { key: "banner", label: "Banner" },
-                      { key: "both", label: "Both" },
-                      { key: "off", label: "Off" },
-                    ] as const
-                  ).map((option) => (
-                    <TouchableOpacity
-                      key={option.key}
-                      style={[
-                        styles.periodChip,
-                        undertrainedDisplayMode === option.key &&
-                          styles.periodChipActive,
-                      ]}
-                      onPress={() => handleSetUndertrainedDisplayMode(option.key)}
-                    >
-                      <Text
-                        style={[
-                          styles.periodChipText,
-                          undertrainedDisplayMode === option.key &&
-                            styles.periodChipTextActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.dropdownButton}
+                  onPress={() => setActiveDropdownMenu("display")}
+                >
+                  <Text style={styles.dropdownButtonText}>
+                    {DISPLAY_MODE_OPTIONS.find(
+                      (o) => o.key === undertrainedDisplayMode,
+                    )?.label ?? undertrainedDisplayMode}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
                 <View style={styles.divider} />
                 <View style={styles.settingRow}>
                   <View style={{ flex: 1 }}>
@@ -1038,36 +1035,18 @@ export default function SettingsScreen(): React.JSX.Element {
                     </Text>
                   </View>
                 </View>
-                <View style={styles.periodRow}>
-                  {(
-                    [
-                      { key: "days_done", label: "Days done" },
-                      { key: "full_split", label: "Full split" },
-                    ] as const
-                  ).map((option) => (
-                    <TouchableOpacity
-                      key={option.key}
-                      style={[
-                        styles.periodChip,
-                        undertrainedCalculationMode === option.key &&
-                          styles.periodChipActive,
-                      ]}
-                      onPress={() =>
-                        handleSetUndertrainedCalculationMode(option.key)
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.periodChipText,
-                          undertrainedCalculationMode === option.key &&
-                            styles.periodChipTextActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.dropdownButton}
+                  onPress={() => setActiveDropdownMenu("calculation")}
+                >
+                  <Text style={styles.dropdownButtonText}>
+                    {CALCULATION_MODE_OPTIONS.find(
+                      (o) => o.key === undertrainedCalculationMode,
+                    )?.label ?? undertrainedCalculationMode}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -1248,6 +1227,7 @@ export default function SettingsScreen(): React.JSX.Element {
                   {getCompletedDaysCount() > 0 && (
                     <>
                       <TouchableOpacity
+                        activeOpacity={0.7}
                         style={styles.actionButton}
                         onPress={handleUnlockAllDays}
                       >
@@ -1263,6 +1243,7 @@ export default function SettingsScreen(): React.JSX.Element {
                       </TouchableOpacity>
 
                       <TouchableOpacity
+                        activeOpacity={0.7}
                         style={styles.actionButton}
                         onPress={() => setShowResetDayModal(true)}
                       >
@@ -1278,6 +1259,7 @@ export default function SettingsScreen(): React.JSX.Element {
                       </TouchableOpacity>
 
                       <TouchableOpacity
+                        activeOpacity={0.7}
                         style={[styles.actionButton, styles.dangerButton]}
                         onPress={handleResetProgress}
                       >
@@ -1297,6 +1279,7 @@ export default function SettingsScreen(): React.JSX.Element {
                   )}
 
                   <TouchableOpacity
+                    activeOpacity={0.7}
                     style={[styles.actionButton, styles.dangerButton]}
                     onPress={handleClearData}
                   >
@@ -1317,6 +1300,7 @@ export default function SettingsScreen(): React.JSX.Element {
                   <View style={{ height: 8 }} />
                   {!isOffline && (
                     <TouchableOpacity
+                      activeOpacity={0.7}
                       style={styles.actionButton}
                       onPress={migrateToOffline}
                     >
@@ -1335,6 +1319,7 @@ export default function SettingsScreen(): React.JSX.Element {
 
                   {isOffline && (
                     <TouchableOpacity
+                      activeOpacity={0.7}
                       style={styles.actionButton}
                       onPress={migrateToOnline}
                     >
@@ -1359,6 +1344,7 @@ export default function SettingsScreen(): React.JSX.Element {
           {!isOffline && (
             <View style={styles.section}>
               <TouchableOpacity
+                activeOpacity={0.7}
                 style={[styles.actionButton, styles.dangerButton]}
                 onPress={handleLogout}
               >
@@ -1460,6 +1446,58 @@ export default function SettingsScreen(): React.JSX.Element {
               </Text>
             </TouchableOpacity>
           </View>
+        </ModalSheet>
+
+        {/* ── Training Balance Dropdown Menu ── */}
+        <ModalSheet
+          visible={activeDropdownMenu !== null}
+          onClose={() => setActiveDropdownMenu(null)}
+          title={
+            activeDropdownMenu === "calculation"
+              ? "Compare Against"
+              : "Show Undertrained Suggestions"
+          }
+          showCancelButton={false}
+          showConfirmButton={false}
+        >
+          {(activeDropdownMenu === "calculation"
+            ? CALCULATION_MODE_OPTIONS
+            : DISPLAY_MODE_OPTIONS
+          ).map((option) => {
+            const isSelected =
+              activeDropdownMenu === "calculation"
+                ? undertrainedCalculationMode === option.key
+                : undertrainedDisplayMode === option.key;
+            return (
+              <TouchableOpacity
+                key={option.key}
+                activeOpacity={0.7}
+                style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
+                onPress={() => {
+                  if (activeDropdownMenu === "calculation") {
+                    handleSetUndertrainedCalculationMode(
+                      option.key as "days_done" | "full_split",
+                    );
+                  } else {
+                    handleSetUndertrainedDisplayMode(
+                      option.key as "banner" | "per_exercise" | "both" | "off",
+                    );
+                  }
+                  setActiveDropdownMenu(null);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.dropdownItemText,
+                    isSelected && styles.dropdownItemTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+                {isSelected && <Text style={styles.dropdownItemCheck}>✓</Text>}
+              </TouchableOpacity>
+            );
+          })}
         </ModalSheet>
 
         {/* ── Time Between Sets Modal ── */}
@@ -1608,26 +1646,42 @@ const makeStyles = (colors: ThemeColors) =>
     settingDescription: { fontSize: 13, color: colors.textSecondary },
     settingValue: { fontSize: 16, fontWeight: "600", color: colors.accent },
     divider: { height: 1, backgroundColor: colors.surfaceBorder },
-    periodRow: { flexDirection: "row", gap: 6, marginTop: 10, marginBottom: 4 },
-    periodChip: {
-      flex: 1,
-      paddingVertical: 8,
-      borderRadius: 8,
+    dropdownButton: {
+      flexDirection: "row",
+      justifyContent: "space-between",
       alignItems: "center",
       backgroundColor: colors.background,
+      borderRadius: 10,
       borderWidth: 1,
       borderColor: colors.surfaceBorder,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      marginTop: 10,
+      marginBottom: 4,
     },
-    periodChipActive: {
-      backgroundColor: colors.accent,
-      borderColor: colors.accent,
-    },
-    periodChipText: {
-      fontSize: 12,
+    dropdownButtonText: {
+      fontSize: 14,
       fontWeight: "600",
-      color: colors.textSecondary,
+      color: colors.textPrimary,
     },
-    periodChipTextActive: { color: colors.surface },
+    dropdownArrow: { fontSize: 12, color: colors.accent, marginLeft: 12 },
+    dropdownItem: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 14,
+      paddingHorizontal: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.separator,
+    },
+    dropdownItemSelected: { backgroundColor: colors.accentLight },
+    dropdownItemText: {
+      fontSize: 16,
+      fontWeight: "500",
+      color: colors.textPrimary,
+    },
+    dropdownItemTextSelected: { color: colors.accent, fontWeight: "600" },
+    dropdownItemCheck: { fontSize: 18, color: colors.accent, marginLeft: 12 },
     helperText: {
       fontSize: 14,
       color: colors.accent,
@@ -1649,19 +1703,31 @@ const makeStyles = (colors: ThemeColors) =>
     syncButtonText: { fontSize: 16, fontWeight: "600", color: colors.accent },
     actionButton: {
       backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 16,
+      borderRadius: 14,
+      padding: 14,
       flexDirection: "row",
       alignItems: "center",
-      marginBottom: 12,
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      elevation: 2,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: colors.surfaceBorder,
     },
-    dangerButton: { borderWidth: 1, borderColor: "#ff4444" },
-    actionButtonIcon: { fontSize: 28, marginRight: 16 },
+    dangerButton: {
+      borderColor: colors.surfaceBorder,
+      borderLeftWidth: 3,
+      borderLeftColor: "#ff4444",
+    },
+    actionButtonIcon: {
+      fontSize: 20,
+      marginRight: 14,
+      width: 36,
+      height: 36,
+      textAlign: "center",
+      textAlignVertical: "center",
+      lineHeight: 36,
+      borderRadius: 10,
+      backgroundColor: colors.background,
+      overflow: "hidden",
+    },
     actionButtonContent: { flex: 1 },
     actionButtonText: {
       fontSize: 16,
