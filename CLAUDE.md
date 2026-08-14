@@ -8,19 +8,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm install --legacy-peer-deps   # required — peer deps are not resolvable otherwise
 npm start                        # Expo dev server
 npm run android                  # run on Android device/emulator (no maintained iOS target)
-npm test                         # jest / jest-expo — no test files currently exist in the repo
+npm test                         # jest / jest-expo
 npm run test:coverage
+npx jest src/utils/exerciseMatching.test.ts   # run a single test file
 npx tsc --noEmit                 # typecheck (no separate lint script/ESLint config exists)
 ```
 
 There is no `ios/` — iOS is configured in `app.json` but not maintained, and `ios/`/`android/` are gitignored, **generated** directories (`npx expo prebuild --platform android --clean`). Run prebuild before any native build step.
 
+### When to write tests
+
+Not every function needs a test — write one for non-trivial logic: branches, loops, parsers, calculations, and anything touching sync, auth, or money. Skip trivial one-liners, pure pass-throughs, and UI glue that's obviously correct by inspection. Follow the existing pattern under `__tests__/` and `*.test.ts(x)` files (e.g. `trainingSummary.test.ts`, `useSyncManager.test.tsx`, `exerciseMatching.test.ts`) — they cluster around sync/offline-queue logic, auth token handling, fuzzy matching, and analytics calculations, not blanket coverage.
+
 ### Release builds
 
-- **EAS** (`eas.json` profiles: `development`, `preview` (APK), `production` (AAB)): `eas build --profile preview --platform android`
+Builds are local only — this project does not use EAS.
+
 - **Local** (via `local-expo-build`): `npm run build:android:apk` / `npm run build:android:apk:clean`
 - `release.sh` (Linux) / `release.bat` (Windows, Docker) inject signing config into `android/app/build.gradle` and require a secrets file (`~/.ownlift-secrets` or `%USERPROFILE%\.ownlift-secrets.bat`), not present in this checkout.
-- `eas.json` has `appVersionSource: "remote"` — app version is managed on EAS, not bumped in `app.json`.
 
 ## Architecture
 
@@ -66,7 +71,7 @@ Each screen (Home, Analytics, Workout, Plan, Friends, and each Tracking sub-tab)
 - **Auth (server mode):** JWT with silent refresh every ~55 min, tokens in `expo-secure-store`. Default server `https://ownlift.superak0s.com`, overridable in Settings (`@server_url`).
 - **Real-time:** one persistent, JWT-authenticated WebSocket with exponential backoff (`useRealtimeSocket`), server mode only — powers joint/watch sessions.
 - **Smart reminders:** local notifications for time-based reminders; a registered `expo-task-manager` background task (`tasks/supplementLocationTask.tsx`) computes Haversine distance for geofenced location reminders, with configurable battery presets (Low/Medium/High).
-- Notifications are unavailable in Expo Go — calls are wrapped in try/catch in `App.tsx`. `expo-dev-client` is installed, so dev builds need `eas build --profile development` or `expo run:android`, not Expo Go.
+- Notifications are unavailable in Expo Go — calls are wrapped in try/catch in `App.tsx`. `expo-dev-client` is installed, so dev builds need `expo run:android`, not Expo Go.
 
 ### Glossary
 
@@ -93,6 +98,10 @@ Never hand-edit these — they're generated, vendored, or contain signing materi
 ### Secrets
 
 The signing secrets file (`~/.ownlift-secrets` or `%USERPROFILE%\.ownlift-secrets.bat`) is not present in this checkout. Never invent, hardcode, or commit values for it — if a build step needs it, ask the user for the real file.
+
+## New API endpoints
+
+OwnLift-Server is a sibling repo, not part of this checkout, so its code can't be written here. When a task needs a new server-side endpoint (a new route, a change to a request/response shape, a new field), do not invent or stub it client-side. Instead, write the exact endpoint spec to `api-requests.md` in the repo root (create it if missing, append if it exists): method, path, request body/params, response shape, and status codes/error cases. The client code should call the endpoint as if it already exists, using that same spec. The user implements it on the server from that file.
 
 ## Code Comments
 

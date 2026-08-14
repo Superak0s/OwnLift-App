@@ -52,6 +52,11 @@ export function renderMacrosWidget(type: string, ctx: MacrosRenderCtx): React.Re
                   </View>
                 );
               })}
+              {todayStats.protein && todayStats.calories && todayStats.calories.total > 0 && (
+                <Text style={styles.macrosEntriesCount}>
+                  {((todayStats.protein.total / todayStats.calories.total) * 100).toFixed(1)}g protein / 100 kcal
+                </Text>
+              )}
               <Text style={styles.macrosEntriesCount}>{todayStats.entries} {todayStats.entries === 1 ? "entry" : "entries"} logged</Text>
             </View>
           ) : (

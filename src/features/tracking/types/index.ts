@@ -37,6 +37,16 @@ export interface MacrosGoals {
   calories?: number | null;
 }
 
+export interface SavedMacroFood {
+  id: string;
+  name: string;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  calories?: number;
+  errorMargin?: number;
+}
+
 export interface DayModalState {
   date: Date;
   tab: string;

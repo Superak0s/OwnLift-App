@@ -8,6 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
   RefreshControl,
+  Switch,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -239,6 +240,10 @@ export default function TrackingScreen() {
     updateMacrosGoals: _macros.updateMacrosGoals,
     dailyStats: _macros.getDailyMacrosStats(new Date()),
     hasDataOnDate: _macros.hasMacrosData,
+    savedFoods: _macros.savedFoods,
+    rememberEntry: _macros.rememberMacrosEntry, setRememberEntry: _macros.setRememberMacrosEntry,
+    quickLogSavedFood: _macros.quickLogSavedFood,
+    removeSavedFood: _macros.removeSavedFood,
   };
 
   const bodyFat = {
@@ -885,8 +890,38 @@ export default function TrackingScreen() {
 
       {/* Macros Modal */}
       <ModalSheet visible={macros.showMacrosModal} onClose={() => { macros.closeMacrosModal(); setSelectedLogDate(null); }} title="Log Macros" onConfirm={macros.addMacrosEntry} scrollable={true}>
+        {macros.savedFoods.length > 0 && (
+          <>
+            <Text style={styles.inputLabel}>Quick Log</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+              {macros.savedFoods.map((food: any) => (
+                <TouchableOpacity
+                  key={food.id}
+                  style={styles.optionButton}
+                  onPress={() => macros.quickLogSavedFood(food)}
+                  onLongPress={() => alert(
+                    "Remove Saved Food",
+                    `Remove "${food.name}" from quick log?`,
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Remove", style: "destructive", onPress: () => macros.removeSavedFood(food.id) },
+                    ],
+                    "warning",
+                  )}
+                >
+                  <Text style={styles.optionButtonText}>{food.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.modalHint}>Tap to log instantly · long-press to remove</Text>
+          </>
+        )}
         <Text style={styles.inputLabel}>Name <Text style={styles.inputLabelOptional}>(e.g. "Chicken & rice")</Text></Text>
         <TextInput style={styles.input} placeholder="What did you eat? (optional)" value={macros.newName} onChangeText={macros.setNewName} autoCapitalize="words" />
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <Text style={styles.inputLabel}>Remember this food for quick logging</Text>
+          <Switch value={macros.rememberEntry} onValueChange={macros.setRememberEntry} />
+        </View>
         <View style={styles.optionalDivider}>
           <View style={styles.optionalDividerLine} />
           <Text style={styles.optionalDividerText}>Fill in what you know — all fields below are optional</Text>
@@ -896,6 +931,9 @@ export default function TrackingScreen() {
         <TextInput style={styles.input} placeholder="e.g. 420" keyboardType="decimal-pad" value={macros.newCalories} onChangeText={macros.setNewCalories} />
         <Text style={styles.inputLabel}>Protein (g)</Text>
         <TextInput style={styles.input} placeholder="e.g. 32" keyboardType="decimal-pad" value={macros.newProtein} onChangeText={macros.setNewProtein} />
+        {parseFloat(macros.newCalories) > 0 && parseFloat(macros.newProtein) > 0 && (
+          <Text style={styles.modalHint}>{((parseFloat(macros.newProtein) / parseFloat(macros.newCalories)) * 100).toFixed(1)}g protein / 100 kcal</Text>
+        )}
         <Text style={styles.inputLabel}>Carbohydrates (g)</Text>
         <TextInput style={styles.input} placeholder="e.g. 45" keyboardType="decimal-pad" value={macros.newCarbs} onChangeText={macros.setNewCarbs} />
         <Text style={styles.inputLabel}>Fat (g)</Text>

@@ -86,3 +86,6 @@ credentials.json
 
 # Local git worktrees
 .worktrees/
+
+# Test coverage output
+coverage/

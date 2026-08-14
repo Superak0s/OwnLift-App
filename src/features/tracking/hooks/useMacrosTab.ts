@@ -1,10 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { MacrosEntry } from "@shared/types";
-import type { MacrosEntryWithFields } from "../types";
+import type { MacrosEntryWithFields, SavedMacroFood } from "../types";
 import { macrosTrackingApi } from "../services";
 import { createDeleteHandler } from "../helpers";
 import { isoToLocalDateStr } from "../utils";
 import { toDateString } from "@utils/format";
+import { generateId } from "@utils/format";
+import { loadFromStorage, saveToStorage, STORAGE_KEYS } from "@shared/services/storage";
+import { useAuth } from "@shared/context/AuthContext";
 
 export interface UseMacrosTabDeps {
   alert: (t: string, m: string, b?: any[], type?: any) => void;
@@ -16,8 +19,11 @@ export interface UseMacrosTabDeps {
 
 export function useMacrosTab(deps: UseMacrosTabDeps) {
   const { alert, loadData, setDayModal, selectedLogDate, setSelectedLogDate } = deps;
+  const { user } = useAuth();
 
   const [macrosEntries, setMacrosEntries] = useState<MacrosEntryWithFields[]>([]);
+  const [savedFoods, setSavedFoods] = useState<SavedMacroFood[]>([]);
+  const [rememberMacrosEntry, setRememberMacrosEntry] = useState(false);
   const [dailyMacrosGoals, setDailyMacrosGoals] = useState({
     protein: 150,
     carbs: 250,
@@ -41,6 +47,12 @@ export function useMacrosTab(deps: UseMacrosTabDeps) {
     fat: "",
     calories: "",
   });
+
+  useEffect(() => {
+    loadFromStorage<SavedMacroFood[]>(STORAGE_KEYS.MACROS_SAVED_FOODS, user?.id ?? null).then(
+      (saved) => setSavedFoods(saved ?? []),
+    );
+  }, [user?.id]);
 
   const handleDeleteMacro = createDeleteHandler(
     macrosTrackingApi.deleteMacrosEntry,
@@ -78,16 +90,33 @@ export function useMacrosTab(deps: UseMacrosTabDeps) {
 
     try {
       const dateStr = selectedLogDate ? toDateString(selectedLogDate) : null;
+      const errorMargin = parseFloat(newMacrosError) || 0;
       await macrosTrackingApi.logMacros({
         name: newMacrosName.trim() || undefined,
         protein,
         carbs,
         fat,
         calories,
-        errorMargin: parseFloat(newMacrosError) || 0,
+        errorMargin,
         time: newMacrosTime,
         date: dateStr,
       });
+
+      if (rememberMacrosEntry && newMacrosName.trim()) {
+        const food: SavedMacroFood = {
+          id: generateId(),
+          name: newMacrosName.trim(),
+          protein,
+          carbs,
+          fat,
+          calories,
+          errorMargin,
+        };
+        const next = [food, ...savedFoods.filter((f) => f.name !== food.name)];
+        setSavedFoods(next);
+        saveToStorage(STORAGE_KEYS.MACROS_SAVED_FOODS, next, user?.id ?? null);
+      }
+
       setNewMacrosName("");
       setNewMacrosProtein("");
       setNewMacrosCarbs("");
@@ -95,6 +124,7 @@ export function useMacrosTab(deps: UseMacrosTabDeps) {
       setNewMacrosCalories("");
       setNewMacrosError("5");
       setNewMacrosTime(new Date().toTimeString().slice(0, 5));
+      setRememberMacrosEntry(false);
       setShowMacrosModal(false);
       setSelectedLogDate(null);
       alert("Logged", "Macros logged!", [{ text: "OK" }], "success");
@@ -102,7 +132,40 @@ export function useMacrosTab(deps: UseMacrosTabDeps) {
     } catch (error) {
       alert("Error", error instanceof Error ? error.message : "An error occurred", [{ text: "OK" }], "error");
     }
-  }, [newMacrosName, newMacrosProtein, newMacrosCarbs, newMacrosFat, newMacrosCalories, newMacrosTime, newMacrosError, selectedLogDate, alert, loadData, setSelectedLogDate]);
+  }, [newMacrosName, newMacrosProtein, newMacrosCarbs, newMacrosFat, newMacrosCalories, newMacrosTime, newMacrosError, rememberMacrosEntry, savedFoods, user?.id, selectedLogDate, alert, loadData, setSelectedLogDate]);
+
+  const quickLogSavedFood = useCallback(
+    async (food: SavedMacroFood) => {
+      try {
+        await macrosTrackingApi.logMacros({
+          name: food.name,
+          protein: food.protein,
+          carbs: food.carbs,
+          fat: food.fat,
+          calories: food.calories,
+          errorMargin: food.errorMargin ?? 0,
+          time: new Date().toTimeString().slice(0, 5),
+          date: selectedLogDate ? toDateString(selectedLogDate) : null,
+        });
+        setShowMacrosModal(false);
+        setSelectedLogDate(null);
+        alert("Logged", `${food.name} logged!`, [{ text: "OK" }], "success");
+        loadData();
+      } catch (error) {
+        alert("Error", error instanceof Error ? error.message : "An error occurred", [{ text: "OK" }], "error");
+      }
+    },
+    [selectedLogDate, alert, loadData, setSelectedLogDate],
+  );
+
+  const removeSavedFood = useCallback(
+    (id: string) => {
+      const next = savedFoods.filter((f) => f.id !== id);
+      setSavedFoods(next);
+      saveToStorage(STORAGE_KEYS.MACROS_SAVED_FOODS, next, user?.id ?? null);
+    },
+    [savedFoods, user?.id],
+  );
 
   const getDailyMacrosStats = useCallback((date: Date) => {
     const dateStr = toDateString(date);
@@ -197,5 +260,9 @@ export function useMacrosTab(deps: UseMacrosTabDeps) {
     updateMacrosGoals,
     hasMacrosData,
     openMacrosModal,
+    savedFoods,
+    rememberMacrosEntry, setRememberMacrosEntry,
+    quickLogSavedFood,
+    removeSavedFood,
   };
 }
