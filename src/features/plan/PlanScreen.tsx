@@ -559,6 +559,7 @@ export default function PlanScreen({
     if (!day) return;
     const exercises: ExerciseDraft[] = (day.exercises ?? []).map((ex) => ({
       name: ex.name ?? "",
+      exerciseId: ex.exerciseId,
       muscleGroup: ex.muscleGroup ?? "",
       setsByPerson: Object.fromEntries(
         Object.entries(ex.setsByPerson ?? {}).map(([p, v]) => [p, String(v)]),
@@ -681,6 +682,7 @@ export default function PlanScreen({
               {
                 exercises: Array<{
                   name: string;
+                  exerciseId?: string;
                   muscleGroup?: string;
                   sets: number;
                 }>;
@@ -704,6 +706,7 @@ export default function PlanScreen({
             })
             .map((draft) => ({
               name: draft.name,
+              exerciseId: draft.exerciseId,
               muscleGroup: draft.muscleGroup,
               sets: Number.parseInt(draft.setsByPerson[person], 10) || 0,
             }));
