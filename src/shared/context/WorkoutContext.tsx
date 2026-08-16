@@ -194,6 +194,7 @@ export const useWorkout = (): WorkoutContextValue => {
 interface WorkoutSyncStatus {
   pendingSyncs: PendingSync[];
   isSyncing: boolean;
+  droppedSyncCount: number;
 }
 
 const WorkoutSyncStatusContext = createContext<WorkoutSyncStatus | undefined>(
@@ -1036,8 +1037,12 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const syncStatusValue = useMemo<WorkoutSyncStatus>(
-    () => ({ pendingSyncs, isSyncing }),
-    [pendingSyncs, isSyncing],
+    () => ({
+      pendingSyncs,
+      isSyncing,
+      droppedSyncCount: syncManager.droppedSyncCount,
+    }),
+    [pendingSyncs, isSyncing, syncManager.droppedSyncCount],
   );
 
   return (

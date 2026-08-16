@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import { workoutApi } from "@features/workout/services/index"
 import { filterOutLocalSessionSyncs, getLocalISOString } from "@utils/session"
 import logger from "../../services/logger"
@@ -31,6 +31,7 @@ export interface UseSyncManagerReturn {
   addPendingSync: (syncData: PendingSync) => Promise<void>
   syncPendingData: () => Promise<void>
   cleanupInvalidSyncs: () => Promise<void>
+  droppedSyncCount: number
 }
 
 // A sync that keeps failing (e.g. server permanently unreachable, or a
@@ -57,6 +58,10 @@ export const useSyncManager = ({
   const retryStateRef = useRef(
     new Map<string, { count: number; nextAttemptAt: number }>(),
   )
+  // Cumulative count of syncs permanently discarded (invalid data, dead
+  // session, or retries exhausted) — surfaced to the user via
+  // WorkoutSyncStatus rather than only living in the logs.
+  const [droppedSyncCount, setDroppedSyncCount] = useState(0)
 
   /**
    * Add a pending sync operation
@@ -95,6 +100,7 @@ export const useSyncManager = ({
     ) as PendingSync[]
 
     const failedSyncs: PendingSync[] = []
+    let droppedThisRun = 0
     // Maps a local session ID to its server ID once startSession syncs for it,
     // so later recordSet/endSession entries can resolve it in one pass instead
     // of each startSession rescanning the rest of the queue.
@@ -162,6 +168,7 @@ export const useSyncManager = ({
               logger.warn(
                 "⚠ Dropping invalid queued set (weight/reps = 0), discarding",
               )
+              droppedThisRun++
               break
             }
 
@@ -195,6 +202,7 @@ export const useSyncManager = ({
                 (error as Error).message?.includes("unauthorized")
               ) {
                 logger.warn("⚠ Session for queued set no longer exists - dropping sync")
+                droppedThisRun++
               } else {
                 throw error
               }
@@ -206,6 +214,7 @@ export const useSyncManager = ({
             // sync.data is EndSessionSyncData — fully typed
             if (String(sync.data.sessionId).startsWith("local_")) {
               logger.warn("⚠ Skipping endSession sync for local session ID")
+              droppedThisRun++
               break
             }
 
@@ -221,6 +230,7 @@ export const useSyncManager = ({
                 (error as Error).message?.includes("unauthorized")
               ) {
                 logger.warn("⚠ Session no longer exists - dropping sync")
+                droppedThisRun++
               } else {
                 throw error
               }
@@ -230,6 +240,7 @@ export const useSyncManager = ({
 
           default:
             console.warn("Unknown sync type:", (sync as PendingSync).type)
+            droppedThisRun++
         }
         retryStateRef.current.delete(retryKey)
       } catch (error) {
@@ -240,6 +251,7 @@ export const useSyncManager = ({
           logger.warn(
             `⚠ Dropping ${sync.type} sync after ${nextCount} failed attempts`,
           )
+          droppedThisRun++
           retryStateRef.current.delete(retryKey)
         } else {
           const backoff = Math.min(
@@ -257,6 +269,9 @@ export const useSyncManager = ({
 
     await saveToStorage(STORAGE_KEYS.PENDING_SYNCS, failedSyncs, userId)
     setPendingSyncs(failedSyncs)
+    if (droppedThisRun > 0) {
+      setDroppedSyncCount((prev) => prev + droppedThisRun)
+    }
 
     if (failedSyncs.length === 0) {
       logger.info("✓ All pending syncs completed successfully!")
@@ -301,5 +316,6 @@ export const useSyncManager = ({
     addPendingSync,
     syncPendingData,
     cleanupInvalidSyncs,
+    droppedSyncCount,
   }
 }

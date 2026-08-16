@@ -517,8 +517,13 @@ export default function SignupScreen({
               </TouchableOpacity>
 
               <Text style={styles.termsText}>
-                By signing up, you agree to our Terms of Service and Privacy
-                Policy
+                By signing up, you agree to our Terms of Service and{" "}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => navigation.navigate("PrivacyPolicy")}
+                >
+                  Privacy Policy
+                </Text>
               </Text>
 
               <View style={styles.loginContainer}>
@@ -662,6 +667,7 @@ const makeStyles = (colors: any) =>
       marginTop: 16,
       lineHeight: 18,
     },
+    termsLink: { color: colors.accent, fontWeight: "600" },
     loginContainer: {
       flexDirection: "row",
       justifyContent: "center",

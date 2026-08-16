@@ -249,6 +249,7 @@ export type RootStackParamList = {
   Home: undefined
   Login: undefined
   Signup: undefined
+  PrivacyPolicy: undefined
   Workout: undefined
   Tracking: undefined
   Friends: undefined

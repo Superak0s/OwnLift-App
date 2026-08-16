@@ -5,6 +5,7 @@ import { apiCall, parseApiResponse } from "@shared/services/apiClient"
 import type { AuthResponse, AuthUser } from "../../types"
 
 const USER_KEY = "@user"
+const FETCH_TIMEOUT_MS = 15000
 
 /**
  * Helper for unauthenticated endpoints (signup, signin).
@@ -12,8 +13,19 @@ const USER_KEY = "@user"
  */
 async function unauthenticatedCall<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${getServerUrl()}${path}`
-  const response = await fetch(url, options)
-  return parseApiResponse(response)
+  const controller = new AbortController()
+  const timeoutHandle = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal })
+    return await parseApiResponse<T>(response)
+  } catch (error) {
+    if ((error as Error).name === "AbortError") {
+      throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS}ms`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutHandle)
+  }
 }
 
 export const authService = {

@@ -1,4 +1,6 @@
 import type { ThemeColors } from "@shared/context/ThemeContext";
+import type { PartnerProgress } from "@shared/context/hooks/useJointSession";
+import type { Exercise } from "@shared/types";
 import { getCanonicalName } from "@utils/exerciseMatching";
 
 // ─── Unit helpers ─────────────────────────────────────────────────────────────
@@ -109,11 +111,10 @@ export function getAddingSetsSubtitle(
 
 export function checkIsSelectedSetAssisted(
   selectedSet: { exerciseIndex: number; setIndex: number } | null,
-  dayWorkout: Record<string, unknown> | null,
+  dayWorkout: { exercises: Exercise[] } | null,
 ): boolean {
   if (!selectedSet || !dayWorkout) return false;
-  const exercises = dayWorkout.exercises as Array<{ name: string }> | undefined;
-  const exercise = exercises?.[selectedSet.exerciseIndex];
+  const exercise = dayWorkout.exercises[selectedSet.exerciseIndex];
   if (!exercise) return false;
   return exercise.name.toLowerCase().includes("assisted");
 }
@@ -309,26 +310,25 @@ export function pickBestPerformanceSummary(history: PerformanceEntry[]): {
 // single-purpose function instead.
 
 export function getPartnerExerciseLabel(
-  partnerProgress: Record<string, unknown> | null,
+  partnerProgress: PartnerProgress | null,
 ): string {
   if (!partnerProgress) return "—";
-  const exerciseName = partnerProgress.exerciseName as string | undefined;
-  if (exerciseName) return exerciseName;
-  const exerciseIndex = partnerProgress.exerciseIndex as number | undefined;
-  if (exerciseIndex != null) return `Ex ${exerciseIndex + 1}`;
+  if (partnerProgress.exerciseName) return partnerProgress.exerciseName;
+  if (partnerProgress.exerciseIndex != null)
+    return `Ex ${partnerProgress.exerciseIndex + 1}`;
   return "—";
 }
 
 export function getPartnerSetLabel(
-  partnerProgress: Record<string, unknown> | null,
+  partnerProgress: PartnerProgress | null,
 ): string {
-  const setIndex = partnerProgress?.setIndex as number | undefined;
+  const setIndex = partnerProgress?.setIndex;
   return setIndex == null ? "—" : `Set ${setIndex + 1}`;
 }
 
 export function getPartnerStatusText(
   isPartnerReady: boolean,
-  partnerProgress: Record<string, unknown> | null,
+  partnerProgress: PartnerProgress | null,
 ): string {
   if (isPartnerReady) return "✅ Ready for next set";
   if (!partnerProgress) return "Waiting…";

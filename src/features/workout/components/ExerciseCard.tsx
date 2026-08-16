@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import type { ThemeColors } from "@shared/context/ThemeContext";
+import type { PartnerProgress } from "@shared/context/hooks/useJointSession";
 import { normalizeExerciseName } from "@utils/exerciseMatching";
 import type { SetDetail } from "../types";
 import { kgToDisplay } from "../utils";
@@ -24,7 +25,7 @@ type PartnerMatchInfo = {
 function getPartnerMatchInfo(
   isInJointSession: boolean,
   partnerNameSet: Set<string>,
-  partnerProgress: Record<string, unknown> | null,
+  partnerProgress: PartnerProgress | null,
   partnerParticipant:
     | { exerciseNames?: Array<string | { name: string; sets?: number }> }
     | null
@@ -33,9 +34,7 @@ function getPartnerMatchInfo(
 ): PartnerMatchInfo {
   const partnerMatchesByName =
     isInJointSession && partnerNameSet.has(exerciseNameLower);
-  const partnerActiveExercise = partnerProgress?.exerciseName as
-    | string
-    | undefined;
+  const partnerActiveExercise = partnerProgress?.exerciseName ?? undefined;
   const partnerActiveNameLower = partnerActiveExercise
     ? normalizeExerciseName(partnerActiveExercise)
     : undefined;
@@ -80,7 +79,7 @@ type ExerciseCardProps = {
   weightUnit: "kg" | "lbs";
   isInJointSession: boolean;
   partnerNameSet: Set<string>;
-  partnerProgress: Record<string, unknown> | null;
+  partnerProgress: PartnerProgress | null;
   partnerParticipant:
     | { exerciseNames?: Array<string | { name: string; sets?: number }> }
     | null
@@ -161,8 +160,7 @@ export function exerciseCardPropsAreEqual(
     prevMatch.partnerOnThis !== nextMatch.partnerOnThis ||
     prevMatch.partnerMatchesByName !== nextMatch.partnerMatchesByName ||
     prevMatch.partnerSetCount !== nextMatch.partnerSetCount ||
-    (prev.partnerProgress?.setIndex as number | undefined) !==
-      (next.partnerProgress?.setIndex as number | undefined)
+    prev.partnerProgress?.setIndex !== next.partnerProgress?.setIndex
   ) {
     return false;
   }
@@ -294,8 +292,7 @@ export const ExerciseCard = React.memo(function ExerciseCard({
                   : undefined) === exerciseNameLower && s.setIndex === setIndex,
             );
           const partnerOnSet =
-            partnerOnThis &&
-            (partnerProgress?.setIndex as number | undefined) === setIndex;
+            partnerOnThis && partnerProgress?.setIndex === setIndex;
           return (
             <TouchableOpacity
               key={`${exercise.name || exerciseIndex}-set-${setIndex}`}

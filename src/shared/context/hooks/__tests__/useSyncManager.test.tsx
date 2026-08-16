@@ -13,6 +13,8 @@ jest.mock("@features/workout/services/index", () => ({
 }));
 
 const startSession = workoutApi.startSession as jest.Mock;
+const recordSet = workoutApi.recordSet as jest.Mock;
+const endSession = workoutApi.endSession as jest.Mock;
 
 function makeSync(timestamp: string): PendingSync {
   return {
@@ -101,5 +103,104 @@ describe("useSyncManager retry/backoff", () => {
 
     expect(controlRef.current!.getPendingSyncs()).toHaveLength(0);
     expect(startSession).toHaveBeenCalledTimes(9);
+  });
+});
+
+describe("useSyncManager local-to-server ID remapping on replay", () => {
+  beforeEach(() => {
+    startSession.mockReset();
+    recordSet.mockReset();
+    endSession.mockReset();
+    jest.useFakeTimers();
+    jest.setSystemTime(0);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("remaps recordSet and endSession to the server ID from a startSession synced earlier in the same batch", async () => {
+    startSession.mockResolvedValue(999);
+    recordSet.mockResolvedValue(undefined);
+    endSession.mockResolvedValue(undefined);
+
+    const syncs: PendingSync[] = [
+      {
+        type: "startSession",
+        localSessionId: "local_1",
+        data: { person: "local", dayNumber: 1, isDemo: false },
+        timestamp: "t1",
+      },
+      {
+        type: "recordSet",
+        data: {
+          sessionId: "local_1",
+          setIndex: 0,
+          startTime: "s",
+          endTime: "e",
+          weight: 100,
+          reps: 5,
+        },
+        timestamp: "t2",
+      },
+      {
+        type: "endSession",
+        data: { sessionId: "local_1" },
+        timestamp: "t3",
+      },
+    ];
+
+    const controlRef: React.MutableRefObject<Control | null> = { current: null };
+    act(() => {
+      create(<Harness initialSyncs={syncs} controlRef={controlRef} />);
+    });
+
+    await act(async () => {
+      await controlRef.current!.syncPendingData();
+    });
+
+    expect(recordSet).toHaveBeenCalledWith(
+      "999",
+      "Unknown Exercise",
+      0,
+      "s",
+      "e",
+      100,
+      5,
+      undefined,
+      undefined,
+      null,
+    );
+    expect(endSession).toHaveBeenCalledWith("999", expect.any(String));
+    expect(controlRef.current!.getPendingSyncs()).toHaveLength(0);
+  });
+
+  it("drops a recordSet still pointing at a local session ID instead of retrying forever", async () => {
+    const controlRef: React.MutableRefObject<Control | null> = { current: null };
+    const syncs: PendingSync[] = [
+      {
+        type: "recordSet",
+        data: {
+          sessionId: "local_orphan",
+          setIndex: 0,
+          startTime: "s",
+          endTime: "e",
+          weight: 100,
+          reps: 5,
+        },
+        timestamp: "t1",
+      },
+    ];
+
+    act(() => {
+      create(<Harness initialSyncs={syncs} controlRef={controlRef} />);
+    });
+
+    await act(async () => {
+      await controlRef.current!.syncPendingData();
+    });
+
+    expect(recordSet).not.toHaveBeenCalled();
+    expect(controlRef.current!.getPendingSyncs()).toHaveLength(1);
   });
 });

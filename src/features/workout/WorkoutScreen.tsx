@@ -51,8 +51,16 @@ import {
   WORKOUT_WIDGETS_STORAGE_KEY,
   type WorkoutWidgetType,
 } from "./widgets";
-import type { WidgetInstance } from "@shared/types";
+import type { WidgetInstance, Exercise } from "@shared/types";
 import type { SetDetail, SimilarityMatch } from "./types";
+
+interface CurrentDayWorkout {
+  dayNumber: number;
+  dayTitle?: string;
+  muscleGroups?: string[];
+  exercises: Exercise[];
+  totalSets: number;
+}
 import {
   WIDGET_GROUP_RADIUS,
   LBS_TO_KG,
@@ -150,7 +158,9 @@ export default function WorkoutScreen(): React.JSX.Element {
   } | null>(null);
   const [weight, setWeight] = useState<string>("");
   const [reps, setReps] = useState<string>("");
-  const [performanceHistory, setPerformanceHistory] = useState<any>(null);
+  const [performanceHistory, setPerformanceHistory] = useState<
+    ReturnType<typeof pickBestPerformanceSummary>
+  >(null);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
   const [setNote, setSetNote] = useState<string>("");
   const [isWarmupSet, setIsWarmupSet] = useState<boolean>(false);
@@ -330,7 +340,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   const isCurrentDayLocked = isDayLocked(currentDay);
   const areAllSetsComplete = isDayComplete(currentDay);
 
-  const getCurrentDayWorkout = (): Record<string, unknown> | null => {
+  const getCurrentDayWorkout = (): CurrentDayWorkout | null => {
     if (!workoutData?.days || !selectedSplit) return null;
     const day = workoutData.days.find((d) => d.dayNumber === currentDay);
     if (!day || !day.split[selectedSplit]) return null;
@@ -345,7 +355,7 @@ export default function WorkoutScreen(): React.JSX.Element {
   const dayWorkout = getCurrentDayWorkout();
 
   const todayExerciseNames = new Set(
-    (((dayWorkout as any)?.exercises as any[]) ?? []).map((exercise) =>
+    (dayWorkout?.exercises ?? []).map((exercise) =>
       normalizeExerciseName(exercise.name),
     ),
   );
@@ -454,8 +464,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     if (!selectedSet || !dayWorkout) return;
     setLoadingHistory(true);
     try {
-      const exercises = (dayWorkout as Record<string, unknown>)
-        ?.exercises as Array<{ name: string }>;
+      const exercises = dayWorkout.exercises;
       const exercise = exercises[selectedSet.exerciseIndex];
       const canonicalName = getCanonicalName(exercise.name, allExerciseNames);
 
@@ -618,8 +627,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     );
 
     if (isInJointSession) {
-      const exercises = (dayWorkout as Record<string, unknown>)
-        ?.exercises as Array<{ name: string }>;
+      const exercises = dayWorkout?.exercises ?? [];
       const exercise = exercises[selectedSet.exerciseIndex];
       await pushJointProgress({
         exerciseIndex: selectedSet.exerciseIndex,
@@ -709,12 +717,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         );
         return;
       }
-      const exercises = (dayWorkout as Record<string, unknown>)
-        ?.exercises as Array<{
-        name: string;
-        muscleGroup?: string;
-        sets: number;
-      }>;
+      const exercises = dayWorkout?.exercises ?? [];
       const exercise = exercises[exerciseIndex];
       setEditingExercise({ index: exerciseIndex, exercise });
       setNewExerciseName(exercise.name);
@@ -820,12 +823,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         );
         return;
       }
-      const exercises = (dayWorkout as Record<string, unknown>)
-        ?.exercises as Array<{
-        name: string;
-        muscleGroup?: string;
-        sets: number;
-      }>;
+      const exercises = dayWorkout?.exercises ?? [];
       setAddingSetsExercise({
         index: exerciseIndex,
         exercise: exercises[exerciseIndex],
@@ -1018,7 +1016,7 @@ export default function WorkoutScreen(): React.JSX.Element {
       return;
     }
     const done = getCompletedSetsCount();
-    const total = (dayWorkout?.totalSets as number) || 0;
+    const total = dayWorkout?.totalSets || 0;
     alert(
       "Complete Workout?",
       getCompleteWorkoutMessage(done, total),
@@ -1035,10 +1033,8 @@ export default function WorkoutScreen(): React.JSX.Element {
 
   const getCompletedSetsCount = useCallback((): number => {
     if (!dayWorkout) return 0;
-    const exercises = (dayWorkout as Record<string, unknown>)
-      ?.exercises as Array<unknown>;
-    return exercises.reduce(
-      (n: number, _: unknown, i: number) =>
+    return dayWorkout.exercises.reduce(
+      (n: number, _: Exercise, i: number) =>
         n + (getExerciseCompletedSets(currentDay, i) as number),
       0,
     );
@@ -1075,8 +1071,8 @@ export default function WorkoutScreen(): React.JSX.Element {
         normalizeExerciseName(typeof e === "string" ? e : e.name),
       ),
     );
-    const myExerciseNames = ((dayWorkout?.exercises ?? []) as any[])
-      .map((ex: any) => (ex.name ? normalizeExerciseName(ex.name) : undefined))
+    const myExerciseNames = (dayWorkout?.exercises ?? [])
+      .map((ex) => (ex.name ? normalizeExerciseName(ex.name) : undefined))
       .filter(Boolean) as string[];
     return new Set<string>(myExerciseNames.filter((n) => partnerSet.has(n)));
   }, [isInJointSession, jointSession?.participants, dayWorkout]);
@@ -1184,7 +1180,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     );
 
   const completedSetsCount = getCompletedSetsCount();
-  const totalSetsCount = ((dayWorkout as any)?.totalSets as number) ?? 0;
+  const totalSetsCount = dayWorkout?.totalSets ?? 0;
   const progressPercentage = computeProgressPercentage(
     completedSetsCount,
     totalSetsCount,
@@ -1208,7 +1204,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         return (
           <View style={styles.dayNumberWidgetInner}>
             <Text style={styles.dayNumberValue}>
-              {(dayWorkout as any).dayNumber}
+              {dayWorkout?.dayNumber}
             </Text>
             {isCurrentDayLocked && (
               <View style={styles.dayNumberLockedTag}>
@@ -1222,7 +1218,7 @@ export default function WorkoutScreen(): React.JSX.Element {
         return (
           <View style={styles.totalSetsWidgetInner}>
             <Text style={styles.setsValue}>
-              {(dayWorkout as any).totalSets}
+              {dayWorkout?.totalSets}
             </Text>
           </View>
         );
@@ -1305,7 +1301,7 @@ export default function WorkoutScreen(): React.JSX.Element {
 
         {isInJointSession && (
           <PartnerBanner
-            partnerProgress={partnerProgress as any}
+            partnerProgress={partnerProgress}
             isPartnerReady={isPartnerReady}
             syncPulse={syncPulse}
             partnerUsername={partnerUsername}
@@ -1400,12 +1396,12 @@ export default function WorkoutScreen(): React.JSX.Element {
           )}
 
           {(() => {
-            const exercises = ((dayWorkout as any)?.exercises as any[]) ?? [];
+            const exercises = dayWorkout?.exercises ?? [];
             const indexed = exercises.map((exercise, originalIndex) => ({
               exercise,
               originalIndex,
             }));
-            const isPriority = (exercise: any): boolean =>
+            const isPriority = (exercise: Exercise): boolean =>
               showUndertrainedPerExercise &&
               !!topUndertrainedGroup &&
               !!exercise.muscleGroup &&
@@ -1431,7 +1427,7 @@ export default function WorkoutScreen(): React.JSX.Element {
                 weightUnit={weightUnit}
                 isInJointSession={isInJointSession}
                 partnerNameSet={partnerNameSet}
-                partnerProgress={partnerProgress as Record<string, unknown> | null}
+                partnerProgress={partnerProgress}
                 partnerParticipant={partnerParticipant}
                 partnerCompletedSets={partnerCompletedSets}
                 partnerUsername={partnerUsername}

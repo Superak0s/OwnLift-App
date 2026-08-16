@@ -1,5 +1,8 @@
 import { sinceBoot } from "./src/shared/services/debugClock";
 import logger from "./src/shared/services/logger";
+import { initCrashReporting, captureException } from "./src/shared/services/crashReporting";
+
+initCrashReporting();
 
 import React, { useState, useEffect, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
@@ -34,6 +37,7 @@ import { TrackingModalsProvider } from "./src/features/tracking/context/Tracking
 
 import LoginScreen from "./src/features/auth/LoginScreen";
 import SignupScreen from "./src/features/auth/SignupScreen";
+import PrivacyPolicyScreen from "./src/features/auth/PrivacyPolicyScreen";
 import HomeScreen from "./src/features/homescreen/HomeScreen";
 import WorkoutScreen from "./src/features/workout/WorkoutScreen";
 import AnalyticsScreen from "./src/features/analytics/AnalyticsScreen";
@@ -543,6 +547,11 @@ class ErrorBoundary extends React.Component<
     return { hasError: true };
   }
 
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    logger.error("Uncaught error in component tree:", error, errorInfo);
+    captureException(error);
+  }
+
   render() {
     if (this.state.hasError) {
       return <ErrorFallback resetError={() => this.setState({ hasError: false })} />;
@@ -598,6 +607,7 @@ function AppNavigator() {
         <>
           <Stack.Screen name='Login' component={LoginScreen} />
           <Stack.Screen name='Signup' component={SignupScreen} />
+          <Stack.Screen name='PrivacyPolicy' component={PrivacyPolicyScreen} />
         </>
       )}
     </Stack.Navigator>

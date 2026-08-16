@@ -501,7 +501,7 @@ export const useJointSession = ({
   }, [])
 
   useEffect(() => {
-    if (!workoutStartTime && isInJointSession) leaveJointSession()
+    if (!workoutStartTime && isInJointSession) void leaveJointSession()
   }, [workoutStartTime, isInJointSession, leaveJointSession])
 
   useEffect(() => {

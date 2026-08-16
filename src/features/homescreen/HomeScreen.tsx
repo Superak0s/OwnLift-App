@@ -582,6 +582,21 @@ export default function HomeScreen({
             ],
             "warning",
           );
+        } else {
+          alert(
+            "Error",
+            "Failed to load your workout history.",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Retry",
+                onPress: () => {
+                  loadSessionHistory().catch(() => {});
+                },
+              },
+            ],
+            "error",
+          );
         }
       });
     }
@@ -593,10 +608,6 @@ export default function HomeScreen({
       const limit = 60;
       const sessions = await fetchSessionHistory(limit);
       setSessionHistory(sessions as WorkoutSession[]);
-    } catch (error) {
-      if ((error as Error)?.message === "SESSION_EXPIRED") {
-        throw error;
-      }
     } finally {
       setLoadingHistory(false);
     }

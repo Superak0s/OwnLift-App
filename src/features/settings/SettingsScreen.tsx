@@ -98,7 +98,7 @@ export default function SettingsScreen(): React.JSX.Element {
     unlockedOverrides,
     syncFromServer,
   } = useWorkout();
-  const { pendingSyncs, isSyncing } = useWorkoutSyncStatus();
+  const { pendingSyncs, isSyncing, droppedSyncCount } = useWorkoutSyncStatus();
 
   const [showTimeBetweenSetsModal, setShowTimeBetweenSetsModal] =
     useState<boolean>(false);
@@ -916,36 +916,61 @@ export default function SettingsScreen(): React.JSX.Element {
           </View>
 
           {/* Sync Status */}
-          {pendingSyncs.length > 0 && (
+          {(pendingSyncs.length > 0 || droppedSyncCount > 0) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>☁️ Data Sync</Text>
               <View style={styles.card}>
-                <View style={styles.infoRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.infoLabel}>Pending Syncs</Text>
-                    <Text style={styles.settingDescription}>
-                      {pendingSyncs.length} operation(s) waiting to sync
-                    </Text>
+                {pendingSyncs.length > 0 && (
+                  <>
+                    <View style={styles.infoRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.infoLabel}>Pending Syncs</Text>
+                        <Text style={styles.settingDescription}>
+                          {pendingSyncs.length} operation(s) waiting to sync
+                        </Text>
+                      </View>
+                      <Text style={styles.warningValue}>
+                        {pendingSyncs.length}
+                      </Text>
+                    </View>
+                    <View style={styles.divider} />
+                  </>
+                )}
+                {droppedSyncCount > 0 && (
+                  <View style={styles.infoRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.infoLabel}>Discarded Syncs</Text>
+                      <Text style={styles.settingDescription}>
+                        {droppedSyncCount} operation(s) could not be synced and
+                        were discarded
+                      </Text>
+                    </View>
+                    <Text style={styles.warningValue}>{droppedSyncCount}</Text>
                   </View>
-                  <Text style={styles.warningValue}>{pendingSyncs.length}</Text>
-                </View>
-                <View style={styles.divider} />
-                <TouchableOpacity
-                  style={styles.syncButton}
-                  onPress={handleManualSync}
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? (
-                    <ActivityIndicator color='#667eea' />
-                  ) : (
-                    <Text style={styles.syncButtonText}>Sync Now</Text>
-                  )}
-                </TouchableOpacity>
+                )}
+                {pendingSyncs.length > 0 && (
+                  <>
+                    <View style={styles.divider} />
+                    <TouchableOpacity
+                      style={styles.syncButton}
+                      onPress={handleManualSync}
+                      disabled={isSyncing}
+                    >
+                      {isSyncing ? (
+                        <ActivityIndicator color='#667eea' />
+                      ) : (
+                        <Text style={styles.syncButtonText}>Sync Now</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
-              <Text style={styles.warningText}>
-                ⚠️ Your workout data is stored locally. Connect to sync with the
-                server.
-              </Text>
+              {pendingSyncs.length > 0 && (
+                <Text style={styles.warningText}>
+                  ⚠️ Your workout data is stored locally. Connect to sync with
+                  the server.
+                </Text>
+              )}
             </View>
           )}
 

@@ -13,17 +13,23 @@ export class ApiError extends Error {
 }
 
 export async function parseApiResponse<T = unknown>(res: Response): Promise<T> {
-  let data: any
+  let data: unknown
   try {
     data = await res.json()
   } catch {
     throw new ApiError(`Invalid JSON response (status ${res.status})`, res.status)
   }
 
-  if (!res.ok || data?.success === false) {
-    const message =
-      data?.error || data?.message || `Request failed (status ${res.status})`
-    throw new ApiError(message, res.status, data?.details)
+  const body = (data && typeof data === "object" ? data : {}) as {
+    success?: boolean
+    error?: string
+    message?: string
+    details?: unknown
+  }
+
+  if (!res.ok || body.success === false) {
+    const message = body.error || body.message || `Request failed (status ${res.status})`
+    throw new ApiError(message, res.status, body.details)
   }
 
   return data as T

@@ -22,6 +22,8 @@ import {
   setServerUrl,
   resetServerUrl,
   getDefaultServerUrl,
+  validateServerUrl,
+  isPrivateHost,
 } from "@shared/services/config";
 import { scanForLanServer } from "@shared/services/lanDiscovery";
 import {
@@ -136,48 +138,6 @@ export default function LoginScreen({
     if (detectedLanUrl) setTempServerUrl(detectedLanUrl);
   }, [detectedLanUrl]);
 
-  const validateServerUrl = useCallback(
-    (url: string): { valid: boolean; message?: string } => {
-      const trimmedUrl = url.trim();
-
-      if (!trimmedUrl) {
-        return { valid: false, message: "Please enter a server URL" };
-      }
-
-      if (
-        !trimmedUrl.startsWith("http://") &&
-        !trimmedUrl.startsWith("https://")
-      ) {
-        return {
-          valid: false,
-          message: "URL must start with http:// or https://",
-        };
-      }
-
-      if (
-        trimmedUrl.startsWith("http://") &&
-        !trimmedUrl.includes("localhost") &&
-        !trimmedUrl.includes("127.0.0.1") &&
-        !trimmedUrl.includes("192.168.") &&
-        !trimmedUrl.includes("10.0.")
-      ) {
-        return {
-          valid: false,
-          message:
-            "HTTP is not secure. Please use HTTPS for production servers.",
-        };
-      }
-
-      try {
-        new URL(trimmedUrl);
-        return { valid: true };
-      } catch {
-        return { valid: false, message: "Invalid URL format" };
-      }
-    },
-    [],
-  );
-
   const handleSaveServerUrl = useCallback(async (): Promise<void> => {
     const url = tempServerUrl.trim();
     const validation = validateServerUrl(url);
@@ -192,13 +152,7 @@ export default function LoginScreen({
       return;
     }
 
-    if (
-      url.startsWith("http://") &&
-      (url.includes("localhost") ||
-        url.includes("127.0.0.1") ||
-        url.includes("192.168.") ||
-        url.includes("10.0."))
-    ) {
+    if (url.startsWith("http://") && isPrivateHost(new URL(url).hostname)) {
       alert(
         "Development Server",
         "You're connecting to a local development server. This should only be used for testing.",
@@ -407,7 +361,12 @@ export default function LoginScreen({
               <Text style={styles.footerText}>
                 By continuing, you agree to our{"\n"}
                 <Text style={styles.footerLink}>Terms of Service</Text> and{" "}
-                <Text style={styles.footerLink}>Privacy Policy</Text>
+                <Text
+                  style={styles.footerLink}
+                  onPress={() => navigation.navigate("PrivacyPolicy")}
+                >
+                  Privacy Policy
+                </Text>
               </Text>
             </View>
           </View>

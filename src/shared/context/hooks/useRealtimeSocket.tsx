@@ -31,6 +31,10 @@ import logger from "../../services/logger"
 
 const BASE_RETRY_MS = 1_000
 const MAX_RETRY_MS = 30_000
+// A server that's down for good (or unreachable) would otherwise retry with
+// exponential backoff forever. Give up after enough failures instead of
+// reconnecting every 30s indefinitely; AppState going active resets the count.
+const MAX_RETRY_ATTEMPTS = 10
 
 export interface WebSocketMessage {
   type: string
@@ -48,6 +52,12 @@ export interface RealtimeSocket {
    * a re-login or token refresh) instead of silently retrying forever.
    */
   authError: boolean
+  /**
+   * True once reconnection attempts have been exhausted (MAX_RETRY_ATTEMPTS
+   * failures in a row). Stays true until the app is foregrounded again or
+   * the token changes, both of which trigger a fresh attempt.
+   */
+  connectionFailed: boolean
 }
 
 export interface UseRealtimeSocketOptions {
@@ -68,6 +78,7 @@ export function useRealtimeSocket({
 }: UseRealtimeSocketOptions): RealtimeSocket {
   const wsRef = useRef<WebSocket | null>(null)
   const retryRef = useRef<number>(BASE_RETRY_MS)
+  const retryCountRef = useRef<number>(0)
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onMessageRef = useRef<((msg: WebSocketMessage) => void) | undefined>(
     onMessage,
@@ -83,6 +94,7 @@ export function useRealtimeSocket({
   const offlineRef = useRef<boolean>(false)
   const [connected, setConnected] = useState(false)
   const [authError, setAuthError] = useState(false)
+  const [connectionFailed, setConnectionFailed] = useState(false)
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
   const [isOffline, setIsOffline] = useState<boolean>(true)
 
@@ -101,6 +113,8 @@ export function useRealtimeSocket({
       authFailedTokenRef.current = null
       setAuthError(false)
     }
+    retryCountRef.current = 0
+    setConnectionFailed(false)
   }, [token])
 
   // Load the persisted app mode once, then stay in sync with it. Nothing
@@ -160,6 +174,8 @@ export function useRealtimeSocket({
       ws.send(JSON.stringify({ type: "auth", token: tokenRef.current }))
       setConnected(true)
       retryRef.current = BASE_RETRY_MS
+      retryCountRef.current = 0
+      setConnectionFailed(false)
     }
 
     ws.onmessage = (event: WebSocketMessageEvent) => {
@@ -190,6 +206,16 @@ export function useRealtimeSocket({
         authFailedTokenRef.current = tokenRef.current
         setAuthError(true)
         console.warn("[WS_AUTH_FAILED]", e.code, e.reason)
+        return
+      }
+
+      retryCountRef.current += 1
+      if (retryCountRef.current > MAX_RETRY_ATTEMPTS) {
+        logger.warn(
+          "[WS_GIVE_UP]",
+          `after ${retryCountRef.current} failed attempts`,
+        )
+        setConnectionFailed(true)
         return
       }
 
@@ -239,6 +265,8 @@ export function useRealtimeSocket({
         if (wsRef.current?.readyState !== WebSocket.OPEN) {
           if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
           retryRef.current = BASE_RETRY_MS
+          retryCountRef.current = 0
+          setConnectionFailed(false)
           connect()
         }
       } else {
@@ -250,5 +278,5 @@ export function useRealtimeSocket({
     return () => sub.remove()
   }, [connect])
 
-  return { send, connected, lastMessage, authError }
+  return { send, connected, lastMessage, authError, connectionFailed }
 }
