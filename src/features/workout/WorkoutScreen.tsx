@@ -53,6 +53,8 @@ import {
 } from "./widgets";
 import type { WidgetInstance, Exercise } from "@shared/types";
 import type { SetDetail, SimilarityMatch } from "./types";
+import { toSuggestions } from "@utils/exerciseDb";
+import type { ExerciseSuggestion } from "@utils/exerciseDb";
 
 interface CurrentDayWorkout {
   dayNumber: number;
@@ -185,6 +187,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     useState<boolean>(false);
   const [newExercise, setNewExercise] = useState<{
     name: string;
+    exerciseId?: string;
     muscleGroup: string;
     sets: string;
   }>({
@@ -193,7 +196,7 @@ export default function WorkoutScreen(): React.JSX.Element {
     sets: "",
   });
   const [newExerciseSuggestions, setNewExerciseSuggestions] = useState<
-    SimilarityMatch[]
+    ExerciseSuggestion[]
   >([]);
   const [
     newExerciseMuscleGroupSuggestions,
@@ -402,9 +405,8 @@ export default function WorkoutScreen(): React.JSX.Element {
   }, [newMuscleGroup, showEditNameModal]);
 
   useEffect(() => {
-    if (showAddExerciseModal && newExercise.name.trim()) {
-      const t = checkForTypo(newExercise.name, allExerciseNames);
-      setNewExerciseSuggestions(t.suggestions.length > 0 ? t.suggestions : []);
+    if (showAddExerciseModal && newExercise.name.trim().length > 1) {
+      setNewExerciseSuggestions(toSuggestions(newExercise.name, 5));
     } else setNewExerciseSuggestions([]);
   }, [newExercise.name, showAddExerciseModal]);
 
@@ -904,6 +906,12 @@ export default function WorkoutScreen(): React.JSX.Element {
   ) => {
     addNewExercise(currentDay, selectedSplit!, {
       name: finalName,
+      // The typo check can substitute a plan-local name for the one the user
+      // picked, which would leave the id pointing at a different exercise.
+      exerciseId:
+        finalName === newExercise.name.trim()
+          ? newExercise.exerciseId
+          : undefined,
       muscleGroup: trimmedMG,
       sets: setsNum,
     });
@@ -983,9 +991,17 @@ export default function WorkoutScreen(): React.JSX.Element {
         setNewExerciseMuscleGroupSuggestions([]);
       } else {
         setNewExercise({ ...newExercise, name: suggestion.name });
-        setNewExerciseSuggestions([]);
       }
     }
+  };
+
+  const handleDbSuggestionPress = (suggestion: ExerciseSuggestion) => {
+    setNewExercise({
+      ...newExercise,
+      name: suggestion.label,
+      exerciseId: suggestion.id,
+    });
+    setNewExerciseSuggestions([]);
   };
 
   const getCompleteWorkoutMessage = (done: number, total: number): string =>
@@ -1869,7 +1885,9 @@ export default function WorkoutScreen(): React.JSX.Element {
             <TextInput
               style={styles.input}
               value={newExercise.name}
-              onChangeText={(t) => setNewExercise({ ...newExercise, name: t })}
+              onChangeText={(t) =>
+                setNewExercise({ ...newExercise, name: t, exerciseId: undefined })
+              }
               placeholder='e.g., Bench Press'
               placeholderTextColor='#999'
               autoFocus={true}
@@ -1878,16 +1896,14 @@ export default function WorkoutScreen(): React.JSX.Element {
           {newExerciseSuggestions.length > 0 && (
             <View style={styles.suggestionsContainer}>
               <Text style={styles.suggestionsTitle}>💡 Did you mean:</Text>
-              {newExerciseSuggestions.map((s, i) => (
+              {newExerciseSuggestions.map((s) => (
                 <TouchableOpacity
-                  key={s.name ?? i}
+                  key={s.id}
                   style={styles.suggestionButton}
-                  onPress={() => handleSuggestionPress(s, "name")}
+                  onPress={() => handleDbSuggestionPress(s)}
                 >
-                  <Text style={styles.suggestionText}>{s.name}</Text>
-                  <Text style={styles.suggestionMatch}>
-                    {Math.round(s.similarity * 100)}% match
-                  </Text>
+                  <Text style={styles.suggestionText}>{s.label}</Text>
+                  <Text style={styles.suggestionMatch}>{s.meta}</Text>
                 </TouchableOpacity>
               ))}
             </View>

@@ -42,7 +42,12 @@ export interface UseProgramOperationsReturn {
   addNewExercise: (
     dayNumber: number,
     person: string,
-    exerciseData: { name: string; muscleGroup?: string; sets: number },
+    exerciseData: {
+        name: string
+        exerciseId?: string
+        muscleGroup?: string
+        sets: number
+      },
   ) => Promise<void>
 }
 
@@ -167,7 +172,12 @@ export const useProgramOperations = ({
     async (
       dayNumber: number,
       person: string,
-      exerciseData: { name: string; muscleGroup?: string; sets: number },
+      exerciseData: {
+        name: string
+        exerciseId?: string
+        muscleGroup?: string
+        sets: number
+      },
     ): Promise<void> => {
       try {
         if (!workoutData?.days) return
@@ -185,6 +195,7 @@ export const useProgramOperations = ({
 
         const newExercise = {
           name: exerciseData.name,
+          exerciseId: exerciseData.exerciseId,
           muscleGroup: exerciseData.muscleGroup || "",
           sets: exerciseData.sets,
         }

@@ -162,7 +162,12 @@ interface WorkoutContextValue {
   addNewExercise: (
     dayNumber: number,
     person: string,
-    exerciseData: { name: string; muscleGroup?: string; sets: number },
+    exerciseData: {
+      name: string;
+      exerciseId?: string;
+      muscleGroup?: string;
+      sets: number;
+    },
   ) => Promise<void>;
   fetchAnalytics: () => Promise<void>;
   fetchSessionHistory: (
