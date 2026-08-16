@@ -3,6 +3,7 @@ export type { Exercise as ExercisePayload } from "@shared/types"
 
 export interface ExerciseDraft {
   name: string;
+  exerciseId?: string;
   muscleGroup: string;
   setsByPerson: Record<string, string>;
 }
@@ -16,6 +17,7 @@ export interface WdDay {
   dayTitle?: string;
   exercises?: Array<{
     name?: string;
+    exerciseId?: string;
     muscleGroup?: string;
     setsByPerson?: Record<string, number>;
   }>;

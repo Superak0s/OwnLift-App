@@ -12,6 +12,8 @@ export interface User {
 
 export interface Exercise {
   name: string
+  /** Canonical free-exercise-db id. Absent means a custom exercise. */
+  exerciseId?: string
   muscleGroup?: string
   sets: number
 }
@@ -22,6 +24,7 @@ export interface PersonWorkout {
 }
 export interface ExerciseWithSets {
   name: string
+  exerciseId?: string
   muscleGroup: string
   setsByPerson: Record<string, number>
 }
