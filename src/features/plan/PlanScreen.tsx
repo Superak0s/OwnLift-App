@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import * as Device from "expo-device";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
@@ -113,6 +113,8 @@ export default function PlanScreen({
   const [unresolvedMatches, setUnresolvedMatches] = useState<
     UnresolvedExercise[]
   >([]);
+  const [showMatchReview, setShowMatchReview] = useState(false);
+  const hasCheckedMatches = useRef(false);
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
@@ -211,6 +213,16 @@ export default function PlanScreen({
     setVisibleDayCount(INITIAL_DAYS_SHOWN);
   }, [workoutData]);
 
+  useEffect(() => {
+    if (hasCheckedMatches.current || !workoutData?.days?.length) return;
+    hasCheckedMatches.current = true;
+    const { program: matched, unresolved } = matchProgram(workoutData);
+    setUnresolvedMatches(unresolved);
+    if (JSON.stringify(matched) !== JSON.stringify(workoutData)) {
+      void saveWorkoutData(matched);
+    }
+  }, [workoutData]);
+
   const handleUploadFile = async (): Promise<void> => {
     try {
       setIsUploading(true);
@@ -287,6 +299,7 @@ export default function PlanScreen({
       const { program: matched, unresolved } = matchProgram(data);
       await saveWorkoutData(matched);
       setUnresolvedMatches(unresolved);
+      setShowMatchReview(unresolved.length > 0);
       try {
         await programApi.saveProgram(matched);
       } catch (err) {
@@ -1118,6 +1131,23 @@ export default function PlanScreen({
             </View>
           )}
 
+          {unresolvedMatches.length > 0 && !showMatchReview && (
+            <View style={styles.matchBanner}>
+              <TouchableOpacity onPress={() => setShowMatchReview(true)}>
+                <Text style={styles.matchBannerText}>
+                  Review {unresolvedMatches.length} unmatched exercise
+                  {unresolvedMatches.length === 1 ? "" : "s"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setUnresolvedMatches([])}
+                hitSlop={8}
+              >
+                <Text style={styles.matchBannerDismiss}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {contentReady ? (
             <WidgetsPanel
               widgets={widgets}
@@ -1171,10 +1201,10 @@ export default function PlanScreen({
       />
 
       <MatchReviewModal
-        visible={unresolvedMatches.length > 0}
+        visible={showMatchReview}
         unresolved={unresolvedMatches}
         onResolve={handleResolveMatch}
-        onClose={() => setUnresolvedMatches([])}
+        onClose={() => setShowMatchReview(false)}
       />
 
       <WidgetGallery
@@ -1361,6 +1391,24 @@ const makeStyles = (colors: ThemeColors) =>
     checkmark: { fontSize: 24, color: colors.accent },
     personStats: { flexDirection: "row", justifyContent: "flex-start" },
     personStat: { fontSize: 14, color: colors.textSecondary },
+    matchBanner: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      marginBottom: 12,
+      borderLeftWidth: 4,
+      borderLeftColor: colors.warning,
+    },
+    matchBannerText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textPrimary,
+    },
+    matchBannerDismiss: { fontSize: 16, color: colors.textMuted },
     instructionsCard: {
       backgroundColor: colors.surface,
       borderRadius: 12,
