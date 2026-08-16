@@ -1,4 +1,5 @@
 import React from "react";
+import type { ExerciseSuggestion } from "@utils/exerciseDb";
 import { View, Text, TouchableOpacity } from "react-native";
 import type { ThemeColors } from "@shared/context/ThemeContext";
 import type { Styles } from "../PlanScreen";
@@ -22,7 +23,7 @@ interface ProgramDayCardProps {
   readonly dayDraft: DayDraft | null;
   readonly colors: ThemeColors;
   readonly styles: Styles;
-  readonly nameSuggestions: Record<number, string[]>;
+  readonly nameSuggestions: Record<number, ExerciseSuggestion[]>;
   readonly mgSuggestions: Record<number, string[]>;
   readonly focusedNameIdx: number | null;
   readonly focusedMgIdx: number | null;
@@ -42,6 +43,7 @@ interface ProgramDayCardProps {
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
+    exerciseId?: string,
   ) => void;
   readonly onRemoveExercise: (exIdx: number) => void;
   readonly onChangeSets: (exIdx: number, person: string, value: string) => void;

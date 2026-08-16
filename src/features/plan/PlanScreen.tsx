@@ -22,9 +22,10 @@ import { useAlert } from "@shared/components/CustomAlert";
 import {
   findSimilarNames,
   findExactMatch,
-  getAllExerciseNames,
   getAllMuscleGroups,
 } from "@utils/exerciseMatching";
+import { toSuggestions } from "@utils/exerciseDb";
+import type { ExerciseSuggestion } from "@utils/exerciseDb";
 import { workoutApi } from "@features/workout/services/index";
 import { programApi } from "@features/plan/services/index";
 import { useWidgets } from "@shared/context/hooks/useWidgets";
@@ -165,7 +166,7 @@ export default function PlanScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [nameSuggestions, setNameSuggestions] = useState<
-    Record<number, string[]>
+    Record<number, ExerciseSuggestion[]>
   >({});
   const [mgSuggestions, setMgSuggestions] = useState<Record<number, string[]>>(
     {},
@@ -549,19 +550,12 @@ export default function PlanScreen({
     if (!dayDraft) return;
     const updated = [...dayDraft.exercises];
     updated[exIdx] = { ...updated[exIdx], [field]: value };
+    if (field === "name") updated[exIdx].exerciseId = undefined;
     setDayDraft({ exercises: updated });
 
     if (field === "name") {
-      const allNames = getAllExerciseNames(workoutData, selectedSplit);
-      const exact = findExactMatch(value, allNames);
-      if (exact || value.trim().length < 2) {
-        setNameSuggestions((prev) => ({ ...prev, [exIdx]: [] }));
-      } else {
-        const matches = findSimilarNames(value, allNames, 0.5, 5).map(
-          (m) => m.name,
-        );
-        setNameSuggestions((prev) => ({ ...prev, [exIdx]: matches }));
-      }
+      const matches = value.trim().length < 2 ? [] : toSuggestions(value, 5);
+      setNameSuggestions((prev) => ({ ...prev, [exIdx]: matches }));
     }
 
     if (field === "muscleGroup") {
@@ -617,10 +611,12 @@ export default function PlanScreen({
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
+    exerciseId?: string,
   ) => {
     if (!dayDraft) return;
     const updated = [...dayDraft.exercises];
     updated[exIdx] = { ...updated[exIdx], [field]: value };
+    if (field === "name") updated[exIdx].exerciseId = exerciseId;
     setDayDraft({ exercises: updated });
     if (field === "name") {
       setNameSuggestions((prev) => ({ ...prev, [exIdx]: [] }));

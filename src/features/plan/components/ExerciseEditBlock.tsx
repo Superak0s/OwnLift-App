@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput } from "react-native";
 import type { ThemeColors } from "@shared/context/ThemeContext";
 import type { Styles } from "../PlanScreen";
 import type { ExerciseDraft } from "../types";
+import type { ExerciseSuggestion } from "@utils/exerciseDb";
 import { SuggestionsBox } from "@shared/components/SuggestionsBox";
 import { SetsEditRow } from "./SetsEditRow";
 
@@ -11,7 +12,7 @@ interface ExerciseEditBlockProps {
   readonly exIdx: number;
   readonly colors: ThemeColors;
   readonly styles: Styles;
-  readonly nameSuggestions: string[];
+  readonly nameSuggestions: ExerciseSuggestion[];
   readonly mgSuggestions: string[];
   readonly showNameSuggestions: boolean;
   readonly showMgSuggestions: boolean;
@@ -28,6 +29,7 @@ interface ExerciseEditBlockProps {
     exIdx: number,
     field: "name" | "muscleGroup",
     value: string,
+    exerciseId?: string,
   ) => void;
   readonly onRemove: (exIdx: number) => void;
   readonly onChangeSets: (exIdx: number, person: string, value: string) => void;
@@ -59,7 +61,12 @@ export function ExerciseEditBlock({
   const handleMgChange = (v: string) => onChangeField(exIdx, "muscleGroup", v);
   const handleMgFocus = () => onFocusMg(exIdx);
   const handleSelectName = (value: string) =>
-    onApplySuggestion(exIdx, "name", value);
+    onApplySuggestion(
+      exIdx,
+      "name",
+      value,
+      nameSuggestions.find((s) => s.label === value)?.id,
+    );
   const handleSelectMg = (value: string) =>
     onApplySuggestion(exIdx, "muscleGroup", value);
   const handleSetsChange = (person: string, value: string) =>
@@ -87,7 +94,7 @@ export function ExerciseEditBlock({
       />
       {showNameSuggestions && (
         <SuggestionsBox
-          items={nameSuggestions.map((s) => ({ label: s }))}
+          items={nameSuggestions.map((s) => ({ label: s.label, meta: s.meta }))}
           onSelect={handleSelectName}
         />
       )}

@@ -4,6 +4,7 @@ import {
   matchExercise,
   searchExercises,
   getExerciseById,
+  toSuggestions,
   AUTO_ACCEPT_SCORE,
 } from "./exerciseDb";
 import { EXERCISE_ALIASES } from "./exerciseAliases";
@@ -133,6 +134,22 @@ describe("searchExercises", () => {
 
   it("returns nothing for a blank query", () => {
     expect(searchExercises("   ")).toEqual([]);
+  });
+});
+
+describe("toSuggestions", () => {
+  it("labels with the name and describes muscle and equipment in meta", () => {
+    const [first] = toSuggestions("barbell bench press", 1);
+    expect(first.label).toBe("Barbell Bench Press - Medium Grip");
+    expect(first.meta).toContain("chest");
+    expect(first.meta).toContain("barbell");
+  });
+
+  it("omits the separator from meta when the exercise has no equipment", () => {
+    const noEquipment = toSuggestions("push", 20).find(
+      (suggestion) => !suggestion.meta.includes("·"),
+    );
+    expect(noEquipment).toBeDefined();
   });
 });
 

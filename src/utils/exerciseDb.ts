@@ -136,3 +136,21 @@ export const searchExercises = (
     exercise.name.toLowerCase().includes(trimmed),
   ).slice(0, limit);
 };
+
+export interface ExerciseSuggestion {
+  id: string;
+  label: string;
+  meta: string;
+}
+
+export const toSuggestions = (
+  query: string,
+  limit = 8,
+): ExerciseSuggestion[] =>
+  searchExercises(query, limit).map((exercise) => ({
+    id: exercise.id,
+    label: exercise.name,
+    meta: [exercise.primaryMuscles.join(", "), exercise.equipment]
+      .filter(Boolean)
+      .join(" · "),
+  }));
