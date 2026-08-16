@@ -26,6 +26,9 @@ import {
 } from "@utils/exerciseMatching";
 import { toSuggestions } from "@utils/exerciseDb";
 import type { ExerciseSuggestion } from "@utils/exerciseDb";
+import { matchProgram, applyResolution } from "./utils/matchProgram";
+import type { UnresolvedExercise } from "./utils/matchProgram";
+import MatchReviewModal from "./components/MatchReviewModal";
 import { workoutApi } from "@features/workout/services/index";
 import { programApi } from "@features/plan/services/index";
 import { useWidgets } from "@shared/context/hooks/useWidgets";
@@ -107,6 +110,9 @@ export default function PlanScreen({
   } = useWorkout();
   const { alert, AlertComponent } = useAlert();
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [unresolvedMatches, setUnresolvedMatches] = useState<
+    UnresolvedExercise[]
+  >([]);
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
@@ -278,9 +284,11 @@ export default function PlanScreen({
         pendingImportUri,
         Array.from(selectedColumnIndices),
       );
-      await saveWorkoutData(data);
+      const { program: matched, unresolved } = matchProgram(data);
+      await saveWorkoutData(matched);
+      setUnresolvedMatches(unresolved);
       try {
-        await programApi.saveProgram(data);
+        await programApi.saveProgram(matched);
       } catch (err) {
         console.warn(
           "Could not sync imported program to server (will retry on next sync):",
@@ -304,6 +312,22 @@ export default function PlanScreen({
     } finally {
       setIsImportingColumns(false);
     }
+  };
+
+  const handleResolveMatch = async (
+    target: UnresolvedExercise,
+    exerciseId: string | null,
+  ) => {
+    setUnresolvedMatches((prev) =>
+      prev.filter(
+        (u) =>
+          u.dayNumber !== target.dayNumber ||
+          u.person !== target.person ||
+          u.exerciseIndex !== target.exerciseIndex,
+      ),
+    );
+    if (exerciseId === null || !workoutData) return;
+    await saveWorkoutData(applyResolution(workoutData, target, exerciseId));
   };
 
   const addDraftSplitDay = () => {
@@ -1144,6 +1168,13 @@ export default function PlanScreen({
         onConfirm={handleConfirmColumnImport}
         isImporting={isImportingColumns}
         colors={colors}
+      />
+
+      <MatchReviewModal
+        visible={unresolvedMatches.length > 0}
+        unresolved={unresolvedMatches}
+        onResolve={handleResolveMatch}
+        onClose={() => setUnresolvedMatches([])}
       />
 
       <WidgetGallery
