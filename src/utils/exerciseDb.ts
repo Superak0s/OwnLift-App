@@ -1,4 +1,5 @@
 import { EXERCISES, type CanonicalExercise } from "../data/exercises";
+import { EXERCISE_ALIASES } from "./exerciseAliases";
 
 export const AUTO_ACCEPT_SCORE = 0.85;
 export const SUGGEST_SCORE = 0.5;
@@ -62,9 +63,29 @@ export interface MatchResult {
   candidates: ExerciseCandidate[];
 }
 
+const byId = new Map(EXERCISES.map((exercise) => [exercise.id, exercise]));
+
+export const getExerciseById = (id: string): CanonicalExercise | undefined =>
+  byId.get(id);
+
+const aliasIndex = new Map(
+  Object.entries(EXERCISE_ALIASES).map(([alias, id]) => [
+    normalizeTokens(alias).join(" "),
+    id,
+  ]),
+);
+
 export const matchExercise = (name: string): MatchResult => {
   const tokens = normalizeTokens(name);
   if (tokens.length === 0) return { status: "uncertain", candidates: [] };
+
+  const aliased = aliasIndex.get(tokens.join(" "));
+  if (aliased) {
+    const exercise = byId.get(aliased);
+    if (exercise) {
+      return { status: "confident", candidates: [{ exercise, score: 1 }] };
+    }
+  }
 
   const scored = tokenIndex
     .map(({ exercise, tokens: dbTokens, fullTokens }) => ({
@@ -115,8 +136,3 @@ export const searchExercises = (
     exercise.name.toLowerCase().includes(trimmed),
   ).slice(0, limit);
 };
-
-const byId = new Map(EXERCISES.map((exercise) => [exercise.id, exercise]));
-
-export const getExerciseById = (id: string): CanonicalExercise | undefined =>
-  byId.get(id);

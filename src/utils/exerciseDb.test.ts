@@ -6,6 +6,7 @@ import {
   getExerciseById,
   AUTO_ACCEPT_SCORE,
 } from "./exerciseDb";
+import { EXERCISE_ALIASES } from "./exerciseAliases";
 
 describe("normalizeTokens", () => {
   // "press" normalizes to "pres" — singularize strips the trailing s from both
@@ -66,20 +67,20 @@ describe("matchExercise", () => {
   });
 
   it("ignores qualifier suffixes so the plain lift beats a variant", () => {
-    const result = matchExercise("Barbell Bench Press");
+    const result = matchExercise("Barbell Incline Bench Press");
     expect(result.candidates[0].exercise.name).toBe(
-      "Barbell Bench Press - Medium Grip",
+      "Barbell Incline Bench Press - Medium Grip",
     );
   });
 
   it("never auto-accepts a qualified variant for an unqualified query", () => {
-    const result = matchExercise("Squat");
+    const result = matchExercise("Back Flyes");
     expect(result.status).toBe("uncertain");
     expect(result.candidates.length).toBeGreaterThan(0);
   });
 
   it("asks rather than guessing when variants tie for the top score", () => {
-    const result = matchExercise("Bench Press");
+    const result = matchExercise("Hang Clean");
     expect(result.status).toBe("uncertain");
     expect(result.candidates.length).toBeGreaterThan(1);
   });
@@ -97,6 +98,29 @@ describe("matchExercise", () => {
 
   it("returns uncertain with no candidates for an empty name", () => {
     expect(matchExercise("  ")).toEqual({ status: "uncertain", candidates: [] });
+  });
+});
+
+describe("aliases", () => {
+  it("maps every alias to an id that exists in the dataset", () => {
+    const missing = Object.entries(EXERCISE_ALIASES)
+      .filter(([, id]) => !getExerciseById(id))
+      .map(([alias, id]) => `${alias} -> ${id}`);
+    expect(missing).toEqual([]);
+  });
+
+  it("confidently resolves common lifts the dataset has no plain entry for", () => {
+    expect(matchExercise("Squat").candidates[0].exercise.name).toBe("Barbell Squat");
+    expect(matchExercise("Bench Press").candidates[0].exercise.name).toBe(
+      "Barbell Bench Press - Medium Grip",
+    );
+    expect(matchExercise("Squat").status).toBe("confident");
+    expect(matchExercise("Bench Press").status).toBe("confident");
+  });
+
+  it("matches aliases case-insensitively and through plural forms", () => {
+    expect(matchExercise("PULL UPS").status).toBe("confident");
+    expect(matchExercise("Lateral Raises").status).toBe("confident");
   });
 });
 
