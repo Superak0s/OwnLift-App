@@ -81,11 +81,6 @@ export interface ExerciseEntry {
   completedSetMap: Record<number, SetTiming>
 }
 
-export interface FriendSessionStatus {
-  id: number | string
-  active: boolean
-}
-
 /**
  * SessionRecord extends the shared WorkoutSession with extra fields
  * needed for the friends screen (live session details, grouped exercises).

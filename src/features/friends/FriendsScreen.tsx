@@ -774,14 +774,6 @@ export default function FriendsScreen(): React.JSX.Element {
     friendId: number | string | undefined,
   ): boolean => !!friendId && hasReceivedPermission(friendId, "analytics");
 
-  const hasAlreadySharedAnalyticsWith = (
-    friendId: number | string | undefined,
-  ): boolean => !!friendId && !!getGrantedPermission(friendId, "analytics");
-
-  const hasAlreadySharedProgramWith = (
-    friendId: number | string | undefined,
-  ): boolean => !!friendId && !!getGrantedPermission(friendId, "program");
-
   const receivedPrograms: ReceivedProgram[] = receivedPermissions
     .filter(
       (p) =>

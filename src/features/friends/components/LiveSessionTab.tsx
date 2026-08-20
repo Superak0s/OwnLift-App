@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   View,
   Text,
@@ -17,7 +17,6 @@ import type {
   Friend,
   LiveData,
   ProgramExercise,
-  ProgramDay,
   ReceivedProgram,
   Phase,
   ExerciseEntry,
@@ -260,7 +259,6 @@ export default function LiveSessionTab({
   const st = makeStStyles(colors)
   const [phase, setPhase] = useState<Phase>("idle")
   const [liveData, setLiveData] = useState<LiveData | null>(null)
-  const [sessionId, setSessionId] = useState<string | null>(null)
   const [elapsedSec, setElapsedSec] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -285,7 +283,6 @@ export default function LiveSessionTab({
     if (!friend?.id) return
     setPhase("checking")
     setLiveData(null)
-    setSessionId(null)
     try {
       const active = (await sharingApi.getFriendActiveSession(friend.id)) as {
         sessionId?: string
@@ -296,7 +293,6 @@ export default function LiveSessionTab({
       }
 
       const sid = active.sessionId
-      setSessionId(sid)
 
       const live = (await sharingApi.getFriendLiveSession(
         friend.id,
