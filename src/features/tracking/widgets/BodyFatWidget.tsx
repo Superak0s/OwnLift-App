@@ -22,7 +22,7 @@ export interface BodyFatRenderCtx {
 }
 
 export function renderBodyFatWidget(type: string, ctx: BodyFatRenderCtx): React.ReactNode {
-  const { history, height, heightUnit, setHeightUnit, openHeightModal, closeHeightModal, setNewHeightCm, setNewHeightFt, setNewHeightIn, openBodyFatModal, setSelectedLogDate, deleteBodyFatEntry, hasDataOnDate, colors, styles, handleCalendarDatePress } = ctx;
+  const { history, height, heightUnit, openHeightModal, setNewHeightCm, setNewHeightFt, setNewHeightIn, openBodyFatModal, setSelectedLogDate, deleteBodyFatEntry, hasDataOnDate, colors, styles, handleCalendarDatePress } = ctx;
 
   switch (type) {
     case "bodyfat_height": {

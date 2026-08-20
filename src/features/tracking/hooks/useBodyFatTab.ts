@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { setStorageItem } from "@shared/services/sqliteStorage"
-import type { BodyFatEntry } from "@shared/types";
 import type { BodyFatEntryWithFields } from "../types";
 import { bodyFatApi } from "../services";
 import { createDeleteHandler } from "../helpers";

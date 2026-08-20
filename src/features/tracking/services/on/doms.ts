@@ -4,9 +4,7 @@ import { apiCall } from "@shared/services/apiClient";
 import type {
   ApiResponse,
   ActiveSoreness,
-  SorenessFollowUp,
   DOMSStats,
-  DOMSFollowUpItem,
   LogSorenessParams,
   UpdateSorenessParams,
 } from "../../types/muscleRecovery";

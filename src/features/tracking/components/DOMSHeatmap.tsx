@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useTheme } from "@shared/context/ThemeContext";
 import { domsApi } from "../services";
-import { DOMSStats, MuscleRecoveryStats, MuscleGroup } from "../types/muscleRecovery";
+import { DOMSStats } from "../types/muscleRecovery";
 import { MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 import { FillBar } from "@shared/components/FillBar";
 import ProgressChart from "@shared/components/ProgressChart";

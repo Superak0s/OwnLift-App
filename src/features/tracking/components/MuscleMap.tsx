@@ -1,10 +1,8 @@
 import React, { useMemo } from "react";
-import { View, Text as RNText, StyleSheet, Dimensions } from "react-native";
+import { View, Text as RNText, StyleSheet } from "react-native";
 import {
   Svg,
   Path,
-  Circle,
-  Ellipse,
   Text as SvgText,
   Defs,
   RadialGradient,
@@ -26,7 +24,6 @@ interface MuscleMapProps {
   readonly compact?: boolean;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MAP_WIDTH = 280;
 const MAP_HEIGHT = 520;
 

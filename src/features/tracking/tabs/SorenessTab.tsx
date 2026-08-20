@@ -1,13 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  ScrollView,
 } from "react-native";
-import { MUSCLE_GROUP_LABELS } from "../types/muscleRecovery";
 import { STORAGE_KEYS } from "@shared/services/storage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 import { useTheme } from "@shared/context/ThemeContext";

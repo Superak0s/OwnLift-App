@@ -6,4 +6,3 @@ export { useHydrationTab } from "./useHydrationTab";
 export { useSorenessTab } from "./useSorenessTab";
 export { useMenstrualTab } from "./useMenstrualTab";
 export { usePhotosTab } from "./usePhotosTab";
-export { useTrackingModals as useTrackingModalsHook } from "./useTrackingModals";

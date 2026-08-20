@@ -59,18 +59,6 @@ const makeStyles = (colors: ThemeColors) =>
       textAlign: "center",
     },
 
-    weightHistoryCard: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 15,
-    },
-    weightHistoryTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: colors.textPrimary,
-      marginBottom: 12,
-    },
     weightEntryRow: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -168,7 +156,6 @@ const makeStyles = (colors: ThemeColors) =>
     statsTitle: { fontSize: 14, color: colors.textSecondary, marginBottom: 8 },
     statsValue: { fontSize: 36, fontWeight: "bold", color: colors.accent },
     statsDate: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
-    statsSubtext: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
 
     buttonRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
     primaryButton: {
@@ -178,7 +165,6 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 12,
       alignItems: "center",
     },
-    primaryButtonDisabled: { backgroundColor: colors.surfaceBorder },
     primaryButtonText: {
       color: colors.surface,
       fontWeight: "700",
@@ -382,19 +368,6 @@ const makeStyles = (colors: ThemeColors) =>
       flexShrink: 1,
     },
 
-    photoGroupContainer: {
-      backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 12,
-      marginBottom: 12,
-    },
-    photoGroupDate: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: colors.textSecondary,
-      marginBottom: 8,
-    },
-    photoGroupRow: { flexDirection: "row" },
     photoThumbWrap: { marginRight: 10, position: "relative" },
     photoThumb: { width: 110, height: 140, borderRadius: 10 },
     photoThumbLoading: {
@@ -464,12 +437,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       marginTop: 2,
     },
-    existingEntryNote: {
-      fontSize: 12,
-      color: colors.textMuted,
-      fontStyle: "italic",
-      flex: 1,
-    },
     existingEntryDelete: { fontSize: 17, opacity: 0.55 },
     cycleHistoryRow: {
       marginBottom: 12,
@@ -517,22 +484,6 @@ const makeStyles = (colors: ThemeColors) =>
     dayModalEmptyIcon: { fontSize: 40, marginBottom: 10, opacity: 0.3 },
     dayModalEmptyText: { fontSize: 15, color: colors.textMuted },
 
-    dayModalOverlay: {
-      flex: 1,
-      backgroundColor: colors.overlay,
-      justifyContent: "flex-end",
-    },
-    dayModalCard: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      overflow: "hidden",
-      shadowColor: colors.shadow,
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.12,
-      shadowRadius: 16,
-      elevation: 16,
-    },
     dayModalHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -691,11 +642,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 28,
       fontWeight: "700",
       marginTop: 10,
-    },
-    trackerHeroSubtext: {
-      fontSize: 13,
-      fontWeight: "500",
-      marginTop: 4,
     },
     trackerHeroDate: {
       fontSize: 12,

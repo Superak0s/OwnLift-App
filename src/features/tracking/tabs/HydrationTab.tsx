@@ -87,7 +87,7 @@ export const HYDRATION_TAB_CONFIG = {
 };
 
 
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -894,9 +894,6 @@ const makeHydrationSettingsStyles = (colors: any) =>
       fontSize: 18,
       fontWeight: "700",
       color: colors.textPrimary,
-    },
-    errorInputWrapper: {
-      flex: 1,
     },
     input: {
       borderWidth: 1,

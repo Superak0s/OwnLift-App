@@ -88,7 +88,7 @@ export const MENSTRUAL_TAB_CONFIG = {
 };
 
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -101,14 +101,6 @@ import { useTheme } from "@shared/context/ThemeContext";
 import ModalSheet from "@shared/components/ModalSheet";
 import { menstrualApi } from "../services";
 import { buildLocalISOForDate } from "../utils";
-
-export const FLOW_INTENSITY_OPTIONS = ["light", "moderate", "heavy"] as const;
-
-export const FLOW_INTENSITY_LABELS: Record<string, string> = {
-  light: "Light",
-  moderate: "Moderate",
-  heavy: "Heavy",
-};
 
 interface LogCycleModalProps {
   readonly visible: boolean;

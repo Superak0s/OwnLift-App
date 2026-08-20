@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Dimensions,
   ActivityIndicator,
   RefreshControl,
   Switch,
@@ -28,7 +27,6 @@ import {
   bodyMeasurementsApi,
   menstrualApi,
 } from "./services";
-import { customMeasurementsApi } from "./services/on/customMeasurements";
 import { useTrackingModals as useTrackingModalsCtx } from "./context/TrackingModalsContext";
 import {
   LogCycleModal,
@@ -99,8 +97,6 @@ import { toDateString } from "@utils/format";
 import { getUserKey } from "@shared/services/storage";
 import makeStyles from "./styles";
 
-const { width } = Dimensions.get("window");
-
 const registryMap: Record<
   string,
   {
@@ -164,7 +160,6 @@ export default function TrackingScreen() {
   const [activeTab, setActiveTab] = useState("weight");
   const [widgetEditMode, setWidgetEditMode] = useState(false);
   const [showWidgetGallery, setShowWidgetGallery] = useState(false);
-  const [showMeasurementModal, setShowMeasurementModal] = useState(false);
   const [showFlowModal, setShowFlowModal] = useState(false);
   const [flowModalDate, setFlowModalDate] = useState<string | null>(null);
   const [flowModalIntensity, setFlowModalIntensity] = useState<"light" | "moderate" | "heavy">("light");
@@ -173,16 +168,6 @@ export default function TrackingScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [dayModal, setDayModal] = useState<{ date: Date; tab: string; existingEntries: any[]; isToday: boolean } | null>(null);
   const [selectedLogDate, setSelectedLogDate] = useState<Date | null>(null);
-  const [expandedCycleIds, setExpandedCycleIds] = useState<Set<string>>(new Set());
-  const toggleExpandedCycle = useCallback((id: string) => {
-    setExpandedCycleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
   const loadDataRef = useRef<() => Promise<void> | void>(() => {});
 
   const _weight = useWeightTab({ alert, loadData: loadDataRef.current, setDayModal: setDayModal as any, selectedLogDate, setSelectedLogDate, buildLocalISOForDate, user });
@@ -263,7 +248,7 @@ export default function TrackingScreen() {
     entries: _photos.progressPhotos, setEntries: _photos.setProgressPhotos,
     photoUriCache: _photos.photoUriCache,
     deletePhoto: _photos.deletePhoto,
-    hasDataOnDate: ((date: Date) => false),
+    hasDataOnDate: (() => false),
   };
 
   const measurements = {
@@ -451,24 +436,6 @@ export default function TrackingScreen() {
     },
     [activeBoard],
   );
-
-  const handleDeleteEntry = async (
-    id: any,
-    deleteFn: (id: any) => Promise<any>,
-    setter: React.Dispatch<React.SetStateAction<any[]>>,
-  ) => {
-    try {
-      await deleteFn(id);
-      setter((prev) => prev.filter((e) => e.id !== id));
-    } catch (err) {
-      alert(
-        "Error",
-        err instanceof Error ? err.message : String(err),
-        [{ text: "OK" }],
-        "error",
-      );
-    }
-  };
 
   const renderDayModalExistingEntries = () => {
     const existingEntries = dayModal?.existingEntries as any[] | null | undefined;

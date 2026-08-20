@@ -14,15 +14,6 @@ export interface HydrationEntry {
   createdAt: string;
 }
 
-export interface HydrationStats {
-  totalToday: number;
-  totalThisWeek: number;
-  totalThisMonth: number;
-  averageDaily: number;
-  entryCount: number;
-  lastEntry: HydrationEntry | null;
-}
-
 export interface MeasurementEntry {
   id: number;
   waistCm?: number | null;

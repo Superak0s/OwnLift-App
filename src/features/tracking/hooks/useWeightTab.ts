@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import type { WeightEntry, WeightHistoryResponse, HeightData } from "@shared/types";
+import type { WeightEntry, HeightData } from "@shared/types";
 import { bodyTrackingApi } from "../services";
 import { createDeleteHandler } from "../helpers";
 import { toDateString } from "@utils/format";

@@ -60,11 +60,6 @@ export interface DayModalState {
   isToday: boolean;
 }
 
-export interface SelectedDatePhotos {
-  date?: Date;
-  photos: ProgressPhoto[];
-}
-
 export interface ExpandedPhoto {
   uri: string;
   photo: ProgressPhoto;
@@ -94,12 +89,6 @@ export interface MenstrualSettings {
   updatedAt?: string | null;
 }
 
-
-export interface HydrationSettings {
-  goalMl: number;
-  measurementErrorPercent: number;
-  updatedAt?: string | null;
-}
 
 export interface CustomMeasurementType {
   id: number;

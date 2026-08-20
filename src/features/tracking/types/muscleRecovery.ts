@@ -103,16 +103,6 @@ export interface InjuryRecord {
 }
 
 
-export interface MuscleDashboardData {
-  muscleGroup: MuscleGroup;
-  currentSoreness: ActiveSoreness | null;
-  domsHistory: ActiveSoreness[];
-  recoveryStats: MuscleRecoveryStats;
-  progressPhotos: ProgressPhotoMuscle[];
-  injuries: InjuryRecord[];
-  personalNotes: PersonalMuscleNote[];
-}
-
 
 export interface PersonalMuscleNote {
   id: number;
@@ -150,14 +140,6 @@ export interface LogInjuryParams {
   painLevel: number;
   startDate: string;
   notes?: string;
-}
-
-export interface UpdateInjuryParams {
-  injuryId: number;
-  status?: InjuryStatus;
-  recoveryDate?: string;
-  notes?: string;
-  painLevel?: number;
 }
 
 export interface LogProgressPhotoParams {

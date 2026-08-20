@@ -6,8 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  TextInput,
-  Modal,
 } from "react-native";
 import { useTheme } from "@shared/context/ThemeContext";
 import { injuryApi } from "../services";

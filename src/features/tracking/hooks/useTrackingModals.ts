@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { bodyTrackingApi, macrosTrackingApi, bodyFatApi, menstrualApi, bodyMeasurementsApi, hydrationApi, sorenessApi } from "../services";
-import { createDeleteHandler, filterDayModalEntry } from "../helpers";
+import { createDeleteHandler } from "../helpers";
 import { isoToLocalDateStr, getCycleStartIso, buildLocalISOForDate } from "../utils";
 import { toDateString } from "@utils/format";
 import type { DayModalState } from "../types";
@@ -71,7 +71,7 @@ export interface UseTrackingModalsDeps {
 
 export function useTrackingModals(deps: UseTrackingModalsDeps) {
   const {
-    alert, loadData, selectedLogDate, setSelectedLogDate, activeTab,
+    alert, loadData, setSelectedLogDate,
     weightUnit, gender, measurementUnit, height,
     getDailyMacrosStats, weightHistory, bodyFatHistory, measurementHistory,
     hydrationEntries, sorenessEntries, cycleEntries, cycleActualDays,
