@@ -1,5 +1,3 @@
-// hooks/useJointSession.ts
-
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { sharingApi } from "@features/friends/services/index"
 import { normalizeExerciseName } from "@utils/exerciseMatching"
@@ -88,7 +86,6 @@ export interface UseJointSessionReturn {
   handleSocketMessage: (msg: WebSocketMessage) => void
 }
 
-// Typed shapes for specific WS message payloads
 interface JointProgressPayload {
   exerciseIndex?: number | null
   setIndex?: number | null

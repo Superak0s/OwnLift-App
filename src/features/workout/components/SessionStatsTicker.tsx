@@ -10,7 +10,6 @@ import {
 import { initializeSupplementNotifications } from "../../../../tasks/supplementLocationTask";
 import type { makeStyles } from "../WorkoutScreen";
 
-// ─── Session stats ticker ───────────────────────────────────────────────────
 // Owns its own 1s interval and state so the per-second tick re-renders only
 // this widget, not the whole WorkoutScreen (see note on ExerciseCard).
 

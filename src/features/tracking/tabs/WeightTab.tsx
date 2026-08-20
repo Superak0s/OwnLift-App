@@ -1,12 +1,6 @@
-// src/features/tracking/tabs/WeightTab.tsx
-//
-// Weight tab - contains all widget definitions, registry, and defaults
-// for the weight tracking functionality.
-
 import { STORAGE_KEYS } from "@shared/services/storage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
-// ─── Weight tab widget types ────────────────────────────────────────────────
 
 export type WeightWidgetType =
   | "weight_overview"
@@ -85,7 +79,6 @@ export const DEFAULT_WEIGHT_WIDGETS: WidgetInstance<WeightWidgetType>[] = [
 
 export const WEIGHT_WIDGETS_STORAGE_KEY = STORAGE_KEYS.WEIGHT_TAB_WIDGETS;
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
 
 export const WEIGHT_TAB_CONFIG = {
   key: "weight",

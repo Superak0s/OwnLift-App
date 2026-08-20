@@ -150,7 +150,6 @@ export default function BatterySettingsModal({
           style={styles.content}
           contentContainerStyle={styles.contentContainer}
         >
-          {/* Info Card */}
           <View style={styles.infoCard}>
             <Text style={styles.infoIcon}>🔋</Text>
             <Text style={styles.infoTitle}>Configure Battery Usage</Text>
@@ -172,7 +171,6 @@ export default function BatterySettingsModal({
             </TouchableOpacity>
           )}
 
-          {/* Presets */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Battery Presets</Text>
 
@@ -223,7 +221,6 @@ export default function BatterySettingsModal({
             ))}
           </View>
 
-          {/* Advanced Toggle */}
           <TouchableOpacity
             style={styles.advancedButton}
             onPress={() => {
@@ -239,7 +236,6 @@ export default function BatterySettingsModal({
             </Text>
           </TouchableOpacity>
 
-          {/* Advanced Settings */}
           {showAdvanced && (
             <View style={styles.advancedSection}>
               <Text style={styles.sectionTitle}>Custom Settings</Text>
@@ -282,7 +278,6 @@ export default function BatterySettingsModal({
             </View>
           )}
 
-          {/* Recommendations */}
           <View style={styles.recommendationsCard}>
             <Text style={styles.recommendationsTitle}>💡 Recommendations</Text>
             <Text style={styles.recommendationItem}>

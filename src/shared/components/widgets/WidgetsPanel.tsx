@@ -1,5 +1,3 @@
-// src/shared/components/widgets/WidgetsPanel.tsx
-//
 // Renders whatever widgets the user has placed. Editing controls (resize,
 // remove, drag-to-reorder) only appear while `editMode` is true — driven by
 // the parent screen via the two-finger pull gesture or an Edit/Done toggle.
@@ -251,7 +249,6 @@ export default function WidgetsPanel<T extends string>({
   const pan = useRef(new Animated.ValueXY()).current
   const liftAnim = useRef(new Animated.Value(1)).current
 
-  // ─── Per-widget slot animation (manual FLIP, replaces LayoutAnimation) ──
   // One Animated.ValueXY per widget id, applied as a translate on top of
   // its normal flex position. At rest it's always {0, 0}.
   const slotAnimsRef = useRef<Map<string, Animated.ValueXY>>(new Map())

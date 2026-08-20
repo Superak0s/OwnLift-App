@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type CalendarView = "week" | "month";
 
@@ -20,7 +19,6 @@ interface UniversalCalendarProps {
   } | null;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const MONTH_NAMES = [
@@ -38,7 +36,6 @@ const MONTH_NAMES = [
   "December",
 ] as const;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getWeekDates(anchorDate: Date): Date[] {
   const d = new Date(anchorDate);
@@ -80,7 +77,6 @@ function isSameLocalDay(a: Date, b: Date): boolean {
   return toLocalDateStr(a) === toLocalDateStr(b);
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function UniversalCalendar({
   hasDataOnDate,
@@ -156,7 +152,6 @@ export default function UniversalCalendar({
     const dayNumber = date.getDate();
     const dayName = DAY_NAMES[date.getDay()]!;
 
-    // Allow consumer to supply per-day decoration (e.g., menstrual actual vs predicted)
     const decoration =
       typeof getDayDecoration === "function" ? getDayDecoration(date) : null;
     const bgColorStyle = decoration?.backgroundColor
@@ -225,7 +220,6 @@ export default function UniversalCalendar({
 
   return (
     <View style={styles.container}>
-      {/* Nav row */}
       <View style={styles.navRow}>
         <TouchableOpacity style={styles.navBtn} onPress={() => navigate(-1)}>
           <Text style={styles.navBtnText}>‹</Text>
@@ -255,14 +249,12 @@ export default function UniversalCalendar({
         </TouchableOpacity>
       </View>
 
-      {/* Week view */}
       {view === "week" && (
         <View style={styles.weekRow}>
           {weekDates.map((d, i) => renderDay(d, false, i))}
         </View>
       )}
 
-      {/* Month view */}
       {view === "month" && (
         <>
           <View style={styles.monthHeader}>
@@ -282,7 +274,6 @@ export default function UniversalCalendar({
         </>
       )}
 
-      {/* Legend */}
       <View style={styles.footer}>
         <View style={styles.legend}>
           <View
@@ -295,7 +286,6 @@ export default function UniversalCalendar({
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const makeStyles = (colors: any) =>
   StyleSheet.create({

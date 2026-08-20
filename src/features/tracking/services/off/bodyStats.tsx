@@ -20,7 +20,6 @@ const PHOTOS_DIR = `${FileSystem.documentDirectory}progress-photos/`
 
 const lbsToKg = (lbs: number): number => lbs * 0.453592
 
-// ── Internal record shapes (stored on-device) ────────────────────────────
 
 interface WeightRecord {
   id: string
@@ -65,12 +64,8 @@ const photosStore = createRecordStore<PhotoRecord>(
   (r) => r.taken_at,
 )
 
-// ── Body Weight ────────────────────────────────────────────────────────────
 
 export const bodyTrackingApi = {
-  /**
-   * Log a weight entry locally.
-   */
   logWeight: async (
     weight: number,
     unit: WeightUnit,
@@ -93,9 +88,6 @@ export const bodyTrackingApi = {
     }
   },
 
-  /**
-   * Get weight history, most recent first.
-   */
   getWeightHistory: async (
     limit: number = 90,
   ): Promise<WeightHistoryResponse> => {
@@ -108,9 +100,6 @@ export const bodyTrackingApi = {
     }
   },
 
-  /**
-   * Delete a weight entry by id.
-   */
   deleteWeightEntry: async (id: number | string): Promise<unknown> => {
     try {
       await weightStore.remove(id)
@@ -136,7 +125,6 @@ export const bodyTrackingApi = {
     }
   },
 
-  // ── Progress Photos ───────────────────────────────────────────────────────
 
   /**
    * "Uploads" a progress photo by copying it into permanent app storage

@@ -146,7 +146,6 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack || onClose} style={styles.backButton}>
           <Text style={[styles.backButtonText, { color: colors.accent }]}>← Back</Text>
@@ -164,7 +163,6 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Current Soreness Quick View */}
       {currentSoreness && (
         <View style={[styles.currentSorenessCard, { backgroundColor: colors.surface }]}>
           <Text style={[styles.currentSorenessLabel, { color: colors.textSecondary }]}>
@@ -188,7 +186,6 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
         </View>
       )}
 
-      {/* Tabs */}
       <View style={styles.tabRow}>
         {tabs.map((tab) => (
           <TouchableOpacity
@@ -214,7 +211,6 @@ export const MuscleDashboard: React.FC<MuscleDashboardProps> = ({
         ))}
       </View>
 
-      {/* Tab Content */}
       {activeTab === "soreness" && (
         <FlatList
           style={styles.content}

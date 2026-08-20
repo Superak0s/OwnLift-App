@@ -3,9 +3,6 @@ import { View, Text, StyleSheet } from "react-native";
 import { useTheme } from "@shared/context/ThemeContext";
 import type { ThemeColors } from "@shared/context/ThemeContext";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// "Partner is here" pill
-// ─────────────────────────────────────────────────────────────────────────────
 export function PartnerExercisePill({ username }: Readonly<{ username: string }>) {
   const { colors } = useTheme();
   const pillStyles = makePillStyles(colors);
@@ -17,9 +14,6 @@ export function PartnerExercisePill({ username }: Readonly<{ username: string }>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Badge showing set-count difference for shared exercises
-// ─────────────────────────────────────────────────────────────────────────────
 export function getSetDiffLabel(diff: number): string {
   if (diff === 0) return "Same sets";
   return diff > 0 ? `+${diff} partner sets` : `${diff} partner sets`;
@@ -64,7 +58,6 @@ export function PartnerExerciseMatchBadge({
   );
 }
 
-// Badge for exercises targeting this week's most undertrained muscle group
 export function PriorityMuscleGroupBadge({
   muscleGroup,
 }: Readonly<{ muscleGroup: string }>) {

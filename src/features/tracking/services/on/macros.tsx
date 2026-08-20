@@ -7,10 +7,6 @@ import type { MacrosEntry } from "@shared/types"
  * All macro fields (protein, carbs, fat, calories) are optional.
  */
 export const macrosTrackingApi = {
-  /**
-   * Log a macros intake entry
-   * POST /api/tracking/macros/log
-   */
   logMacros: async ({
     name,
     protein,
@@ -46,19 +42,11 @@ export const macrosTrackingApi = {
     })
   },
 
-  /**
-   * Get macros intake history
-   * GET /api/tracking/macros/log?days=N
-   */
   getMacrosHistory: async (
     days: number = 30,
   ): Promise<{ entries: MacrosEntry[] }> =>
     apiCall(`/api/tracking/macros/log?days=${days}`),
 
-  /**
-   * Set daily macros goals
-   * PUT /api/tracking/macros/goals
-   */
   setMacrosGoals: async ({
     protein,
     carbs,
@@ -75,10 +63,6 @@ export const macrosTrackingApi = {
       }),
     }),
 
-  /**
-   * Delete a macros entry
-   * DELETE /api/tracking/macros/log/:id
-   */
   deleteMacrosEntry: async (id: number | string): Promise<unknown> =>
     apiCall(`/api/tracking/macros/log/${id}`, { method: "DELETE" }),
 }

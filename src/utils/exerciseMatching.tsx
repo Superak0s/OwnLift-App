@@ -1,5 +1,3 @@
-// Utility functions for exercise name matching and suggestions
-
 import type { WorkoutData } from "@shared/types";
 
 export interface SimilarityMatch {
@@ -13,9 +11,6 @@ export interface TypoCheckResult {
   exactMatch?: string | null;
 }
 
-/**
- * Calculate Levenshtein distance between two strings
- */
 const levenshteinDistance = (str1: string, str2: string): number => {
   const s1 = str1.toLowerCase().trim();
   const s2 = str2.toLowerCase().trim();
@@ -62,9 +57,6 @@ export const calculateSimilarity = (str1: string, str2: string): number => {
   return 1 - distance / maxLength;
 };
 
-/**
- * Find all unique exercise names from workout data
- */
 export const getAllExerciseNames = (
   workoutData: WorkoutData | null | undefined,
   selectedSplit: string | null,
@@ -87,9 +79,6 @@ export const getAllExerciseNames = (
   return Array.from(exerciseNames);
 };
 
-/**
- * Find all unique muscle groups from workout data for a split.
- */
 export const getAllMuscleGroups = (
   workoutData: WorkoutData | null | undefined,
   selectedSplit: string | null,
@@ -151,9 +140,6 @@ export const getExercisesByMuscleGroup = (
   return Array.from(names);
 };
 
-/**
- * Canonical list of common muscle group names.
- */
 export const CANONICAL_MUSCLE_GROUPS: readonly string[] = [
   "Chest",
   "Back",
@@ -206,9 +192,6 @@ export const findExactMatch = (
   return allNames.find((n) => normalizeExerciseName(n) === normalized);
 };
 
-/**
- * Find similar names based on fuzzy matching.
- */
 export const findSimilarNames = (
   name: string,
   allNames: string[],
@@ -234,9 +217,6 @@ export const findSimilarNames = (
     .slice(0, maxResults);
 };
 
-/**
- * Check if exercise name is a typo and suggest corrections.
- */
 export const checkForTypo = (
   exerciseName: string,
   allExercises: string[],
@@ -256,9 +236,6 @@ export const checkForTypo = (
   return { isLikelyTypo, suggestions, exactMatch: null };
 };
 
-/**
- * Check if muscle group is a typo and suggest corrections.
- */
 export const checkMuscleGroupForTypo = (
   muscleGroup: string,
   allMuscleGroups: string[],

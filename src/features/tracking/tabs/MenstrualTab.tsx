@@ -1,12 +1,6 @@
-// src/features/tracking/tabs/MenstrualTab.tsx
-//
-// Menstrual tab - contains all widget definitions, registry, and defaults
-// for the menstrual cycle tracking functionality.
-
 import { STORAGE_KEYS } from "@shared/services/storage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
-// ─── Menstrual tab widget types ─────────────────────────────────────────────
 
 export type MenstrualWidgetType =
   | "menstrual_overview"
@@ -86,7 +80,6 @@ export const DEFAULT_MENSTRUAL_WIDGETS: WidgetInstance<MenstrualWidgetType>[] =
 
 export const MENSTRUAL_WIDGETS_STORAGE_KEY = STORAGE_KEYS.MENSTRUAL_TAB_WIDGETS;
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
 
 export const MENSTRUAL_TAB_CONFIG = {
   key: "menstrual",
@@ -94,7 +87,6 @@ export const MENSTRUAL_TAB_CONFIG = {
   label: "Cycle",
 };
 
-// ─── Log Cycle Modal ──────────────────────────────────────────────────────────
 
 import React, { useState, useEffect } from "react";
 import {
@@ -281,7 +273,6 @@ const makeLogCycleStyles = (colors: any) =>
       fontSize: 14,
     },
   });
-// ─── Cycle Settings Widget ─────────────────────────────────────────────────────
 
 interface CycleSettingsWidgetProps {
   readonly onSettingsUpdate?: (settings: {

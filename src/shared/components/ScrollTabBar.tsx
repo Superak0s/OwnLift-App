@@ -298,7 +298,6 @@ export default function ScrollTabBar({
           <Text style={styles.editBtnText}>⋯</Text>
         </TouchableOpacity>
       </ScrollView>
-{/* placeholder */}
       <ModalSheet
         visible={showEditor}
         onClose={() => setShowEditor(false)}
@@ -342,9 +341,6 @@ export default function ScrollTabBar({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────────────────────
 const rowStyles = (colors: any) =>
   StyleSheet.create({
     row: {

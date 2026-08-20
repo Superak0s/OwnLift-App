@@ -48,26 +48,21 @@ import logger from "@shared/services/logger"
 
 const STORAGE_KEY = "app_theme_v1"
 
-// Types
 export interface ThemeColors {
-  // Backgrounds
   background: string
   surface: string
   surfaceElevated: string
   surfaceBorder: string
 
-  // Text
   textPrimary: string
   textSecondary: string
   textMuted: string
   textOnAccent: string
 
-  // Accent / brand
   accent: string
   accentLight: string
   accentDark: string
 
-  // Semantic
   success: string
   successLight: string
   error: string
@@ -77,7 +72,6 @@ export interface ThemeColors {
   info: string
   infoLight: string
 
-  // Misc
   separator: string
   shadow: string
   overlay: string
@@ -85,7 +79,6 @@ export interface ThemeColors {
   inputBorder: string
   badgeBackground: string
 
-  // Chart
   chartColor: string
   chartColorDark: string
 }
@@ -310,7 +303,6 @@ export interface ThemeContextValue {
   resolvedChartColorDark: string
 }
 
-// Context
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 interface PersistedState {
@@ -338,7 +330,6 @@ async function saveState(state: PersistedState): Promise<void> {
   }
 }
 
-// Provider
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme() // "light" | "dark" | null
 
@@ -385,7 +376,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
     const found = allThemes.find((t) => t.id === activeThemeId)
     if (found) return found
-    // Fallback to the first preset theme (light)
     return BUILT_IN_THEMES[1] ?? BUILT_IN_THEMES[0]!
   }, [activeThemeId, allThemes, systemScheme])
   const colors = theme.colors
@@ -535,7 +525,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// Hook
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext)
   if (!ctx) {

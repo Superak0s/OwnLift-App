@@ -336,13 +336,10 @@ export default function SettingsScreen(): React.JSX.Element {
                   throw new Error(sr.error || "Server refused to delete data");
                 }
                 if (sr.error) {
-                  // treat presence of error as failure
                   throw new Error(sr.error);
                 }
               }
 
-              // If the server call was successful (or returned nothing), clear
-              // local data as well.
               await clearAllData();
 
               alert(
@@ -389,7 +386,6 @@ export default function SettingsScreen(): React.JSX.Element {
               }
 
               if (selectedSplit) {
-                // deleteAllSessionsForSplit is imported at the top of the file
                 try {
                   await workoutApi.deleteAllSessionsForSplit(selectedSplit);
                 } catch (error) {
@@ -671,13 +667,11 @@ export default function SettingsScreen(): React.JSX.Element {
     );
   };
 
-  // UI state: advanced section is collapsible and account editing uses a modal
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [showAccountModal, setShowAccountModal] = useState<boolean>(false);
   // Keep legacy activeTab string so older conditionals still work — general is default
   const activeTab: "general" | "advanced" = "general";
 
-  // Profile editing state
   const [profileName, setProfileName] = useState<string>(user?.name ?? "");
   const [profileEmail, setProfileEmail] = useState<string>(user?.email ?? "");
   const [profilePhone, setProfilePhone] = useState<string>("");
@@ -689,7 +683,6 @@ export default function SettingsScreen(): React.JSX.Element {
     setProfileEmail(user?.email ?? "");
   }, [user?.name, user?.email]);
 
-  // Load locally-stored phone/avatar
   useEffect(() => {
     (async () => {
       try {
@@ -915,7 +908,6 @@ export default function SettingsScreen(): React.JSX.Element {
             )}
           </View>
 
-          {/* Sync Status */}
           {(pendingSyncs.length > 0 || droppedSyncCount > 0) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>☁️ Data Sync</Text>
@@ -974,7 +966,6 @@ export default function SettingsScreen(): React.JSX.Element {
             </View>
           )}
 
-          {/* Workout Timing - keep in General */}
           {activeTab === "general" && (
             <>
             <View style={styles.section}>
@@ -1095,7 +1086,6 @@ export default function SettingsScreen(): React.JSX.Element {
             </>
           )}
 
-          {/* Progress - General */}
           {activeTab === "general" && selectedSplit && workoutData && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📊 Progress</Text>
@@ -1138,7 +1128,6 @@ export default function SettingsScreen(): React.JSX.Element {
             </View>
           )}
 
-          {/* Advanced (collapsible) */}
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.settingsSectionHeaderSimple}
@@ -1155,7 +1144,6 @@ export default function SettingsScreen(): React.JSX.Element {
 
             {showAdvanced && (
               <>
-                {/* Admin Mode (renamed from Demo Mode) */}
                 {user?.is_admin && (
                   <View style={styles.section}>
                     <Text style={styles.sectionTitle}>🛡️ Admin Mode</Text>
@@ -1188,7 +1176,6 @@ export default function SettingsScreen(): React.JSX.Element {
                   </View>
                 )}
 
-                {/* Data Import */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>📥 Data Import</Text>
                   <View style={styles.card}>
@@ -1245,7 +1232,6 @@ export default function SettingsScreen(): React.JSX.Element {
                   </Text>
                 </View>
 
-                {/* Actions (destructive) */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>🛠️ Actions</Text>
 
@@ -1321,7 +1307,6 @@ export default function SettingsScreen(): React.JSX.Element {
                     </View>
                   </TouchableOpacity>
 
-                  {/* Migration */}
                   <View style={{ height: 8 }} />
                   {!isOffline && (
                     <TouchableOpacity
@@ -1365,7 +1350,6 @@ export default function SettingsScreen(): React.JSX.Element {
             )}
           </View>
 
-          {/* Logout */}
           {!isOffline && (
             <View style={styles.section}>
               <TouchableOpacity
@@ -1381,7 +1365,6 @@ export default function SettingsScreen(): React.JSX.Element {
             </View>
           )}
 
-          {/* About */}
           <View style={styles.section}>
             <View style={styles.card}>
               <Text style={styles.aboutText}>
@@ -1400,7 +1383,6 @@ export default function SettingsScreen(): React.JSX.Element {
           </View>
         </View>
 
-        {/* ── Account Modal ── */}
         <ModalSheet
           visible={showAccountModal}
           onClose={() => setShowAccountModal(false)}
@@ -1473,7 +1455,6 @@ export default function SettingsScreen(): React.JSX.Element {
           </View>
         </ModalSheet>
 
-        {/* ── Training Balance Dropdown Menu ── */}
         <ModalSheet
           visible={activeDropdownMenu !== null}
           onClose={() => setActiveDropdownMenu(null)}
@@ -1525,7 +1506,6 @@ export default function SettingsScreen(): React.JSX.Element {
           })}
         </ModalSheet>
 
-        {/* ── Time Between Sets Modal ── */}
         <ModalSheet
           visible={showTimeBetweenSetsModal}
           onClose={() => setShowTimeBetweenSetsModal(false)}
@@ -1547,7 +1527,6 @@ export default function SettingsScreen(): React.JSX.Element {
           />
         </ModalSheet>
 
-        {/* ── Unlock Single Day Modal ── */}
         <ModalSheet
           visible={showResetDayModal}
           onClose={() => setShowResetDayModal(false)}

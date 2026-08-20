@@ -14,27 +14,8 @@ import type {
   WeightHistoryResponse,
 } from "@shared/types"
 
-/**
- * Body Tracking API - Weight, Height, Progress Photos
- *
- * Imports fixed as part of the feature-based refactor:
- *  - getServerUrl now comes from @shared/services/on/config (was a
- *    relative "./config" import into a flat services/ folder).
- *  - authenticatedFetch now comes from @shared/services/authenticatedFetch
- *    (moved out of features/auth — see that feature's notes).
- *  - authService.getToken() calls replaced with tokenStorage.get(),
- *    since importing authService here would be a feature-to-feature
- *    import (tracking → auth), which breaks the shared → features → app
- *    rule. tokenStorage is the shared piece both auth and tracking are
- *    meant to use for raw token reads.
- */
 export const bodyTrackingApi = {
-  // ── Body Weight ───────────────────────────────────────────────────────────
 
-  /**
-   * Log a weight entry
-   * POST /api/tracking/bodystats/weight
-   */
   logWeight: async (
     weight: number,
     unit: WeightUnit,
@@ -52,30 +33,17 @@ export const bodyTrackingApi = {
     })
   },
 
-  /**
-   * Get weight history
-   * GET /api/tracking/bodystats/weight
-   */
   getWeightHistory: async (
     limit: number = 90,
   ): Promise<WeightHistoryResponse> =>
     apiCall(`/api/tracking/bodystats/weight?limit=${limit}`),
 
-  /**
-   * Delete a weight entry
-   * DELETE /api/tracking/bodystats/weight/:id
-   */
   deleteWeightEntry: async (id: number | string): Promise<unknown> =>
     apiCall(`/api/tracking/bodystats/weight/${id}`, { method: "DELETE" }),
 
-  /**
-   * Get current weight
-   * GET /api/tracking/bodystats/weight/current
-   */
   getCurrentWeight: async (): Promise<{ entry?: { weight_kg: number } }> =>
     apiCall(`/api/tracking/bodystats/weight/current`),
 
-  // ── Progress Photos ───────────────────────────────────────────────────────
 
   /**
    * Upload a progress photo — uses raw fetch for FormData (multipart/form-data)
@@ -121,18 +89,11 @@ export const bodyTrackingApi = {
   ): Promise<{ photos: ProgressPhoto[] }> =>
     apiCall(`/api/tracking/photos?limit=${limit}`),
 
-  /**
-   * Get photo URL for rendering in <Image>
-   */
   getPhotoUrl: (id: number | string): string => {
     const API_BASE_URL = getServerUrl()
     return `${API_BASE_URL}/api/tracking/photos/${id}`
   },
 
-  /**
-   * Delete a progress photo
-   * DELETE /api/tracking/photos/:id
-   */
   deleteProgressPhoto: async (id: number | string): Promise<unknown> =>
     apiCall(`/api/tracking/photos/${id}`, { method: "DELETE" }),
 }
@@ -174,10 +135,6 @@ export const getCurrentBodyWeight = async (
  * Body Fat Tracking API — US Navy Method
  */
 export const bodyFatApi = {
-  /**
-   * Log a body fat percentage calculation
-   * POST /api/tracking/bodystats/bodyfat/log
-   */
   logBodyFat: async (
     percentage: number,
     measurements: BodyFatMeasurements,
@@ -204,19 +161,11 @@ export const bodyFatApi = {
     })
   },
 
-  /**
-   * Get body fat history
-   * GET /api/tracking/bodystats/bodyfat/log
-   */
   getBodyFatHistory: async (
     limit: number = 90,
   ): Promise<{ entries: BodyFatEntry[] }> =>
     apiCall(`/api/tracking/bodystats/bodyfat/log?limit=${limit}`),
 
-  /**
-   * Delete a body fat entry
-   * DELETE /api/tracking/bodystats/bodyfat/log/:id
-   */
   deleteBodyFatEntry: async (id: number | string): Promise<unknown> =>
     apiCall(`/api/tracking/bodystats/bodyfat/log/${id}`, { method: "DELETE" }),
 }

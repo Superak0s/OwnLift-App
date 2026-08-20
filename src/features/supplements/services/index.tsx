@@ -1,5 +1,3 @@
-// features/supplements/services/index.tsx
-
 import { createDispatchProxy } from "@shared/services/dispatchProxy"
 import { supplementsApi as supplementsApiOn } from "./on/supplements"
 import { supplementsApi as supplementsApiOff } from "./off/supplements"

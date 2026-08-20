@@ -354,9 +354,6 @@ export default function FriendsScreen(): React.JSX.Element {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>("friends");
 
-  // ─────────────────────────────────────────────────────────────
-  // WIDGETS — one independent board per tab
-  // ─────────────────────────────────────────────────────────────
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
 
@@ -1243,11 +1240,6 @@ export default function FriendsScreen(): React.JSX.Element {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // RENDER HELPERS — WIDGET CONTENT
-  // ─────────────────────────────────────────────────────────────
-  // Everything that used to live statically behind each of the Friends /
-  // Requests / Search tabs is now a widget within that tab's own board.
   // This one function renders the body of any widget from any of the
   // three registries — WidgetsPanel handles the shared card chrome (icon,
   // title, drag/resize/remove in edit mode); it's typed loosely here
@@ -1401,7 +1393,6 @@ export default function FriendsScreen(): React.JSX.Element {
             </Text>
           </View>
 
-          {/* ── Tab bar ── */}
           <ScrollTabBar
             tabs={FRIENDS_TABS}
             activeTab={activeTab}
@@ -1457,7 +1448,6 @@ export default function FriendsScreen(): React.JSX.Element {
         onEditWidgets={handleEditWidgets}
       />
 
-      {/* ── Friend Detail Modal ── */}
       <ModalSheet
         visible={showFriendDetailModal}
         fullHeight={true}
@@ -1491,7 +1481,6 @@ export default function FriendsScreen(): React.JSX.Element {
             <View style={styles.backButton} />
           </View>
 
-          {/* ── Friend tabs ── */}
           <FriendTabsBar
             selectedFriend={selectedFriend}
             activeFriendTab={activeFriendTab}
@@ -1503,7 +1492,6 @@ export default function FriendsScreen(): React.JSX.Element {
             styles={styles}
           />
 
-          {/* ── History tab ── */}
           {activeFriendTab === "history" &&
             (!hasFriendSharedAnalyticsWith(selectedFriend?.id) ? (
               <View style={styles.emptyState}>

@@ -1,7 +1,3 @@
-// features/tracking/services/off/progressPhoto.ts
-//
-// Progress Photo with muscle tagging API - Offline mode (persisted to local storage)
-
 import * as FileSystem from "expo-file-system/legacy"
 import { generateId } from "@utils/format"
 import { compressImageForUpload } from "@utils/compressImage"

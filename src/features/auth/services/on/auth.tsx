@@ -29,10 +29,6 @@ async function unauthenticatedCall<T>(path: string, options?: RequestInit): Prom
 }
 
 export const authService = {
-  /**
-   * Sign up a new user
-   * POST /api/auth/signup
-   */
   signup: async (
     username: string,
     email: string,
@@ -61,10 +57,6 @@ export const authService = {
     return data
   },
 
-  /**
-   * Sign in existing user
-   * POST /api/auth/signin
-   */
   signin: async (username: string, password: string): Promise<AuthResponse> => {
     const data = await unauthenticatedCall<AuthResponse>(
       `/api/auth/signin`,
@@ -83,19 +75,11 @@ export const authService = {
     return data
   },
 
-  /**
-   * Get current user
-   * GET /api/auth/me
-   */
   getCurrentUser: async (): Promise<AuthUser> => {
     const data = await apiCall<{ user: AuthUser }>(`/api/auth/me`)
     return data.user
   },
 
-  /**
-   * Update user profile
-   * PUT /api/auth/profile
-   */
   updateProfile: async (name: string, email: string): Promise<AuthUser> => {
     const data = await apiCall<{ user: AuthUser }>(`/api/auth/profile`, {
       method: "PUT",

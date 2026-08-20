@@ -323,7 +323,6 @@ export function FriendActionsTab({
           />
         )}
 
-        {/* ═══ Danger Zone ══════════════════════════════════════════ */}
         <Text style={[styles.actionsTabSectionTitle, { marginTop: 28 }]}>
           Danger Zone
         </Text>

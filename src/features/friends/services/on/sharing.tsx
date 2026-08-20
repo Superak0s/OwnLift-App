@@ -7,9 +7,6 @@ import type {
   JointInviteParams,
 } from "../../types"
 
-/**
- * Sharing API
- */
 export const sharingApi = {
   grantPermission: async (
     friendId: number | string,

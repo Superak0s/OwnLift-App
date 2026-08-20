@@ -10,4 +10,3 @@ export const programApi: ProgramApiShape = createDispatchProxy(
 )
 
 export type { SavedProgram, ExercisePayload } from "../types"
-// ExercisePayload is now a re-export of Exercise from @shared/types

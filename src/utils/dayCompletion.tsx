@@ -1,8 +1,3 @@
-/**
- * Day Completion Utilities
- * Handles day completion checks and validations
- */
-
 import type {
   CompletedDays,
   CompletedExercises,
@@ -17,9 +12,6 @@ import type {
 export type { CompletedDays, LockedDays, SetDetail };
 export type CompletedSets = CompletedExercises;
 
-/**
- * Check if a specific set is complete
- */
 export const isSetComplete = (
   completedDays: CompletedDays,
   dayNumber: number,
@@ -29,9 +21,6 @@ export const isSetComplete = (
   return !!completedDays[dayNumber]?.[exerciseIndex]?.[setIndex];
 };
 
-/**
- * Get details of a specific set
- */
 export const getSetDetails = (
   completedDays: CompletedDays,
   dayNumber: number,
@@ -41,9 +30,6 @@ export const getSetDetails = (
   return completedDays[dayNumber]?.[exerciseIndex]?.[setIndex] || null;
 };
 
-/**
- * Get count of completed sets for an exercise
- */
 export const getExerciseCompletedSets = (
   completedDays: CompletedDays,
   dayNumber: number,
@@ -52,9 +38,6 @@ export const getExerciseCompletedSets = (
   return Object.keys(completedDays[dayNumber]?.[exerciseIndex] || {}).length;
 };
 
-/**
- * Check if all exercises in a day are complete
- */
 export const areAllExercisesComplete = (
   workoutData: WorkoutData | null | undefined,
   selectedSplit: string | null,
@@ -80,9 +63,6 @@ export const areAllExercisesComplete = (
   return true;
 };
 
-/**
- * Check if a day is complete (locked or all sets done)
- */
 export const isDayComplete = (
   lockedDays: LockedDays,
   dayNumber: number,
@@ -102,9 +82,6 @@ export const isDayComplete = (
   );
 };
 
-/**
- * Check if a day is locked
- */
 export const isDayLocked = (
   lockedDays: LockedDays,
   dayNumber: number,
@@ -112,9 +89,6 @@ export const isDayLocked = (
   return !!lockedDays[dayNumber];
 };
 
-/**
- * Check Monday reset condition
- */
 export const shouldResetForMonday = (
   lastResetDate: string | null,
 ): string | null => {

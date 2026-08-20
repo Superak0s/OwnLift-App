@@ -1,5 +1,3 @@
-// Generic background location task for supplement reminders.
-// Replaces the creatine-specific creatineLocationTask.ts.
 // The old LOCATION_TASK_NAME ("creatine-location-reminder") is preserved
 // so existing registered tasks survive an app update without needing a restart.
 
@@ -12,7 +10,6 @@ import { getStorageItem, setStorageItem } from "../src/shared/services/sqliteSto
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import logger from "../src/shared/services/logger";
 
-// ─── Expo Go detection ─────────────────────────────────────────────────────
 // Remote/local push infra in expo-notifications triggers a load-time warning
 // (and, as of SDK 57, a hard runtime error) the moment the module is required
 // inside Expo Go. We therefore NEVER statically import expo-notifications —
@@ -32,7 +29,6 @@ async function getNotifications(): Promise<NotificationsModule | null> {
   return cachedNotifications;
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface BatteryPreset {
   timeInterval: number;
@@ -88,7 +84,6 @@ export interface UserData {
   id: string;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
 
 // Keep old name so existing background task registrations survive the update
 export const LOCATION_TASK_NAME = "creatine-location-reminder";
@@ -96,7 +91,6 @@ export const LOCATION_TASK_NAME = "creatine-location-reminder";
 const STORAGE_KEY_SUPPLEMENT_CONFIGS = (userId: string) =>
   `supplementReminderConfigs_user_${userId}`;
 
-// ─── Battery presets ──────────────────────────────────────────────────────────
 
 export const BATTERY_PRESETS: BatteryPresets = {
   LOW: {
@@ -122,7 +116,6 @@ export const BATTERY_PRESETS: BatteryPresets = {
   },
 };
 
-// ─── Haversine ────────────────────────────────────────────────────────────────
 
 const calculateDistance = (
   lat1: number,
@@ -140,7 +133,6 @@ const calculateDistance = (
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// ─── Reminder key helpers ─────────────────────────────────────────────────────
 
 const getReminderKey = (
   userId: string,
@@ -156,7 +148,6 @@ const getReminderKey = (
 const getTakenTodayKey = (userId: string, supplementId: number): string =>
   `supplementTakenToday_${new Date().toDateString()}_sup_${supplementId}_user_${userId}`;
 
-// ─── Per-supplement evaluation ────────────────────────────────────────────────
 
 async function evaluateSupplementReminder(
   userId: string,
@@ -229,7 +220,6 @@ async function evaluateSupplementReminder(
   return true;
 }
 
-// ─── Background task ──────────────────────────────────────────────────────────
 
 TaskManager.defineTask(
   LOCATION_TASK_NAME,
@@ -277,7 +267,6 @@ TaskManager.defineTask(
   },
 );
 
-// ─── Config management ────────────────────────────────────────────────────────
 
 export const saveSupplementReminderConfig = async (
   userId: string,
@@ -328,7 +317,6 @@ export const markSupplementTakenToday = async (
   await setStorageItem(getTakenTodayKey(userId, supplementId), "true");
 };
 
-// ─── Notifications ────────────────────────────────────────────────────────────
 
 export const initializeSupplementNotifications = async (): Promise<boolean> => {
   // Expo Go can't do push/remote notification setup — skip entirely rather
@@ -381,7 +369,6 @@ export const scheduleTimeReminder = async (
 
   try {
     const notifId = `supplement-time-${supplementId}`;
-    // Cancel existing for this supplement
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     for (const n of scheduled) {
       if (n.identifier === notifId) {
@@ -447,7 +434,6 @@ export const cancelTimeReminder = async (
   }
 };
 
-// ─── Battery optimization exemption ────────────────────────────────────────────
 
 /**
  * Prompts the user to exempt the app from Android's battery optimization.
@@ -469,7 +455,6 @@ export const requestIgnoreBatteryOptimizations = async (): Promise<void> => {
   }
 };
 
-// ─── Location task lifecycle ──────────────────────────────────────────────────
 
 export const getBatterySettings = async (): Promise<BatterySettings> => {
   const fallback: BatterySettings = {

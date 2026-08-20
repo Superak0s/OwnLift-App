@@ -1,12 +1,3 @@
-// src/features/tracking/tabs/PhotosTab.tsx
-//
-// Photos tab - contains all widget definitions, registry, defaults, and
-// component implementations for the progress photos functionality.
-//
-//   1. PhotosCalendar — calendar grid showing days you've taken photos
-//   2. PhotosGallery — recent photos grouped by day with quick capture
-//   3. PhotosComparison — side-by-side comparison of two dates
-
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View,
@@ -33,7 +24,6 @@ import ModalSheet from "@shared/components/ModalSheet";
 import ZoomableImage from "@shared/components/ZoomableImage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
-// ─── Photos tab widget types ────────────────────────────────────────────────
 
 export type PhotosWidgetType =
   | "photos_calendar"
@@ -102,9 +92,7 @@ function photoSource(uri: string | undefined, authToken: string) {
   };
 }
 
-// ─── Widget Components ──────────────────────────────────────────────────────
 
-// ─── Widget: Photos Calendar ────────────────────────────────────────────────
 
 export function PhotosCalendarWidget() {
   const { colors } = useTheme();
@@ -214,7 +202,6 @@ export function PhotosCalendarWidget() {
   );
 }
 
-// ─── Upload progress bar ─────────────────────────────────────────────────────
 // Neither transport gives real byte-acked progress events (off-mode is a
 // single local file copy, on-mode's photo endpoint takes no upload body at
 // all — see progressPhotoApi.uploadPhoto), so there's nothing to sample
@@ -289,7 +276,6 @@ const uploadBarStyles = StyleSheet.create({
   },
 });
 
-// ─── Widget: Photos Gallery ─────────────────────────────────────────────────
 
 export function PhotosGalleryWidget() {
   const { colors } = useTheme();
@@ -455,7 +441,6 @@ export function PhotosGalleryWidget() {
   );
 }
 
-// ─── Widget: Photos Comparison ──────────────────────────────────────────────
 
 export function PhotosComparisonWidget() {
   const { colors } = useTheme();
@@ -788,7 +773,6 @@ function FullscreenCompareViewer({
   );
 }
 
-// ─── Shared Styles ──────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   centered: {
@@ -1042,7 +1026,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
 
 export const PHOTOS_TAB_CONFIG = {
   key: "photos",

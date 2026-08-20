@@ -12,10 +12,6 @@ import type {
   SavedProgram,
 } from "../../types";
 
-/**
- * Server Sync Hook
- * Handles syncing state from server (session history, program updates)
- */
 
 export interface UseServerSyncOptions {
   userId: string | null;
@@ -107,9 +103,6 @@ export const useServerSync = ({
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
 
-  /**
-   * Fetch session history
-   */
   const fetchSessionHistory = useCallback(
     async (
       limit: number = 30,
@@ -333,7 +326,6 @@ export const useServerSync = ({
     try {
       let currentWorkoutData = workoutDataRef.current;
 
-      // ── Refresh program from server ──────────────────────────────────────
       const mergedProgram = await mergeProgramFromServer();
       if (mergedProgram) {
         currentWorkoutData = mergedProgram;
@@ -344,7 +336,6 @@ export const useServerSync = ({
         currentWorkoutData = workoutDataRef.current;
       }
 
-      // ── Fetch session list ───────────────────────────────────────────────
       const sessions = await fetchWeeklySessions(selectedSplit);
 
       if (!sessions.length) {
@@ -354,7 +345,6 @@ export const useServerSync = ({
         return;
       }
 
-      // ── Fetch full session details in parallel ───────────────────────────
       const sessionResults = await Promise.all(
         sessions.map(async (session) => {
           try {
@@ -369,11 +359,9 @@ export const useServerSync = ({
         }),
       );
 
-      // ── Build completed/locked maps ──────────────────────────────────────
       const { newCompletedDays, newLockedDays, activeSessionWasEndedRemotely } =
         buildCompletedDaysMap(sessionResults, currentWorkoutData);
 
-      // ── Preserve in-progress local sets from current session ─────────────
       preserveLocalSets(newCompletedDays);
 
       await saveToStorage(
@@ -393,7 +381,6 @@ export const useServerSync = ({
         "days locked",
       );
 
-      // ── Clear remotely-ended session ─────────────────────────────────────
       if (activeSessionWasEndedRemotely) {
         logger.warn(
           "⚠ Current session was already ended server-side — clearing local active workout state",

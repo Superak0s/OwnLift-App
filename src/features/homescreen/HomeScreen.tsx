@@ -45,13 +45,6 @@ type HomeScreenProps = {
   readonly navigation: NativeStackNavigationProp<RootStackParamList, "Home">;
 };
 
-// Each home-screen widget used to be a case inside one giant switch/render
-// function, with its own conditionals and JSX nested straight inside it.
-// That's what was driving the Cognitive Complexity violation (35 vs the
-// allowed 15) — every branch inside every case added to the *same*
-// function's score. Pulling each case out into its own component means
-// each one is scored on its own, and the switch that dispatches between
-// them stays flat and trivial to read.
 
 type NextWorkoutWidgetProps = {
   readonly selectedSplit: unknown;
@@ -233,8 +226,6 @@ type WorkoutStreakWidgetProps = {
   readonly styles: ReturnType<typeof makeStyles>;
 };
 
-// Extracted from a nested ternary (currentWeekLogged ? ... : count > 0 ? ... : ...)
-// into its own function so the branching reads as a plain if/else chain.
 function getStreakSubtitle(weeklyStreak: {
   count: number;
   currentWeekLogged: boolean;
@@ -324,9 +315,6 @@ function WorkoutCalendarWidget({
   );
 }
 
-// Shared by NextWorkoutWidget (and available for reuse anywhere day titles
-// are needed) — kept as a plain helper rather than a hook since it derives
-// its result purely from its arguments.
 function getDayTitle(
   workoutData: WorkoutData | null,
   dayNumber: number,
@@ -337,10 +325,6 @@ function getDayTitle(
   return day?.muscleGroups?.join("/") || `Day ${dayNumber}`;
 }
 
-// These used to be inlined as an immediately-invoked arrow function inside
-// the JSX (`{(() => { ... })()}`) which is exactly the kind of nesting the
-// linter penalizes. Pulling them out to top-level functions removes that
-// nesting entirely and makes them independently testable.
 
 function formatSetVolume(weight: unknown, reps: unknown): string {
   const w = typeof weight === "number" ? weight : 0;
@@ -384,8 +368,6 @@ function groupSetTimingsByExercise(
   return Array.from(exerciseMap.values());
 }
 
-// Pure functions, no reason for them to live inside the component and be
-// recreated every render.
 
 function toLocalDateStr(date: Date): string {
   const y = date.getFullYear();
@@ -472,9 +454,6 @@ export default function HomeScreen({
     setShowWidgetGallery(false);
   };
 
-  // The switch itself now just dispatches to a component per widget type —
-  // no branching logic lives here anymore, so it barely contributes to
-  // cognitive complexity.
   const renderWidgetContent = (
     instance: WidgetInstance<HomeWidgetType>,
   ): React.ReactNode => {
@@ -876,9 +855,6 @@ export default function HomeScreen({
   );
 }
 
-// Same idea as the widgets above: these were `.map()` callbacks with
-// multi-branch JSX built directly inline in the parent render. Extracting
-// them removes that nesting from HomeScreen entirely.
 
 function DayOptionRow({
   day,

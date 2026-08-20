@@ -1,12 +1,6 @@
-// src/features/tracking/tabs/HydrationTab.tsx
-//
-// Hydration tab - contains all widget definitions, registry, and defaults
-// for the hydration/water intake tracking functionality.
-
 import { STORAGE_KEYS } from "@shared/services/storage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
-// ─── Hydration tab widget types ─────────────────────────────────────────────
 
 export type HydrationWidgetType =
   | "hydration_overview"
@@ -85,7 +79,6 @@ export const DEFAULT_HYDRATION_WIDGETS: WidgetInstance<HydrationWidgetType>[] = 
 
 export const HYDRATION_WIDGETS_STORAGE_KEY = STORAGE_KEYS.HYDRATION_TAB_WIDGETS;
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
 
 export const HYDRATION_TAB_CONFIG = {
   key: "hydration",
@@ -93,7 +86,6 @@ export const HYDRATION_TAB_CONFIG = {
   label: "Hydration",
 };
 
-// ─── Log Hydration Modal ──────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
@@ -225,7 +217,6 @@ export function LogHydrationModal({
       scrollable
     >
       <ScrollView style={styles.content}>
-        {/* Current Amount Display */}
         <View style={styles.amountBox}>
           <View style={styles.stepperRow}>
             <TouchableOpacity
@@ -290,7 +281,6 @@ export function LogHydrationModal({
           )}
         </View>
 
-        {/* Amount Input */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Exact Amount (ml)</Text>
           <TextInput
@@ -305,7 +295,6 @@ export function LogHydrationModal({
           />
         </View>
 
-        {/* Quick Presets */}
         <View style={styles.section}>
           <View style={styles.presetHeaderRow}>
             <Text style={styles.sectionTitle}>Quick Presets</Text>
@@ -358,7 +347,6 @@ export function LogHydrationModal({
           </View>
         </View>
 
-        {/* Note Input */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Note (optional)</Text>
           <TextInput
@@ -372,7 +360,6 @@ export function LogHydrationModal({
           />
         </View>
 
-        {/* Error Message */}
         {error && (
           <View style={[styles.section, styles.errorBox]}>
             <Text style={styles.errorText}>{error}</Text>
@@ -595,7 +582,6 @@ const makeStyles = (colors: any) =>
     },
   });
 
-// ─── Hydration Settings Widget ──────────────────────────────────────────────────
 
 import {
   View as V2,
@@ -669,7 +655,6 @@ export function HydrationSettingsWidget({
 
   return (
     <V2 style={styles.container}>
-      {/* Header - Always Visible */}
       <TS2
         style={styles.header}
         onPress={() => setExpanded(!expanded)}
@@ -690,10 +675,8 @@ export function HydrationSettingsWidget({
         <T2 style={[styles.chevron, expanded && styles.chevronOpen]}>⌄</T2>
       </TS2>
 
-      {/* Content - Expandable */}
       {expanded && (
         <SV2 style={styles.content}>
-          {/* Daily Goal */}
           <V2 style={styles.section}>
             <T2 style={styles.sectionTitle}>Daily Hydration Goal (ml)</T2>
             <TI2
@@ -705,7 +688,6 @@ export function HydrationSettingsWidget({
               keyboardType='number-pad'
             />
 
-            {/* Preset Goals */}
             <V2 style={styles.presetSection}>
               <T2 style={styles.presetLabel}>Quick presets</T2>
               <V2 style={styles.presetGrid}>
@@ -732,7 +714,6 @@ export function HydrationSettingsWidget({
             </V2>
           </V2>
 
-          {/* Info Messages */}
           {error && (
             <V2 style={styles.errorBox}>
               <T2 style={styles.errorText}>{error}</T2>
@@ -747,7 +728,6 @@ export function HydrationSettingsWidget({
             </V2>
           )}
 
-          {/* Action Buttons */}
           <V2 style={styles.buttonRow}>
             <TS2
               style={[styles.actionButton, styles.cancelButton]}

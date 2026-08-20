@@ -3,7 +3,6 @@ import type { PartnerProgress } from "@shared/context/hooks/useJointSession";
 import type { Exercise } from "@shared/types";
 import { getCanonicalName } from "@utils/exerciseMatching";
 
-// ─── Unit helpers ─────────────────────────────────────────────────────────────
 export const LBS_TO_KG = 0.45359237;
 export const KG_TO_LBS = 2.20462262;
 
@@ -22,7 +21,6 @@ export function displayToKg(value: string, unit: "kg" | "lbs"): number {
   return unit === "lbs" ? n * LBS_TO_KG : n;
 }
 
-// ─── Widget group visuals ──────────────────────────────────────────────────
 // The four "day status" header widgets (day_number, total_sets, progress,
 // session_stats) are fused into one seamless card outside of edit mode —
 // see getWidgetContainerStyle below, which zeroes out the margin/border
@@ -30,11 +28,6 @@ export function displayToKg(value: string, unit: "kg" | "lbs"): number {
 // constant so every widget's corner radius agrees exactly.
 export const WIDGET_GROUP_RADIUS = 14;
 
-// ─── Pure helpers extracted out of WorkoutScreen ───────────────────────────
-// Pulling these out as plain functions (rather than leaving the logic
-// inline in the component) keeps WorkoutScreen's own Cognitive Complexity
-// under the SonarQube threshold — every branch below lives in its own
-// function scope instead of adding to the component's score.
 
 export type EmptyStateInfo = { icon: string; title: string; text: string };
 
@@ -119,10 +112,6 @@ export function checkIsSelectedSetAssisted(
   return exercise.name.toLowerCase().includes("assisted");
 }
 
-// ─── Performance-history collection helpers ────────────────────────────────
-// Split out of loadPerformanceHistory so no single function nests more than
-// a couple of levels deep (SonarQube flagged the previous inline version
-// for both excess Cognitive Complexity and >4 levels of function nesting).
 
 export type PerformanceEntry = {
   date: Date;
@@ -304,10 +293,6 @@ export function pickBestPerformanceSummary(history: PerformanceEntry[]): {
   return { last, best, totalAttempts: prev.length };
 }
 
-// ─── Partner-progress label helpers ────────────────────────────────────────
-// Extracted so PartnerBanner's render body doesn't need a nested ternary
-// (SonarQube typescript:S3358) — each label is resolved by its own small,
-// single-purpose function instead.
 
 export function getPartnerExerciseLabel(
   partnerProgress: PartnerProgress | null,

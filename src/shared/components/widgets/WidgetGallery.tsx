@@ -1,5 +1,3 @@
-// src/shared/components/widgets/WidgetGallery.tsx
-//
 // The "deploy screen" — pulled up from the top with a two-finger drag,
 // same idea as Android's widget drawer. Lists every widget that isn't
 // already placed and lets the user tap to add it.

@@ -1,7 +1,3 @@
-// src/features/tracking/tabs/index.ts
-//
-// Central export point for all tab configurations and combined tab array.
-
 import { WEIGHT_TAB_CONFIG } from "./WeightTab";
 import { PHOTOS_TAB_CONFIG } from "./PhotosTab";
 import { MACROS_TAB_CONFIG } from "./MacrosTab";
@@ -22,7 +18,6 @@ export const TRACKING_TABS = [
   MENSTRUAL_TAB_CONFIG,
 ];
 
-// Weight tab exports
 export {
   WEIGHT_WIDGET_REGISTRY,
   DEFAULT_WEIGHT_WIDGETS,
@@ -31,7 +26,6 @@ export {
 } from "./WeightTab";
 export type { WeightWidgetType } from "./WeightTab";
 
-// Photos tab exports
 export {
   PHOTOS_WIDGET_REGISTRY,
   DEFAULT_PHOTOS_WIDGETS,
@@ -40,7 +34,6 @@ export {
 } from "./PhotosTab";
 export type { PhotosWidgetType } from "./PhotosTab";
 
-// Macros tab exports
 export {
   MACROS_WIDGET_REGISTRY,
   DEFAULT_MACROS_WIDGETS,
@@ -49,7 +42,6 @@ export {
 } from "./MacrosTab";
 export type { MacrosWidgetType } from "./MacrosTab";
 
-// Body Fat tab exports
 export {
   BODYFAT_WIDGET_REGISTRY,
   DEFAULT_BODYFAT_WIDGETS,
@@ -58,7 +50,6 @@ export {
 } from "./BodyFatTab";
 export type { BodyFatWidgetType } from "./BodyFatTab";
 
-// Measurements tab exports
 export {
   MEASUREMENTS_WIDGET_REGISTRY,
   DEFAULT_MEASUREMENTS_WIDGETS,
@@ -67,7 +58,6 @@ export {
 } from "./MeasurementsTab";
 export type { MeasurementsWidgetType } from "./MeasurementsTab";
 
-// Hydration tab exports
 export {
   HYDRATION_WIDGET_REGISTRY,
   DEFAULT_HYDRATION_WIDGETS,
@@ -77,7 +67,6 @@ export {
 export type { HydrationWidgetType } from "./HydrationTab";
 export { LogHydrationModal, HydrationSettingsWidget } from "./HydrationTab";
 
-// Soreness / Muscle Recovery tab exports
 export {
   SORENESS_WIDGET_REGISTRY,
   DEFAULT_SORENESS_WIDGETS,
@@ -92,7 +81,6 @@ export {
   LogSorenessModal,
 } from "./SorenessTab";
 
-// Menstrual tab exports
 export {
   MENSTRUAL_WIDGET_REGISTRY,
   DEFAULT_MENSTRUAL_WIDGETS,

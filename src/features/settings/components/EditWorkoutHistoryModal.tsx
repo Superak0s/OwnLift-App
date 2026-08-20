@@ -76,7 +76,6 @@ function formatSessionLabel(session: WorkoutSession): string {
   return `${dateStr} — ${title}`
 }
 
-/** Splits an ISO string into separate date/time text fields for editing. */
 function splitIso(iso: string): { date: string; time: string } {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return { date: "", time: "" }
@@ -87,7 +86,6 @@ function splitIso(iso: string): { date: string; time: string } {
   }
 }
 
-/** Combines date (YYYY-MM-DD) and time (HH:MM) text back into an ISO string. */
 function combineToIso(date: string, time: string): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim())
   const timeMatch = /^(\d{1,2}):(\d{2})$/.exec(time.trim())
@@ -283,7 +281,6 @@ export default function EditWorkoutHistoryModal({
     SimilarityMatch[]
   >([])
 
-  // Edit-set (time / weight / reps) form state
   const [editingSet, setEditingSet] = useState<SetTiming | null>(null)
   const [setDateInput, setSetDateInput] = useState("")
   const [setTimeInput, setSetTimeInput] = useState("")
@@ -405,7 +402,6 @@ export default function EditWorkoutHistoryModal({
     }
   }
 
-  /** Actually performs the rename/regroup call and updates local state. */
   const commitExerciseEdit = async (finalName: string, finalGroup: string) => {
     if (!editingExercise) return
     setSavingExercise(true)

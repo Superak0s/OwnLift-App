@@ -85,9 +85,6 @@ export default function SupplementSettingsModal({
   const settingsKey = (uid: string | number) =>
     `supplementSettings_${supplement.id}_user_${uid}`;
 
-  // ---------------------------------------------------------------------
-  // loadSettings — split so each piece stays trivially simple
-  // ---------------------------------------------------------------------
 
   const applyStoredReminderTime = (time: string) => {
     const [h, m] = time.split(":");
@@ -144,10 +141,6 @@ export default function SupplementSettingsModal({
     }
   };
 
-  // ---------------------------------------------------------------------
-  // handleSave — split into validation / permissions / persistence /
-  // scheduling / messaging so each function has a single job
-  // ---------------------------------------------------------------------
 
   const validateForm = (): ValidationResult => {
     if (!timeBasedEnabled && !locationBasedEnabled) {
@@ -389,9 +382,6 @@ export default function SupplementSettingsModal({
     }
   };
 
-  // ---------------------------------------------------------------------
-  // handleDisable — split confirmation from the actual disable work
-  // ---------------------------------------------------------------------
 
   const clearSupplementReminders = async () => {
     await supplementsApi.update(supplement.id, {
@@ -491,7 +481,6 @@ export default function SupplementSettingsModal({
               contentContainerStyle={styles.content}
               showsVerticalScrollIndicator={false}
             >
-              {/* Hero info card */}
               <View style={styles.heroBanner}>
                 <Text style={styles.heroIcon}>{supplement.icon || "💊"}</Text>
                 <Text style={styles.heroTitle}>Reminder Settings</Text>
@@ -501,7 +490,6 @@ export default function SupplementSettingsModal({
                 </Text>
               </View>
 
-              {/* Default amount */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Default Amount</Text>
                 <View style={styles.amountRow}>
@@ -518,7 +506,6 @@ export default function SupplementSettingsModal({
                 </View>
               </View>
 
-              {/* Time-based reminder */}
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionHeaderLeft}>
@@ -570,7 +557,6 @@ export default function SupplementSettingsModal({
                 )}
               </View>
 
-              {/* Location-based reminder */}
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionHeaderLeft}>
@@ -634,7 +620,6 @@ export default function SupplementSettingsModal({
                 )}
               </View>
 
-              {/* Notification type */}
               {(timeBasedEnabled || locationBasedEnabled) && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Notification Type</Text>
@@ -679,7 +664,6 @@ export default function SupplementSettingsModal({
                 </View>
               )}
 
-              {/* Summary card */}
               {(timeBasedEnabled || locationBasedEnabled) && (
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryTitle}>📋 Summary</Text>
@@ -693,7 +677,6 @@ export default function SupplementSettingsModal({
                 </View>
               )}
 
-              {/* Disable reminders */}
               {supplement.reminderEnabled && (
                 <TouchableOpacity
                   style={styles.disableBtn}
@@ -706,7 +689,6 @@ export default function SupplementSettingsModal({
               )}
             </ScrollView>
 
-            {/* Footer save button */}
             <View style={styles.footer}>
               <TouchableOpacity
                 style={[styles.saveBtn, saving && { opacity: 0.6 }]}
@@ -723,7 +705,6 @@ export default function SupplementSettingsModal({
           </>
         )}
 
-        {/* Sub-modals */}
         <SupplementLocationPicker
           visible={showLocationPicker}
           onClose={() => setShowLocationPicker(false)}

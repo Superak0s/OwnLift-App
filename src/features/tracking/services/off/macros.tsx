@@ -28,10 +28,6 @@ const entriesStore = createRecordStore<StoredMacrosEntry>(
   (e) => e.takenAt,
 )
 
-/**
- * Offline Macros Tracking API — same method names/signatures as
- * services/on/macros.tsx, backed by local SQLite storage instead of the server.
- */
 export const macrosTrackingApi = {
   logMacros: async ({
     name,

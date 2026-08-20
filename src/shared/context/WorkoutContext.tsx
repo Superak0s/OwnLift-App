@@ -74,7 +74,6 @@ import type {
 import type { WebSocketMessage } from "./hooks/useRealtimeSocket";
 import type { JointExerciseEntry } from "./hooks/useJointSession";
 
-// Types
 type ServerAnalyticsType = WorkoutAnalytics | null;
 
 interface WorkoutContextValue {
@@ -182,7 +181,6 @@ interface WorkoutContextValue {
   checkAndEndStaleSession: () => Promise<boolean>;
 }
 
-// Context
 const WorkoutContext = createContext<WorkoutContextValue | undefined>(
   undefined,
 );
@@ -216,7 +214,6 @@ export const useWorkoutSyncStatus = (): WorkoutSyncStatus => {
   return context;
 };
 
-// Provider
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const providerTimer = startTimer();
   const providerRenders = useRef(0);
@@ -228,7 +225,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const { user, logout } = useAuth();
   const userId = user?.id ?? null;
 
-  // ── State ──────────────────────────────────────────────────────────────────
   const [workoutData, setWorkoutData] = useState<WorkoutData | null>(null);
   const [selectedSplit, setSelectedSplit] = useState<string | null>(null);
   const [currentDay, setCurrentDay] = useState(1);
@@ -258,7 +254,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [weightUnit, setWeightUnit] = useState<"kg" | "lbs">("kg");
 
-  // ── Joint session exercise list ────────────────────────────────────────────
   const currentDayAllExercises = useMemo((): JointExerciseEntry[] => {
     if (!workoutData?.days || !currentDay) return [];
     const day = workoutData.days.find(
@@ -288,7 +283,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     onMessage: handleSocketMessage,
   });
 
-  // ── Fetch analytics ────────────────────────────────────────────────────────
   // On boot, both the selectedSplit-change effect and the stale-session-check
   // effect can call this in the same tick (the latter needs fresh numbers
   // after auto-ending a stale session) — coalesce overlapping calls into one.
@@ -316,7 +310,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     fetchAnalyticsInFlightRef.current = run;
     return run;
   }, [selectedSplit, currentDay, useManualTime]);
-  // ── Sub-hooks ──────────────────────────────────────────────────────────────
   const syncManager = useSyncManager({
     pendingSyncs,
     setPendingSyncs,
@@ -844,7 +837,6 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
     const interval = setInterval(async () => {
       try {
-        // If there's a last set time, check for the 15-minute warning window
         if (lastSetEndTime) {
           const elapsed = Date.now() - new Date(lastSetEndTime).getTime();
           const warningMs = Math.floor(INACTIVITY_THRESHOLD_MS / 2); // 15 minutes if threshold is 30
@@ -880,14 +872,12 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
             }
           }
 
-          // If user is active again (rest reset) clear the flag
           if (elapsed <= 1000) resetWarning();
         }
       } catch (err) {
         console.warn("Stale session check error:", err);
       }
 
-      // Existing stale session auto-end check (30 minutes)
       await checkAndEndStaleSession();
     }, 60_000);
 

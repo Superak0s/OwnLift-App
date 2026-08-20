@@ -2,7 +2,6 @@ import { apiCall, parseApiResponse } from "@shared/services/apiClient"
 import { authenticatedFetch } from "@shared/services/authenticatedFetch"
 import { parseWorkoutFileClient } from "../../../../utils/clientWorkoutParser"
 import type { SavedProgram, ExercisePayload } from "../../types"
-// ExercisePayload is now a re-export of Exercise from @shared/types
 import type { WorkoutData } from "@shared/types"
 import { migrateLegacyProgram } from "@utils/legacyProgram"
 
@@ -44,17 +43,9 @@ export const programApi = {
     }
   },
 
-  /**
-   * Delete the user's saved program.
-   * DELETE /api/program
-   */
   deleteProgram: async (): Promise<unknown> =>
     apiCall(`/api/program`, { method: "DELETE" }),
 
-  /**
-   * Rename an exercise in the saved server program.
-   * PATCH /api/program/exercise/rename
-   */
   renameExercise: async (
     dayNumber: number,
     split: string,
@@ -73,10 +64,6 @@ export const programApi = {
       }),
     }),
 
-  /**
-   * Add a brand-new exercise to the saved server program.
-   * PATCH /api/program/exercise/add
-   */
   addExercise: async (
     dayNumber: number,
     split: string,
@@ -87,10 +74,6 @@ export const programApi = {
       body: JSON.stringify({ dayNumber, split, exercise }),
     }),
 
-  /**
-   * Update (increase) the set count of an exercise.
-   * PATCH /api/program/exercise/sets
-   */
   patchExerciseSets: async (
     dayNumber: number,
     split: string,

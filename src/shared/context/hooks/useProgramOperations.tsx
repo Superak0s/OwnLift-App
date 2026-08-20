@@ -2,16 +2,6 @@ import { useCallback } from "react"
 import { programApi } from "@features/plan/services/index"
 import type { WorkoutData } from "../../types"
 
-/**
- * Program Operations Hook
- * Handles workout program modifications (rename exercises, add sets, etc.)
- *
- * Fixes applied:
- * - Removed require() inside callbacks — programApi is imported at the top
- * - Fixed shallow-spread + deep-mutation bug: workoutData is now deep-cloned
- *   via JSON.parse/JSON.stringify before any nested mutation so the original
- *   state objects are never touched
- */
 
 export interface UseProgramOperationsOptions {
   workoutData: WorkoutData | null
@@ -63,9 +53,6 @@ export const useProgramOperations = ({
   saveToStorage,
   STORAGE_KEYS,
 }: UseProgramOperationsOptions): UseProgramOperationsReturn => {
-  /**
-   * Update exercise name
-   */
   const updateExerciseName = useCallback(
     async (
       dayNumber: number,
@@ -77,7 +64,6 @@ export const useProgramOperations = ({
       try {
         if (!workoutData?.days) return
 
-        // Deep clone so we never mutate the existing state tree
         const updatedData = cloneWorkoutData(workoutData)
         const dayIndex = updatedData.days.findIndex(
           (d) => d.dayNumber === dayNumber,
@@ -117,9 +103,6 @@ export const useProgramOperations = ({
     [workoutData, setWorkoutData, userId, saveToStorage, STORAGE_KEYS],
   )
 
-  /**
-   * Add extra sets to exercise
-   */
   const addExtraSetsToExercise = useCallback(
     async (
       dayNumber: number,
@@ -165,9 +148,6 @@ export const useProgramOperations = ({
     [workoutData, setWorkoutData, userId, saveToStorage, STORAGE_KEYS],
   )
 
-  /**
-   * Add new exercise
-   */
   const addNewExercise = useCallback(
     async (
       dayNumber: number,

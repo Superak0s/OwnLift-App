@@ -1,5 +1,3 @@
-// src/features/friends/widgets.ts
-//
 // Friends-screen widget config. Like Tracking, each top-level tab —
 // Friends / Requests / Search — keeps its own independent, add/remove/
 // resize/reorder widget board, using the same shared
@@ -19,7 +17,6 @@ export const FRIENDS_TABS = [
   { key: "search", icon: "🔍", label: "Search" },
 ]
 
-// ─── Friends tab ────────────────────────────────────────────────────────────
 
 export type FriendsWidgetType = "friends_list"
 
@@ -50,7 +47,6 @@ export const DEFAULT_FRIENDS_WIDGETS: WidgetInstance<FriendsWidgetType>[] = [
 
 export const FRIENDS_WIDGETS_STORAGE_KEY = STORAGE_KEYS.FRIENDS_TAB_WIDGETS
 
-// ─── Requests tab ───────────────────────────────────────────────────────────
 
 export type RequestsWidgetType = "requests_pending" | "requests_sent"
 
@@ -95,7 +91,6 @@ export const DEFAULT_REQUESTS_WIDGETS: WidgetInstance<RequestsWidgetType>[] = [
 
 export const REQUESTS_WIDGETS_STORAGE_KEY = STORAGE_KEYS.REQUESTS_TAB_WIDGETS
 
-// ─── Search tab ─────────────────────────────────────────────────────────────
 
 export type SearchWidgetType = "search_contacts" | "search_qr" | "search_users"
 
@@ -155,9 +150,3 @@ export const DEFAULT_SEARCH_WIDGETS: WidgetInstance<SearchWidgetType>[] = [
 
 export const SEARCH_WIDGETS_STORAGE_KEY = STORAGE_KEYS.SEARCH_TAB_WIDGETS
 
-// NOTE: add these three entries to STORAGE_KEYS in @shared/services/storage
-// (next to HOME_WIDGETS and the tracking-tab widget keys) the same way
-// tracking's storage keys are wired up, e.g.:
-//   FRIENDS_TAB_WIDGETS: "friendsScreen_friendsWidgets",
-//   REQUESTS_TAB_WIDGETS: "friendsScreen_requestsWidgets",
-//   SEARCH_TAB_WIDGETS: "friendsScreen_searchWidgets",

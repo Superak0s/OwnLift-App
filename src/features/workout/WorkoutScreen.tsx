@@ -87,9 +87,6 @@ import {
   getUndertrainedMuscleGroups,
 } from "../analytics/utils/trainingSummary";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main screen
-// ─────────────────────────────────────────────────────────────────────────────
 export default function WorkoutScreen(): React.JSX.Element {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -152,7 +149,6 @@ export default function WorkoutScreen(): React.JSX.Element {
   const borderRadiusAnim = useRef(new Animated.Value(0)).current;
   const paddingBottomAnim = useRef(new Animated.Value(15)).current;
 
-  // ── local state ──────────────────────────────────────────────────────
   const [showSetModal, setShowSetModal] = useState<boolean>(false);
   const [selectedSet, setSelectedSet] = useState<{
     exerciseIndex: number;
@@ -217,7 +213,6 @@ export default function WorkoutScreen(): React.JSX.Element {
   const [dismissedUndertrainedBanner, setDismissedUndertrainedBanner] =
     useState<boolean>(false);
 
-  // ── Header-card widgets ──────────────────────────────────────────────
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
 
@@ -512,7 +507,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     fetchSessionHistory,
   ]);
 
-  // ── set press ────────────────────────────────────────────────────────
   const openSetModalForNewEntry = useCallback(
     (exerciseIndex: number, setIndex: number) => {
       setSelectedSet({ exerciseIndex, setIndex });
@@ -530,7 +524,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     setIndex: number,
     existing: SetDetail,
   ) => {
-    // Display weight in the user's preferred unit
     const displayWeight = existing.weight
       ? kgToDisplay(existing.weight, weightUnit)
       : "0";
@@ -546,7 +539,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           text: "Edit",
           onPress: () => {
             setSelectedSet({ exerciseIndex, setIndex });
-            // Pre-fill weight field in the user's current unit
             setWeight(
               existing.weight ? kgToDisplay(existing.weight, weightUnit) : "",
             );
@@ -598,12 +590,10 @@ export default function WorkoutScreen(): React.JSX.Element {
     ],
   );
 
-  // ── save set ─────────────────────────────────────────────────────────
   const isSavingSetRef = useRef(false);
   const saveSetDetailsImpl = useCallback(async () => {
     if (!selectedSet) return;
 
-    // Convert entered value to kg for storage/server
     const weightInKg = displayToKg(weight, weightUnit);
     const r = Number.parseInt(reps, 10) || 0;
 
@@ -673,7 +663,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     }
   }, [saveSetDetailsImpl]);
 
-  // Rest reminder modal handlers
   const handleOpenRestReminderModal = () => {
     setTempRestReminderSeconds(String(restReminderSeconds || 60));
     setShowRestReminderModal(true);
@@ -707,7 +696,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     );
   };
 
-  // ── exercise editing ─────────────────────────────────────────────────
   const handleEditExerciseName = useCallback(
     (exerciseIndex: number) => {
       if (isCurrentDayLocked) {
@@ -1179,7 +1167,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     [widgetEditMode],
   );
 
-  // ── empty states ─────────────────────────────────────────────────────
   const emptyState = getEmptyStateInfo(
     workoutData,
     selectedSplit,
@@ -1211,7 +1198,6 @@ export default function WorkoutScreen(): React.JSX.Element {
     ? jointSession?.participants?.find((p) => p.userId !== user?.id)
     : null;
 
-  // ── header-row widget content ────────────────────────────────────────
   const renderWidgetContent = (
     instance: WidgetInstance<WorkoutWidgetType>,
   ): React.ReactNode => {
@@ -1470,7 +1456,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           )}
         </ScrollView>
 
-        {/* ── Complete Session button ── */}
         {workoutStartTime && !isCurrentDayLocked && (
           <Animated.View
             style={[
@@ -1503,7 +1488,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           </Animated.View>
         )}
 
-        {/* ── Set Details Modal ── */}
         <ModalSheet
           visible={showSetModal}
           onClose={() => {
@@ -1520,7 +1504,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           showCancelButton={false}
           showConfirmButton={false}
         >
-          {/* ── Warmup toggle ── */}
           <TouchableOpacity
             style={[
               styles.warmupToggle,
@@ -1538,7 +1521,6 @@ export default function WorkoutScreen(): React.JSX.Element {
             </Text>
           </TouchableOpacity>
 
-          {/* ── Unit selector ── */}
           <View style={styles.unitSelectorContainer}>
             <Text style={styles.unitSelectorLabel}>Weight unit</Text>
             <View style={styles.unitSelectorRow}>
@@ -1549,7 +1531,6 @@ export default function WorkoutScreen(): React.JSX.Element {
                 ]}
                 onPress={() => {
                   if (weightUnit !== "kg") {
-                    // Convert currently entered value from lbs → kg display
                     const currentLbs = Number.parseFloat(weight);
                     if (Number.isFinite(currentLbs) && currentLbs > 0) {
                       setWeight((currentLbs * LBS_TO_KG).toFixed(1));
@@ -1574,7 +1555,6 @@ export default function WorkoutScreen(): React.JSX.Element {
                 ]}
                 onPress={() => {
                   if (weightUnit !== "lbs") {
-                    // Convert currently entered value from kg → lbs display
                     const currentKg = Number.parseFloat(weight);
                     if (Number.isFinite(currentKg) && currentKg > 0) {
                       setWeight((currentKg * KG_TO_LBS).toFixed(1));
@@ -1595,7 +1575,6 @@ export default function WorkoutScreen(): React.JSX.Element {
             </View>
           </View>
 
-          {/* ── Performance history ── */}
           {loadingHistory ? (
             <View style={styles.historyLoading}>
               <Text style={styles.historyLoadingText}>Loading history...</Text>
@@ -1750,7 +1729,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* ── Edit Exercise Modal ── */}
         <ModalSheet
           visible={showEditNameModal}
           onClose={closeEditModal}
@@ -1838,7 +1816,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* ── Add Sets Modal ── */}
         <ModalSheet
           visible={showAddSetsModal}
           onClose={() => {
@@ -1871,7 +1848,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* ── Add New Exercise Modal ── */}
         <ModalSheet
           visible={showAddExerciseModal}
           onClose={closeAddExerciseModal}
@@ -1956,7 +1932,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           </TouchableOpacity>
         </ModalSheet>
 
-        {/* ── Rest Reminder Modal ── */}
         <ModalSheet
           visible={showRestReminderModal}
           onClose={() => setShowRestReminderModal(false)}
@@ -2445,7 +2420,6 @@ export const makeStyles = (colors: ThemeColors) =>
     },
     warmupToggleTextActive: { color: "#ea580c", fontWeight: "600" },
 
-    // ── Unit selector ──────────────────────────────────────────────────
     unitSelectorContainer: { marginBottom: 16 },
     unitSelectorLabel: {
       fontSize: 14,

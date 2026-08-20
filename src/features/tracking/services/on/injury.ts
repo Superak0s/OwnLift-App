@@ -1,7 +1,3 @@
-// features/tracking/services/on/injury.ts
-//
-// Injury tracking API - Online mode
-
 import { apiCall } from "@shared/services/apiClient";
 import type {
   ApiResponse,
@@ -10,10 +6,6 @@ import type {
 } from "../../types/muscleRecovery";
 
 export const injuryApi = {
-  /**
-   * Log a new injury
-   * POST /api/tracking/injuries
-   */
   logInjury: async (params: LogInjuryParams): Promise<ApiResponse<InjuryRecord>> =>
     apiCall(`/api/tracking/injuries`, {
       method: "POST",
@@ -27,10 +19,6 @@ export const injuryApi = {
   getAllInjuries: async (): Promise<ApiResponse<InjuryRecord[]>> =>
     apiCall(`/api/tracking/injuries`),
 
-  /**
-   * Get injuries for a specific muscle group
-   * GET /api/tracking/injuries/muscle/:muscle
-   */
   getInjuriesByMuscle: async (muscle: string): Promise<ApiResponse<InjuryRecord[]>> =>
     apiCall(`/api/tracking/injuries/muscle/${muscle}`),
 

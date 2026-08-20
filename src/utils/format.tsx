@@ -65,7 +65,6 @@ export const generateId = (prefix?: string): string => {
  * Uses local date components (getFullYear, getMonth, getDate) so it
  * matches the user's calendar day — critical for streak calculations
  * and day-granularity comparisons.
- * Previously duplicated as `dayKey` in offlineHelpers.
  */
 export const toDateString = (input: Date | string): string => {
   const date = typeof input === "string" ? new Date(input) : input

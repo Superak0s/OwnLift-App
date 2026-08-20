@@ -1,6 +1,5 @@
 import type { SetTiming, GroupedExercise } from "@shared/types"
 
-// Re-export GroupedExercise so it can be imported from "./types"
 export type { GroupedExercise } from "@shared/types"
 
 export interface Friend {

@@ -63,14 +63,12 @@ export default function QuickLogSupplement({
 
   return (
     <ModalSheet visible={visible} onClose={onClose}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.icon}>{icon}</Text>
         <Text style={styles.title}>Log {supplementName}</Text>
         <Text style={styles.subtitle}>Quick entry</Text>
       </View>
 
-      {/* Quick Amount Buttons */}
       <View style={styles.quickAmounts}>
         {quickAmounts.map((q) => (
           <TouchableOpacity
@@ -94,7 +92,6 @@ export default function QuickLogSupplement({
         ))}
       </View>
 
-      {/* Custom Amount */}
       <View style={styles.inputSection}>
         <Text style={styles.inputLabel}>Amount</Text>
         <View style={styles.inputContainer}>
@@ -110,7 +107,6 @@ export default function QuickLogSupplement({
         </View>
       </View>
 
-      {/* Optional Note */}
       <View style={styles.inputSection}>
         <Text style={styles.inputLabel}>Note (optional)</Text>
         <TextInput
@@ -122,7 +118,6 @@ export default function QuickLogSupplement({
         />
       </View>
 
-      {/* Buttons */}
       <View style={styles.buttons}>
         <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
           <Text style={styles.cancelButtonText}>Cancel</Text>

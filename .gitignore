@@ -91,3 +91,6 @@ credentials.json
 coverage/
 .cluade/
 CLAUDE.md
+
+api-requests.md
+.ignore

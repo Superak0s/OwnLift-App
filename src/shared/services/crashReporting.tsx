@@ -9,7 +9,7 @@ export const initCrashReporting = (): void => {
     logger.warn("EXPO_PUBLIC_SENTRY_DSN not set — crash reporting disabled")
     return
   }
-  Sentry.init({ dsn, enabled: !__DEV__ })
+  Sentry.init({ dsn, enabled: !__DEV__, tracesSampleRate: 0.2 })
 }
 
 export const captureException = (error: unknown): void => {

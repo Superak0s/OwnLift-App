@@ -1,5 +1,3 @@
-// features/tracking/services/off/personalNotes.ts
-//
 // Personal Muscle Notes API - Offline mode (mock data)
 
 import type {

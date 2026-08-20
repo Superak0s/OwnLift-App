@@ -109,7 +109,6 @@ export const removeStorageItems = (keys: string[]): Promise<void> =>
     );
   });
 
-// kv_records
 
 const upsertRecordSql =
   "INSERT INTO kv_records (collection, id, sort_key, value) VALUES (?, ?, ?, ?) " +

@@ -1,4 +1,3 @@
-// features/tracking/types/index.ts
 import type { ProgressPhoto, MacrosEntry, BodyFatEntry } from "@shared/types";
 
 export type WeightUnit = "kg" | "lbs";
@@ -88,7 +87,6 @@ export interface BodyFatEntryWithFields extends BodyFatEntry {
   recorded_at?: string;
 }
 
-// ─── Menstrual Cycle Settings & Tracking ─────────────────────────────────────
 
 export interface MenstrualSettings {
   periodDays: number;
@@ -96,7 +94,6 @@ export interface MenstrualSettings {
   updatedAt?: string | null;
 }
 
-// ─── Hydration Settings & Tracking ───────────────────────────────────────────
 
 export interface HydrationSettings {
   goalMl: number;
@@ -113,8 +110,5 @@ export interface CustomMeasurementType {
   updatedAt: string;
 }
 
-// ─── Soreness / DOMS Tracking ────────────────────────────────────────────────
-// MuscleGroup is defined in muscleRecovery.ts (canonical definition).
-// Re-exported here for convenience.
 export type { MuscleGroup } from "./muscleRecovery";
 

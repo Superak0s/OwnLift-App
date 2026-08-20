@@ -71,7 +71,6 @@ async function getSAFDirectoryUri(SAF: any): Promise<string | undefined> {
   return undefined;
 }
 
-/** Writes the export to the cache directory and opens the native share sheet. */
 async function exportViaShareSheet(
   fileName: string,
   payload: ExportedProgram,
@@ -93,7 +92,6 @@ async function exportViaShareSheet(
   return filePath;
 }
 
-/** Writes the export directly into the app's Downloads or Documents directory. */
 async function exportToAppDirectory(
   target: Exclude<ExportTarget, "ask">,
   fileName: string,

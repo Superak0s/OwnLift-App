@@ -12,9 +12,6 @@ import {
   PriorityMuscleGroupBadge,
 } from "./PartnerBadges";
 
-// ─── Partner-matching helpers for the exercise list ────────────────────────
-// Extracted so the .map() callback below doesn't itself add to
-// WorkoutScreen's Cognitive Complexity score.
 
 type PartnerMatchInfo = {
   partnerMatchesByName: boolean;
@@ -57,7 +54,6 @@ function getPartnerMatchInfo(
   return { partnerMatchesByName, partnerOnThis, partnerSetCount };
 }
 
-// ─── Exercise card ──────────────────────────────────────────────────────────
 // Memoized so the per-second rest-timer tick in WorkoutScreen (which re-renders
 // the whole screen) doesn't also re-render and recompute every exercise/set row.
 // partnerProgress/partnerCompletedSets get a new reference on every joint-session

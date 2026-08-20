@@ -1,7 +1,3 @@
-// features/tracking/services/off/doms.ts
-//
-// DOMS tracking API - Offline mode (persisted to local storage)
-
 import { createRecordStore } from "@shared/services/offlineHelpers";
 import type {
   ActiveSoreness,

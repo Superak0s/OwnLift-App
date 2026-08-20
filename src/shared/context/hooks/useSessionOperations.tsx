@@ -107,18 +107,12 @@ export const useSessionOperations = ({
   pendingSyncs,
   setPendingSyncs,
 }: UseSessionOperationsOptions): UseSessionOperationsReturn => {
-  /**
-   * Update last activity time
-   */
   const updateLastActivityTime = useCallback(async (): Promise<void> => {
     const now = Date.now()
     await saveToStorage(STORAGE_KEYS.LAST_ACTIVITY_TIME, now, userId)
     setLastActivityTime(now)
   }, [saveToStorage, STORAGE_KEYS, userId, setLastActivityTime])
 
-  /**
-   * Lock a day
-   */
   const lockDay = useCallback(
     async (dayNumber: number): Promise<void> => {
       try {
@@ -151,9 +145,6 @@ export const useSessionOperations = ({
     ],
   )
 
-  /**
-   * Clear active workout session
-   */
   const clearActiveWorkout = useCallback(async (): Promise<void> => {
     try {
       logger.debug("Clearing active workout session...")
@@ -182,9 +173,6 @@ export const useSessionOperations = ({
     setLastActivityTime,
   ])
 
-  /**
-   * Start workout session
-   */
   // Guards against a double-tap (or any other concurrent caller) firing two
   // overlapping calls before the first one's setState has re-rendered —
   // both would otherwise read stale null currentSessionId/workoutStartTime
@@ -225,9 +213,6 @@ export const useSessionOperations = ({
       let newSessionId: string | null = null
 
       if (!day) {
-        // FIX: this used to be a silent no-op — the whole session-start
-        // attempt was skipped with zero logging, and callers just got back
-        // `null` with no way to tell why.
         console.error(
           "startWorkout: no matching day found for currentDay —",
           "workoutData may not be loaded yet, or currentDay is stale.",
@@ -264,10 +249,6 @@ export const useSessionOperations = ({
           setCurrentSessionId(newSessionId)
           logger.info("✓ Session started, ID:", newSessionId)
         } else {
-          // FIX: previously fell through silently when the server call
-          // resolved (no throw) but returned a falsy id. Now treat it the
-          // same way as an offline/failed start: fall back to a local
-          // session id and queue the sync so nothing is lost.
           console.error(
             "startSession resolved without a usable session ID — falling back to local session.",
             { sessionId },
@@ -348,9 +329,6 @@ export const useSessionOperations = ({
   ])
   startWorkoutImplRef.current = startWorkoutImpl
 
-  /**
-   * End workout session
-   */
   const endWorkout = useCallback(
     async (autoCompleted: boolean = false): Promise<boolean> => {
       try {
@@ -439,9 +417,6 @@ export const useSessionOperations = ({
     ],
   )
 
-  /**
-   * Save set details.
-   */
   const saveSetDetails = useCallback(
     async (
       dayNumber: number,
@@ -555,9 +530,6 @@ export const useSessionOperations = ({
     ],
   )
 
-  /**
-   * Delete set details
-   */
   const deleteSetDetails = useCallback(
     async (
       dayNumber: number,

@@ -20,7 +20,6 @@ import { computeWorkoutAnalytics } from "./workoutAnalytics";
 
 export { computeWorkoutAnalytics };
 
-// ─── Storage shape ──────────────────────────────────────────────────────────
 
 interface StoredSession extends Omit<WorkoutSession, "end_time"> {
   split: string;
@@ -42,7 +41,6 @@ const sessionsStore = createRecordStore<StoredSession>(
   (s) => s.start_time ?? "",
 );
 
-// ─── recordSet params ───────────────────────────────────────────────────────
 // Bundled into a single object (rather than 10 positional params) both to
 // satisfy SonarQube's max-parameter rule (typescript:S107) and because a
 // named-field object is far harder to call with arguments in the wrong
@@ -86,7 +84,6 @@ function toFullSession(s: StoredSession): FullSessionWithGroups {
   };
 }
 
-// ─── API ────────────────────────────────────────────────────────────────────
 
 export const workoutApi = {
   pickWorkoutFile: async (): Promise<string | null> => {
@@ -113,7 +110,6 @@ export const workoutApi = {
     }
   },
 
-  // ── Session management ────────────────────────────────────────────────────
 
   startSession: async (
     split: string | null,

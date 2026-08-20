@@ -1,5 +1,3 @@
-// src/features/home/widgets.ts
-//
 // Home-screen-specific widget config. The widget *placement/drag* system
 // (WidgetsPanel, WidgetGallery, useWidgets) is shared across every screen
 // that hosts widgets, but the actual set of widgets — their type union,

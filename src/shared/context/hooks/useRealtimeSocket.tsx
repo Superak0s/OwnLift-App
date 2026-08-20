@@ -1,5 +1,3 @@
-// hooks/useRealtimeSocket.ts
-//
 // Single persistent WebSocket connection for the whole app.
 // Security fix: JWT is sent as the first message after connection opens,
 // NOT as a URL query parameter (which would appear in server/proxy logs).

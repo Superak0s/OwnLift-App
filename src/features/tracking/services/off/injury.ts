@@ -1,7 +1,3 @@
-// features/tracking/services/off/injury.ts
-//
-// Injury tracking API - Offline mode (persisted to local storage)
-
 import { createRecordStore } from "@shared/services/offlineHelpers";
 import type {
   InjuryRecord,

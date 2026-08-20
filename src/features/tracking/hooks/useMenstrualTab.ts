@@ -24,13 +24,11 @@ export function useMenstrualTab(deps: UseMenstrualTabDeps) {
   const [flowIntensity, setFlowIntensity] = useState<"light" | "moderate" | "heavy">("moderate");
   const [cycleSymptoms, setCycleSymptoms] = useState<string[]>([]);
 
-  // Per-day flow modal
   const [showFlowModal, setShowFlowModal] = useState(false);
   const [flowModalDate, setFlowModalDate] = useState<string | null>(null);
   const [flowModalIntensity, setFlowModalIntensity] = useState<"light" | "moderate" | "heavy">("moderate");
   const [flowModalCycleEntry, setFlowModalCycleEntry] = useState<any>(null);
 
-  // Calendar decorations
   const [cycleActualDays, setCycleActualDays] = useState<Set<string>>(new Set());
   const [cyclePredictedDays, setCyclePredictedDays] = useState<Set<string>>(new Set());
   const [cycleStats, setCycleStats] = useState<any>(null);

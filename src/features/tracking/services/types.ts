@@ -4,7 +4,6 @@ export type ApiResponse<T> = {
   error?: string;
 };
 
-// Re-exported from tracking/types/muscleRecovery.ts — the canonical definition.
 export { type SorenessEntry } from "../types/muscleRecovery";
 
 export interface HydrationEntry {

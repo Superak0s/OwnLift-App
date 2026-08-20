@@ -1,10 +1,6 @@
 import { apiCall } from "@shared/services/apiClient"
 
 export const hydrationApi = {
-  /**
-   * Log hydration intake
-   * POST /api/tracking/hydration
-   */
   logHydration: async (amountMl: number, note?: string): Promise<import("../types").ApiResponse<{ id: number }>> =>
     apiCall(`/api/tracking/hydration`, {
       method: "POST",
@@ -15,21 +11,12 @@ export const hydrationApi = {
       }),
     }),
 
-  /**
-   * Get hydration history
-   * GET /api/tracking/hydration?limit=N
-   */
   getHydrationHistory: async (limit: number = 100): Promise<import("../types").ApiResponse<import("../types").HydrationEntry[]>> =>
     apiCall(`/api/tracking/hydration?limit=${limit}`),
 
-  /**
-   * Delete hydration entry
-   * DELETE /api/tracking/hydration/:id
-   */
   deleteHydrationEntry: async (id: number): Promise<import("../types").ApiResponse<null>> =>
     apiCall(`/api/tracking/hydration/${id}`, { method: "DELETE" }),
 
-  // Hydration settings
   getSettings: async (): Promise<import("../types").ApiResponse<{ goalMl: number; measurementErrorPercent: number }>> =>
     apiCall(`/api/tracking/hydration/settings`),
 

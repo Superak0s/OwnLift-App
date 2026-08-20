@@ -6,7 +6,6 @@ import type {
   FullSessionWithGroups,
 } from "@shared/types"
 
-// ─── Types local to this service (not shared elsewhere) ────────────────────
 
 export interface WorkoutAnalytics {
   averageTimeBetweenSets: number
@@ -32,14 +31,9 @@ export interface RenameExerciseResult {
   updatedCount: number
 }
 
-// ─── Error type + response handling ─────────────────────────────────────────
-//
-// ApiError and parseApiResponse are now imported from @shared/services/apiClient
-// so every "on" service file uses the same centralized error-handling logic.
 // parseApiResponse throws an ApiError whenever the call didn't succeed,
 // so failures are never silently swallowed.
 
-// ─── API ────────────────────────────────────────────────────────────────────
 
 export const workoutApi = {
   pickWorkoutFile: async (): Promise<string | null> => {
@@ -85,9 +79,6 @@ export const workoutApi = {
       res,
     )
     if (!data.session?.id) {
-      // FIX: previously returned `undefined` here with no error. Now
-      // throws, so callers' offline/pending-sync fallback actually fires
-      // instead of silently accepting a missing id.
       throw new ApiError(
         "startSession succeeded but response had no session.id",
         res.status,

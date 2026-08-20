@@ -1,24 +1,3 @@
-// src/features/tracking/tabs/SorenessTab.tsx
-//
-// Muscle Recovery tab — interactive body map + continuous DOMS tracking +
-// injury history. Replaces the old flat "pick a muscle from a chip list,
-// log one intensity value" flow with:
-//
-//   1. An interactive front/back muscle map. Tapping a muscle opens a
-//      soreness-logging modal for just that muscle; the map stays open so
-//      several muscles can be logged in one session.
-//   2. A morning DOMS follow-up: every muscle currently marked sore is
-//      surfaced as a card ("Still sore" / "Better" / "Fully recovered")
-//      instead of one-off disconnected entries, so soreness is tracked
-//      continuously until the user marks it recovered.
-//   3. A recovery heatmap/analytics view (frequency, average recovery time,
-//      severity trend).
-//   4. An injury tracker, separate from day-to-day DOMS.
-//
-// Tapping a muscle anywhere (map, heatmap, top-sore-muscles list) opens the
-// muscle dashboard — the single hub for that muscle's soreness history,
-// photos, injuries, and recovery stats.
-
 import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
@@ -43,7 +22,6 @@ import { InjuryTracker } from "../components/InjuryTracker";
 import { LogInjuryModal } from "../components/LogInjuryModal";
 import { MuscleDashboard } from "../components/MuscleDashboard";
 
-// ─── Widget types ───────────────────────────────────────────────────────────
 
 export type SorenessWidgetType =
   | "muscle_map"
@@ -111,7 +89,6 @@ export const SORENESS_TAB_CONFIG = {
   label: "Recovery",
 };
 
-// ─── Shared helper: build a muscle -> intensity map from active soreness ──
 
 function buildSorenessMap(
   activeSoreness: ActiveSoreness[],
@@ -144,7 +121,6 @@ function MuscleDashboardOverlay({
   );
 }
 
-// ─── Widget: Interactive Muscle Map (tap a muscle to log soreness) ─────────
 
 export function MuscleMapWidget() {
   const { colors } = useTheme();
@@ -237,7 +213,6 @@ const mapWidgetStyles = StyleSheet.create({
   },
 });
 
-// ─── Widget: Morning DOMS Follow-up ─────────────────────────────────────────
 
 export function DOMSFollowUpWidget() {
   const [dashboardMuscle, setDashboardMuscle] = useState<MuscleGroup | null>(
@@ -259,7 +234,6 @@ export function DOMSFollowUpWidget() {
   );
 }
 
-// ─── Widget: Recovery Analytics / Heatmap ───────────────────────────────────
 
 export function DOMSHeatmapWidget() {
   const [dashboardMuscle, setDashboardMuscle] = useState<MuscleGroup | null>(
@@ -279,7 +253,6 @@ export function DOMSHeatmapWidget() {
   );
 }
 
-// ─── Widget: Injury Tracker ──────────────────────────────────────────────────
 
 export function InjuryTrackerWidget() {
   const [showLogModal, setShowLogModal] = useState(false);
@@ -300,8 +273,6 @@ export function InjuryTrackerWidget() {
   );
 }
 
-// ─── Backward-compatible global "quick log" modal ──────────────────────────
-//
 // TrackingScreen wires several existing entry points (calendar day-taps,
 // hero-card "+ Log Soreness" buttons) to a `LogSorenessModal` component with
 // this exact `{ visible, onClose, onSuccess }` shape. Rather than requiring

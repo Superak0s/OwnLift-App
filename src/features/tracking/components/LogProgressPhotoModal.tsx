@@ -27,7 +27,6 @@ interface LogProgressPhotoModalProps {
   readonly onSuccess: () => void;
   /** Fired right as the modal closes and the background upload begins, with the file size in bytes. */
   readonly onUploadStart?: (totalBytes: number) => void;
-  /** Fired when the background upload finishes. */
   readonly onUploadEnd?: (success: boolean) => void;
 }
 
@@ -60,7 +59,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
 
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // ─── Reset state when modal opens/closes ─────────────────────────────
   React.useEffect(() => {
     if (visible) {
       setStep("select");
@@ -75,7 +73,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
     }
   }, [visible]);
 
-  // ─── Image picker handlers ───────────────────────────────────────────
   const pickFromCamera = async () => {
     setCameraError(null);
     try {
@@ -138,7 +135,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
     }
   };
 
-  // ─── Muscle tag toggle ──────────────────────────────────────────────
   const toggleMuscle = (muscle: string) => {
     setSelectedMuscles((prev) =>
       prev.includes(muscle) ? prev.filter((m) => m !== muscle) : [...prev, muscle]
@@ -156,7 +152,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
     MUSCLE_GROUP_LABELS[muscle].toLowerCase().includes(muscleSearch.trim().toLowerCase())
   );
 
-  // ─── Submit handler ─────────────────────────────────────────────────
   // Compression + upload/copy takes a while — close the modal right away
   // and let it finish in the background instead of blocking the UI on it.
   const handleSubmit = async () => {
@@ -192,7 +187,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
       });
   };
 
-  // ─── Step 1: Image selection ────────────────────────────────────────
   if (step === "select") {
     return (
       <ModalSheet
@@ -243,7 +237,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
     );
   }
 
-  // ─── Step 2: Tag & submit ──────────────────────────────────────────
   return (
     <ModalSheet
       visible={visible}
@@ -260,7 +253,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
         contentContainerStyle={tagStep.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Preview */}
         {selectedUri && (
           <View style={tagStep.previewContainer}>
             <Image source={{ uri: selectedUri }} style={tagStep.previewImage} contentFit="cover" />
@@ -276,7 +268,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
           </View>
         )}
 
-        {/* Angle Picker */}
         <Text style={[tagStep.sectionLabel, { color: colors.textSecondary }]}>
           Angle
         </Text>
@@ -322,7 +313,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
           />
         )}
 
-        {/* Muscle Group Multi-Select */}
         <Text style={[tagStep.sectionLabel, { color: colors.textSecondary }]}>
           Muscle Groups ({selectedMuscles.length} selected)
         </Text>
@@ -394,7 +384,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* Notes */}
         <Text style={[tagStep.sectionLabel, { color: colors.textSecondary }]}>
           Notes (optional)
         </Text>
@@ -409,7 +398,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
           textAlignVertical="top"
         />
 
-        {/* Quick actions */}
         <View style={tagStep.quickActions}>
           <TouchableOpacity
             style={[tagStep.quickActionBtn, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.inputBorder }]}
@@ -433,7 +421,6 @@ export const LogProgressPhotoModal: React.FC<LogProgressPhotoModalProps> = ({
   );
 };
 
-// ─── Styles ────────────────────────────────────────────────────────────
 
 const selectStep = StyleSheet.create({
   selectContainer: {

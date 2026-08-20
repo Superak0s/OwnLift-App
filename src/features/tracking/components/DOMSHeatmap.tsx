@@ -43,7 +43,6 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
   const loadStats = async () => {
     try {
       setLoading(true);
-      // Convert dateRange string to number of days
       const daysMap: Record<string, number> = { "30d": 30, "90d": 90, "180d": 180, "1y": 365 };
       const days = daysMap[dateRange] || 90;
       const response = await domsApi.getStats(days);
@@ -111,7 +110,6 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.contentContainer}
     >
-      {/* Summary Stats */}
       <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
         <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>
           Overview
@@ -147,7 +145,6 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
         </View>
       </View>
 
-      {/* Calendar Heatmap */}
       {calendarData.length > 0 && (
         <View style={[styles.calendarCard, { backgroundColor: colors.surface }]}>
           <Text style={[styles.calendarTitle, { color: colors.textPrimary }]}>
@@ -184,7 +181,6 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
         </View>
       )}
 
-      {/* Top Sore Muscles */}
       {topSoreMuscles.length > 0 && (
         <View style={[styles.muscleCard, { backgroundColor: colors.surface }]}>
           <Text style={[styles.muscleCardTitle, { color: colors.textPrimary }]}>
@@ -234,7 +230,6 @@ export const DOMSHeatmap: React.FC<DOMSHeatmapProps> = ({ dateRange = "90d", onS
         </View>
       )}
 
-      {/* Recovery Trends */}
       {stats.severityTrend && stats.severityTrend.length > 0 && (
         <View style={[styles.trendCard, { backgroundColor: colors.surface }]}>
           <ProgressChart

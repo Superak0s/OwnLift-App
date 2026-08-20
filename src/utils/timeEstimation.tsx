@@ -1,15 +1,7 @@
-/**
- * Time Estimation Utilities
- * Handles workout time estimation and calculations
- */
-
 import type { WorkoutData } from "@shared/types"
 import type { CompletedDays } from "./dayCompletion"
 import { getExerciseCompletedSets } from "./dayCompletion"
 
-/**
- * Count remaining sets for a day
- */
 export const countRemainingSets = (
   workoutData: WorkoutData | null | undefined,
   selectedSplit: string | null,
@@ -74,9 +66,6 @@ export const getEstimatedTimeRemaining = (
   return remainingSets * avgTimeBetweenSets
 }
 
-/**
- * Get estimated end time as Date object
- */
 export const getEstimatedEndTime = (
   estimatedSecondsRemaining: number,
 ): Date => {

@@ -1,10 +1,6 @@
 import { apiCall } from "@shared/services/apiClient"
 
 export const sorenessApi = {
-  /**
-   * Log soreness (DOMS)
-   * POST /api/tracking/soreness
-   */
   logSoreness: async (
     muscleGroup: string,
     intensity: number,
@@ -20,17 +16,9 @@ export const sorenessApi = {
       }),
     }),
 
-  /**
-   * Get soreness history
-   * GET /api/tracking/soreness?limit=N
-   */
   getSorenessHistory: async (limit: number = 100): Promise<import("../types").ApiResponse<import("../types").SorenessEntry[]>> =>
     apiCall(`/api/tracking/soreness?limit=${limit}`),
 
-  /**
-   * Delete soreness entry
-   * DELETE /api/tracking/soreness/:id
-   */
   deleteSorenessEntry: async (id: number): Promise<import("../types").ApiResponse<null>> =>
     apiCall(`/api/tracking/soreness/${id}`, { method: "DELETE" }),
 }

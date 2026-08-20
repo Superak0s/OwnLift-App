@@ -1,12 +1,6 @@
-// src/features/tracking/tabs/MeasurementsTab.tsx
-//
-// Measurements tab - contains all widget definitions, registry, and defaults
-// for the body measurements tracking functionality.
-
 import { STORAGE_KEYS } from "@shared/services/storage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
-// ─── Measurements tab widget types ──────────────────────────────────────────
 
 export type MeasurementsWidgetType =
   | "measurements_overview"
@@ -86,7 +80,6 @@ export const DEFAULT_MEASUREMENTS_WIDGETS: WidgetInstance<MeasurementsWidgetType
 export const MEASUREMENTS_WIDGETS_STORAGE_KEY =
   STORAGE_KEYS.MEASUREMENTS_TAB_WIDGETS;
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
 
 export const MEASUREMENTS_TAB_CONFIG = {
   key: "measurements",

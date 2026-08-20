@@ -7,9 +7,6 @@ import type {
   ContactFriendSuggestion,
 } from "../../types"
 
-/**
- * Friends API
- */
 export const friendsApi = {
   searchUsers: async (
     query: string,

@@ -1,5 +1,3 @@
-// src/features/plan/widgets.ts
-//
 // Plan-screen-specific widget config. The widget *placement/drag* system
 // (WidgetsPanel, WidgetGallery, useWidgets) is shared across every screen
 // that hosts widgets, but the actual set of widgets — their type union,
@@ -121,7 +119,4 @@ export const DEFAULT_PLAN_WIDGETS: WidgetInstance<PlanWidgetType>[] = [
   },
 ];
 
-// NOTE: add a `PLAN_WIDGETS` key to STORAGE_KEYS in @shared/services/storage
-// (right next to HOME_WIDGETS) before wiring this in — e.g.
-// `PLAN_WIDGETS: "plan_widgets"`.
 export const PLAN_WIDGETS_STORAGE_KEY = STORAGE_KEYS.PLAN_WIDGETS;

@@ -1,12 +1,6 @@
-// src/features/tracking/tabs/BodyFatTab.tsx
-//
-// Body Fat tab - contains all widget definitions, registry, and defaults
-// for the body fat tracking functionality.
-
 import { STORAGE_KEYS } from "@shared/services/storage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
-// ─── Body Fat tab widget types ──────────────────────────────────────────────
 
 export type BodyFatWidgetType =
   | "bodyfat_height"
@@ -69,7 +63,6 @@ export const DEFAULT_BODYFAT_WIDGETS: WidgetInstance<BodyFatWidgetType>[] = [
 
 export const BODYFAT_WIDGETS_STORAGE_KEY = STORAGE_KEYS.BODYFAT_TAB_WIDGETS;
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
 
 export const BODYFAT_TAB_CONFIG = {
   key: "bodyfat",

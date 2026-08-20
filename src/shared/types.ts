@@ -1,5 +1,3 @@
-// User / Auth
-
 export interface User {
   id: string
   username: string
@@ -8,7 +6,6 @@ export interface User {
   [key: string]: unknown
 }
 
-// Core workout data
 
 export interface Exercise {
   name: string
@@ -44,7 +41,6 @@ export interface WorkoutData {
   split?: string[]
 }
 
-// Session completion tracking
 
 export interface SetDetail {
   weight: number
@@ -60,7 +56,6 @@ export type CompletedExercises = Record<number, CompletedSets>
 export type CompletedDays = Record<number, CompletedExercises>
 export type LockedDays = Record<number, boolean>
 
-// Session statistics
 
 export interface SessionStatistics {
   totalTime: number
@@ -70,7 +65,6 @@ export interface SessionStatistics {
   totalSets: number
 }
 
-// Server session shapes
 
 /** Lightweight session row returned by getSessionHistory */
 export interface WorkoutSession {
@@ -137,7 +131,6 @@ export interface SavedProgram {
   uploadedAt?: string
 }
 
-// Reminder location
 
 export interface ReminderLocation {
   lat: number
@@ -146,7 +139,6 @@ export interface ReminderLocation {
   radius: number
 }
 
-// Body tracking
 
 export interface WeightEntry {
   id: string | number
@@ -199,7 +191,6 @@ export interface ProgressPhoto {
   uri?: string
 }
 
-// Pending sync — discriminated union
 
 export interface StartSessionSyncData {
   split: string
@@ -247,7 +238,6 @@ export type PendingSync =
       timestamp: string
     }
 
-// app/types.ts
 export type RootStackParamList = {
   Home: undefined
   Login: undefined
@@ -285,7 +275,6 @@ export interface WidgetInstance<T extends string = string> {
   order: number
 }
 
-// Muscle Group Taxonomy Bridge
 export const RECOVERY_MUSCLE_GROUPS = [
   "chest_upper",
   "chest_lower",

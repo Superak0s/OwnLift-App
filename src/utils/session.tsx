@@ -1,8 +1,3 @@
-/**
- * Session Management Utilities
- * Handles workout session operations
- */
-
 import type { PendingSync, SessionStatistics, WorkoutData } from "@shared/types"
 import type { CompletedDays } from "./dayCompletion"
 
@@ -55,9 +50,6 @@ export const getLocalISOString = (): string => {
   return localTime.toISOString().replace("Z", `${sign}${hh}:${mm}`)
 }
 
-/**
- * Check if session is inactive
- */
 export const isSessionInactive = (
   lastActivityTime: string | number | null,
 ): boolean => {
@@ -66,9 +58,6 @@ export const isSessionInactive = (
   return elapsed > INACTIVITY_THRESHOLD_MS
 }
 
-/**
- * Check if session ID is local
- */
 export const isLocalSessionId = (
   sessionId: string | null | undefined,
 ): boolean => {
@@ -99,9 +88,6 @@ export const calculateRestTime = (lastSetEndTime: string | null): number => {
   return Math.floor((now - lastEnd) / 1000)
 }
 
-/**
- * Calculate session average rest time
- */
 export const calculateSessionAverageRest = (
   completedDays: CompletedDays,
   dayNumber: number,
@@ -147,9 +133,6 @@ export const calculateSessionAverageRest = (
   return Math.round(sum / allRestTimes.length)
 }
 
-/**
- * Count completed sets for a day
- */
 export const countCompletedSets = (
   completedDays: CompletedDays,
   dayNumber: number,
@@ -169,12 +152,8 @@ export const countCompletedSets = (
   return count
 }
 
-// Re-exported from shared/types.ts — the canonical definition.
 export { type SessionStatistics }
 
-/**
- * Get comprehensive session statistics
- */
 export const getSessionStatistics = (
   workoutStartTime: string | null,
   lastSetEndTime: string | null,

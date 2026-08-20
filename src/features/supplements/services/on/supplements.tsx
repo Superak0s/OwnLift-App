@@ -1,4 +1,3 @@
-// features/supplements/services/on/supplements.tsx
 import { apiCall } from "@shared/services/apiClient"
 import type {
   CreateSupplementParams,
@@ -10,10 +9,8 @@ import type {
   UpdateSupplementParams,
 } from "../../types"
 
-// ─── API ──────────────────────────────────────────────────────────────────
 
 export const supplementsApi = {
-  // ── Supplement CRUD ──────────────────────────────────────────
 
   list: (): Promise<{ success: boolean; supplements: SupplementSummary[] }> =>
     apiCall(`/api/tracking/supplements`),
@@ -38,7 +35,6 @@ export const supplementsApi = {
   delete: (id: number): Promise<{ success: boolean }> =>
     apiCall(`/api/tracking/supplements/${id}`, { method: "DELETE" }),
 
-  // ── Log ──────────────────────────────────────────────────────
 
   log: (
     id: number,
@@ -60,7 +56,6 @@ export const supplementsApi = {
       method: "DELETE",
     }),
 
-  // ── Location ─────────────────────────────────────────────────
 
   saveLocation: (
     id: number,

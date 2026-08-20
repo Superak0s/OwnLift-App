@@ -4,10 +4,6 @@ import { filterOutLocalSessionSyncs, getLocalISOString } from "@utils/session"
 import logger from "../../services/logger"
 import type { PendingSync } from "../../types"
 
-/**
- * Sync Management Hook
- * Handles syncing with the server (offline support)
- */
 
 export interface UseSyncManagerOptions {
   pendingSyncs: PendingSync[]
@@ -63,9 +59,6 @@ export const useSyncManager = ({
   // WorkoutSyncStatus rather than only living in the logs.
   const [droppedSyncCount, setDroppedSyncCount] = useState(0)
 
-  /**
-   * Add a pending sync operation
-   */
   const addPendingSync = useCallback(
     async (syncData: PendingSync): Promise<void> => {
       try {
@@ -79,9 +72,6 @@ export const useSyncManager = ({
     [pendingSyncs, setPendingSyncs, userId, saveToStorage, STORAGE_KEYS],
   )
 
-  /**
-   * Sync pending data
-   */
   const syncPendingData = useCallback(async (): Promise<void> => {
     if (isSyncing || pendingSyncs.length === 0) return
 
@@ -90,7 +80,7 @@ export const useSyncManager = ({
       `Attempting to sync ${pendingSyncs.length} pending operations...`,
     )
 
-    // FIX 3: Spreading `{ ...s, data: { ...s.data } }` collapses the discriminated
+    // Spreading `{ ...s, data: { ...s.data } }` collapses the discriminated
     // union — TypeScript widens `data` to the union of all three data shapes and
     // the resulting object no longer satisfies any single PendingSync variant.
     // Use structuredClone to deep-copy while preserving the original type, then
@@ -125,7 +115,6 @@ export const useSyncManager = ({
       try {
         switch (sync.type) {
           case "startSession": {
-            // sync.data is StartSessionSyncData — fully typed, no casts needed
             const sessionId = await workoutApi.startSession(
               sync.data.split,
               sync.data.dayNumber,
@@ -155,7 +144,6 @@ export const useSyncManager = ({
           }
 
           case "recordSet": {
-            // sync.data is RecordSetSyncData — fully typed
             if (String(sync.data.sessionId).startsWith("local_")) {
               logger.warn("⚠ Skipping recordSet sync for local session ID")
               failedSyncs.push(sync)
@@ -211,7 +199,6 @@ export const useSyncManager = ({
           }
 
           case "endSession": {
-            // sync.data is EndSessionSyncData — fully typed
             if (String(sync.data.sessionId).startsWith("local_")) {
               logger.warn("⚠ Skipping endSession sync for local session ID")
               droppedThisRun++
@@ -297,9 +284,6 @@ export const useSyncManager = ({
     fetchAnalytics,
   ])
 
-  /**
-   * Clean up invalid syncs
-   */
   const cleanupInvalidSyncs = useCallback(async (): Promise<void> => {
     const validSyncs = filterOutLocalSessionSyncs(pendingSyncs)
 

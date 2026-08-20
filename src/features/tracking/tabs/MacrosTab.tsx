@@ -1,12 +1,6 @@
-// src/features/tracking/tabs/MacrosTab.tsx
-//
-// Macros tab - contains all widget definitions, registry, and defaults
-// for the macros/nutrition tracking functionality.
-
 import { STORAGE_KEYS } from "@shared/services/storage";
 import type { WidgetDefinition, WidgetInstance } from "@shared/types";
 
-// ─── Macros tab widget types ────────────────────────────────────────────────
 
 export type MacrosWidgetType = "macros_calendar" | "macros_today";
 
@@ -51,7 +45,6 @@ export const DEFAULT_MACROS_WIDGETS: WidgetInstance<MacrosWidgetType>[] = [
 
 export const MACROS_WIDGETS_STORAGE_KEY = STORAGE_KEYS.MACROS_TAB_WIDGETS;
 
-// ─── Tab configuration ──────────────────────────────────────────────────────
 
 export const MACROS_TAB_CONFIG = {
   key: "macros",

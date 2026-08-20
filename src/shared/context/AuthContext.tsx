@@ -16,7 +16,6 @@ import { sinceBoot } from "../services/debugClock";
 import logger from "../services/logger";
 import type { User } from "../types";
 
-// Re-exports
 export type { User };
 
 interface AuthResult {
@@ -43,7 +42,6 @@ interface AuthContextValue {
   refreshToken: () => Promise<boolean>;
 }
 
-// Context
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const useAuth = (): AuthContextValue => {
@@ -54,7 +52,6 @@ export const useAuth = (): AuthContextValue => {
   return context;
 };
 
-// Helpers
 const readStoredToken = async (): Promise<string> => {
   try {
     return (await tokenStorage.get()) ?? "";
@@ -67,14 +64,12 @@ const readStoredToken = async (): Promise<string> => {
 // Set to 55 minutes so a 1-hour expiry is covered with headroom.
 const TOKEN_REFRESH_INTERVAL_MS = 55 * 60 * 1000;
 
-// Provider
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authToken, setAuthToken] = useState("");
 
-  // ── logout ────────────────────────────────────────────────────────────────
   const logout = useCallback(async (): Promise<void> => {
     try {
       await authService.logout();
@@ -87,7 +82,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // ── Offline auto-connect ────────────────────────────────────────────────────
   /**
    * In serverless ("offline") mode there's no server to authenticate against, so
    * we skip the login screen entirely: load (or create) the single local
@@ -112,7 +106,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // ── Token refresh ─────────────────────────────────────────────────────────
   /**
    * Attempts a silent token refresh via the auth service.
    * Falls back to logout if the server rejects the refresh.
@@ -176,7 +169,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return unsubscribe;
   }, [isAuthenticated, logout]);
 
-  // ── checkAuthStatus ───────────────────────────────────────────────────────
   const checkAuthStatus = useCallback(async (): Promise<void> => {
     try {
       // Make sure the persisted app mode is loaded before we decide whether
@@ -228,7 +220,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [logout, refreshToken, autoConnectOffline]);
 
-  // ── signup ────────────────────────────────────────────────────────────────
   const signup = useCallback(
     async (
       username: string,
@@ -262,7 +253,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  // ── signin ────────────────────────────────────────────────────────────────
   const signin = useCallback(
     async (username: string, password: string): Promise<AuthResult> => {
       try {
@@ -294,7 +284,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  // ── updateProfile ─────────────────────────────────────────────────────────
   const updateProfile = useCallback(
     async (name: string, email: string): Promise<AuthResult> => {
       try {
@@ -315,7 +304,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  // ── refreshUser ───────────────────────────────────────────────────────────
   const refreshUser = useCallback(async (): Promise<AuthResult> => {
     try {
       const currentUser = (await authService.getCurrentUser()) as User;

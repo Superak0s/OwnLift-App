@@ -5,9 +5,6 @@ import type { ThemeColors } from "@shared/context/ThemeContext";
 import type { PartnerBannerProps } from "../types";
 import { getPartnerStatusText } from "../utils";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Partner banner – compact strip pinned to the very top of the screen
-// ─────────────────────────────────────────────────────────────────────────────
 export function PartnerBanner({
   partnerProgress,
   isPartnerReady,

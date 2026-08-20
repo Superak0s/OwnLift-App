@@ -1,11 +1,3 @@
-// features/tracking/types/muscleRecovery.ts
-//
-// Types for the Muscle Recovery & Progress Tracking system.
-
-// ─── Muscle Groups ────────────────────────────────────────────────────────────
-// Re-exported from shared/types.ts — single source of truth for the recovery
-// taxonomy (25 snake_case muscle groups).
-
 import type { RecoveryMuscleGroup } from "@shared/types"
 export type { ApiResponse } from "@features/tracking/services/types"
 export {
@@ -14,10 +6,8 @@ export {
 } from "@shared/types"
 export type { RecoveryMuscleGroup as MuscleGroup } from "@shared/types"
 
-/** Local alias so `MuscleGroup` is usable within this module. */
 type MuscleGroup = RecoveryMuscleGroup
 
-// ─── Soreness Records (continuous tracking) ───────────────────────────────────
 
 export interface ActiveSoreness {
   id: number;
@@ -40,7 +30,6 @@ export interface SorenessFollowUp {
   updatedAt: string;
 }
 
-// ─── Legacy Soreness Entry (for history compatibility) ────────────────────────
 
 export interface SorenessEntry {
   id: number;
@@ -51,7 +40,6 @@ export interface SorenessEntry {
   createdAt: string;
 }
 
-// ─── DOMS Statistics ──────────────────────────────────────────────────────────
 
 export interface MuscleRecoveryStats {
   muscleGroup: MuscleGroup;
@@ -74,7 +62,6 @@ export interface DOMSStats {
   heatmapData: Record<MuscleGroup, number>; // frequency count
 }
 
-// ─── Progress Photos with Muscle Tags ─────────────────────────────────────────
 
 export interface ProgressPhotoMuscle {
   id: string | number;
@@ -88,7 +75,6 @@ export interface ProgressPhotoMuscle {
   createdAt?: string;
 }
 
-// ─── Injury Tracking ─────────────────────────────────────────────────────────
 
 export type InjuryType =
   | "strain"
@@ -116,7 +102,6 @@ export interface InjuryRecord {
   updatedAt: string;
 }
 
-// ─── Muscle Dashboard ────────────────────────────────────────────────────────
 
 export interface MuscleDashboardData {
   muscleGroup: MuscleGroup;
@@ -128,7 +113,6 @@ export interface MuscleDashboardData {
   personalNotes: PersonalMuscleNote[];
 }
 
-// ─── Personal Muscle Notes ────────────────────────────────────────────────────
 
 export interface PersonalMuscleNote {
   id: number;
@@ -138,7 +122,6 @@ export interface PersonalMuscleNote {
   updatedAt: string;
 }
 
-// ─── DOMS Follow-up State ────────────────────────────────────────────────────
 
 export interface DOMSFollowUpItem {
   soreness: ActiveSoreness;
@@ -147,7 +130,6 @@ export interface DOMSFollowUpItem {
   notes: string;
 }
 
-// ─── Log Soreness Parameters ─────────────────────────────────────────────────
 
 export interface LogSorenessParams {
   muscleGroup: MuscleGroup;

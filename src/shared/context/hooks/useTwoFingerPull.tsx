@@ -1,14 +1,6 @@
-// src/shared/hooks/useTwoFingerPull.ts
-//
 // Detects a two-finger downward drag anywhere on the wrapped view, the
 // same gesture Android uses to open the widget picker. Built on the
 // built-in PanResponder so it needs no extra native dependencies.
-//
-// Usage:
-//   const { panHandlers, pullDistance, isPulling } = useTwoFingerPull(() => {
-//     setGalleryVisible(true)
-//   })
-//   <View {...panHandlers}>...</View>
 
 import { useRef, useState, useCallback } from "react"
 import { PanResponder, type GestureResponderEvent } from "react-native"

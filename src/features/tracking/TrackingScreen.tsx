@@ -161,9 +161,6 @@ export default function TrackingScreen() {
   const { alert } = useAlert();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  // ─────────────────────────────────────────────────────────────
-  // SCREEN-LOCAL STATE
-  // ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("weight");
   const [widgetEditMode, setWidgetEditMode] = useState(false);
   const [showWidgetGallery, setShowWidgetGallery] = useState(false);
@@ -186,9 +183,6 @@ export default function TrackingScreen() {
     });
   }, []);
 
-  // ─────────────────────────────────────────────────────────────
-  // TAB HOOKS — extracted state, handlers (data loading is screen-level)
-  // ─────────────────────────────────────────────────────────────
   const loadDataRef = useRef<() => Promise<void> | void>(() => {});
 
   const _weight = useWeightTab({ alert, loadData: loadDataRef.current, setDayModal: setDayModal as any, selectedLogDate, setSelectedLogDate, buildLocalISOForDate, user });
@@ -200,7 +194,6 @@ export default function TrackingScreen() {
   const _soreness = useSorenessTab({ alert, loadTabData: loadDataRef.current as any, setDayModal: setDayModal as any, activeTab });
   const _menstrual = useMenstrualTab({ alert, loadFromServer: loadDataRef.current as any, user });
 
-  // Adapters — normalize hook returns to names the JSX expects
   const weight = {
     history: _weight.weightHistory, setHistory: _weight.setWeightHistory,
     weightUnit: _weight.weightUnit, setWeightUnit: _weight.setWeightUnit,
@@ -316,9 +309,6 @@ export default function TrackingScreen() {
     markPeriodOver: _menstrual.markPeriodOver,
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // WIDGET BOARDS
-  // ─────────────────────────────────────────────────────────────
 
   const weightBoard = useWidgets<WeightWidgetType>(user?.id ?? null, { registry: WEIGHT_WIDGET_REGISTRY, defaults: DEFAULT_WEIGHT_WIDGETS, storageKey: WEIGHT_WIDGETS_STORAGE_KEY, enabled: activeTab === "weight" });
   const photosBoard = useWidgets<PhotosWidgetType>(user?.id ?? null, { registry: PHOTOS_WIDGET_REGISTRY, defaults: DEFAULT_PHOTOS_WIDGETS, storageKey: PHOTOS_WIDGETS_STORAGE_KEY, enabled: activeTab === "photos" });
@@ -332,9 +322,6 @@ export default function TrackingScreen() {
   const activeBoard = boardMap[activeTab] ?? weightBoard;
   const activeRegistry = registryMap[activeTab]?.registry ?? WEIGHT_WIDGET_REGISTRY;
 
-  // ─────────────────────────────────────────────────────────────
-  // DATA LOADING
-  // ─────────────────────────────────────────────────────────────
 
   // Each tab's history is fetched only once its tab is actually visited,
   // not all eight at once on mount — avoids hammering SQLite for tabs the
@@ -377,8 +364,6 @@ export default function TrackingScreen() {
   loadDataRef.current = forceReloadActiveTab;
   useEffect(() => { loadTab(activeTab); }, [activeTab, loadTab]);
 
-  // Used by modals/handlers that used to refresh every tab's data — they
-  // only need the tab they just changed, which is always the active one.
   const loadAllData = useCallback(() => loadActiveTab(true), [loadActiveTab]);
 
   const onRefresh = useCallback(async () => {
@@ -387,9 +372,6 @@ export default function TrackingScreen() {
     setRefreshing(false);
   }, [loadActiveTab]);
 
-  // ─────────────────────────────────────────────────────────────
-  // HANDLERS
-  // ─────────────────────────────────────────────────────────────
   const handleCalendarDatePress = useCallback(
     (date: Date, type: string) => {
       const dateStr = toDateString(date);
@@ -848,12 +830,10 @@ export default function TrackingScreen() {
 
       <WidgetGallery visible={showWidgetGallery} onClose={() => setShowWidgetGallery(false)} availableWidgets={activeBoard.availableToAdd as any} onAddWidget={handleAddWidget} hasPlacedWidgets={activeBoard.widgets.length > 0} onEditWidgets={() => setWidgetEditMode(true)} />
 
-      {/* Weight Modal */}
       <ModalSheet visible={weight.showWeightModal} onClose={() => { weight.closeWeightModal(); setSelectedLogDate(null); }} title="Log Weight" onConfirm={weight.addWeight}>
         <TextInput style={styles.input} placeholder={`Enter weight (${weight.weightUnit})`} keyboardType="decimal-pad" value={weight.newWeight} onChangeText={weight.setNewWeight} />
       </ModalSheet>
 
-      {/* Height Modal */}
       <ModalSheet visible={bodyFat.showHeightModal} onClose={() => { bodyFat.closeHeightModal(); bodyFat.setNewHeightCm(""); bodyFat.setNewHeightFt(""); bodyFat.setNewHeightIn(""); }} title="Set Height" onConfirm={bodyFat.saveHeight} confirmText="Save" scrollable={false}>
         <Text style={styles.inputLabel}>Unit:</Text>
         <View style={styles.unitToggle}>
@@ -884,7 +864,6 @@ export default function TrackingScreen() {
 
       <LogSorenessModal visible={modalState.state.sorenessModalOpen} onClose={() => { modalState.closeSorenessModal(); setSelectedLogDate(null); }} onSuccess={() => loadAllData()} />
 
-      {/* Macros Modal */}
       <ModalSheet visible={macros.showMacrosModal} onClose={() => { macros.closeMacrosModal(); setSelectedLogDate(null); }} title="Log Macros" onConfirm={macros.addMacrosEntry} scrollable={true}>
         {macros.savedFoods.length > 0 && (
           <>
@@ -941,7 +920,6 @@ export default function TrackingScreen() {
         <Text style={styles.modalHint}>Error margin is used to calculate a min/max range for your totals</Text>
       </ModalSheet>
 
-      {/* Macros Goals Modal */}
       <ModalSheet visible={macros.showMacrosGoalModal} onClose={() => macros.closeGoalModal()} title="Set Daily Macros Goals" onConfirm={macros.updateMacrosGoals} scrollable={true}>
         <Text style={styles.inputLabel}>Protein goal (g)</Text>
         <TextInput style={styles.input} placeholder="e.g., 150" keyboardType="decimal-pad" value={macros.goalsInput.protein} onChangeText={(v) => macros.setGoalsInput(p => ({ ...p, protein: v }))} />
@@ -953,7 +931,6 @@ export default function TrackingScreen() {
         <TextInput style={styles.input} placeholder="e.g., 2000" keyboardType="decimal-pad" value={macros.goalsInput.calories} onChangeText={(v) => macros.setGoalsInput(p => ({ ...p, calories: v }))} />
       </ModalSheet>
 
-      {/* Body Fat Modal */}
       <ModalSheet visible={bodyFat.showBodyFatModal} onClose={() => { bodyFat.closeBodyFatModal(); setSelectedLogDate(null); }} title="Calculate Body Fat %" subtitle="US Navy Method" onConfirm={bodyFat.calculateBodyFat} confirmText="Calculate" scrollable={true}>
         <View style={styles.genderToggle}>
           {["male", "female"].map((g: string) => (
@@ -984,7 +961,6 @@ export default function TrackingScreen() {
         )}
       </ModalSheet>
 
-      {/* Measurement Modal */}
       <ModalSheet visible={measurements.showMeasurementModal} onClose={() => { measurements.closeMeasurementModal(); setSelectedLogDate(null); }} title="Log Measurements" onConfirm={measurements.handleLogMeasurement}>
         <Text style={styles.inputLabel}>Waist (cm)</Text>
         <TextInput style={styles.input} placeholder="e.g., 80" keyboardType="decimal-pad" value={measurements.newWaist} onChangeText={measurements.setNewWaist} />
@@ -1005,7 +981,6 @@ export default function TrackingScreen() {
         <TextInput style={styles.input} placeholder="e.g., 38" keyboardType="decimal-pad" value={measurements.newCustomBodyPartValue} onChangeText={measurements.setNewCustomBodyPartValue} />
       </ModalSheet>
 
-      {/* Per-day Flow Modal (menstrual) */}
       <ModalSheet visible={showFlowModal} onClose={() => { setShowFlowModal(false); setFlowModalDate(null); setFlowModalCycleEntry(null); }} title="Set Flow Intensity" onConfirm={async () => {
         if (!flowModalDate) return;
         try {
@@ -1044,7 +1019,6 @@ export default function TrackingScreen() {
         )}
       </ModalSheet>
 
-      {/* UNIFIED DAY MODAL */}
       <ModalSheet visible={!!dayModal} onClose={() => { setDayModal(null); setSelectedLogDate(null); }} showCancelButton={false} showConfirmButton={false} scrollable={true}>
         <View style={styles.dayModalHeader}>
           <View style={styles.dayModalIconCircle}>

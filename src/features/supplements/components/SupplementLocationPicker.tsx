@@ -362,7 +362,6 @@ export default function SupplementLocationPicker({
       showConfirmButton={false}
       headerActions={{ title: "Select Reminder Location" }}
     >
-      {/* Map Container */}
       <View style={styles.mapContainer}>
         {loading && (
           <View style={styles.loadingOverlay}>
@@ -431,7 +430,6 @@ export default function SupplementLocationPicker({
         </View>
       </View>
 
-      {/* Address Bar */}
       <View style={styles.addressBarContainer}>
         <View style={styles.addressInputContainer}>
           <TextInput

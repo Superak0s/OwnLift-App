@@ -352,7 +352,6 @@ export default function ExerciseAnalytics({
       ? (currentBodyWeight - weight) * reps
       : weight * reps;
 
-  // ─── History source 1: live server sessions ────────────────────────────
   const buildHistoryEntryFromTiming = (
     timing: SetTiming,
     session: Session,
@@ -386,7 +385,6 @@ export default function ExerciseAnalytics({
         .filter((entry): entry is ExerciseHistoryEntry => entry != null),
     );
 
-  // ─── History source 2: locally-completed (not yet synced) sets ────────
   const buildHistoryFromCompletedSet = (
     exercise: { name: string },
     exerciseSets: NonNullable<CompletedDays[number]>[number],
@@ -864,9 +862,6 @@ export default function ExerciseAnalytics({
     );
   };
 
-  // weight/volume/reps progress widgets only differ by title, icon, metric
-  // key, and y-axis suffix — driven off one small config table instead of
-  // three near-identical case bodies.
   type ProgressWidgetType =
     | "weight_progress"
     | "volume_progress"
@@ -940,9 +935,6 @@ export default function ExerciseAnalytics({
     }
   };
 
-  // True only when the pull-to-add-widget hint / emulator shortcut / widget
-  // board are actually relevant to show — i.e. we're on the exercise or
-  // muscle-group tab and there's real content loaded underneath them.
   const showAnalyticsChrome =
     focusMode !== "training_summary" &&
     !isLoading &&
@@ -1218,9 +1210,6 @@ export default function ExerciseAnalytics({
         </View>
       )}
 
-      {/* Header + tab bar now live inside the ScrollView (like TrackingScreen)
-          instead of above it, so they scroll away with the content instead
-          of staying pinned at the very top of the screen. */}
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ flexGrow: 1 }}

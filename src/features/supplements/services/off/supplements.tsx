@@ -1,6 +1,3 @@
-// features/supplements/services/off/supplements.tsx
-//
-
 import {
   computeDailyStreak,
   nextId,
@@ -22,7 +19,6 @@ import type {
   UpdateSupplementParams,
 } from "../../types"
 
-// ─── Storage shape ──────────────────────────────────────────────────────────
 
 interface StoredSupplement {
   id: number
@@ -104,10 +100,8 @@ async function toSummary(s: StoredSupplement): Promise<SupplementSummary> {
   }
 }
 
-// ─── API ────────────────────────────────────────────────────────────────────
 
 export const supplementsApi = {
-  // ── Supplement CRUD ──────────────────────────────────────────
 
   list: async (): Promise<{
     success: boolean
@@ -173,7 +167,6 @@ export const supplementsApi = {
     return { success: true }
   },
 
-  // ── Log ──────────────────────────────────────────────────────
 
   log: async (
     id: number,
@@ -230,7 +223,6 @@ export const supplementsApi = {
     return { success: true }
   },
 
-  // ── Location ─────────────────────────────────────────────────
 
   saveLocation: async (
     id: number,

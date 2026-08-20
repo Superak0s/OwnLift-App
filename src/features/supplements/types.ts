@@ -1,6 +1,3 @@
-// ReminderLocation is the single source of truth from @shared/types.
-// Previously this file exported SelectedLocation and SupplementLocationParams
-// as aliases — those have been removed; import ReminderLocation directly.
 export { ReminderLocation } from "@shared/types"
 
 export interface SupplementTemplate {

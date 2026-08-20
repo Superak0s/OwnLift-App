@@ -1,23 +1,3 @@
-/**
- * ThemeEditorModal.tsx
- *
- * A full-screen modal that lets users:
- *   • Switch between built-in Light / Dark / System themes
- *   • Create a fully custom theme with a live color picker
- *   • Export any theme as a shareable JSON string
- *   • Import a theme from JSON shared by another user
- *   • Delete custom themes
- *
- * Usage in SettingsScreen (or anywhere):
- *
- *   import ThemeEditorModal from "../components/ThemeEditorModal"
- *
- *   <ThemeEditorModal
- *     visible={showThemeModal}
- *     onClose={() => setShowThemeModal(false)}
- *   />
- */
-
 import React, { useState, useCallback } from "react"
 import {
   View,
@@ -42,7 +22,6 @@ import { useAlert } from "./CustomAlert"
 import ModalSheet from "./ModalSheet"
 import { generateId } from "@utils/format"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = "browse" | "create" | "import"
 
@@ -57,7 +36,6 @@ interface ThemeEditorModalProps {
   readonly onClose: () => void
 }
 
-// ─── Color token metadata ─────────────────────────────────────────────────────
 
 const COLOR_ROWS: ColorRow[] = [
   {
@@ -133,7 +111,6 @@ const COLOR_ROWS: ColorRow[] = [
   { key: "separator", label: "Separator", description: "Divider lines" },
 ]
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isValidHex(hex: string): boolean {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex)
@@ -158,7 +135,6 @@ function withAlpha(hex: string, alpha: number): string {
   return `${hex.slice(0, 7)}${a}`
 }
 
-/** Derive a full ThemeColors object from just a few key values */
 function deriveColors(
   bg: string,
   surface: string,
@@ -196,7 +172,6 @@ function deriveColors(
   }
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ThemeCard({
   theme,
@@ -222,7 +197,6 @@ function ThemeCard({
         isActive && { borderWidth: 2.5, backgroundColor: c.accentLight },
       ]}
     >
-      {/* Mini preview */}
       <View style={[cardStyles.preview, { backgroundColor: c.background }]}>
         <View style={[cardStyles.previewBar, { backgroundColor: c.surface }]}>
           <View
@@ -252,7 +226,6 @@ function ThemeCard({
         <View style={[cardStyles.previewBtn, { backgroundColor: c.accent }]} />
       </View>
 
-      {/* Info */}
       <View style={cardStyles.info}>
         <View style={cardStyles.titleRow}>
           <Text style={cardStyles.name}>{theme.name}</Text>
@@ -370,7 +343,6 @@ const cardStyles = StyleSheet.create({
   iconBtnText: { fontSize: 16 },
 })
 
-// ─── Color picker row ─────────────────────────────────────────────────────────
 
 function ColorPickerRow({
   row,
@@ -448,7 +420,6 @@ const pickerStyles = StyleSheet.create({
   inputError: { borderColor: "#ef4444" },
 })
 
-// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function ThemeEditorModal({
   visible,
@@ -468,13 +439,11 @@ export default function ThemeEditorModal({
 
   const [tab, setTab] = useState<Tab>("browse")
 
-  // ── Create tab state ──────────────────────────────────────────────────────
   const [themeName, setThemeName] = useState("")
   const [themeAuthor, setThemeAuthor] = useState("")
   const [themeDesc, setThemeDesc] = useState("")
   const [basePreset, setBasePreset] = useState<"light" | "dark">("light")
 
-  // Quick-derive fields
   const [bgColor, setBgColor] = useState(LIGHT_COLORS.background)
   const [surfaceColor, setSurfaceColor] = useState(LIGHT_COLORS.surface)
   const [accentColor, setAccentColor] = useState(LIGHT_COLORS.accent)
@@ -484,14 +453,11 @@ export default function ThemeEditorModal({
     useState<ThemeColors>(LIGHT_COLORS)
   const [saving, setSaving] = useState(false)
 
-  // ── Import tab state ──────────────────────────────────────────────────────
   const [importJson, setImportJson] = useState("")
 
-  // ── Export sheet ──────────────────────────────────────────────────────────
   const [exportJson, setExportJson] = useState("")
   const [showExportSheet, setShowExportSheet] = useState(false)
 
-  // ── Derived colors for preview ────────────────────────────────────────────
   const previewColors = showAdvanced
     ? advancedColors
     : deriveColors(bgColor, surfaceColor, accentColor, textColor)
@@ -644,7 +610,6 @@ export default function ThemeEditorModal({
       showConfirmButton={false}
       fullHeight
     >
-      {/* ── Tabs ── */}
       <View style={[s.tabBar, { borderBottomColor: colors.surfaceBorder }]}>
         {(["browse", "create", "import"] as Tab[]).map((t) => (
           <TouchableOpacity
@@ -671,14 +636,12 @@ export default function ThemeEditorModal({
         ))}
       </View>
 
-      {/* ── Content ── */}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={s.content}
         keyboardShouldPersistTaps='handled'
         showsVerticalScrollIndicator={false}
       >
-        {/* ══════════════ BROWSE TAB ══════════════ */}
         {tab === "browse" && (
           <View>
             <Text style={[s.sectionHeader, { color: colors.textSecondary }]}>
@@ -740,10 +703,8 @@ export default function ThemeEditorModal({
           </View>
         )}
 
-        {/* ══════════════ CREATE TAB ══════════════ */}
         {tab === "create" && (
           <View>
-            {/* Live preview strip */}
             <View
               style={[
                 s.previewStrip,
@@ -815,7 +776,6 @@ export default function ThemeEditorModal({
               </View>
             </View>
 
-            {/* Theme meta */}
             <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
               THEME NAME *
             </Text>
@@ -873,7 +833,6 @@ export default function ThemeEditorModal({
               numberOfLines={2}
             />
 
-            {/* Base preset */}
             <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
               START FROM
             </Text>
@@ -912,7 +871,6 @@ export default function ThemeEditorModal({
               ))}
             </View>
 
-            {/* Quick colors */}
             <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>
               QUICK COLORS
             </Text>
@@ -973,7 +931,6 @@ export default function ThemeEditorModal({
               ))}
             </View>
 
-            {/* Advanced toggle */}
             <TouchableOpacity
               style={[s.advancedToggle, { borderColor: colors.surfaceBorder }]}
               onPress={() => {
@@ -1019,7 +976,6 @@ export default function ThemeEditorModal({
               </View>
             )}
 
-            {/* Save */}
             <TouchableOpacity
               style={[
                 s.saveBtn,
@@ -1038,7 +994,6 @@ export default function ThemeEditorModal({
           </View>
         )}
 
-        {/* ══════════════ IMPORT TAB ══════════════ */}
         {tab === "import" && (
           <View>
             <View
@@ -1095,7 +1050,6 @@ export default function ThemeEditorModal({
         )}
       </ScrollView>
 
-      {/* ── Export sheet ── */}
       <ModalSheet
         visible={showExportSheet}
         onClose={() => setShowExportSheet(false)}
@@ -1141,7 +1095,6 @@ export default function ThemeEditorModal({
   )
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   tabBar: {
@@ -1175,7 +1128,6 @@ const s = StyleSheet.create({
   },
   createCtaText: { fontSize: 15, fontWeight: "700" },
 
-  // Preview strip
   previewStrip: {
     borderRadius: 16,
     padding: 12,
@@ -1204,7 +1156,6 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Form
   fieldLabel: {
     fontSize: 11,
     fontWeight: "700",
@@ -1280,7 +1231,6 @@ const s = StyleSheet.create({
   },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 
-  // Import tab
   importInfoCard: {
     borderRadius: 16,
     borderWidth: 1.5,
@@ -1298,7 +1248,6 @@ const s = StyleSheet.create({
     fontSize: 12,
   },
 
-  // Export sheet
   exportJsonScroll: {
     borderRadius: 12,
     maxHeight: 200,

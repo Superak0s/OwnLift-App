@@ -1,12 +1,3 @@
-// src/shared/context/hooks/useWidgets.tsx
-//
-// Renamed from useHomeWidgets -> useWidgets (it's a generic "place widgets
-// on a screen" hook, not something tied specifically to Home).
-//
-// BUG FIX: this hook was never imported/rendered anywhere in the app, so
-// the whole widget feature was dead code. See WidgetsPanel.tsx +
-// WidgetGallery.tsx + the updated HomeScreen.tsx for the wiring that makes
-// it actually show up and actually work.
 import { useState, useEffect, useCallback, useRef } from "react"
 import { saveToStorage, loadFromStorage } from "@shared/services/storage"
 import { generateId } from "@utils/format"

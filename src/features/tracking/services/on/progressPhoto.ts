@@ -1,7 +1,3 @@
-// features/tracking/services/on/progressPhoto.ts
-//
-// Progress Photo with muscle tagging API - Online mode
-
 import { apiCall } from "@shared/services/apiClient";
 import { getServerUrl } from "@shared/services/config";
 import { tokenStorage } from "@shared/services/tokenStorage";
@@ -17,10 +13,6 @@ function withAbsoluteUri(photo: ProgressPhotoMuscle): ProgressPhotoMuscle {
 }
 
 export const progressPhotoApi = {
-  /**
-   * Upload a progress photo with muscle tags
-   * POST /api/tracking/progress-photos (multipart/form-data)
-   */
   uploadPhoto: async (params: LogProgressPhotoParams): Promise<ApiResponse<ProgressPhotoMuscle>> => {
     const API_BASE_URL = getServerUrl();
     const token = await tokenStorage.get();
@@ -57,28 +49,16 @@ export const progressPhotoApi = {
     return { ...res, data: res.data?.map(withAbsoluteUri) };
   },
 
-  /**
-   * Get photos filtered by muscle group
-   * GET /api/tracking/progress-photos/muscle/:muscle
-   */
   getPhotosByMuscle: async (muscle: string): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
     const res = await apiCall<ApiResponse<ProgressPhotoMuscle[]>>(`/api/tracking/progress-photos/muscle/${muscle}`);
     return { ...res, data: res.data?.map(withAbsoluteUri) };
   },
 
-  /**
-   * Get photos by date range
-   * GET /api/tracking/progress-photos/range?start=YYYY-MM-DD&end=YYYY-MM-DD
-   */
   getPhotosInRange: async (startDate: string, endDate: string): Promise<ApiResponse<ProgressPhotoMuscle[]>> => {
     const res = await apiCall<ApiResponse<ProgressPhotoMuscle[]>>(`/api/tracking/progress-photos/range?start=${startDate}&end=${endDate}`);
     return { ...res, data: res.data?.map(withAbsoluteUri) };
   },
 
-  /**
-   * Delete a progress photo
-   * DELETE /api/tracking/progress-photos/:id
-   */
   deletePhoto: async (id: string | number): Promise<ApiResponse<null>> =>
     apiCall(`/api/tracking/progress-photos/${id}`, { method: "DELETE" }),
 };

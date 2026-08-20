@@ -1,4 +1,3 @@
-// utils/clientWorkoutParser.tsx
 // Client-side (React Native/Expo) counterpart to utils/workoutParser.ts.
 // Parsing LOGIC is kept byte-for-byte in sync with utils/workoutParser.ts and
 // src/models/workout/parser.ts. Only the file-reading step differs, because
@@ -178,9 +177,6 @@ function buildSplitColumnsForDay(
     .filter((c) => c.name.length > 0);
 }
 
-// Records the resolved split columns on the day and makes sure every split
-// name has an entry in both the day's `split` map and the workbook-wide
-// `splits` list.
 function registerSplitColumns(
   day: WorkingDay,
   splitColumns: SplitColumn[],
@@ -193,8 +189,6 @@ function registerSplitColumns(
   }
 }
 
-// Builds a fresh WorkingDay from a "Day ..." row plus the header row right
-// after it (if present).
 function startNewDay(
   firstCell: string,
   data: unknown[][],
