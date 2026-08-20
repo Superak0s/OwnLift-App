@@ -1363,17 +1363,6 @@ const makeStyles = (colors: ThemeColors) =>
       marginBottom: 10,
       lineHeight: 24,
     },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: colors.overlay,
-      justifyContent: "flex-end",
-    },
-    modalContent: {
-      backgroundColor: colors.surface,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      maxHeight: "80%",
-    },
     modalHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -1386,14 +1375,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 20,
       fontWeight: "bold",
       color: colors.textPrimary,
-    },
-    modalClose: {
-      fontSize: 28,
-      color: colors.textSecondary,
-      paddingHorizontal: 10,
-    },
-    dayList: {
-      padding: 15,
     },
     dayOption: {
       backgroundColor: colors.surface,
@@ -1479,9 +1460,6 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textSecondary,
       fontStyle: "italic",
       textAlign: "center",
-    },
-    sessionsList: {
-      padding: 15,
     },
     sessionListItem: {
       flexDirection: "row",
