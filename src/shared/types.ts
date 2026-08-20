@@ -167,12 +167,6 @@ export interface MacrosEntry {
   meal_error_margin?: number | null
 }
 
-export interface MacrosStat {
-  value: number | null
-  goal: number | null
-  percent: number | null
-}
-
 export interface BodyFatEntry {
   id: string | number
   body_fat_percentage?: number

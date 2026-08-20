@@ -19,18 +19,6 @@ export const timed = <T>(label: string, fn: () => T, extra = ""): T => {
   return result;
 };
 
-export const timedAsync = async <T>(
-  label: string,
-  fn: () => Promise<T>,
-  extra = "",
-): Promise<T> => {
-  if (!__DEV__) return fn();
-  const start = now();
-  const result = await fn();
-  perfLog(label, now() - start, extra);
-  return result;
-};
-
 export const startTimer = (): (() => number) => {
   const start = now();
   return () => now() - start;

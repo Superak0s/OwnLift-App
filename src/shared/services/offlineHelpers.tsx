@@ -149,8 +149,6 @@ export function nowIso(): string {
   return new Date().toISOString()
 }
 
-export { toDateString as dayKey } from "@utils/format"
-
 export function distanceMeters(
   lat1: number,
   lon1: number,
