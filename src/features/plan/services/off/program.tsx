@@ -1,5 +1,5 @@
 import type { SavedProgram, ExercisePayload } from "../../types"
-import type { WorkoutDay, WorkoutData } from "@shared/types"
+import type { WorkoutData } from "@shared/types"
 import { parseWorkoutFileClient } from "@utils/clientWorkoutParser"
 import { migrateLegacyProgram } from "@utils/legacyProgram"
 import {

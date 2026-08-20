@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   View,
   Text,
@@ -36,7 +35,6 @@ import {
 } from "./widgets";
 import type {
   WorkoutData,
-  RootStackParamList,
   WorkoutDay,
   WidgetInstance,
 } from "@shared/types";
@@ -56,8 +54,6 @@ import {
 } from "@utils/clientWorkoutParser";
 import SplitColumnPicker from "./utils/splitColumnPicker";
 import ModalSheet from "@shared/components/ModalSheet";
-import { sinceBoot } from "@shared/services/debugClock";
-import logger from "@shared/services/logger";
 import type { WdDay, SplitDayDraft } from "./types";
 import { SplitDayRow } from "./components/SplitDayRow";
 import type { CanonicalExercise } from "@utils/exerciseDb";
@@ -88,12 +84,7 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-type PlanScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, "Plan">;
-};
-export default function PlanScreen({
-  navigation,
-}: PlanScreenProps): React.JSX.Element {
+export default function PlanScreen(): React.JSX.Element {
   const markBodyDone = useRenderTimer("PlanScreen");
 
   const { colors } = useTheme();
@@ -828,7 +819,6 @@ export default function PlanScreen({
         </Text>
       );
     }
-    const handleUnhideAll = () => setHiddenDays(new Set());
     return (
       <View>
         <View style={styles.summaryRow}>
@@ -1468,27 +1458,6 @@ const makeStyles = (colors: ThemeColors) =>
     },
     programSetsRow: { flexDirection: "row", gap: 6 },
 
-    editModeLabel: {
-      fontSize: 12,
-      color: colors.accent,
-      fontWeight: "600",
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-      marginBottom: 12,
-    },
-    editExerciseBlock: {
-      borderWidth: 1,
-      borderColor: colors.separator,
-      borderRadius: 10,
-      padding: 12,
-      marginBottom: 10,
-      backgroundColor: colors.background,
-    },
-    removeExerciseBtn: {
-      alignSelf: "flex-end",
-      paddingVertical: 2,
-      paddingHorizontal: 6,
-    },
     removeExerciseBtnText: {
       fontSize: 12,
       fontWeight: "600",
@@ -1537,24 +1506,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 9,
       fontSize: 15,
       color: colors.textPrimary,
-    },
-    editSetsRow: {
-      flexDirection: "row",
-      gap: 8,
-      flexWrap: "wrap",
-      marginTop: 2,
-    },
-    editSetItem: {
-      alignItems: "center",
-      minWidth: 64,
-    },
-    editSetSplitLabel: {
-      fontSize: 11,
-      fontWeight: "700",
-      color: colors.textMuted,
-      textTransform: "uppercase",
-      letterSpacing: 0.4,
-      marginBottom: 4,
     },
     editSetInput: {
       backgroundColor: colors.surface,

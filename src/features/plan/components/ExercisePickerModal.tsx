@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import ModalSheet from "@shared/components/ModalSheet";
 import { useTheme, type ThemeColors } from "@shared/context/ThemeContext";
 import { filterExercises, type CanonicalExercise } from "@utils/exerciseDb";
