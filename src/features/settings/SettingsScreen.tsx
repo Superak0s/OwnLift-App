@@ -14,7 +14,6 @@ import {
   TextInput,
   Switch,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -1813,41 +1812,10 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textMuted,
       textAlign: "center",
     },
-    modalHeaderButton: { padding: 8 },
-    modalHeaderButtonText: {
-      fontSize: 16,
-      color: colors.error,
-      fontWeight: "600",
-    },
     fullModalContent: { padding: 20, paddingBottom: 20 },
-    fullModalFooter: {
-      padding: 20,
-      paddingBottom: Platform.OS === "ios" ? 34 : 20,
-      backgroundColor: colors.surface,
-      borderTopWidth: 1,
-      borderTopColor: colors.inputBorder,
-    },
-    infoCardBig: {
-      backgroundColor: colors.infoLight,
-      borderRadius: 16,
-      padding: 20,
-      alignItems: "center",
-      marginBottom: 24,
-    },
     
     
     
-    settingsSection: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 16,
-    },
-    settingsSectionHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
     settingsTitleContainer: {
       flexDirection: "row",
       alignItems: "center",
@@ -1859,71 +1827,10 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: "700",
       color: colors.textPrimary,
     },
-    settingsSectionSubtitle: {
-      fontSize: 13,
-      color: colors.textMuted,
-      marginTop: 2,
-    },
     settingsSectionHeaderSimple: {
       flexDirection: "row",
       alignItems: "center",
       marginBottom: 12,
-    },
-    settingsSectionContent: { marginTop: 16 },
-    timePickerButton: {
-      backgroundColor: colors.inputBackground,
-      borderRadius: 12,
-      padding: 16,
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      borderWidth: 2,
-      borderColor: colors.accent,
-    },
-    timePickerLabel: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      fontWeight: "600",
-    },
-    timePickerValue: { fontSize: 24, fontWeight: "700", color: colors.accent },
-    locationButton: {
-      backgroundColor: "#f0f9ff",
-      borderRadius: 12,
-      padding: 16,
-      borderWidth: 2,
-      borderColor: "#0ea5e9",
-    },
-    locationButtonLabel: { fontSize: 15, color: "#0c4a6e", fontWeight: "600" },
-    bothEnabledCard: {
-      backgroundColor: colors.successLight,
-      borderRadius: 16,
-      padding: 16,
-      alignItems: "center",
-      marginBottom: 16,
-      borderWidth: 2,
-      borderColor: colors.success,
-    },
-    bothEnabledIcon: { fontSize: 32, marginBottom: 8 },
-    bothEnabledTitle: {
-      fontSize: 16,
-      fontWeight: "700",
-      color: colors.success,
-      marginBottom: 6,
-    },
-    bothEnabledText: {
-      fontSize: 13,
-      color: "#047857",
-      textAlign: "center",
-      lineHeight: 18,
-    },
-    inputContainerBig: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: colors.inputBackground,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      borderWidth: 1,
-      borderColor: colors.inputBorder,
     },
     inputBig: {
       flex: 1,
@@ -1932,41 +1839,11 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 14,
       color: colors.textPrimary,
     },
-    inputUnitBig: { fontSize: 16, color: colors.textMuted, fontWeight: "600" },
     hintText: {
       fontSize: 12,
       color: colors.textMuted,
       marginTop: 8,
       fontStyle: "italic",
-    },
-    notificationTypes: { flexDirection: "row", gap: 12, marginTop: 12 },
-    notificationOption: {
-      flex: 1,
-      backgroundColor: colors.inputBackground,
-      borderRadius: 12,
-      padding: 16,
-      alignItems: "center",
-      borderWidth: 2,
-      borderColor: colors.inputBorder,
-    },
-    notificationOptionActive: {
-      backgroundColor: colors.infoLight,
-      borderColor: "#8b5cf6",
-    },
-    notificationIcon: { fontSize: 28, marginBottom: 8 },
-    notificationLabel: {
-      fontSize: 14,
-      fontWeight: "700",
-      color: colors.textSecondary,
-      marginBottom: 4,
-    },
-    notificationLabelActive: { color: "#6d28d9" },
-    notificationDes: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 16,
-      borderWidth: 2,
-      borderColor: colors.accent,
     },
     summaryTitle: {
       fontSize: 16,
