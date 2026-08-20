@@ -82,7 +82,6 @@ interface ExerciseAnalyticsProps {
   readonly onRefresh?: (() => void) | null;
   readonly refreshing?: boolean;
   readonly title?: string;
-  readonly currentSessionId?: string | null;
   readonly isLoading?: boolean;
   readonly error?: string | null;
   /** Used to key widget layout persistence per-user, same as HomeScreen. */
@@ -99,7 +98,6 @@ export default function ExerciseAnalytics({
   onRefresh = null,
   refreshing = false,
   title = "📊 Exercise Analytics",
-  currentSessionId = null,
   isLoading = false,
   error = null,
   userId = null,

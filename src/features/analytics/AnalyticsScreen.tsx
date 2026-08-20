@@ -15,7 +15,6 @@ export default function AnalyticsScreen(): React.JSX.Element {
     isDemoMode,
     syncFromServer,
     fetchSessionHistory,
-    currentSessionId,
   } = useWorkout();
 
   const { user } = useAuth();
@@ -148,7 +147,6 @@ export default function AnalyticsScreen(): React.JSX.Element {
         onRefresh={onRefresh}
         refreshing={refreshing}
         title='📊 Exercise Analytics'
-        currentSessionId={currentSessionId}
         isLoading={isLoading}
         error={error}
         userId={user?.id ?? null}
