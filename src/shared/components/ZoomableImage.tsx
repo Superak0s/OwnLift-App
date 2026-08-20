@@ -1,4 +1,3 @@
-import React from "react";
 import { StyleSheet, ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {

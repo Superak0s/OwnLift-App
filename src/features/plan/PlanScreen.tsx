@@ -1081,7 +1081,6 @@ export default function PlanScreen(): React.JSX.Element {
             <React.Profiler id='Plan/WidgetsPanel' onRender={onRenderProfiler}>
             <WidgetsPanel
               widgets={widgets}
-              isLoaded={widgetsLoaded}
               editMode={widgetEditMode}
               onCycleSize={cycleWidgetSize}
               onRemove={removeWidget}

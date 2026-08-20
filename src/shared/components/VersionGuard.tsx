@@ -1,4 +1,4 @@
-import React, { type ReactNode } from "react"
+import { type ReactNode } from "react"
 
 // Server version compatibility used to be checked here, but the check was
 // always a stub that reported the client as compatible with itself — so the

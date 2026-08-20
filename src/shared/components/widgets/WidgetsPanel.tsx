@@ -82,7 +82,6 @@ import type {
 
 interface WidgetsPanelProps<T extends string> {
   widgets: WidgetInstance<T>[]
-  isLoaded: boolean
   /** When false, widgets render as plain display cards — no drag handle,
    *  no remove button, and tapping doesn't cycle size. Turn on via the
    *  two-finger pull gesture or an explicit Edit toggle. */
@@ -170,7 +169,6 @@ type LayoutBox = { x: number; y: number; width: number; height: number }
 
 export default function WidgetsPanel<T extends string>({
   widgets,
-  isLoaded,
   editMode,
   onCycleSize,
   onRemove,

@@ -1420,7 +1420,6 @@ export default function FriendsScreen(): React.JSX.Element {
           <WidgetsPanel
             key={activeTab}
             widgets={activeBoard.widgets}
-            isLoaded={activeBoard.isLoaded}
             editMode={widgetEditMode}
             onCycleSize={activeBoard.cycleWidgetSize}
             onRemove={activeBoard.removeWidget}

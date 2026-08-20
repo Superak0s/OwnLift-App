@@ -106,7 +106,6 @@ interface AcceptInviteResponse {
 }
 
 export const useJointSession = ({
-  userId,
   currentSessionId,
   workoutStartTime,
   currentDayExercises = [],

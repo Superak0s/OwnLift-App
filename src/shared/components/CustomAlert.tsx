@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef, type ReactElement } from "react"
+import { useState, useCallback, useEffect, useMemo, useRef, type ReactElement } from "react"
 import { useTheme } from "../context/ThemeContext"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import ModalSheet from "./ModalSheet"

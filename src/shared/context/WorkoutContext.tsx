@@ -1,4 +1,4 @@
-import React, {
+import {
   createContext,
   useState,
   useContext,
@@ -10,7 +10,6 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useRealtimeSocket } from "./hooks/useRealtimeSocket";
-import { sinceBoot } from "../services/debugClock";
 import logger from "../services/logger";
 import { logCaller, perfLog, startTimer } from "@utils/perf";
 import { authService } from "@features/auth/services";
@@ -21,7 +20,6 @@ import type { WorkoutAnalytics } from "@features/workout/services/on/workout";
 import {
   STORAGE_KEYS,
   saveToStorage,
-  loadFromStorage,
   loadMultipleFromStorage,
   removeFromStorage,
   removeMultipleFromStorage,
@@ -233,7 +231,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   const [unlockedOverrides, setUnlockedOverrides] = useState<
     Record<number, boolean>
   >({});
-  const [lastResetDate, setLastResetDate] = useState<string | null>(null);
+  const [, setLastResetDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [timeBetweenSets, setTimeBetweenSets] = useState(120);
@@ -525,8 +523,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // checkMondayReset is defined before loadSavedData so it can be called
-  // inside it with a direct resetDate argument — avoiding the stale closure
-  // over lastResetDate that existed before.
+  // inside it with a direct resetDate argument, avoiding a stale closure.
   const checkMondayReset = useCallback(
     async (resetDate: string | null) => {
       try {

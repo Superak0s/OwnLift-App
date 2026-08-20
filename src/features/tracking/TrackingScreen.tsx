@@ -791,7 +791,7 @@ export default function TrackingScreen() {
             </View>
           )}
 
-          <WidgetsPanel key={activeTab} widgets={activeBoard.widgets} isLoaded={activeBoard.isLoaded} editMode={widgetEditMode} onCycleSize={activeBoard.cycleWidgetSize} onRemove={activeBoard.removeWidget} onReorder={activeBoard.reorderWidgets} renderContent={renderWidgetContent} registry={activeRegistry as any} />
+          <WidgetsPanel key={activeTab} widgets={activeBoard.widgets} editMode={widgetEditMode} onCycleSize={activeBoard.cycleWidgetSize} onRemove={activeBoard.removeWidget} onReorder={activeBoard.reorderWidgets} renderContent={renderWidgetContent} registry={activeRegistry as any} />
         </View>
       </ScrollView>
 

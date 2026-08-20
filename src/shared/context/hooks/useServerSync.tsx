@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { programApi } from "@features/plan/services/index";
 import { workoutApi } from "@features/workout/services/index";
-import { sinceBoot } from "@shared/services/debugClock";
 import logger from "@shared/services/logger";
 import type {
   WorkoutData,

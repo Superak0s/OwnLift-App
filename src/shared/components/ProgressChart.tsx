@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { LineChart, BarChart } from "react-native-chart-kit";
 import { useTheme } from "../context/ThemeContext";
@@ -25,7 +25,6 @@ interface ProgressChartProps {
 const { width } = Dimensions.get("window");
 
 const makeChartConfig = (
-  colors: any,
   chartColor: string,
   chartColorDark: string,
 ) => ({
@@ -60,7 +59,6 @@ export default function ProgressChart({
   const effectiveColor = chartColor ?? resolvedChartColor;
   const effectiveColorDark = chartColorDark ?? resolvedChartColorDark;
   const chartConfig = makeChartConfig(
-    colors,
     effectiveColor,
     effectiveColorDark,
   );

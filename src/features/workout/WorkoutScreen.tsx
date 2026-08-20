@@ -1342,7 +1342,6 @@ export default function WorkoutScreen(): React.JSX.Element {
           )}
           <WidgetsPanel
             widgets={widgets}
-            isLoaded={widgetsLoaded}
             editMode={widgetEditMode}
             onCycleSize={cycleWidgetSize}
             onRemove={removeWidget}

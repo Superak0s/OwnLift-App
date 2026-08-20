@@ -762,7 +762,6 @@ export default function HomeScreen({
 
           <WidgetsPanel
             widgets={widgets}
-            isLoaded={widgetsLoaded}
             editMode={widgetEditMode}
             onCycleSize={cycleWidgetSize}
             onRemove={removeWidget}

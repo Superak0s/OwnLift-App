@@ -84,7 +84,6 @@ export const useSessionOperations = ({
   setCurrentSessionId,
   lastSetEndTime,
   setLastSetEndTime,
-  lastActivityTime,
   setLastActivityTime,
   currentDay,
   selectedSplit,

@@ -994,7 +994,6 @@ export default function ExerciseAnalytics({
 
         <WidgetsPanel
           widgets={widgets}
-          isLoaded={widgetsLoaded}
           editMode={widgetEditMode}
           onCycleSize={cycleWidgetSize}
           onRemove={removeWidget}

@@ -1,4 +1,3 @@
-import { getServerUrl } from "./config"
 import { authenticatedFetch } from "./authenticatedFetch"
 
 export class ApiError extends Error {

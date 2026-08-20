@@ -1,4 +1,4 @@
-import React, {
+import {
   createContext,
   useState,
   useContext,
@@ -12,7 +12,6 @@ import { onServerUrlChange } from "../services/config";
 import { getAppMode, isServerless, onAppModeChange } from "../services/appMode";
 import { Alert } from "react-native";
 import { tokenStorage } from "../services/tokenStorage";
-import { sinceBoot } from "../services/debugClock";
 import logger from "../services/logger";
 import type { User } from "../types";
 
