@@ -262,8 +262,8 @@ export default function SettingsScreen(): React.JSX.Element {
   const handleImportCSV = useCallback(async (): Promise<void> => {
     if (!selectedSplit) {
       alert(
-        "No Person Selected",
-        "Select a person before importing workout history.",
+        "No Split Selected",
+        "Select a split before importing workout history.",
         [{ text: "OK" }],
         "error",
       );
@@ -389,9 +389,9 @@ export default function SettingsScreen(): React.JSX.Element {
               }
 
               if (selectedSplit) {
-                // deleteAllSessionsForPerson is imported at the top of the file
+                // deleteAllSessionsForSplit is imported at the top of the file
                 try {
-                  await workoutApi.deleteAllSessionsForPerson(selectedSplit);
+                  await workoutApi.deleteAllSessionsForSplit(selectedSplit);
                 } catch (error) {
                   console.error("Failed to delete server data:", error);
                 }
@@ -779,7 +779,7 @@ export default function SettingsScreen(): React.JSX.Element {
         );
         const mapSession = (s: any) => ({
           id: s.id,
-          person: selectedSplit,
+          split: selectedSplit,
           day_number: s.day_number ?? s.dayNumber ?? 0,
           day_title: s.day_title ?? s.dayTitle,
           start_time: s.start_time ?? s.startTime,
@@ -1218,8 +1218,8 @@ export default function SettingsScreen(): React.JSX.Element {
                       onPress={() => {
                         if (!selectedSplit) {
                           alert(
-                            "No Person Selected",
-                            "Select a person before editing workout history.",
+                            "No Split Selected",
+                            "Select a split before editing workout history.",
                             [{ text: "OK" }],
                             "error",
                           );
@@ -1606,7 +1606,7 @@ export default function SettingsScreen(): React.JSX.Element {
           <EditWorkoutHistoryModal
             visible={showEditHistoryModal}
             onClose={() => setShowEditHistoryModal(false)}
-            person={selectedSplit}
+            split={selectedSplit}
             onDataChanged={() => {
               syncFromServer();
               loadServerProgress();

@@ -9,7 +9,7 @@ const FORCED_PROPERTIES = {
   "org.gradle.caching": "true",
   "org.gradle.configureondemand": "true",
   "org.gradle.daemon": "true",
-  "org.gradle.configuration-cache": "true",
+  "org.gradle.configuration-cache": "false",
   "kotlin.incremental": "true",
   "kotlin.daemon.jvm.options": "-Xmx4g",
 };

@@ -1,5 +1,8 @@
 import { EXERCISES, type CanonicalExercise } from "../data/exercises";
 import { EXERCISE_ALIASES } from "./exerciseAliases";
+import { perfLog, startTimer, timed } from "./perf";
+
+export type { CanonicalExercise };
 
 export const AUTO_ACCEPT_SCORE = 0.85;
 export const SUGGEST_SCORE = 0.5;
@@ -16,6 +19,9 @@ const ABBREVIATIONS: Record<string, string> = {
   sldl: "stiff leg deadlift",
   gm: "good morning",
   ez: "e z curl bar",
+  // The dataset calls plate-loaded machines "Leverage ...", which nobody
+  // writes on a program.
+  leverage: "machine",
 };
 
 // Users write "Tricep Pushdown" where the dataset says "Triceps Pushdown".
@@ -33,25 +39,43 @@ export const normalizeTokens = (name: string): string[] =>
     .flatMap((token) => (ABBREVIATIONS[token] ?? token).split(" "))
     .map(singularize);
 
-export const diceScore = (a: string[], b: string[]): number => {
-  const setA = new Set(a);
-  const setB = new Set(b);
+const diceSets = (setA: Set<string>, setB: Set<string>): number => {
   if (setA.size === 0 || setB.size === 0) return 0;
+  const [small, large] = setA.size < setB.size ? [setA, setB] : [setB, setA];
   let overlap = 0;
-  for (const token of setA) if (setB.has(token)) overlap += 1;
+  for (const token of small) if (large.has(token)) overlap += 1;
   return (2 * overlap) / (setA.size + setB.size);
 };
+
+export const diceScore = (a: string[], b: string[]): number =>
+  diceSets(new Set(a), new Set(b));
 
 // Dataset names carry qualifier suffixes ("Barbell Bench Press - Medium Grip").
 // Scoring against the full name dilutes the overlap so badly that a plain
 // "Barbell Bench Press" loses to "Decline Barbell Bench Press".
 const baseName = (name: string): string => name.split(" - ")[0];
 
+const indexTimer = startTimer();
+
 const tokenIndex = EXERCISES.map((exercise) => ({
   exercise,
-  tokens: normalizeTokens(baseName(exercise.name)),
-  fullTokens: normalizeTokens(exercise.name),
+  tokens: new Set(normalizeTokens(baseName(exercise.name))),
+  fullTokens: new Set(normalizeTokens(exercise.name)),
 }));
+
+// Scoring every entry meant ~900 comparisons per name, which stalls the Plan
+// screen when a whole program is matched at once. Only entries sharing a token
+// can score above zero, and those are the only ones the result keeps.
+const postings = new Map<string, number[]>();
+tokenIndex.forEach((entry, index) => {
+  for (const token of entry.tokens) {
+    const bucket = postings.get(token);
+    if (bucket) bucket.push(index);
+    else postings.set(token, [index]);
+  }
+});
+
+perfLog("exerciseDb.buildIndex", indexTimer(), `${EXERCISES.length} exercises`);
 
 export interface ExerciseCandidate {
   exercise: CanonicalExercise;
@@ -75,7 +99,7 @@ const aliasIndex = new Map(
   ]),
 );
 
-export const matchExercise = (name: string): MatchResult => {
+const computeMatch = (name: string): MatchResult => {
   const tokens = normalizeTokens(name);
   if (tokens.length === 0) return { status: "uncertain", candidates: [] };
 
@@ -87,13 +111,25 @@ export const matchExercise = (name: string): MatchResult => {
     }
   }
 
-  const scored = tokenIndex
-    .map(({ exercise, tokens: dbTokens, fullTokens }) => ({
+  const queryTokens = new Set(tokens);
+  const candidateIndices = new Set<number>();
+  for (const token of queryTokens) {
+    const bucket = postings.get(token);
+    if (bucket) for (const index of bucket) candidateIndices.add(index);
+  }
+
+  // Equal scores fall back to the dataset's own order, so restore it before
+  // the stable sort.
+  const scored = Array.from(candidateIndices)
+    .sort((a, b) => a - b)
+    .map((index) => {
+    const { exercise, tokens: dbTokens, fullTokens } = tokenIndex[index];
+    return {
       exercise,
-      score: diceScore(tokens, dbTokens),
-      fullScore: diceScore(tokens, fullTokens),
-    }))
-    .filter((candidate) => candidate.score > 0)
+      score: diceSets(queryTokens, dbTokens),
+      fullScore: diceSets(queryTokens, fullTokens),
+    };
+  })
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -126,6 +162,18 @@ export const matchExercise = (name: string): MatchResult => {
   };
 };
 
+// A program is re-matched on every Plan screen mount, and the same exercise
+// name usually repeats across days.
+const matchCache = new Map<string, MatchResult>();
+
+export const matchExercise = (name: string): MatchResult => {
+  const cached = matchCache.get(name);
+  if (cached) return cached;
+  const result = timed("exerciseDb.matchExercise", () => computeMatch(name), name);
+  matchCache.set(name, result);
+  return result;
+};
+
 export const searchExercises = (
   query: string,
   limit = 8,
@@ -147,10 +195,43 @@ export const toSuggestions = (
   query: string,
   limit = 8,
 ): ExerciseSuggestion[] =>
-  searchExercises(query, limit).map((exercise) => ({
+  timed("exerciseDb.searchExercises", () => searchExercises(query, limit), query).map((exercise) => ({
     id: exercise.id,
     label: exercise.name,
     meta: [exercise.primaryMuscles.join(", "), exercise.equipment]
       .filter(Boolean)
       .join(" · "),
   }));
+
+export const MUSCLE_GROUPS: string[] = Array.from(
+  new Set(EXERCISES.flatMap((exercise) => exercise.primaryMuscles)),
+).sort((a, b) => a.localeCompare(b));
+
+export interface ExerciseFilter {
+  query?: string;
+  include?: readonly string[];
+  exclude?: readonly string[];
+  limit?: number;
+}
+
+export const filterExercises = ({
+  query = "",
+  include = [],
+  exclude = [],
+  limit = 50,
+}: ExerciseFilter): CanonicalExercise[] => {
+  const needle = query.trim().toLowerCase();
+  const results: CanonicalExercise[] = [];
+  for (const exercise of EXERCISES) {
+    if (needle && !exercise.name.toLowerCase().includes(needle)) continue;
+    if (exclude.some((m) => exercise.primaryMuscles.includes(m))) continue;
+    if (
+      include.length > 0 &&
+      !include.some((m) => exercise.primaryMuscles.includes(m))
+    )
+      continue;
+    results.push(exercise);
+    if (results.length >= limit) break;
+  }
+  return results;
+};

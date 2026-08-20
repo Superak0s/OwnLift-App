@@ -61,7 +61,7 @@ export const workoutApi = {
   },
 
   startSession: async (
-    person: string | null,
+    split: string | null,
     dayNumber: number,
     dayTitle?: string,
     muscleGroups?: string[],
@@ -71,7 +71,7 @@ export const workoutApi = {
     const res = await authenticatedFetch("/api/sessions/start", {
       method: "POST",
       body: JSON.stringify({
-        person,
+        split,
         dayNumber,
         dayTitle,
         muscleGroups,
@@ -159,13 +159,13 @@ export const workoutApi = {
   },
 
   renameExercise: async (
-    person: string,
+    split: string,
     oldName: string,
     updates: { newName?: string; muscleGroup?: string | null },
   ): Promise<RenameExerciseResult> => {
     const res = await authenticatedFetch("/api/sessions/rename-exercise", {
       method: "POST",
-      body: JSON.stringify({ person, oldName, ...updates }),
+      body: JSON.stringify({ split, oldName, ...updates }),
       headers: { "Content-Type": "application/json" },
     })
     // Server responds with { success, updatedCount }.
@@ -193,11 +193,11 @@ export const workoutApi = {
   },
 
   getAnalytics: async (
-    person: string | null = null,
+    split: string | null = null,
     dayNumber: number | null = null,
   ): Promise<WorkoutAnalytics> => {
     const params = new URLSearchParams()
-    if (person) params.set("person", person)
+    if (split) params.set("split", split)
     if (dayNumber) params.set("dayNumber", String(dayNumber))
     const res = await authenticatedFetch(
       `/api/analytics?${params.toString()}`,
@@ -208,13 +208,13 @@ export const workoutApi = {
   },
 
   getSessionHistory: async (
-    person: string | null = null,
+    split: string | null = null,
     dayNumber: number | null = null,
     limit: number = 10,
     includeTimings: boolean = false,
   ): Promise<WorkoutSession[]> => {
     const params = new URLSearchParams()
-    if (person) params.set("person", person)
+    if (split) params.set("split", split)
     if (dayNumber) params.set("dayNumber", String(dayNumber))
     params.set("limit", String(limit))
     params.set("includeTimings", String(includeTimings))
@@ -252,9 +252,9 @@ export const workoutApi = {
     return parseApiResponse(res)
   },
 
-  deleteAllSessionsForPerson: async (person: string): Promise<unknown> => {
+  deleteAllSessionsForSplit: async (split: string): Promise<unknown> => {
     const res = await authenticatedFetch(
-      `/api/sessions/person/${encodeURIComponent(person)}`,
+      `/api/sessions/split/${encodeURIComponent(split)}`,
       { method: "DELETE" },
     )
     return parseApiResponse(res)

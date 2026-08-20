@@ -28,20 +28,20 @@ export interface UseProgramOperationsOptions {
 export interface UseProgramOperationsReturn {
   updateExerciseName: (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     newName: string,
     newMuscleGroup?: string,
   ) => Promise<void>
   addExtraSetsToExercise: (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     additionalSets: number,
   ) => Promise<void>
   addNewExercise: (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseData: {
         name: string
         exerciseId?: string
@@ -69,7 +69,7 @@ export const useProgramOperations = ({
   const updateExerciseName = useCallback(
     async (
       dayNumber: number,
-      person: string,
+      split: string,
       exerciseIndex: number,
       newName: string,
       newMuscleGroup?: string,
@@ -85,11 +85,11 @@ export const useProgramOperations = ({
         if (dayIndex === -1) return
 
         const day = updatedData.days[dayIndex]
-        if (!day.split[person]?.exercises?.[exerciseIndex]) return
+        if (!day.split[split]?.exercises?.[exerciseIndex]) return
 
-        day.split[person].exercises[exerciseIndex].name = newName
+        day.split[split].exercises[exerciseIndex].name = newName
         if (newMuscleGroup !== undefined) {
-          day.split[person].exercises[exerciseIndex].muscleGroup =
+          day.split[split].exercises[exerciseIndex].muscleGroup =
             newMuscleGroup
         }
 
@@ -99,7 +99,7 @@ export const useProgramOperations = ({
         try {
           await programApi.renameExercise(
             dayNumber,
-            person,
+            split,
             exerciseIndex,
             newName,
             newMuscleGroup,
@@ -123,7 +123,7 @@ export const useProgramOperations = ({
   const addExtraSetsToExercise = useCallback(
     async (
       dayNumber: number,
-      person: string,
+      split: string,
       exerciseIndex: number,
       additionalSets: number,
     ): Promise<void> => {
@@ -137,10 +137,10 @@ export const useProgramOperations = ({
         if (dayIndex === -1) return
 
         const day = updatedData.days[dayIndex]
-        if (!day.split[person]?.exercises?.[exerciseIndex]) return
+        if (!day.split[split]?.exercises?.[exerciseIndex]) return
 
-        day.split[person].exercises[exerciseIndex].sets += additionalSets
-        day.split[person].totalSets += additionalSets
+        day.split[split].exercises[exerciseIndex].sets += additionalSets
+        day.split[split].totalSets += additionalSets
 
         await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, updatedData, userId)
         setWorkoutData(updatedData)
@@ -148,7 +148,7 @@ export const useProgramOperations = ({
         try {
           await programApi.patchExerciseSets(
             dayNumber,
-            person,
+            split,
             exerciseIndex,
             additionalSets,
           )
@@ -171,7 +171,7 @@ export const useProgramOperations = ({
   const addNewExercise = useCallback(
     async (
       dayNumber: number,
-      person: string,
+      split: string,
       exerciseData: {
         name: string
         exerciseId?: string
@@ -189,8 +189,8 @@ export const useProgramOperations = ({
         if (dayIndex === -1) return
 
         const day = updatedData.days[dayIndex]
-        if (!day.split[person]) {
-          day.split[person] = { exercises: [], totalSets: 0 }
+        if (!day.split[split]) {
+          day.split[split] = { exercises: [], totalSets: 0 }
         }
 
         const newExercise = {
@@ -200,14 +200,14 @@ export const useProgramOperations = ({
           sets: exerciseData.sets,
         }
 
-        day.split[person].exercises.push(newExercise)
-        day.split[person].totalSets += exerciseData.sets
+        day.split[split].exercises.push(newExercise)
+        day.split[split].totalSets += exerciseData.sets
 
         await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, updatedData, userId)
         setWorkoutData(updatedData)
 
         try {
-          await programApi.addExercise(dayNumber, person, newExercise)
+          await programApi.addExercise(dayNumber, split, newExercise)
         } catch (err) {
           console.warn(
             "Could not sync new exercise to server:",

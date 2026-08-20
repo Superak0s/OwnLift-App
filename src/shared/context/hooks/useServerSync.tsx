@@ -164,14 +164,14 @@ export const useServerSync = ({
           if (!serverDay) return localDay;
 
           const mergedPeople = { ...localDay.split };
-          Object.keys(serverDay.split || {}).forEach((person) => {
-            const serverWorkout = serverDay.split[person];
-            const localWorkout = localDay.split[person];
+          Object.keys(serverDay.split || {}).forEach((split) => {
+            const serverWorkout = serverDay.split[split];
+            const localWorkout = localDay.split[split];
             if (!localWorkout) {
-              mergedPeople[person] = serverWorkout;
+              mergedPeople[split] = serverWorkout;
               return;
             }
-            mergedPeople[person] =
+            mergedPeople[split] =
               (serverWorkout?.exercises?.length ?? 0) >
               (localWorkout?.exercises?.length ?? 0)
                 ? serverWorkout
@@ -272,15 +272,15 @@ export const useServerSync = ({
 
       const day = workoutData.days.find((d) => d.dayNumber === dayNumber);
       if (!day) continue;
-      const personWorkout = day.split[selectedSplit!];
-      if (!personWorkout?.exercises) continue;
+      const splitWorkout = day.split[selectedSplit!];
+      if (!splitWorkout?.exercises) continue;
       if (!newCompletedDays[dayNumber]) {
         newCompletedDays[dayNumber] = {};
       }
 
       processSetTimingsForDay(
         fullSession.set_timings,
-        personWorkout.exercises,
+        splitWorkout.exercises,
         dayNumber,
         newCompletedDays,
       );

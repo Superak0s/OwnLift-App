@@ -2,7 +2,7 @@
   "expo": {
     "name": "OwnLift",
     "slug": "ownlift",
-    "version": "1.2.8",
+    "version": "1.3.0",
     "orientation": "portrait",
     "newArchEnabled": true,
     "jsEngine": "hermes",
@@ -63,7 +63,14 @@
           }
         }
       ],
-      "@sentry/react-native"
+      [
+        "@sentry/react-native",
+        {
+          "organization": "konstantinos-tsiaros",
+          "project": "ownlift-app",
+          "url": "https://de.sentry.io/"
+        }
+      ]
     ],
     "userInterfaceStyle": "light",
     "assetBundlePatterns": [

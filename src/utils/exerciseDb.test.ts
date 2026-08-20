@@ -3,6 +3,7 @@ import {
   diceScore,
   matchExercise,
   searchExercises,
+  filterExercises,
   getExerciseById,
   toSuggestions,
   AUTO_ACCEPT_SCORE,
@@ -156,5 +157,47 @@ describe("toSuggestions", () => {
 describe("getExerciseById", () => {
   it("returns undefined for an unknown id", () => {
     expect(getExerciseById("not_a_real_id")).toBeUndefined();
+  });
+});
+
+describe("machine and assisted gym names", () => {
+  it.each([
+    ["Machine Chest Press", "Leverage_Chest_Press"],
+    ["Seated Chest Press", "Leverage_Chest_Press"],
+    ["Incline Chest Press", "Leverage_Incline_Chest_Press"],
+    ["Hip Abduction", "Thigh_Abductor"],
+    ["Hip Adduction", "Thigh_Adductor"],
+    ["Assisted Dip", "Dip_Machine"],
+    ["Assisted Pullup", "Band_Assisted_Pull-Up"],
+    ["Reverse Curls", "Reverse_Barbell_Curl"],
+    ["Rear Kick Machine", "Glute_Kickback"],
+    ["Dumbbell Curl", "Dumbbell_Bicep_Curl"],
+  ])("matches %s confidently", (name, expectedId) => {
+    const result = matchExercise(name);
+    expect(result.status).toBe("confident");
+    expect(result.candidates[0].exercise.id).toBe(expectedId);
+  });
+});
+
+describe("filterExercises", () => {
+  it("keeps only exercises whose primary muscles are included", () => {
+    const results = filterExercises({ include: ["biceps"], limit: 200 });
+    expect(results.length).toBeGreaterThan(0);
+    expect(
+      results.every((e) => e.primaryMuscles.includes("biceps")),
+    ).toBe(true);
+  });
+
+  it("drops exercises whose primary muscles are excluded", () => {
+    const results = filterExercises({ query: "curl", exclude: ["biceps"] });
+    expect(results.some((e) => e.primaryMuscles.includes("biceps"))).toBe(false);
+  });
+
+  it("matches the query case-insensitively and honours the limit", () => {
+    const results = filterExercises({ query: "BENCH press", limit: 3 });
+    expect(results).toHaveLength(3);
+    expect(
+      results.every((e) => e.name.toLowerCase().includes("bench press")),
+    ).toBe(true);
   });
 });

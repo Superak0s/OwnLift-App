@@ -127,7 +127,7 @@ export const useSyncManager = ({
           case "startSession": {
             // sync.data is StartSessionSyncData — fully typed, no casts needed
             const sessionId = await workoutApi.startSession(
-              sync.data.person,
+              sync.data.split,
               sync.data.dayNumber,
               sync.data.dayTitle,
               sync.data.muscleGroups,

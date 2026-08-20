@@ -19,7 +19,7 @@ const endSession = workoutApi.endSession as jest.Mock;
 function makeSync(timestamp: string): PendingSync {
   return {
     type: "startSession",
-    data: { person: "local", dayNumber: 1, isDemo: false },
+    data: { split: "local", dayNumber: 1, isDemo: false },
     timestamp,
   };
 }
@@ -128,7 +128,7 @@ describe("useSyncManager local-to-server ID remapping on replay", () => {
       {
         type: "startSession",
         localSessionId: "local_1",
-        data: { person: "local", dayNumber: 1, isDemo: false },
+        data: { split: "local", dayNumber: 1, isDemo: false },
         timestamp: "t1",
       },
       {

@@ -394,9 +394,10 @@ export default function LiveSessionTab({
       if (!key) return
 
       let totalSets = 0
-      if (e.setsByPerson && typeof e.setsByPerson === "object") {
+      const setsBySplit = e.setsBySplit ?? e.setsByPerson
+      if (setsBySplit && typeof setsBySplit === "object") {
         totalSets = Math.max(
-          ...Object.values(e.setsByPerson).map(Number).filter(isFinite),
+          ...Object.values(setsBySplit).map(Number).filter(isFinite),
           0,
         )
       } else if (typeof e.sets === "number") {

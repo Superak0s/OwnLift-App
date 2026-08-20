@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import * as Device from "expo-device";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   View,
@@ -20,6 +19,7 @@ import { useAlert } from "@shared/components/CustomAlert";
 import { workoutApi } from "@features/workout/services/index";
 import { formatTime as formatDuration } from "@utils/timeEstimation";
 import { formatDate as formatDateUtil } from "@utils/format";
+import { visibleDaysForSplit } from "@utils/programDays";
 import { useWidgets } from "@shared/context/hooks/useWidgets";
 import { useTwoFingerPull } from "@shared/context/hooks/useTwoFingerPull";
 import WidgetGallery from "@shared/components/widgets/WidgetGallery";
@@ -435,7 +435,6 @@ export default function HomeScreen({
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
-  const isEmulator = !Device.isDevice;
 
   const {
     widgets,
@@ -748,14 +747,6 @@ export default function HomeScreen({
           </Text>
         </View>
       )}
-      {isEmulator && (
-        <TouchableOpacity
-          style={styles.emulatorWidgetButton}
-          onPress={() => setShowWidgetGallery(true)}
-        >
-          <Text style={styles.emulatorWidgetButtonText}>+ Widget</Text>
-        </TouchableOpacity>
-      )}
       <ScrollView
         style={styles.container}
         scrollEnabled={!isPulling}
@@ -809,10 +800,14 @@ export default function HomeScreen({
           showCancelButton={false}
           showConfirmButton={false}
         >
-          {workoutData?.days?.map((day: WorkoutDay) => (
+          {visibleDaysForSplit(
+            workoutData?.days ?? [],
+            typeof selectedSplit === "string" ? selectedSplit : null,
+          ).map(({ day, displayNumber }) => (
             <DayOptionRow
               key={day.dayNumber}
               day={day}
+              displayNumber={displayNumber}
               isCurrent={day.dayNumber === currentDay}
               isLocked={isDayLocked(day.dayNumber)}
               onPress={() => handleSelectDay(day.dayNumber)}
@@ -887,12 +882,14 @@ export default function HomeScreen({
 
 function DayOptionRow({
   day,
+  displayNumber,
   isCurrent,
   isLocked,
   onPress,
   styles,
 }: {
   readonly day: WorkoutDay;
+  readonly displayNumber: number;
   readonly isCurrent: boolean;
   readonly isLocked: boolean;
   readonly onPress: () => void;
@@ -915,7 +912,7 @@ function DayOptionRow({
             isLocked && styles.dayOptionTextComplete,
           ]}
         >
-          {`Day ${day.dayNumber}${isLocked ? " 🔒" : ""}`}
+          {`Day ${displayNumber}${isLocked ? " 🔒" : ""}`}
         </Text>
         <Text style={styles.dayOptionMuscles}>
           {(day.muscleGroups ?? []).join(", ")}
@@ -1666,20 +1663,5 @@ const makeStyles = (colors: ThemeColors) =>
     },
     changeDayButtonDisabled: {
       opacity: 0.5,
-    },
-    emulatorWidgetButton: {
-      position: "absolute",
-      top: 8,
-      right: 12,
-      zIndex: 10,
-      backgroundColor: colors.accent,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 14,
-    },
-    emulatorWidgetButtonText: {
-      color: colors.surface,
-      fontSize: 13,
-      fontWeight: "600",
     },
   });

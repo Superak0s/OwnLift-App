@@ -151,24 +151,20 @@ export function PhotosCalendarWidget() {
 
   if (photoDates.size === 0) {
     return (
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.scrollContent}>
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
           No photos taken yet. Take your first progress photo!
         </Text>
-      </ScrollView>
+      </View>
     );
   }
 
   return (
-    <FlatList
-      data={Array.from(photoDates.entries())}
-      keyExtractor={([date]) => date}
-      style={styles.calendarListBounded}
-      contentContainerStyle={styles.scrollContent}
-      renderItem={({ item: [date, dayPhotos] }) => {
+    <View style={styles.scrollContent}>
+      {Array.from(photoDates.entries()).map(([date, dayPhotos]) => {
         const isExpanded = expandedDate === date;
         return (
-          <View>
+          <View key={date}>
             <TouchableOpacity
               style={[styles.dateRow, { backgroundColor: colors.surface, borderColor: colors.inputBorder }]}
               onPress={() => setExpandedDate(isExpanded ? null : date)}
@@ -213,8 +209,8 @@ export function PhotosCalendarWidget() {
             )}
           </View>
         );
-      }}
-    />
+      })}
+    </View>
   );
 }
 
@@ -389,30 +385,23 @@ export function PhotosGalleryWidget() {
   }
 
   return (
-    <FlatList
-      contentContainerStyle={styles.scrollContent}
-      data={Array.from(photosByDate.entries())}
-      keyExtractor={([date]) => date}
-      ListHeaderComponent={
-        <>
-          <View style={[styles.galleryHeader, { justifyContent: "flex-end" }]}>
-            <TouchableOpacity
-              style={[styles.captureButton, { backgroundColor: colors.accent }]}
-              onPress={() => setShowUploadModal(true)}
-            >
-              <Text style={styles.captureButtonText}>📸 Capture</Text>
-            </TouchableOpacity>
-          </View>
-          {uploadState && <UploadProgressBar state={uploadState} />}
-        </>
-      }
-      ListEmptyComponent={
+    <View style={styles.scrollContent}>
+      <View style={[styles.galleryHeader, { justifyContent: "flex-end" }]}>
+        <TouchableOpacity
+          style={[styles.captureButton, { backgroundColor: colors.accent }]}
+          onPress={() => setShowUploadModal(true)}
+        >
+          <Text style={styles.captureButtonText}>📸 Capture</Text>
+        </TouchableOpacity>
+      </View>
+      {uploadState && <UploadProgressBar state={uploadState} />}
+      {photosByDate.size === 0 && (
         <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
           No photos yet. Tap Capture to take your first progress photo!
         </Text>
-      }
-      renderItem={({ item: [date, dayPhotos] }) => (
-        <View style={styles.photoGroup}>
+      )}
+      {Array.from(photosByDate.entries()).map(([date, dayPhotos]) => (
+        <View key={date} style={styles.photoGroup}>
           <Text style={[styles.groupDate, { color: colors.textSecondary }]}>
             {new Date(date).toLocaleDateString("en-US", {
               weekday: "long",
@@ -442,25 +431,27 @@ export function PhotosGalleryWidget() {
             ))}
           </View>
         </View>
+      ))}
+      {visibleCount < sortedPhotos.length && (
+        <TouchableOpacity
+          style={[styles.captureButton, { backgroundColor: colors.surface, alignSelf: "center" }]}
+          onPress={() => setVisibleCount((c) => c + 4)}
+        >
+          <Text style={[styles.captureButtonText, { color: colors.textPrimary }]}>Show more</Text>
+        </TouchableOpacity>
       )}
-      onEndReachedThreshold={0.5}
-      onEndReached={() => {
-        if (visibleCount < sortedPhotos.length) setVisibleCount((c) => c + 4);
-      }}
-      ListFooterComponent={
-        <LogProgressPhotoModal
-          visible={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
-          onSuccess={() => {
-            setShowUploadModal(false);
-            setVisibleCount(4);
-            refresh();
-          }}
-          onUploadStart={handleUploadStart}
-          onUploadEnd={handleUploadEnd}
-        />
-      }
-    />
+      <LogProgressPhotoModal
+        visible={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onSuccess={() => {
+          setShowUploadModal(false);
+          setVisibleCount(4);
+          refresh();
+        }}
+        onUploadStart={handleUploadStart}
+        onUploadEnd={handleUploadEnd}
+      />
+    </View>
   );
 }
 
@@ -807,9 +798,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-  },
-  calendarListBounded: {
-    maxHeight: 480,
   },
   emptyText: {
     fontSize: 14,

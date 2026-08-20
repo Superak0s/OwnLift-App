@@ -4,7 +4,7 @@ import { View, Text, type StyleProp, type TextStyle, type ViewStyle } from "reac
 export interface ProgramExerciseLike {
   readonly name?: string;
   readonly muscleGroup?: string;
-  readonly setsByPerson?: Record<string, number | string> | null;
+  readonly setsBySplit?: Record<string, number | string> | null;
 }
 
 export interface ProgramDayLike<Ex extends ProgramExerciseLike = ProgramExerciseLike> {
@@ -20,15 +20,16 @@ export function getDayExerciseList<Ex extends ProgramExerciseLike>(
   if (!Array.isArray(day.exercises)) return [];
   if (!selectedProgram) return day.exercises as Ex[];
   return day.exercises.filter(
-    (ex) => Number(ex.setsByPerson?.[selectedProgram] ?? 0) > 0,
+    (ex) => Number(ex.setsBySplit?.[selectedProgram] ?? 0) > 0,
   );
 }
 
 export function getDayLabelAndTitle(
   day: ProgramDayLike,
   dayIdx: number,
+  displayNumber?: number,
 ): { dayLabel: string; dayTitle: string } {
-  const dayLabel = `Day ${day.dayNumber ?? dayIdx + 1}`;
+  const dayLabel = `Day ${displayNumber ?? day.dayNumber ?? dayIdx + 1}`;
   if (!day.dayTitle) return { dayLabel, dayTitle: "" };
   const dayTitle = day.dayTitle.includes("—")
     ? day.dayTitle.split("—")[1].trim()
@@ -36,17 +37,17 @@ export function getDayLabelAndTitle(
   return { dayLabel, dayTitle };
 }
 
-export function getPersonEntries(
+export function getSplitEntries(
   exercise: ProgramExerciseLike,
   selectedProgram: string | null,
 ): Array<[string, number]> {
-  const setsByPerson = exercise.setsByPerson ?? {};
+  const setsBySplit = exercise.setsBySplit ?? {};
   if (!selectedProgram) {
-    return Object.entries(setsByPerson).map(
-      ([person, count]) => [person, Number(count)] as [string, number],
+    return Object.entries(setsBySplit).map(
+      ([split, count]) => [split, Number(count)] as [string, number],
     );
   }
-  return [[selectedProgram, Number(setsByPerson[selectedProgram] ?? 0)]];
+  return [[selectedProgram, Number(setsBySplit[selectedProgram] ?? 0)]];
 }
 
 export interface ProgramExerciseRowStyles {
@@ -63,14 +64,14 @@ export interface ProgramExerciseRowStyles {
 interface ProgramExerciseRowProps {
   readonly name: string;
   readonly muscleGroup?: string;
-  readonly personEntries: Array<[string, number]>;
+  readonly splitEntries: Array<[string, number]>;
   readonly styles: ProgramExerciseRowStyles;
 }
 
 export function ProgramExerciseRow({
   name,
   muscleGroup,
-  personEntries,
+  splitEntries,
   styles,
 }: ProgramExerciseRowProps): React.JSX.Element {
   return (
@@ -82,10 +83,10 @@ export function ProgramExerciseRow({
         ) : null}
       </View>
       <View style={styles.programSetsRow}>
-        {personEntries.map(([person, count]) => (
-          <View key={person} style={styles.programSetsBadge}>
+        {splitEntries.map(([split, count]) => (
+          <View key={split} style={styles.programSetsBadge}>
             <Text style={styles.programSetsBadgeText}>{count}</Text>
-            <Text style={styles.programSetsBadgeLabel}>{person}</Text>
+            <Text style={styles.programSetsBadgeLabel}>{split}</Text>
           </View>
         ))}
       </View>

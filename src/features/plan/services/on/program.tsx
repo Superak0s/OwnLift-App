@@ -4,6 +4,7 @@ import { parseWorkoutFileClient } from "../../../../utils/clientWorkoutParser"
 import type { SavedProgram, ExercisePayload } from "../../types"
 // ExercisePayload is now a re-export of Exercise from @shared/types
 import type { WorkoutData } from "@shared/types"
+import { migrateLegacyProgram } from "@utils/legacyProgram"
 
 export const programApi = {
   uploadAndSave: async (fileUri: string): Promise<unknown> => {
@@ -35,7 +36,7 @@ export const programApi = {
     try {
       const response = await authenticatedFetch(`/api/program`)
       if (response.status === 404) return null
-      return await parseApiResponse(response)
+      return migrateLegacyProgram(await parseApiResponse(response))
     } catch (error) {
       if ((error as Error).message === "SESSION_EXPIRED") throw error
       console.warn("Could not fetch saved program:", (error as Error).message)
@@ -56,7 +57,7 @@ export const programApi = {
    */
   renameExercise: async (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     newName: string,
     newMuscleGroup?: string,
@@ -65,7 +66,7 @@ export const programApi = {
       method: "PATCH",
       body: JSON.stringify({
         dayNumber,
-        person,
+        split,
         exerciseIndex,
         newName,
         ...(newMuscleGroup !== undefined && { newMuscleGroup }),
@@ -78,12 +79,12 @@ export const programApi = {
    */
   addExercise: async (
     dayNumber: number,
-    person: string,
+    split: string,
     exercise: ExercisePayload,
   ): Promise<unknown> =>
     apiCall(`/api/program/exercise/add`, {
       method: "PATCH",
-      body: JSON.stringify({ dayNumber, person, exercise }),
+      body: JSON.stringify({ dayNumber, split, exercise }),
     }),
 
   /**
@@ -92,7 +93,7 @@ export const programApi = {
    */
   patchExerciseSets: async (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     additionalSets: number,
   ): Promise<unknown> =>
@@ -100,7 +101,7 @@ export const programApi = {
       method: "PATCH",
       body: JSON.stringify({
         dayNumber,
-        person,
+        split,
         exerciseIndex,
         additionalSets,
       }),

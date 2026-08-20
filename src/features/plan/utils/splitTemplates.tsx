@@ -1,14 +1,22 @@
 import type {
   WorkoutData,
   WorkoutDay,
-  PersonWorkout,
+  SplitWorkout,
   ExerciseWithSets,
 } from "@shared/types"
 import defaultSplitsJson from "./defaultSplits.json"
 
+export interface SplitDayTemplateExercise {
+  name: string
+  exerciseId?: string
+  muscleGroup?: string
+  sets?: number
+}
+
 export interface SplitDayTemplate {
   dayTitle: string
   muscleGroups: string[]
+  exercises?: SplitDayTemplateExercise[]
 }
 
 export interface SplitTemplate {
@@ -34,26 +42,56 @@ export function createCustomSplitTemplate(
       muscleGroups: d.muscleGroups
         .map((m) => m.trim())
         .filter((m) => m.length > 0),
+      exercises: d.exercises,
     })),
   }
 }
 
-function buildEmptyDay(
+const DEFAULT_SETS = 3
+
+function buildDay(
   dayNumber: number,
   day: SplitDayTemplate,
   split: string[],
+  targetSplits: string[] = split,
 ): WorkoutDay {
-  const emptySplit: Record<string, PersonWorkout> = Object.fromEntries(
-    split.map((p) => [p, { exercises: [], totalSets: 0 }]),
+  const templateExercises = day.exercises ?? []
+  const exercises: ExerciseWithSets[] = templateExercises.map((e) => ({
+    name: e.name,
+    exerciseId: e.exerciseId,
+    muscleGroup: e.muscleGroup ?? "",
+    setsBySplit: Object.fromEntries(
+      split.map((p) => [p, targetSplits.includes(p) ? e.sets ?? DEFAULT_SETS : 0]),
+    ),
+  }))
+
+  const daySplit: Record<string, SplitWorkout> = Object.fromEntries(
+    split.map((p) => {
+      const splitExercises = targetSplits.includes(p) ? exercises : []
+      return [
+        p,
+        {
+          exercises: splitExercises.map((e) => ({
+            name: e.name,
+            exerciseId: e.exerciseId,
+            muscleGroup: e.muscleGroup,
+            sets: e.setsBySplit[p],
+          })),
+          totalSets: splitExercises.reduce(
+            (sum, e) => sum + e.setsBySplit[p],
+            0,
+          ),
+        },
+      ]
+    }),
   )
-  const emptyExercises: ExerciseWithSets[] = []
 
   return {
     dayNumber,
     dayTitle: day.dayTitle,
     muscleGroups: day.muscleGroups,
-    exercises: emptyExercises,
-    split: emptySplit,
+    exercises,
+    split: daySplit,
   }
 }
 
@@ -62,7 +100,7 @@ export function buildProgramFromTemplate(
   split: string[],
 ): WorkoutData {
   const days: WorkoutDay[] = template.days.map((day, idx) =>
-    buildEmptyDay(idx + 1, day, split),
+    buildDay(idx + 1, day, split),
   )
 
   return {
@@ -76,6 +114,7 @@ export function buildProgramFromTemplate(
 export function insertTemplateIntoProgram(
   workoutData: WorkoutData,
   template: SplitTemplate,
+  targetSplits?: string[],
 ): WorkoutData {
   const existingDays = workoutData?.days ?? []
   const split = workoutData?.split ?? []
@@ -86,7 +125,7 @@ export function insertTemplateIntoProgram(
   )
 
   const newDays: WorkoutDay[] = template.days.map((day, idx) =>
-    buildEmptyDay(maxDayNumber + idx + 1, day, split),
+    buildDay(maxDayNumber + idx + 1, day, split, targetSplits ?? split),
   )
 
   const mergedDays = [...existingDays, ...newDays]

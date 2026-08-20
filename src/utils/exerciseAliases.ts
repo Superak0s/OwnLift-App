@@ -83,4 +83,22 @@ export const EXERCISE_ALIASES: Record<string, string> = {
   dips: "Dips_-_Triceps_Version",
   plank: "Plank",
   crunch: "Crunches",
+
+  // Gym machines the dataset names after the movement or the manufacturer
+  // style ("Thigh Abductor", "Dip Machine") rather than the plate on the wall.
+  "hip abduction": "Thigh_Abductor",
+  "hip abductor": "Thigh_Abductor",
+  "hip adduction": "Thigh_Adductor",
+  "hip adductor": "Thigh_Adductor",
+  "assisted dip": "Dip_Machine",
+  "assisted dips": "Dip_Machine",
+  "assisted pullup": "Band_Assisted_Pull-Up",
+  "assisted pull up": "Band_Assisted_Pull-Up",
+  "rear kick machine": "Glute_Kickback",
+  "glute kickback": "Glute_Kickback",
+  "seated chest press": "Leverage_Chest_Press",
+  "incline chest press": "Leverage_Incline_Chest_Press",
+  "reverse curl": "Reverse_Barbell_Curl",
+  "dumbbell curl": "Dumbbell_Bicep_Curl",
+  "machine lateral raise": "Side_Lateral_Raise",
 };

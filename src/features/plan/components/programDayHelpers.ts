@@ -1,7 +1,7 @@
 export {
   getDayExerciseList,
   getDayLabelAndTitle,
-  getPersonEntries,
+  getSplitEntries,
 } from "@shared/components/ProgramDayCardBase";
 
 export function allDayIndices(workoutData: unknown): Set<number> {

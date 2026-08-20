@@ -284,7 +284,7 @@ export const useSessionOperations = ({
             type: "startSession",
             localSessionId,
             data: {
-              person: selectedSplit ?? "",
+              split: selectedSplit ?? "",
               dayNumber: currentDay,
               dayTitle: day.dayTitle,
               muscleGroups: day.muscleGroups,
@@ -311,7 +311,7 @@ export const useSessionOperations = ({
           type: "startSession",
           localSessionId,
           data: {
-            person: selectedSplit ?? "",
+            split: selectedSplit ?? "",
             dayNumber: currentDay,
             dayTitle: day.dayTitle,
             muscleGroups: day.muscleGroups,

@@ -1,4 +1,5 @@
 import { getStorageItem, getStorageItems, setStorageItem, removeStorageItem, removeStorageItems } from "@shared/services/sqliteStorage"
+import { perfLog, startTimer } from "@utils/perf"
 
 export const getUserKey = (key: string, userId: string | null = null): string => {
   if (!userId) return key
@@ -11,10 +12,12 @@ export const saveToStorage = async (
   userId: string | null = null,
 ): Promise<boolean> => {
   try {
+    const timer = startTimer()
     const storageKey = getUserKey(key, userId)
     const stringValue =
       typeof value === "string" ? value : JSON.stringify(value)
     await setStorageItem(storageKey, stringValue)
+    perfLog("storage.save", timer(), `${key} ${stringValue.length}B`)
     return true
   } catch (error) {
     console.error(`Error saving ${key}:`, error)
@@ -28,12 +31,15 @@ export const loadFromStorage = async <T = unknown,>(
   parse: boolean = true,
 ): Promise<T | null> => {
   try {
+    const timer = startTimer()
     const storageKey = getUserKey(key, userId)
     const value = await getStorageItem(storageKey)
 
     if (!value) return null
 
-    return (parse ? JSON.parse(value) : value) as T
+    const parsed = (parse ? JSON.parse(value) : value) as T
+    perfLog("storage.load", timer(), `${key} ${value.length}B`)
+    return parsed
   } catch (error) {
     console.error(`Error loading ${key}:`, error)
     return null
@@ -84,7 +90,9 @@ export const removeMultipleFromStorage = async (
 
 export const STORAGE_KEYS = {
   WORKOUT_DATA: "workoutData",
-  SELECTED_PERSON: "selectedPerson",
+  // Value predates the person→split rename; changing it would orphan every
+  // existing install's saved selection.
+  SELECTED_SPLIT: "selectedPerson",
   CURRENT_DAY: "currentDay",
   COMPLETED_DAYS: "completedDays",
   LOCKED_DAYS: "lockedDays",

@@ -6,7 +6,7 @@ import {
   ProgramExerciseRow,
   getDayExerciseList,
   getDayLabelAndTitle,
-  getPersonEntries,
+  getSplitEntries,
 } from "@shared/components/ProgramDayCardBase";
 import type { Friend } from "../services";
 import type { ProgramData, ReceivedProgram } from "../types";
@@ -39,7 +39,7 @@ function ProgramDayCard({
           key={exercise.name ?? `exercise-${exIdx}`}
           name={exercise.name ?? `Exercise ${exIdx + 1}`}
           muscleGroup={exercise.muscleGroup}
-          personEntries={getPersonEntries(exercise, selectedProgram)}
+          splitEntries={getSplitEntries(exercise, selectedProgram)}
           styles={styles}
         />
       ))}
@@ -126,9 +126,9 @@ export function FriendProgramTab({
 
   const program = programsFromFriend[0];
   const pd = program.programData;
-  const splitNames = pd?.days?.[0]?.exercises?.[0]?.setsByPerson
-    ? Object.keys(pd.days[0].exercises[0].setsByPerson)
-    : [];
+  const firstExercise = pd?.days?.[0]?.exercises?.[0];
+  const setsBySplit = firstExercise?.setsBySplit ?? firstExercise?.setsByPerson;
+  const splitNames = setsBySplit ? Object.keys(setsBySplit) : [];
   const allOptions = ["All", ...splitNames];
 
   return (

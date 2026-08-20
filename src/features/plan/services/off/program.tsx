@@ -2,6 +2,7 @@ import type { SavedProgram, ExercisePayload } from "../../types"
 // ExercisePayload is now a re-export of Exercise from @shared/types
 import type { WorkoutDay, WorkoutData } from "@shared/types"
 import { parseWorkoutFileClient } from "@utils/clientWorkoutParser"
+import { migrateLegacyProgram } from "@utils/legacyProgram"
 import {
   saveToStorage,
   loadFromStorage,
@@ -10,7 +11,11 @@ import {
 } from "@shared/services/storage"
 
 const loadProgram = async (): Promise<SavedProgram | null> => {
-  return loadFromStorage<SavedProgram>(STORAGE_KEYS.WORKOUT_DATA, null)
+  const program = await loadFromStorage<SavedProgram>(
+    STORAGE_KEYS.WORKOUT_DATA,
+    null,
+  )
+  return program ? migrateLegacyProgram(program) : program
 }
 
 const saveProgram = async (program: SavedProgram): Promise<void> => {
@@ -74,7 +79,7 @@ export const programApi = {
 
   renameExercise: async (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     newName: string,
     newMuscleGroup?: string,
@@ -87,8 +92,8 @@ export const programApi = {
       const day = days.find((d) => d.dayNumber === dayNumber)
       if (!day) return null
 
-      const personData = day.split?.[person]
-      const exercise = personData?.exercises?.[exerciseIndex]
+      const splitData = day.split?.[split]
+      const exercise = splitData?.exercises?.[exerciseIndex]
       if (!exercise) return null
 
       exercise.name = newName
@@ -107,7 +112,7 @@ export const programApi = {
 
   addExercise: async (
     dayNumber: number,
-    person: string,
+    split: string,
     exercise: ExercisePayload,
   ): Promise<unknown> => {
     try {
@@ -118,10 +123,10 @@ export const programApi = {
       const day = days.find((d) => d.dayNumber === dayNumber)
       if (!day) return null
 
-      const personData = day.split?.[person]
-      if (!personData) return null
-      if (!personData.exercises) personData.exercises = []
-      personData.exercises.push(exercise)
+      const splitData = day.split?.[split]
+      if (!splitData) return null
+      if (!splitData.exercises) splitData.exercises = []
+      splitData.exercises.push(exercise)
 
       await saveProgram(program)
       return { success: true, program }
@@ -136,7 +141,7 @@ export const programApi = {
 
   patchExerciseSets: async (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     additionalSets: number,
   ): Promise<unknown> => {
@@ -148,8 +153,8 @@ export const programApi = {
       const day = days.find((d) => d.dayNumber === dayNumber)
       if (!day) return null
 
-      const personData = day.split?.[person]
-      const exercise = personData?.exercises?.[exerciseIndex]
+      const splitData = day.split?.[split]
+      const exercise = splitData?.exercises?.[exerciseIndex]
       if (!exercise) return null
 
       exercise.sets = exercise.sets + additionalSets

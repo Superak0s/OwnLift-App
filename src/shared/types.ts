@@ -18,7 +18,7 @@ export interface Exercise {
   sets: number
 }
 
-export interface PersonWorkout {
+export interface SplitWorkout {
   exercises: Exercise[]
   totalSets: number
 }
@@ -26,14 +26,14 @@ export interface ExerciseWithSets {
   name: string
   exerciseId?: string
   muscleGroup: string
-  setsByPerson: Record<string, number>
+  setsBySplit: Record<string, number>
 }
 export interface WorkoutDay {
   dayNumber: number
   dayTitle?: string
   exercises?: ExerciseWithSets[]
   muscleGroups?: string[]
-  split: Record<string, PersonWorkout>
+  split: Record<string, SplitWorkout>
 }
 
 export interface WorkoutData {
@@ -202,7 +202,7 @@ export interface ProgressPhoto {
 // Pending sync — discriminated union
 
 export interface StartSessionSyncData {
-  person: string
+  split: string
   dayNumber: number
   dayTitle?: string
   muscleGroups?: string[]

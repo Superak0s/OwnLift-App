@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import * as Device from "expo-device";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   View,
@@ -19,14 +18,8 @@ import { useWorkout } from "@shared/context/WorkoutContext";
 import { useTheme } from "@shared/context/ThemeContext";
 import type { ThemeColors } from "@shared/context/ThemeContext";
 import { useAlert } from "@shared/components/CustomAlert";
-import {
-  findSimilarNames,
-  findExactMatch,
-  getAllMuscleGroups,
-} from "@utils/exerciseMatching";
-import { toSuggestions } from "@utils/exerciseDb";
-import type { ExerciseSuggestion } from "@utils/exerciseDb";
-import { matchProgram, applyResolution } from "./utils/matchProgram";
+import { matchProgram, applyResolution, sameExercise } from "./utils/matchProgram";
+import { onRenderProfiler, perfLog, startTimer, useRenderTimer } from "@utils/perf";
 import type { UnresolvedExercise } from "./utils/matchProgram";
 import MatchReviewModal from "./components/MatchReviewModal";
 import { workoutApi } from "@features/workout/services/index";
@@ -62,28 +55,30 @@ import {
   type SplitColumnCandidate,
 } from "@utils/clientWorkoutParser";
 import SplitColumnPicker from "./utils/splitColumnPicker";
+import ModalSheet from "@shared/components/ModalSheet";
 import { sinceBoot } from "@shared/services/debugClock";
 import logger from "@shared/services/logger";
-import type { ExerciseDraft, DayDraft, WdDay } from "./types";
+import type { WdDay, SplitDayDraft } from "./types";
 import { SplitDayRow } from "./components/SplitDayRow";
+import type { CanonicalExercise } from "@utils/exerciseDb";
 import { ProgramDayCard } from "./components/ProgramDayCard";
-import {
-  allDayIndices,
-  getDayExerciseList,
-} from "./components/programDayHelpers";
+import { visibleDaysForSplit } from "@utils/programDays";
+import { applySplitDraft, draftsFromProgram } from "./utils/splitDraft";
+import { allDayIndices } from "./components/programDayHelpers";
 
 export type Styles = ReturnType<typeof makeStyles>;
 
 // Rendering every day card at once is what makes Plan feel slow to load for
 // large imported programs — each card is a full nested tree (exercises,
-// sets-by-person badges). Showing a bounded slice up front keeps first paint
+// sets-by-split badges). Showing a bounded slice up front keeps first paint
 // fast; "Show more" reveals the rest on demand.
 const INITIAL_DAYS_SHOWN = 10;
 
-const EMPTY_EXERCISE = (splits: string[]): ExerciseDraft => ({
-  name: "",
-  muscleGroup: "",
-  setsByPerson: Object.fromEntries(splits.map((split) => [split, "0"])),
+const DEFAULT_TEMPLATE_SETS = 3;
+
+const EMPTY_SPLIT_DAY = (): SplitDayDraft => ({
+  dayTitle: "",
+  exercises: [],
 });
 
 if (
@@ -99,6 +94,8 @@ type PlanScreenProps = {
 export default function PlanScreen({
   navigation,
 }: PlanScreenProps): React.JSX.Element {
+  const markBodyDone = useRenderTimer("PlanScreen");
+
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
@@ -115,10 +112,11 @@ export default function PlanScreen({
   >([]);
   const [showMatchReview, setShowMatchReview] = useState(false);
   const hasCheckedMatches = useRef(false);
+  const workoutDataRef = useRef(workoutData);
+  workoutDataRef.current = workoutData;
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
-  const isEmulator = !Device.isDevice;
 
   const {
     widgets,
@@ -169,24 +167,15 @@ export default function PlanScreen({
   const [hiddenDays, setHiddenDays] = useState<Set<number>>(() =>
     allDayIndices(workoutData),
   );
-  const [editingDayIdx, setEditingDayIdx] = useState<number | null>(null);
-  const [dayDraft, setDayDraft] = useState<DayDraft | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [nameSuggestions, setNameSuggestions] = useState<
-    Record<number, ExerciseSuggestion[]>
-  >({});
-  const [mgSuggestions, setMgSuggestions] = useState<Record<number, string[]>>(
-    {},
-  );
-  const [focusedNameIdx, setFocusedNameIdx] = useState<number | null>(null);
-  const [focusedMgIdx, setFocusedMgIdx] = useState<number | null>(null);
-
   const [isCreatingSplit, setIsCreatingSplit] = useState(false);
+  const [editingSplitName, setEditingSplitName] = useState<string | null>(null);
+  const [expandedSplitDayIdx, setExpandedSplitDayIdx] = useState<number | null>(
+    0,
+  );
   const [newSplitName, setNewSplitName] = useState("");
-  const [draftSplitDays, setDraftSplitDays] = useState<
-    { dayTitle: string; muscleGroups: string }[]
-  >([{ dayTitle: "", muscleGroups: "" }]);
+  const [draftSplitDays, setDraftSplitDays] = useState<SplitDayDraft[]>([
+    EMPTY_SPLIT_DAY(),
+  ]);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -203,25 +192,51 @@ export default function PlanScreen({
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [isImportingColumns, setIsImportingColumns] = useState(false);
 
+  // Any save (logging a set, resolving a match) hands back a fresh
+  // workoutData object. Resetting on identity collapsed the day list the user
+  // had just expanded and re-rendered the screen for nothing, so only the
+  // program's shape counts as a change.
+  const programShape = useMemo(
+    () =>
+      (workoutData?.days ?? [])
+        .map((day) => (day as { dayTitle?: string })?.dayTitle ?? "")
+        .join("|"),
+    [workoutData],
+  );
+
   useEffect(() => {
-    const days = (workoutData as unknown as { days?: unknown[] })?.days;
     setSelectedProgram(null);
-    setHiddenDays(allDayIndices(workoutData));
-    setEditingDayIdx(null);
-    setDayDraft(null);
+    setHiddenDays(allDayIndices(workoutDataRef.current));
     setIsCreatingSplit(false);
     setVisibleDayCount(INITIAL_DAYS_SHOWN);
-  }, [workoutData]);
+  }, [programShape]);
 
   useEffect(() => {
     if (hasCheckedMatches.current || !workoutData?.days?.length) return;
     hasCheckedMatches.current = true;
+    const effectTimer = startTimer();
     const { program: matched, unresolved } = matchProgram(workoutData);
     setUnresolvedMatches(unresolved);
-    if (JSON.stringify(matched) !== JSON.stringify(workoutData)) {
-      void saveWorkoutData(matched);
+    const compareTimer = startTimer();
+    const changed = JSON.stringify(matched) !== JSON.stringify(workoutData);
+    perfLog("PlanScreen.matchEffect.compare", compareTimer(), `changed=${changed}`);
+    if (changed) {
+      const saveTimer = startTimer();
+      void saveWorkoutData(matched).then(() =>
+        perfLog("PlanScreen.matchEffect.save", saveTimer()),
+      );
     }
+    perfLog("PlanScreen.matchEffect", effectTimer());
   }, [workoutData]);
+
+  const handleRecheckMatches = (): void => {
+    if (!workoutData) return;
+    const { program: matched, unresolved } = matchProgram(workoutData, true);
+    setUnresolvedMatches(unresolved);
+    setShowMatchReview(unresolved.length > 0);
+    if (JSON.stringify(matched) !== JSON.stringify(workoutData))
+      void saveWorkoutData(matched);
+  };
 
   const handleUploadFile = async (): Promise<void> => {
     try {
@@ -331,42 +346,117 @@ export default function PlanScreen({
     target: UnresolvedExercise,
     exerciseId: string | null,
   ) => {
-    setUnresolvedMatches((prev) =>
-      prev.filter(
-        (u) =>
-          u.dayNumber !== target.dayNumber ||
-          u.person !== target.person ||
-          u.exerciseIndex !== target.exerciseIndex,
-      ),
-    );
+    const twins = unresolvedMatches.filter((u) => sameExercise(u, target));
+    setUnresolvedMatches((prev) => prev.filter((u) => !sameExercise(u, target)));
     if (exerciseId === null || !workoutData) return;
-    await saveWorkoutData(applyResolution(workoutData, target, exerciseId));
+    await saveWorkoutData(applyResolution(workoutData, twins, exerciseId));
   };
 
+  const openCreateSplit = () => {
+    setExpandedSplitDayIdx(0);
+    setIsCreatingSplit(true);
+  };
+
+  const toggleSplitDayExpanded = (idx: number) =>
+    setExpandedSplitDayIdx((prev) => (prev === idx ? null : idx));
+
   const addDraftSplitDay = () => {
-    setDraftSplitDays((prev) => [...prev, { dayTitle: "", muscleGroups: "" }]);
+    setDraftSplitDays((prev) => {
+      setExpandedSplitDayIdx(prev.length);
+      return [...prev, EMPTY_SPLIT_DAY()];
+    });
   };
 
   const removeDraftSplitDay = (idx: number) => {
     setDraftSplitDays((prev) => prev.filter((_, i) => i !== idx));
+    setExpandedSplitDayIdx(null);
   };
 
-  const updateDraftSplitDay = (
+  const patchDraftSplitDay = (
     idx: number,
-    field: "dayTitle" | "muscleGroups",
-    value: string,
+    patch: (day: SplitDayDraft) => SplitDayDraft,
   ) => {
-    setDraftSplitDays((prev) => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], [field]: value };
-      return next;
-    });
+    setDraftSplitDays((prev) =>
+      prev.map((day, i) => (i === idx ? patch(day) : day)),
+    );
   };
+
+  const updateDraftSplitDayTitle = (idx: number, value: string) =>
+    patchDraftSplitDay(idx, (day) => ({ ...day, dayTitle: value }));
+
+  const addDraftSplitExercise = (idx: number, exercise: CanonicalExercise) =>
+    patchDraftSplitDay(idx, (day) => ({
+      ...day,
+      exercises: [
+        ...day.exercises,
+        {
+          name: exercise.name,
+          exerciseId: exercise.id,
+          muscleGroup: exercise.primaryMuscles[0] ?? "",
+          sets: String(DEFAULT_TEMPLATE_SETS),
+        },
+      ],
+    }));
+
+  const updateDraftSplitExerciseSets = (
+    idx: number,
+    exIdx: number,
+    value: string,
+  ) =>
+    patchDraftSplitDay(idx, (day) => ({
+      ...day,
+      exercises: day.exercises.map((e, i) =>
+        i === exIdx ? { ...e, sets: value.replace(/[^0-9]/g, "") } : e,
+      ),
+    }));
+
+  const removeDraftSplitExercise = (idx: number, exIdx: number) =>
+    patchDraftSplitDay(idx, (day) => ({
+      ...day,
+      exercises: day.exercises.filter((_, i) => i !== exIdx),
+    }));
 
   const resetCreateSplitForm = () => {
     setIsCreatingSplit(false);
+    setEditingSplitName(null);
     setNewSplitName("");
-    setDraftSplitDays([{ dayTitle: "", muscleGroups: "" }]);
+    setDraftSplitDays([EMPTY_SPLIT_DAY()]);
+  };
+
+  const openEditSplit = (split: string) => {
+    const drafts = draftsFromProgram(workoutData?.days ?? [], split);
+    setDraftSplitDays(drafts.length > 0 ? drafts : [EMPTY_SPLIT_DAY()]);
+    setNewSplitName(split);
+    setEditingSplitName(split);
+    setExpandedSplitDayIdx(null);
+    setIsCreatingSplit(true);
+  };
+
+  const handleSaveSplitEdits = async () => {
+    if (!editingSplitName || !workoutData) return;
+    setIsApplyingTemplate(true);
+    try {
+      const updated = applySplitDraft(
+        workoutData,
+        editingSplitName,
+        draftSplitDays.filter((d) => d.dayTitle.trim()),
+      );
+      await saveWorkoutData(updated);
+      try {
+        await programApi.saveProgram(updated);
+      } catch (err) {
+        console.warn(
+          "Could not sync split edits to server (will retry on next sync):",
+          (err as Error).message,
+        );
+      }
+      resetCreateSplitForm();
+      alert("Saved!", `"${editingSplitName}" updated.`, [{ text: "OK" }], "success");
+    } catch (error) {
+      alert("Error", "Failed to save changes.", [{ text: "OK" }]);
+    } finally {
+      setIsApplyingTemplate(false);
+    }
   };
 
   const handleCreateSplit = async (mode: "new" | "insert") => {
@@ -378,10 +468,13 @@ export default function PlanScreen({
       .filter((d) => d.dayTitle.trim())
       .map((d) => ({
         dayTitle: d.dayTitle,
-        muscleGroups: d.muscleGroups
-          .split(",")
-          .map((m) => m.trim())
-          .filter(Boolean),
+        muscleGroups: Array.from(
+          new Set(d.exercises.map((e) => e.muscleGroup).filter(Boolean)),
+        ),
+        exercises: d.exercises.map((e) => ({
+          ...e,
+          sets: Number(e.sets) || DEFAULT_TEMPLATE_SETS,
+        })),
       }));
     if (days.length === 0) {
       alert("Add at least one day", "Give your split at least one named day.", [
@@ -397,32 +490,44 @@ export default function PlanScreen({
   const applyTemplate = async (
     template: SplitTemplate,
     mode: "new" | "insert",
-    personName?: string,
+    splitName?: string,
   ) => {
     setIsApplyingTemplate(true);
     try {
       if (mode === "insert" && workoutData) {
         let workoutToInsert = workoutData;
-        if (personName && !workoutToInsert.split?.includes(personName)) {
-          const splitWithNew = [...(workoutToInsert.split ?? []), personName];
-          const existingDays = workoutToInsert.days ?? [];
-          const updatedExistingDays = existingDays.map((d) => ({
+        const existingSplits = workoutData.split ?? [];
+        const isNewSplit = Boolean(splitName) && !existingSplits.includes(splitName!);
+
+        if (isNewSplit) {
+          const days = (workoutData.days ?? []).map((d) => ({
             ...d,
             split: {
               ...(d.split ?? {}),
-              [personName]: { exercises: [], totalSets: 0 },
+              [splitName!]: { exercises: [], totalSets: 0 },
             },
           }));
           workoutToInsert = {
-            ...workoutToInsert,
-            split: splitWithNew,
-            days: updatedExistingDays,
-            totalDays: updatedExistingDays.length,
+            ...workoutData,
+            split: [...existingSplits, splitName!],
+            days,
+            totalDays: days.length,
           };
         }
 
-        const updated = insertTemplateIntoProgram(workoutToInsert, template);
+        const targetSplits = isNewSplit
+          ? [splitName!]
+          : (selectedSplit && existingSplits.includes(selectedSplit)
+              ? [selectedSplit]
+              : existingSplits);
+
+        const updated = insertTemplateIntoProgram(
+          workoutToInsert,
+          template,
+          targetSplits,
+        );
         await saveWorkoutData(updated);
+        if (isNewSplit) saveSelectedSplit(splitName!);
         try {
           await programApi.saveProgram(updated);
         } catch (err) {
@@ -438,7 +543,7 @@ export default function PlanScreen({
           "success",
         );
       } else {
-        const splitNames = personName ? [personName] : [selectedSplit ?? "Me"];
+        const splitNames = splitName ? [splitName] : [selectedSplit ?? "Me"];
         const fresh = buildProgramFromTemplate(template, splitNames);
         await saveWorkoutData(fresh);
         try {
@@ -554,201 +659,6 @@ export default function PlanScreen({
     });
   };
 
-  const startEditing = (dayIdx: number) => {
-    const day = wd?.days?.[dayIdx];
-    if (!day) return;
-    const exercises: ExerciseDraft[] = (day.exercises ?? []).map((ex) => ({
-      name: ex.name ?? "",
-      exerciseId: ex.exerciseId,
-      muscleGroup: ex.muscleGroup ?? "",
-      setsByPerson: Object.fromEntries(
-        Object.entries(ex.setsByPerson ?? {}).map(([p, v]) => [p, String(v)]),
-      ),
-    }));
-    setDayDraft({ exercises });
-    setEditingDayIdx(dayIdx);
-    setNameSuggestions({});
-    setMgSuggestions({});
-    setFocusedNameIdx(null);
-    setFocusedMgIdx(null);
-  };
-
-  const cancelEditing = () => {
-    setEditingDayIdx(null);
-    setDayDraft(null);
-    setNameSuggestions({});
-    setMgSuggestions({});
-  };
-
-  const updateDraftExercise = (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-  ) => {
-    if (!dayDraft) return;
-    const updated = [...dayDraft.exercises];
-    updated[exIdx] = { ...updated[exIdx], [field]: value };
-    if (field === "name") updated[exIdx].exerciseId = undefined;
-    setDayDraft({ exercises: updated });
-
-    if (field === "name") {
-      const matches = value.trim().length < 2 ? [] : toSuggestions(value, 5);
-      setNameSuggestions((prev) => ({ ...prev, [exIdx]: matches }));
-    }
-
-    if (field === "muscleGroup") {
-      const allMg = getAllMuscleGroups(workoutData, selectedSplit);
-      const exact = findExactMatch(value, allMg);
-      if (exact || value.trim().length < 2) {
-        setMgSuggestions((prev) => ({ ...prev, [exIdx]: [] }));
-      } else {
-        const matches = findSimilarNames(value, allMg, 0.4, 5).map(
-          (m) => m.name,
-        );
-        setMgSuggestions((prev) => ({ ...prev, [exIdx]: matches }));
-      }
-    }
-  };
-
-  const updateDraftSets = (exIdx: number, person: string, value: string) => {
-    if (!dayDraft) return;
-    const updated = [...dayDraft.exercises];
-    updated[exIdx] = {
-      ...updated[exIdx],
-      setsByPerson: { ...updated[exIdx].setsByPerson, [person]: value },
-    };
-    setDayDraft({ exercises: updated });
-  };
-
-  const addExercise = () => {
-    if (!dayDraft) return;
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setDayDraft({
-      exercises: [...dayDraft.exercises, EMPTY_EXERCISE(programSplits)],
-    });
-  };
-
-  const removeExercise = (exIdx: number) => {
-    if (!dayDraft) return;
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const updated = dayDraft.exercises.filter((_, i) => i !== exIdx);
-    setDayDraft({ exercises: updated });
-    setNameSuggestions((prev) => {
-      const next = { ...prev };
-      delete next[exIdx];
-      return next;
-    });
-    setMgSuggestions((prev) => {
-      const next = { ...prev };
-      delete next[exIdx];
-      return next;
-    });
-  };
-
-  const applySuggestion = (
-    exIdx: number,
-    field: "name" | "muscleGroup",
-    value: string,
-    exerciseId?: string,
-  ) => {
-    if (!dayDraft) return;
-    const updated = [...dayDraft.exercises];
-    updated[exIdx] = { ...updated[exIdx], [field]: value };
-    if (field === "name") updated[exIdx].exerciseId = exerciseId;
-    setDayDraft({ exercises: updated });
-    if (field === "name") {
-      setNameSuggestions((prev) => ({ ...prev, [exIdx]: [] }));
-      setFocusedNameIdx(null);
-    } else {
-      setMgSuggestions((prev) => ({ ...prev, [exIdx]: [] }));
-      setFocusedMgIdx(null);
-    }
-  };
-
-  const handleFocusName = (exIdx: number) => setFocusedNameIdx(exIdx);
-  const handleBlurName = () => setTimeout(() => setFocusedNameIdx(null), 150);
-  const handleFocusMg = (exIdx: number) => setFocusedMgIdx(exIdx);
-  const handleBlurMg = () => setTimeout(() => setFocusedMgIdx(null), 150);
-
-  const handleSubmitEdits = async () => {
-    if (editingDayIdx === null || !dayDraft || !workoutData) return;
-    setIsSubmitting(true);
-    try {
-      const realDays = (
-        workoutData as unknown as {
-          days?: Array<{
-            split: Record<
-              string,
-              {
-                exercises: Array<{
-                  name: string;
-                  exerciseId?: string;
-                  muscleGroup?: string;
-                  sets: number;
-                }>;
-                totalSets?: number;
-              }
-            >;
-          }>;
-        }
-      )?.days;
-
-      const updatedDays = (realDays ?? []).map((day, idx) => {
-        if (idx !== editingDayIdx) return day;
-
-        const updatedSplit = { ...day.split };
-
-        Object.keys(updatedSplit).forEach((person) => {
-          const exercisesForPerson = dayDraft.exercises
-            .filter((draft) => {
-              const raw = draft.setsByPerson[person];
-              return raw !== undefined && (Number.parseInt(raw, 10) || 0) > 0;
-            })
-            .map((draft) => ({
-              name: draft.name,
-              exerciseId: draft.exerciseId,
-              muscleGroup: draft.muscleGroup,
-              sets: Number.parseInt(draft.setsByPerson[person], 10) || 0,
-            }));
-
-          const totalSets = exercisesForPerson.reduce(
-            (sum, ex) => sum + ex.sets,
-            0,
-          );
-
-          updatedSplit[person] = {
-            ...updatedSplit[person],
-            exercises: exercisesForPerson,
-            totalSets,
-          };
-        });
-
-        return { ...day, split: updatedSplit };
-      });
-
-      const updatedData = {
-        ...workoutData,
-        days: updatedDays,
-      } as unknown as WorkoutData;
-
-      await saveWorkoutData(updatedData);
-      alert(
-        "Saved!",
-        "Your changes have been saved.",
-        [{ text: "OK" }],
-        "success",
-      );
-      setEditingDayIdx(null);
-      setDayDraft(null);
-      setNameSuggestions({});
-      setMgSuggestions({});
-    } catch (error) {
-      alert("Error", "Failed to save changes.", [{ text: "OK" }]);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const wd = workoutData as unknown as {
     split?: string[];
     totalDays?: number;
@@ -758,9 +668,18 @@ export default function PlanScreen({
   const programSplits: string[] = wd?.split ?? [];
   const allOptions = ["All", ...programSplits];
 
+  const dayTitleSuggestions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...DEFAULT_SPLITS.flatMap((t) => t.days.map((d) => d.dayTitle)),
+          ...(wd?.days ?? []).map((d) => d.dayTitle ?? ""),
+        ]),
+      ).filter(Boolean),
+    [wd],
+  );
+
   const renderCreateSplitWidget = (): React.ReactNode => {
-    const handleToggleCreating = () =>
-      isCreatingSplit ? resetCreateSplitForm() : setIsCreatingSplit(true);
     const handleInsert = () => handleCreateSplit("insert");
     const handleCreateNew = () => handleCreateSplit("new");
 
@@ -768,73 +687,95 @@ export default function PlanScreen({
       <View>
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={handleToggleCreating}
+          onPress={openCreateSplit}
         >
-          <Text style={styles.secondaryButtonText}>
-            {isCreatingSplit ? "✕ Cancel" : "＋ Create New Split"}
-          </Text>
+          <Text style={styles.secondaryButtonText}>＋ Create New Split</Text>
         </TouchableOpacity>
 
-        {isCreatingSplit && (
-          <View style={styles.editExerciseBlock}>
-            <Text style={styles.editFieldLabel}>Split name</Text>
-            <TextInput
-              style={styles.editInput}
-              value={newSplitName}
-              onChangeText={setNewSplitName}
-              placeholder='e.g. My Custom Split'
-              placeholderTextColor={colors.textMuted}
-            />
-
-            {draftSplitDays.map((day, idx) => (
-              <SplitDayRow
-                key={day.dayTitle || `day-${idx}`}
-                index={idx}
-                day={day}
-                canRemove={draftSplitDays.length > 1}
-                colors={colors}
-                styles={styles}
-                onChangeField={updateDraftSplitDay}
-                onRemove={removeDraftSplitDay}
+        <ModalSheet
+          visible={isCreatingSplit}
+          onClose={resetCreateSplitForm}
+          title={editingSplitName ? `Edit ${editingSplitName}` : "Create a split"}
+          showCancelButton={false}
+          showConfirmButton={false}
+          scrollable
+          fullHeight
+        >
+          {!editingSplitName && (
+            <>
+              <Text style={styles.editFieldLabel}>Split name</Text>
+              <TextInput
+                style={styles.editInput}
+                value={newSplitName}
+                onChangeText={setNewSplitName}
+                placeholder='e.g. My Custom Split'
+                placeholderTextColor={colors.textMuted}
               />
-            ))}
+            </>
+          )}
 
+          {draftSplitDays.map((day, idx) => (
+            <SplitDayRow
+              key={`split-day-${idx}`}
+              index={idx}
+              day={day}
+              canRemove={draftSplitDays.length > 1}
+              isExpanded={expandedSplitDayIdx === idx}
+              titleSuggestions={dayTitleSuggestions}
+              colors={colors}
+              styles={styles}
+              onToggleExpand={toggleSplitDayExpanded}
+              onChangeTitle={updateDraftSplitDayTitle}
+              onAddExercise={addDraftSplitExercise}
+              onChangeExerciseSets={updateDraftSplitExerciseSets}
+              onRemoveExercise={removeDraftSplitExercise}
+              onRemove={removeDraftSplitDay}
+            />
+          ))}
+
+          <TouchableOpacity
+            style={styles.addExerciseBtn}
+            onPress={addDraftSplitDay}
+          >
+            <Text style={styles.addExerciseBtnText}>+ Add day</Text>
+          </TouchableOpacity>
+
+          <View style={styles.editActions}>
             <TouchableOpacity
-              style={styles.addExerciseBtn}
-              onPress={addDraftSplitDay}
+              style={styles.cancelBtn}
+              disabled={isApplyingTemplate}
+              onPress={resetCreateSplitForm}
             >
-              <Text style={styles.addExerciseBtnText}>+ Add day</Text>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-
-            <View style={styles.editActions}>
-              {workoutData && (
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  disabled={isApplyingTemplate}
-                  onPress={handleInsert}
-                >
-                  <Text style={styles.cancelBtnText}>Insert into current</Text>
-                </TouchableOpacity>
-              )}
+            {!editingSplitName && workoutData && (
               <TouchableOpacity
-                style={[
-                  styles.submitBtn,
-                  isApplyingTemplate && { opacity: 0.6 },
-                ]}
+                style={styles.cancelBtn}
                 disabled={isApplyingTemplate}
-                onPress={handleCreateNew}
+                onPress={handleInsert}
               >
-                {isApplyingTemplate ? (
-                  <ActivityIndicator color='#fff' size='small' />
-                ) : (
-                  <Text style={styles.submitBtnText}>
-                    {workoutData ? "Start as new program" : "Create split"}
-                  </Text>
-                )}
+                <Text style={styles.cancelBtnText}>Insert into current</Text>
               </TouchableOpacity>
-            </View>
+            )}
+            <TouchableOpacity
+              style={[styles.submitBtn, isApplyingTemplate && { opacity: 0.6 }]}
+              disabled={isApplyingTemplate}
+              onPress={editingSplitName ? handleSaveSplitEdits : handleCreateNew}
+            >
+              {isApplyingTemplate ? (
+                <ActivityIndicator color={colors.textOnAccent} size='small' />
+              ) : (
+                <Text style={styles.submitBtnText}>
+                  {editingSplitName
+                    ? "Save changes"
+                    : workoutData
+                      ? "Start as new program"
+                      : "Create split"}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
-        )}
+        </ModalSheet>
       </View>
     );
   };
@@ -938,16 +879,16 @@ export default function PlanScreen({
             <TouchableOpacity
               key={split}
               style={[
-                styles.personCard,
-                isSelected && styles.personCardSelected,
+                styles.splitCard,
+                isSelected && styles.splitCardSelected,
               ]}
               onPress={handleSelect}
             >
-              <View style={styles.personCardHeader}>
+              <View style={styles.splitCardHeader}>
                 <Text
                   style={[
-                    styles.personName,
-                    isSelected && styles.personNameSelected,
+                    styles.splitName,
+                    isSelected && styles.splitNameSelected,
                   ]}
                 >
                   {split}
@@ -955,12 +896,12 @@ export default function PlanScreen({
                 {isSelected && <Text style={styles.checkmark}>✓</Text>}
               </View>
               {summary && (
-                <View style={styles.personStats}>
-                  <Text style={styles.personStat}>
+                <View style={styles.splitStats}>
+                  <Text style={styles.splitStat}>
                     {summary?.totalDays} workout days
                   </Text>
-                  <Text style={styles.personStat}> </Text>
-                  <Text style={styles.personStat}>
+                  <Text style={styles.splitStat}> </Text>
+                  <Text style={styles.splitStat}>
                     {summary.totalSets} total sets
                   </Text>
                 </View>
@@ -980,13 +921,7 @@ export default function PlanScreen({
         </Text>
       );
     }
-    const visibleDays = wd.days
-      .map((day, dayIdx) => ({ day, dayIdx }))
-      .filter(({ day }) => {
-        const exerciseCount = day.exercises?.length ?? 0;
-        const visibleCount = getDayExerciseList(day, selectedProgram).length;
-        return !(selectedProgram && exerciseCount > 0 && visibleCount === 0);
-      });
+    const visibleDays = visibleDaysForSplit(wd.days, selectedProgram);
 
     return (
       <View>
@@ -1021,36 +956,27 @@ export default function PlanScreen({
           })}
         </ScrollView>
 
-        {visibleDays.slice(0, visibleDayCount).map(({ day, dayIdx }) => (
+        {selectedProgram && (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => openEditSplit(selectedProgram)}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {`✎ Edit ${selectedProgram}`}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {visibleDays.slice(0, visibleDayCount).map(({ day, dayIdx, displayNumber }) => (
           <ProgramDayCard
             key={day.dayNumber ?? `day-${dayIdx}`}
             day={day}
             dayIdx={dayIdx}
+            displayNumber={displayNumber}
             selectedProgram={selectedProgram}
             isHidden={hiddenDays.has(dayIdx)}
-            isEditing={editingDayIdx === dayIdx}
-            canStartEditing={editingDayIdx === null}
-            dayDraft={dayDraft}
-            colors={colors}
             styles={styles}
-            nameSuggestions={nameSuggestions}
-            mgSuggestions={mgSuggestions}
-            focusedNameIdx={focusedNameIdx}
-            focusedMgIdx={focusedMgIdx}
-            isSubmitting={isSubmitting}
-            onStartEditing={startEditing}
             onToggleHidden={toggleDayHidden}
-            onChangeField={updateDraftExercise}
-            onFocusName={handleFocusName}
-            onBlurName={handleBlurName}
-            onFocusMg={handleFocusMg}
-            onBlurMg={handleBlurMg}
-            onApplySuggestion={applySuggestion}
-            onRemoveExercise={removeExercise}
-            onChangeSets={updateDraftSets}
-            onAddExercise={addExercise}
-            onCancelEditing={cancelEditing}
-            onSubmitEdits={handleSubmitEdits}
           />
         ))}
 
@@ -1083,12 +1009,22 @@ export default function PlanScreen({
     instance: WidgetInstance<PlanWidgetType>,
   ): React.ReactNode => {
     const renderer = WIDGET_RENDERERS[instance.type];
-    return renderer ? (
-      renderer()
-    ) : (
-      <Text style={styles.widgetLineMuted}>Coming soon</Text>
-    );
+    if (renderer) {
+      const widgetTimer = startTimer();
+      const content = renderer();
+      perfLog("PlanScreen.widget", widgetTimer(), instance.type);
+      return content;
+    }
+    return <Text style={styles.widgetLineMuted}>Coming soon</Text>;
   };
+
+  perfLog(
+    "PlanScreen.state",
+    0,
+    `contentReady=${contentReady} widgetsLoaded=${widgetsLoaded} widgets=${widgets.length} unresolved=${unresolvedMatches.length} hiddenDays=${hiddenDays.size} visibleDayCount=${visibleDayCount} showReview=${showMatchReview} isPulling=${isPulling}`,
+  );
+
+  markBodyDone();
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["top"]} {...panHandlers}>
@@ -1100,14 +1036,6 @@ export default function PlanScreen({
               : "Pull to add a widget ↓"}
           </Text>
         </View>
-      )}
-      {isEmulator && (
-        <TouchableOpacity
-          style={styles.emulatorWidgetButton}
-          onPress={() => setShowWidgetGallery(true)}
-        >
-          <Text style={styles.emulatorWidgetButtonText}>+ Widget</Text>
-        </TouchableOpacity>
       )}
       <ScrollView
         style={styles.container}
@@ -1134,6 +1062,14 @@ export default function PlanScreen({
             </View>
           )}
 
+          {workoutData && unresolvedMatches.length === 0 && (
+            <TouchableOpacity onPress={handleRecheckMatches} hitSlop={8}>
+              <Text style={styles.matchBannerDismiss}>
+                Re-check exercise matches
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {unresolvedMatches.length > 0 && !showMatchReview && (
             <View style={styles.matchBanner}>
               <TouchableOpacity onPress={() => setShowMatchReview(true)}>
@@ -1152,6 +1088,7 @@ export default function PlanScreen({
           )}
 
           {contentReady ? (
+            <React.Profiler id='Plan/WidgetsPanel' onRender={onRenderProfiler}>
             <WidgetsPanel
               widgets={widgets}
               isLoaded={widgetsLoaded}
@@ -1162,6 +1099,7 @@ export default function PlanScreen({
               renderContent={renderWidgetContent}
               registry={PLAN_WIDGET_REGISTRY}
             />
+            </React.Profiler>
           ) : (
             <ActivityIndicator
               color={colors.accent}
@@ -1188,7 +1126,8 @@ export default function PlanScreen({
           )}
         </View>
       </ScrollView>
-      {AlertComponent}
+      <React.Profiler id='Plan/Alert' onRender={onRenderProfiler}>{AlertComponent}</React.Profiler>
+      <React.Profiler id='Plan/SplitColumnPicker' onRender={onRenderProfiler}>
       <SplitColumnPicker
         visible={showColumnPicker}
         fileName={pendingImportName}
@@ -1202,14 +1141,18 @@ export default function PlanScreen({
         isImporting={isImportingColumns}
         colors={colors}
       />
+      </React.Profiler>
 
+      <React.Profiler id='Plan/MatchReviewModal' onRender={onRenderProfiler}>
       <MatchReviewModal
         visible={showMatchReview}
         unresolved={unresolvedMatches}
         onResolve={handleResolveMatch}
         onClose={() => setShowMatchReview(false)}
       />
+      </React.Profiler>
 
+      <React.Profiler id='Plan/WidgetGallery' onRender={onRenderProfiler}>
       <WidgetGallery
         visible={showWidgetGallery}
         onClose={() => setShowWidgetGallery(false)}
@@ -1218,6 +1161,7 @@ export default function PlanScreen({
         hasPlacedWidgets={widgets.length > 0}
         onEditWidgets={handleEditWidgets}
       />
+      </React.Profiler>
     </SafeAreaView>
   );
 }
@@ -1276,21 +1220,6 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 12,
       color: colors.textSecondary,
       marginTop: 2,
-    },
-    emulatorWidgetButton: {
-      position: "absolute",
-      top: 8,
-      right: 12,
-      zIndex: 10,
-      backgroundColor: colors.accent,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 14,
-    },
-    emulatorWidgetButtonText: {
-      color: colors.surface,
-      fontSize: 13,
-      fontWeight: "600",
     },
     summaryCard: {
       backgroundColor: colors.surface,
@@ -1371,7 +1300,7 @@ const makeStyles = (colors: ThemeColors) =>
       color: colors.textPrimary,
       marginBottom: 15,
     },
-    personCard: {
+    splitCard: {
       backgroundColor: colors.surface,
       borderRadius: 12,
       padding: 18,
@@ -1379,21 +1308,21 @@ const makeStyles = (colors: ThemeColors) =>
       borderWidth: 2,
       borderColor: colors.surfaceBorder,
     },
-    personCardSelected: {
+    splitCardSelected: {
       borderColor: colors.accent,
       backgroundColor: colors.accentLight,
     },
-    personCardHeader: {
+    splitCardHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
       marginBottom: 10,
     },
-    personName: { fontSize: 20, fontWeight: "bold", color: colors.textPrimary },
-    personNameSelected: { color: colors.accent },
+    splitName: { fontSize: 20, fontWeight: "bold", color: colors.textPrimary },
+    splitNameSelected: { color: colors.accent },
     checkmark: { fontSize: 24, color: colors.accent },
-    personStats: { flexDirection: "row", justifyContent: "flex-start" },
-    personStat: { fontSize: 14, color: colors.textSecondary },
+    splitStats: { flexDirection: "row", justifyContent: "flex-start" },
+    splitStat: { fontSize: 14, color: colors.textSecondary },
     matchBanner: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -1565,6 +1494,31 @@ const makeStyles = (colors: ThemeColors) =>
       fontWeight: "600",
       color: colors.textMuted,
     },
+    splitDayBlock: {
+      borderWidth: 1,
+      borderColor: colors.separator,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingBottom: 10,
+      marginTop: 12,
+      backgroundColor: colors.background,
+    },
+    splitDayHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 12,
+    },
+    splitDayHeaderTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.textPrimary,
+      flex: 1,
+    },
+    splitDayHeaderMeta: {
+      fontSize: 12,
+      color: colors.textMuted,
+    },
     editFieldLabel: {
       fontSize: 11,
       fontWeight: "700",
@@ -1594,7 +1548,7 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       minWidth: 64,
     },
-    editSetPersonLabel: {
+    editSetSplitLabel: {
       fontSize: 11,
       fontWeight: "700",
       color: colors.textMuted,

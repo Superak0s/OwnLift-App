@@ -89,3 +89,5 @@ credentials.json
 
 # Test coverage output
 coverage/
+.cluade/
+CLAUDE.md

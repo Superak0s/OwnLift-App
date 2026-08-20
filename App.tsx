@@ -1,3 +1,4 @@
+import { watchJsStalls, onRenderProfiler } from "./src/utils/perf";
 import { sinceBoot } from "./src/shared/services/debugClock";
 import logger from "./src/shared/services/logger";
 import { initCrashReporting, captureException } from "./src/shared/services/crashReporting";
@@ -409,6 +410,27 @@ function NotificationListener() {
   return null;
 }
 
+const profiled = <P extends object>(
+  label: string,
+  Component: React.ComponentType<P>,
+): React.ComponentType<P> => {
+  const Profiled = (props: P) => (
+    <React.Profiler id={label} onRender={onRenderProfiler}>
+      <Component {...props} />
+    </React.Profiler>
+  );
+  return Profiled;
+};
+
+const ProfiledHomeScreen = profiled("HomeScreen", HomeScreen);
+const ProfiledWorkoutScreen = profiled("WorkoutScreen", WorkoutScreen);
+const ProfiledPlanScreen = profiled("PlanScreen", PlanScreen);
+const ProfiledAnalyticsScreen = profiled("AnalyticsScreen", AnalyticsScreen);
+const ProfiledTrackingScreen = profiled("TrackingScreen", TrackingScreen);
+const ProfiledSupplementsScreen = profiled("SupplementsScreen", SupplementsScreen);
+const ProfiledFriendsScreen = profiled("FriendsScreen", FriendsScreen);
+const ProfiledSettingsScreen = profiled("SettingsScreen", SettingsScreen);
+
 function MainTabs() {
   const { user } = useAuth();
   const { colors } = useTheme();
@@ -494,42 +516,42 @@ function MainTabs() {
       >
         <Tab.Screen
           name='Home'
-          component={HomeScreen}
+          component={ProfiledHomeScreen}
           options={{ tabBarIcon: HomeTabBarIcon }}
         />
         <Tab.Screen
           name='Workout'
-          component={WorkoutScreen}
+          component={ProfiledWorkoutScreen}
           options={{ tabBarIcon: WorkoutTabBarIcon }}
         />
         <Tab.Screen
           name='Plan'
-          component={PlanScreen}
+          component={ProfiledPlanScreen}
           options={{ tabBarIcon: PlanTabBarIcon }}
         />
         <Tab.Screen
           name='Analytics'
-          component={AnalyticsScreen}
+          component={ProfiledAnalyticsScreen}
           options={{ tabBarIcon: AnalyticsTabBarIcon }}
         />
         <Tab.Screen
           name='Tracking'
-          component={TrackingScreen}
+          component={ProfiledTrackingScreen}
           options={{ tabBarIcon: TrackingTabBarIcon }}
         />
         <Tab.Screen
           name='Supplements'
-          component={SupplementsScreen}
+          component={ProfiledSupplementsScreen}
           options={{ tabBarIcon: SupplementsTabBarIcon }}
         />
         <Tab.Screen
           name='Friends'
-          component={FriendsScreen}
+          component={ProfiledFriendsScreen}
           options={{ tabBarIcon: FriendsTabBarIcon }}
         />
         <Tab.Screen
           name='Settings'
-          component={SettingsScreen}
+          component={ProfiledSettingsScreen}
           options={{ tabBarIcon: SettingsTabBarIcon }}
         />
       </Tab.Navigator>
@@ -613,6 +635,8 @@ function AppNavigator() {
     </Stack.Navigator>
   );
 }
+
+watchJsStalls();
 
 export default function App() {
   return (

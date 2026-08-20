@@ -39,7 +39,7 @@ const IMPORTED_DAY_TITLE = "Imported (Strength Level)"
 interface Props {
   readonly visible: boolean
   readonly onClose: () => void
-  readonly person: string
+  readonly split: string
   /** Called after any successful edit, so the caller can refresh analytics/progress */
   readonly onDataChanged?: () => void
 }
@@ -156,8 +156,8 @@ function SessionListView({
         ) : (
           <Text style={styles.emptyText}>
             {showImportedOnly
-              ? "No imported sessions found for this person."
-              : "No sessions found for this person."}
+              ? "No imported sessions found for this split."
+              : "No sessions found for this split."}
           </Text>
         )
       }
@@ -253,7 +253,7 @@ function SessionDetailView({
 export default function EditWorkoutHistoryModal({
   visible,
   onClose,
-  person,
+  split,
   onDataChanged,
 }: Props): React.JSX.Element {
   const { colors } = useTheme()
@@ -267,7 +267,7 @@ export default function EditWorkoutHistoryModal({
     useState<FullSessionWithGroups | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
 
-  // Known exercise names / muscle groups across this person's history, used to
+  // Known exercise names / muscle groups across this split's history, used to
   // catch typos/near-duplicates via exerciseMatching when renaming.
   const [knownExerciseNames, setKnownExerciseNames] = useState<string[]>([])
   const [knownMuscleGroups, setKnownMuscleGroups] = useState<string[]>([])
@@ -292,10 +292,10 @@ export default function EditWorkoutHistoryModal({
   const [savingSet, setSavingSet] = useState(false)
 
   const loadSessions = useCallback(async () => {
-    if (!person) return
+    if (!split) return
     setLoadingSessions(true)
     try {
-      const result = await workoutApi.getSessionHistory(person, null, 60)
+      const result = await workoutApi.getSessionHistory(split, null, 60)
       setSessions(result ?? [])
     } catch (error) {
       console.error("Error loading sessions to edit:", error)
@@ -305,7 +305,7 @@ export default function EditWorkoutHistoryModal({
 
     try {
       const withTimings = await workoutApi.getSessionHistory(
-        person,
+        split,
         null,
         200,
         true,
@@ -326,7 +326,7 @@ export default function EditWorkoutHistoryModal({
     } catch (error) {
       console.error("Error building exercise name index:", error)
     }
-  }, [person])
+  }, [split])
 
   const openSession = useCallback(async (session: WorkoutSession) => {
     setLoadingDetail(true)
@@ -410,7 +410,7 @@ export default function EditWorkoutHistoryModal({
     if (!editingExercise) return
     setSavingExercise(true)
     try {
-      await workoutApi.renameExercise(person, editingExercise.exerciseName, {
+      await workoutApi.renameExercise(split, editingExercise.exerciseName, {
         newName: finalName === editingExercise.exerciseName ? undefined : finalName,
         muscleGroup: finalGroup || null,
       })
@@ -699,7 +699,7 @@ export default function EditWorkoutHistoryModal({
       >
         <Text style={styles.modalDescription}>
           Changes apply to every set logged under this exercise name for this
-          person, not just this session.
+          split, not just this session.
         </Text>
         <Text style={styles.fieldLabel}>Exercise Name</Text>
         <TextInput

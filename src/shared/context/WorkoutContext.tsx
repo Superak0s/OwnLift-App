@@ -12,6 +12,7 @@ import { useAuth } from "./AuthContext";
 import { useRealtimeSocket } from "./hooks/useRealtimeSocket";
 import { sinceBoot } from "../services/debugClock";
 import logger from "../services/logger";
+import { logCaller, perfLog, startTimer } from "@utils/perf";
 import { authService } from "@features/auth/services";
 import { workoutApi } from "@features/workout/services";
 import { programApi } from "@features/plan/services";
@@ -95,7 +96,7 @@ interface WorkoutContextValue {
   lastSetEndTime: string | null;
   weightUnit: "kg" | "lbs";
   saveWorkoutData: (data: WorkoutData | null) => Promise<void>;
-  saveSelectedSplit: (person: string) => Promise<void>;
+  saveSelectedSplit: (split: string) => Promise<void>;
   saveCurrentDay: (day: number) => Promise<void>;
   saveCompletedDays: (completed: CompletedDays) => Promise<void>;
   saveLockedDays: (locked: LockedDays) => Promise<void>;
@@ -148,20 +149,20 @@ interface WorkoutContextValue {
   getSessionStats: (dayNumber: number) => unknown;
   updateExerciseName: (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     newName: string,
     newMuscleGroup?: string,
   ) => Promise<void>;
   addExtraSetsToExercise: (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseIndex: number,
     additionalSets: number,
   ) => Promise<void>;
   addNewExercise: (
     dayNumber: number,
-    person: string,
+    split: string,
     exerciseData: {
       name: string;
       exerciseId?: string;
@@ -217,6 +218,13 @@ export const useWorkoutSyncStatus = (): WorkoutSyncStatus => {
 
 // Provider
 export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
+  const providerTimer = startTimer();
+  const providerRenders = useRef(0);
+  providerRenders.current += 1;
+  useEffect(() => {
+    perfLog("WorkoutProvider.render", providerTimer(), `#${providerRenders.current}`);
+  });
+
   const { user, logout } = useAuth();
   const userId = user?.id ?? null;
 
@@ -258,9 +266,9 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
     );
     if (!day?.split) return [];
     const result: JointExerciseEntry[] = [];
-    Object.entries(day.split).forEach(([person, personWorkout]) => {
-      (personWorkout?.exercises ?? []).forEach((ex: Exercise) => {
-        result.push({ name: ex.name, sets: ex.sets ?? 0, person });
+    Object.entries(day.split).forEach(([split, splitWorkout]) => {
+      (splitWorkout?.exercises ?? []).forEach((ex: Exercise) => {
+        result.push({ name: ex.name, sets: ex.sets ?? 0, split });
       });
     });
     return result;
@@ -381,6 +389,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
 
   const saveWorkoutData = useCallback(
     async (data: WorkoutData | null) => {
+      logCaller("saveWorkoutData");
       await saveToStorage(STORAGE_KEYS.WORKOUT_DATA, data, userId);
       setWorkoutData(data);
     },
@@ -388,9 +397,9 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const saveSelectedSplit = useCallback(
-    async (person: string) => {
-      await saveToStorage(STORAGE_KEYS.SELECTED_PERSON, person, userId);
-      setSelectedSplit(person);
+    async (split: string) => {
+      await saveToStorage(STORAGE_KEYS.SELECTED_SPLIT, split, userId);
+      setSelectedSplit(split);
     },
     [userId],
   );
@@ -556,7 +565,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       const raw = await loadMultipleFromStorage(
         [
           STORAGE_KEYS.WORKOUT_DATA,
-          STORAGE_KEYS.SELECTED_PERSON,
+          STORAGE_KEYS.SELECTED_SPLIT,
           STORAGE_KEYS.CURRENT_DAY,
           STORAGE_KEYS.COMPLETED_DAYS,
           STORAGE_KEYS.LOCKED_DAYS,
@@ -579,7 +588,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       const str = (key: string): string | null => raw[key] ?? null;
 
       const data = json<WorkoutData>(STORAGE_KEYS.WORKOUT_DATA);
-      const person = str(STORAGE_KEYS.SELECTED_PERSON);
+      const split = str(STORAGE_KEYS.SELECTED_SPLIT);
       const day = str(STORAGE_KEYS.CURRENT_DAY);
       const completed = json<CompletedDays>(STORAGE_KEYS.COMPLETED_DAYS);
       const locked = json<LockedDays>(STORAGE_KEYS.LOCKED_DAYS);
@@ -618,7 +627,7 @@ export const WorkoutProvider = ({ children }: { children: ReactNode }) => {
       if (resolvedData) {
         setWorkoutData(resolvedData as WorkoutData);
       }
-      if (person) setSelectedSplit(person as string);
+      if (split) setSelectedSplit(split as string);
       if (day) setCurrentDay(Number.parseInt(day as string, 10));
       if (completed) setCompletedDays(completed as CompletedDays);
       if (locked) setLockedDays(locked as LockedDays);

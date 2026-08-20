@@ -49,9 +49,9 @@ export interface SplitColumnCandidate {
 type WorkingDay = WorkoutDay & { splitColumns?: SplitColumn[] };
 
 // A header that is purely numeric (e.g. "10", "3.5") can never be a valid
-// person name — if the contiguous-columns scan below is ever bypassed or a
+// split name — if the contiguous-columns scan below is ever bypassed or a
 // sheet is malformed in some other way, this stops a bare number from being
-// registered as a "person".
+// registered as a "split".
 function isNumericLike(value: string): boolean {
   return /^\d+(\.\d+)?$/.test(value);
 }
@@ -240,7 +240,7 @@ function applyExerciseRow(
   firstCell: string,
 ): void {
   const muscleGroup = cellToString(row[1]);
-  const setsByPerson: Record<string, number> = {};
+  const setsBySplit: Record<string, number> = {};
 
   day.splitColumns?.forEach(({ index, name }: SplitColumn) => {
     const raw = row[index];
@@ -249,15 +249,15 @@ function applyExerciseRow(
       typeof raw === "number" ? raw : Number.parseInt(cellToString(raw));
     if (Number.isNaN(sets)) return;
 
-    setsByPerson[name] = sets;
+    setsBySplit[name] = sets;
     if (sets > 0) {
       day.split[name].exercises.push({ name: firstCell, muscleGroup, sets });
     }
   });
 
-  if (Object.keys(setsByPerson).length > 0) {
+  if (Object.keys(setsBySplit).length > 0) {
     day.exercises ??= [];
-    day.exercises.push({ name: firstCell, muscleGroup, setsByPerson });
+    day.exercises.push({ name: firstCell, muscleGroup, setsBySplit });
   }
 }
 

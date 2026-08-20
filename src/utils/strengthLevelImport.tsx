@@ -109,13 +109,13 @@ export function parseStrengthLevelCSV(csvText: string): StrengthLevelRow[] {
 }
 
 /**
- * Imports Strength Level CSV history for a given person by replaying it
+ * Imports Strength Level CSV history for a given split by replaying it
  * through the existing session APIs. One backdated session is created per
  * distinct date in the file, with one recorded set per row.
  */
 export async function importStrengthLevelCSV(
   csvText: string,
-  person: string,
+  split: string,
 ): Promise<ImportResult> {
   const rows = parseStrengthLevelCSV(csvText)
 
@@ -154,7 +154,7 @@ export async function importStrengthLevelCSV(
     let sessionId: number | string
     try {
       sessionId = await startSession(
-        person,
+        split,
         1,
         "Imported (Strength Level)",
         [],

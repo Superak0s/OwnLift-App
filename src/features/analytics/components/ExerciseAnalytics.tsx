@@ -17,7 +17,6 @@ import {
   RefreshControl,
   Dimensions,
 } from "react-native";
-import * as Device from "expo-device";
 import UniversalCalendar from "@shared/components/UniversalCalendar";
 import ProgressChart from "@shared/components/ProgressChart";
 import ModalSheet from "@shared/components/ModalSheet";
@@ -130,7 +129,6 @@ export default function ExerciseAnalytics({
   const [containerWidth, setContainerWidth] = useState(0);
   const [showWidgetGallery, setShowWidgetGallery] = useState<boolean>(false);
   const [widgetEditMode, setWidgetEditMode] = useState<boolean>(false);
-  const isEmulator = !Device.isDevice;
 
   const {
     widgets,
@@ -1219,14 +1217,6 @@ export default function ExerciseAnalytics({
           </Text>
         </View>
       )}
-      {showAnalyticsChrome && isEmulator && (
-        <TouchableOpacity
-          style={styles.emulatorWidgetButton}
-          onPress={() => setShowWidgetGallery(true)}
-        >
-          <Text style={styles.emulatorWidgetButtonText}>+ Widget</Text>
-        </TouchableOpacity>
-      )}
 
       {/* Header + tab bar now live inside the ScrollView (like TrackingScreen)
           instead of above it, so they scroll away with the content instead
@@ -1374,21 +1364,6 @@ const makeStyles = (colors: ThemeColors) =>
       paddingVertical: 6,
       borderRadius: 14,
       overflow: "hidden",
-    },
-    emulatorWidgetButton: {
-      position: "absolute",
-      top: 8,
-      right: 12,
-      zIndex: 10,
-      backgroundColor: colors.accent,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 14,
-    },
-    emulatorWidgetButtonText: {
-      color: colors.surface,
-      fontSize: 13,
-      fontWeight: "600",
     },
     warningBanner: {
       backgroundColor: "#fff3cd",

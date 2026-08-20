@@ -8,17 +8,6 @@ const makeStyles = (colors: ThemeColors) =>
     container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 10, paddingTop: 60, paddingBottom: 120 },
     header: { marginBottom: 25, alignItems: "center" },
-    addWidgetButton: {
-      backgroundColor: colors.accent,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 14,
-    },
-    addWidgetButtonText: {
-      color: colors.surface,
-      fontSize: 13,
-      fontWeight: "700",
-    },
     widgetsSectionHeader: {
       flexDirection: "row",
       justifyContent: "space-between",

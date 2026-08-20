@@ -1410,26 +1410,17 @@ export default function FriendsScreen(): React.JSX.Element {
             storageKey='friendsScreen_tabConfig'
           />
 
-          <View style={styles.widgetsSectionHeader}>
-            <Text style={styles.widgetsSectionTitle}>
-              {widgetEditMode ? "Editing Widgets" : " "}
-            </Text>
-            {widgetEditMode ? (
+          {widgetEditMode && (
+            <View style={styles.widgetsSectionHeader}>
+              <Text style={styles.widgetsSectionTitle}>Editing Widgets</Text>
               <TouchableOpacity
                 onPress={() => setWidgetEditMode(false)}
                 hitSlop={8}
               >
                 <Text style={styles.widgetsEditToggle}>Done</Text>
               </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.addWidgetButton}
-                onPress={() => setShowWidgetGallery(true)}
-              >
-                <Text style={styles.addWidgetButtonText}>+ Widget</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
 
           {activeBoard.isLoaded && activeBoard.widgets.length === 0 && (
             <View style={styles.emptyState}>
@@ -1936,17 +1927,6 @@ export const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
     },
     loadingText: { marginTop: 12, color: colors.textSecondary, fontSize: 16 },
-    addWidgetButton: {
-      backgroundColor: colors.accent,
-      paddingHorizontal: 14,
-      paddingVertical: 8,
-      borderRadius: 14,
-    },
-    addWidgetButtonText: {
-      color: colors.surface,
-      fontSize: 13,
-      fontWeight: "700",
-    },
     widgetsSectionHeader: {
       flexDirection: "row",
       justifyContent: "space-between",

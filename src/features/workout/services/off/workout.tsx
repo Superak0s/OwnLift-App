@@ -23,7 +23,7 @@ export { computeWorkoutAnalytics };
 // ─── Storage shape ──────────────────────────────────────────────────────────
 
 interface StoredSession extends Omit<WorkoutSession, "end_time"> {
-  person: string;
+  split: string;
   end_time: string | null;
   set_timings: SetTiming[];
   is_demo: boolean;
@@ -33,7 +33,7 @@ const SESSIONS_KEY = "@offline:workout:sessions";
 const SESSION_ID_COUNTER = "@offline:workout:session_id_counter";
 const SET_ID_COUNTER = "@offline:workout:set_id_counter";
 
-const DEFAULT_PERSON = "local";
+const DEFAULT_SPLIT = "local";
 
 const sessionsStore = createRecordStore<StoredSession>(
   "workout_sessions",
@@ -116,7 +116,7 @@ export const workoutApi = {
   // ── Session management ────────────────────────────────────────────────────
 
   startSession: async (
-    person: string | null,
+    split: string | null,
     dayNumber: number,
     dayTitle?: string,
     _muscleGroups?: string[],
@@ -126,7 +126,7 @@ export const workoutApi = {
     const id = await nextId(SESSION_ID_COUNTER);
     const session: StoredSession = {
       id,
-      person: person ?? DEFAULT_PERSON,
+      split: split ?? DEFAULT_SPLIT,
       day_number: dayNumber,
       day_title: dayTitle,
       start_time: startTime ?? nowIso(),
@@ -199,7 +199,7 @@ export const workoutApi = {
   },
 
   renameExercise: async (
-    person: string,
+    split: string,
     oldName: string,
     updates: { newName?: string; muscleGroup?: string | null },
   ): Promise<RenameExerciseResult> => {
@@ -208,7 +208,7 @@ export const workoutApi = {
     const changedSessions: StoredSession[] = [];
 
     for (const session of sessions) {
-      if (session.person !== person) continue;
+      if (session.split !== split) continue;
       let changed = false;
       for (const timing of session.set_timings) {
         if (timing.exercise_name !== oldName) continue;
@@ -239,13 +239,13 @@ export const workoutApi = {
   },
 
   getAnalytics: async (
-    person: string | null = null,
+    split: string | null = null,
     dayNumber: number | null = null,
   ): Promise<WorkoutAnalytics> => {
     const sessions = await sessionsStore.getAll();
     const filtered = sessions.filter(
       (s) =>
-        (!person || s.person === person) &&
+        (!split || s.split === split) &&
         (!dayNumber || s.day_number === dayNumber),
     );
 
@@ -253,19 +253,19 @@ export const workoutApi = {
   },
 
   getSessionHistory: async (
-    person: string | null = null,
+    split: string | null = null,
     dayNumber: number | null = null,
     limit: number = 10,
     includeTimings: boolean = false,
   ): Promise<WorkoutSession[]> => {
     const sessions =
-      person == null && dayNumber == null
+      split == null && dayNumber == null
         ? await sessionsStore.getRecent(limit)
         : await sessionsStore.getAll();
     const filtered = sessions
       .filter(
         (s) =>
-          (!person || s.person === person) &&
+          (!split || s.split === split) &&
           (!dayNumber || s.day_number === dayNumber),
       )
       .sort(
@@ -293,9 +293,9 @@ export const workoutApi = {
     return { success: true, deletedCount: demoIds.length };
   },
 
-  deleteAllSessionsForPerson: async (person: string): Promise<unknown> => {
+  deleteAllSessionsForSplit: async (split: string): Promise<unknown> => {
     const sessions = await sessionsStore.getAll();
-    const toDelete = sessions.filter((s) => s.person === person).map((s) => s.id);
+    const toDelete = sessions.filter((s) => s.split === split).map((s) => s.id);
     await programApi.deleteProgram();
     await sessionsStore.removeMany(toDelete);
     return { success: true, deletedCount: toDelete.length };

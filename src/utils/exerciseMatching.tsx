@@ -74,9 +74,9 @@ export const getAllExerciseNames = (
   if (!workoutData?.days || !selectedSplit) return [];
 
   workoutData.days.forEach((day) => {
-    const personWorkout = day.split[selectedSplit];
-    if (personWorkout?.exercises) {
-      personWorkout.exercises.forEach((exercise) => {
+    const splitWorkout = day.split[selectedSplit];
+    if (splitWorkout?.exercises) {
+      splitWorkout.exercises.forEach((exercise) => {
         if (exercise.name) {
           exerciseNames.add(exercise.name.trim());
         }
@@ -88,7 +88,7 @@ export const getAllExerciseNames = (
 };
 
 /**
- * Find all unique muscle groups from workout data for a person.
+ * Find all unique muscle groups from workout data for a split.
  */
 export const getAllMuscleGroups = (
   workoutData: WorkoutData | null | undefined,
@@ -98,9 +98,9 @@ export const getAllMuscleGroups = (
 
   if (workoutData?.days && selectedSplit) {
     workoutData.days.forEach((day) => {
-      const personWorkout = day.split?.[selectedSplit];
-      if (personWorkout?.exercises) {
-        personWorkout.exercises.forEach((exercise) => {
+      const splitWorkout = day.split?.[selectedSplit];
+      if (splitWorkout?.exercises) {
+        splitWorkout.exercises.forEach((exercise) => {
           if (exercise.muscleGroup?.trim()) {
             groups.add(exercise.muscleGroup.trim());
           }
@@ -132,8 +132,8 @@ export const getExercisesByMuscleGroup = (
     : null;
 
   workoutData.days.forEach((day) => {
-    const personWorkout = day.split?.[selectedSplit];
-    personWorkout?.exercises?.forEach((exercise) => {
+    const splitWorkout = day.split?.[selectedSplit];
+    splitWorkout?.exercises?.forEach((exercise) => {
       if (!exercise.name || !exercise.muscleGroup) return;
       if (normalizeExerciseName(exercise.muscleGroup) !== normalizedGroup) {
         return;

@@ -15,9 +15,9 @@ export interface Friend {
  * have subtly different shapes:
  *   - `ProgramExercise` is flatter (name, muscleGroup, sets) vs `Exercise`
  *     (name, muscleGroup, sets) — same shape, kept separate because
- *     `ProgramExercise` also allows `setsByPerson` and `muscle_group` aliases.
+ *     `ProgramExercise` also allows `setsBySplit` and `muscle_group` aliases.
  *   - `ProgramDay` allows `people` and `split` with `ProgramExercise[]`
- *     vs `WorkoutDay` which uses `ExerciseWithSets[]` and `PersonWorkout`.
+ *     vs `WorkoutDay` which uses `ExerciseWithSets[]` and `SplitWorkout`.
  *   - `ProgramData` has `name`, `split`, `people` arrays vs `WorkoutData`
  *     which only has `days` + optional `totalDays`, `split`.
  *
@@ -29,6 +29,8 @@ export interface ProgramExercise {
   muscleGroup?: string
   muscle_group?: string
   sets?: number
+  setsBySplit?: Record<string, number | string>
+  /** Pre-rename alias, still present in programs a friend has not re-saved. */
   setsByPerson?: Record<string, number | string>
 }
 

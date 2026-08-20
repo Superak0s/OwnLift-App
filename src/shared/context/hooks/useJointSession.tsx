@@ -11,7 +11,7 @@ const SYNC_PULSE_MS = 1_500
 export interface JointExerciseEntry {
   name: string
   sets: number
-  person?: string
+  split?: string
 }
 
 export interface JointSessionParticipant {
@@ -158,7 +158,7 @@ export const useJointSession = ({
 
   const myExerciseNamesKey = useMemo(() => {
     return currentDayExercises
-      .filter((e) => e.person === selectedSplit)
+      .filter((e) => e.split === selectedSplit)
       .map((e) => e.name)
       .filter(Boolean)
       .join("||")
@@ -166,12 +166,12 @@ export const useJointSession = ({
 
   const partnerExerciseList = useMemo(() => {
     if (!isInJointSession || !currentDayExercises.length) return []
-    const otherPersonExercises = currentDayExercises.filter(
-      (e) => e.person && e.person !== selectedSplit,
+    const otherSplitExercises = currentDayExercises.filter(
+      (e) => e.split && e.split !== selectedSplit,
     )
     const source =
-      otherPersonExercises.length > 0
-        ? otherPersonExercises
+      otherSplitExercises.length > 0
+        ? otherSplitExercises
         : currentDayExercises
     const seen = new Set<string>()
     const result: Array<{ name: string; sets: number }> = []
@@ -399,7 +399,7 @@ export const useJointSession = ({
       if (!id) return
 
       const exerciseNames = currentDayExercises
-        .filter((e) => e.person === selectedSplit)
+        .filter((e) => e.split === selectedSplit)
         .map((e) => ({ name: e.name, sets: e.sets }))
         .filter((e) => e.name)
 
@@ -438,7 +438,7 @@ export const useJointSession = ({
     if (!id) return
 
     const exerciseNames = currentDayExercises
-      .filter((e) => e.person === selectedSplit)
+      .filter((e) => e.split === selectedSplit)
       .map((e) => ({ name: e.name, sets: e.sets }))
       .filter((e) => e.name)
 

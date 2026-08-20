@@ -824,18 +824,14 @@ export default function TrackingScreen() {
             </View>
           )}
 
-          <View style={styles.widgetsSectionHeader}>
-            <Text style={styles.widgetsSectionTitle}>{widgetEditMode ? "Editing Widgets" : " "}</Text>
-            {widgetEditMode ? (
+          {widgetEditMode && (
+            <View style={styles.widgetsSectionHeader}>
+              <Text style={styles.widgetsSectionTitle}>Editing Widgets</Text>
               <TouchableOpacity onPress={() => setWidgetEditMode(false)} hitSlop={8}>
                 <Text style={styles.widgetsEditToggle}>Done</Text>
               </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.addWidgetButton} onPress={() => setShowWidgetGallery(true)}>
-                <Text style={styles.addWidgetButtonText}>+ Widget</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
 
           {activeBoard.isLoaded && activeBoard.widgets.length === 0 && (
             <View style={styles.emptyState}>

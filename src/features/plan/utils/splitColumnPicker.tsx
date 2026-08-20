@@ -52,8 +52,8 @@ export default function SplitColumnPicker({
           <Text style={styles.title}>Which columns are splits?</Text>
           <Text style={styles.subtitle}>
             {fileName
-              ? `We found these columns in "${fileName}". Pick the ones that represent a person/split — anything else (notes, summaries, etc.) will be left out.`
-              : "Pick the columns that represent a person/split. Anything else (notes, summaries, etc.) will be left out."}
+              ? `We found these columns in "${fileName}". Pick the ones that represent a split — anything else (notes, summaries, etc.) will be left out.`
+              : "Pick the columns that represent a split. Anything else (notes, summaries, etc.) will be left out."}
           </Text>
 
           {candidates.length === 0 ? (
