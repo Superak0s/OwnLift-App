@@ -41,23 +41,6 @@ const sessionsStore = createRecordStore<StoredSession>(
   (s) => s.start_time ?? "",
 );
 
-// Bundled into a single object (rather than 10 positional params) both to
-// satisfy SonarQube's max-parameter rule (typescript:S107) and because a
-// named-field object is far harder to call with arguments in the wrong
-// order than a long positional list.
-export interface RecordSetParams {
-  sessionId: number | string;
-  exerciseName: string;
-  setIndex: number;
-  startTime: string;
-  endTime: string;
-  weight: number;
-  reps: number;
-  note?: string;
-  isWarmup?: boolean;
-  muscleGroup?: string | null;
-}
-
 /** Used by endSession/getSessionHistory — matches on/workout's WorkoutSession return type. */
 function toPublicSession(
   s: StoredSession,

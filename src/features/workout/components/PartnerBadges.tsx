@@ -1,4 +1,3 @@
-import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { useTheme } from "@shared/context/ThemeContext";
 import type { ThemeColors } from "@shared/context/ThemeContext";
